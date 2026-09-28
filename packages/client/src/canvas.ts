@@ -44,6 +44,7 @@ export class WorldRenderer {
   private chatBubbles: ChatBubble[] = [];
   private nodes: WorldNodeDisplay[] = [];
   private stitchedWorld: StitchedWorld | null = null;
+  private terrainCanvas: HTMLCanvasElement | null = null;
 
   // Smooth visual positions (sub-tile interpolation)
   private visualX = 25;
@@ -76,6 +77,37 @@ export class WorldRenderer {
 
   public setStitchedWorld(world: StitchedWorld) {
     this.stitchedWorld = world;
+    this.bakeTerrain();
+  }
+
+  private bakeTerrain() {
+    if (!this.stitchedWorld) return;
+    const offscreen = document.createElement('canvas');
+    offscreen.width = this.stitchedWorld.widthTiles * TILE_SIZE;
+    offscreen.height = this.stitchedWorld.heightTiles * TILE_SIZE;
+    const octx = offscreen.getContext('2d')!;
+    octx.imageSmoothingEnabled = false;
+
+    // Base background under-layer
+    octx.fillStyle = '#1e3020';
+    octx.fillRect(0, 0, offscreen.width, offscreen.height);
+
+    for (const t of this.stitchedWorld.tiles) {
+      // Render with 0.5px overlap to eliminate sub-pixel rasterization gaps/seams
+      octx.drawImage(
+        this.stitchedWorld.tilesetImage,
+        t.srcX,
+        t.srcY,
+        t.width,
+        t.height,
+        t.tileX * TILE_SIZE,
+        t.tileY * TILE_SIZE,
+        TILE_SIZE + 0.5,
+        TILE_SIZE + 0.5
+      );
+    }
+
+    this.terrainCanvas = offscreen;
   }
 
   public setLocalPlayer(player: PlayerData) {
@@ -114,8 +146,11 @@ export class WorldRenderer {
       const clickScreenX = e.clientX - rect.left;
       const clickScreenY = e.clientY - rect.top;
 
-      const worldX = (clickScreenX + this.cameraX) / TILE_SIZE;
-      const worldY = (clickScreenY + this.cameraY) / TILE_SIZE;
+      const camX = Math.round(this.cameraX);
+      const camY = Math.round(this.cameraY);
+
+      const worldX = (clickScreenX + camX) / TILE_SIZE;
+      const worldY = (clickScreenY + camY) / TILE_SIZE;
       const tileX = Math.floor(worldX);
       const tileY = Math.floor(worldY);
 
@@ -163,8 +198,11 @@ export class WorldRenderer {
       this.cameraY += (targetCamY - this.cameraY) * 0.15;
     }
 
+    const camX = Math.round(this.cameraX);
+    const camY = Math.round(this.cameraY);
+
     ctx.save();
-    ctx.translate(-this.cameraX, -this.cameraY);
+    ctx.translate(-camX, -camY);
 
     // 1. Draw World Terrain (Stitched LDtk Tiles)
     this.drawTerrain();
@@ -220,41 +258,19 @@ export class WorldRenderer {
 
   private drawTerrain() {
     const { ctx } = this;
+
+    // If pre-baked terrain canvas is available, render it directly as a seamless surface!
+    if (this.terrainCanvas) {
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(this.terrainCanvas, 0, 0);
+      return;
+    }
+
     const startTileX = Math.max(0, Math.floor(this.cameraX / TILE_SIZE) - 1);
     const endTileX = Math.min(60, Math.ceil((this.cameraX + this.canvas.width) / TILE_SIZE) + 1);
     const startTileY = Math.max(0, Math.floor(this.cameraY / TILE_SIZE) - 1);
     const endTileY = Math.min(60, Math.ceil((this.cameraY + this.canvas.height) / TILE_SIZE) + 1);
 
-    // If LDtk Stitched World is available, render actual pixel art tiles!
-    if (this.stitchedWorld) {
-      ctx.imageSmoothingEnabled = false; // Crisp pixel art
-
-      // Background under-layer
-      ctx.fillStyle = '#1e3020';
-      ctx.fillRect(
-        0,
-        0,
-        this.stitchedWorld.widthTiles * TILE_SIZE,
-        this.stitchedWorld.heightTiles * TILE_SIZE
-      );
-
-      for (const t of this.stitchedWorld.tiles) {
-        if (t.tileX >= startTileX && t.tileX <= endTileX && t.tileY >= startTileY && t.tileY <= endTileY) {
-          ctx.drawImage(
-            this.stitchedWorld.tilesetImage,
-            t.srcX,
-            t.srcY,
-            t.width,
-            t.height,
-            t.tileX * TILE_SIZE,
-            t.tileY * TILE_SIZE,
-            TILE_SIZE,
-            TILE_SIZE
-          );
-        }
-      }
-      return;
-    }
 
     // Fallback colored grid if tileset loading
     for (let x = startTileX; x <= endTileX; x++) {

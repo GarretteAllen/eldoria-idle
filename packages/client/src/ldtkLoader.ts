@@ -62,11 +62,18 @@ export async function loadLdtkWorld(): Promise<StitchedWorld | null> {
       }
     }
 
-    console.log(`🗺️ Stitched LDtk World loaded! Total tiles: ${tiles.length} from 4 levels.`);
+    let maxTileX = 32;
+    let maxTileY = 48;
+    for (const t of tiles) {
+      if (t.tileX + 1 > maxTileX) maxTileX = t.tileX + 1;
+      if (t.tileY + 1 > maxTileY) maxTileY = t.tileY + 1;
+    }
+
+    console.log(`🗺️ Stitched LDtk World loaded! Total tiles: ${tiles.length} (${maxTileX}x${maxTileY}) from 4 levels.`);
 
     return {
-      widthTiles: 32,
-      heightTiles: 48,
+      widthTiles: maxTileX,
+      heightTiles: maxTileY,
       tileSize: 32, // Display size (scaled 2x from 16 for clean pixel art)
       tiles,
       tilesetImage: tilesetImg,
