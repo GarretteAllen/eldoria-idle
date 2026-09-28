@@ -79,8 +79,8 @@ class StorageManager {
       id,
       username,
       isGuest: true,
-      x: 25, // Hearth Town Square
-      y: 25,
+      x: 8, // Hearth Town Square (Level_0)
+      y: 24,
       gold: 50,
       gems: 0,
       anima: 0,

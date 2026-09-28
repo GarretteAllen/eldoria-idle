@@ -529,9 +529,9 @@ export class GameEngine {
         player.currentTask = null;
         player.bankingState = 'walking_to_bank';
 
-        const path = findPath(player.x, player.y, 25, 23);
-        player.targetX = 25;
-        player.targetY = 23;
+        const path = findPath(player.x, player.y, 8, 22);
+        player.targetX = 8;
+        player.targetY = 22;
         player.path = path;
         player.isMoving = path.length > 0;
 

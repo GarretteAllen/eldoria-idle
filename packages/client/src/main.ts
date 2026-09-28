@@ -1,5 +1,6 @@
 import { PlayerData, RECIPES, ITEMS, EquipSlot, getXpToNextLevel } from '@eldoria/shared';
 import { WorldRenderer, WorldNodeDisplay } from './canvas.js';
+import { loadLdtkWorld } from './ldtkLoader.js';
 
 class EldoriaClient {
   private ws: WebSocket | null = null;
@@ -21,6 +22,13 @@ class EldoriaClient {
 
   private async fetchNodesAndInit() {
     try {
+      // 1. Load stitched LDtk world & tileset
+      const world = await loadLdtkWorld();
+      if (world) {
+        this.renderer.setStitchedWorld(world);
+      }
+
+      // 2. Fetch interactive nodes
       const res = await fetch('/api/world/nodes');
       const data = await res.json();
       this.renderer.setNodes(data.nodes);

@@ -1,4 +1,5 @@
 import { PlayerData } from '@eldoria/shared';
+import { StitchedWorld } from './ldtkLoader.js';
 
 export interface RemotePlayer {
   id: string;
@@ -42,6 +43,7 @@ export class WorldRenderer {
   private otherPlayers = new Map<string, RemotePlayer>();
   private chatBubbles: ChatBubble[] = [];
   private nodes: WorldNodeDisplay[] = [];
+  private stitchedWorld: StitchedWorld | null = null;
 
   // Smooth visual positions (sub-tile interpolation)
   private visualX = 25;
@@ -70,6 +72,10 @@ export class WorldRenderer {
 
   public setNodes(nodes: WorldNodeDisplay[]) {
     this.nodes = nodes;
+  }
+
+  public setStitchedWorld(world: StitchedWorld) {
+    this.stitchedWorld = world;
   }
 
   public setLocalPlayer(player: PlayerData) {
@@ -160,7 +166,7 @@ export class WorldRenderer {
     ctx.save();
     ctx.translate(-this.cameraX, -this.cameraY);
 
-    // 1. Draw World Terrain
+    // 1. Draw World Terrain (Stitched LDtk Tiles)
     this.drawTerrain();
 
     // 2. Draw Planned Path Trail
@@ -214,37 +220,51 @@ export class WorldRenderer {
 
   private drawTerrain() {
     const { ctx } = this;
-    const startTileX = Math.max(0, Math.floor(this.cameraX / TILE_SIZE));
-    const endTileX = Math.min(60, Math.ceil((this.cameraX + this.canvas.width) / TILE_SIZE));
-    const startTileY = Math.max(0, Math.floor(this.cameraY / TILE_SIZE));
-    const endTileY = Math.min(60, Math.ceil((this.cameraY + this.canvas.height) / TILE_SIZE));
+    const startTileX = Math.max(0, Math.floor(this.cameraX / TILE_SIZE) - 1);
+    const endTileX = Math.min(60, Math.ceil((this.cameraX + this.canvas.width) / TILE_SIZE) + 1);
+    const startTileY = Math.max(0, Math.floor(this.cameraY / TILE_SIZE) - 1);
+    const endTileY = Math.min(60, Math.ceil((this.cameraY + this.canvas.height) / TILE_SIZE) + 1);
 
+    // If LDtk Stitched World is available, render actual pixel art tiles!
+    if (this.stitchedWorld) {
+      ctx.imageSmoothingEnabled = false; // Crisp pixel art
+
+      // Background under-layer
+      ctx.fillStyle = '#1e3020';
+      ctx.fillRect(
+        0,
+        0,
+        this.stitchedWorld.widthTiles * TILE_SIZE,
+        this.stitchedWorld.heightTiles * TILE_SIZE
+      );
+
+      for (const t of this.stitchedWorld.tiles) {
+        if (t.tileX >= startTileX && t.tileX <= endTileX && t.tileY >= startTileY && t.tileY <= endTileY) {
+          ctx.drawImage(
+            this.stitchedWorld.tilesetImage,
+            t.srcX,
+            t.srcY,
+            t.width,
+            t.height,
+            t.tileX * TILE_SIZE,
+            t.tileY * TILE_SIZE,
+            TILE_SIZE,
+            TILE_SIZE
+          );
+        }
+      }
+      return;
+    }
+
+    // Fallback colored grid if tileset loading
     for (let x = startTileX; x <= endTileX; x++) {
       for (let y = startTileY; y <= endTileY; y++) {
-        // Town Square Cobblestone
         if (x >= 20 && x <= 30 && y >= 20 && y <= 30) {
           ctx.fillStyle = (x + y) % 2 === 0 ? '#2c3038' : '#323740';
-        }
-        // Quarry (West)
-        else if (x <= 18 && y <= 20) {
-          ctx.fillStyle = (x + y) % 2 === 0 ? '#38322c' : '#403932';
-        }
-        // Timberland (North-East)
-        else if (x >= 32 && y <= 22) {
-          ctx.fillStyle = (x + y) % 2 === 0 ? '#1e3020' : '#223825';
-        }
-        // Shore / Water (East)
-        else if (x >= 46 && y >= 30) {
-          ctx.fillStyle = (x + y) % 2 === 0 ? '#1a2a40' : '#1e324d';
-        }
-        // Default Plain
-        else {
+        } else {
           ctx.fillStyle = (x + y) % 2 === 0 ? '#1b211c' : '#202621';
         }
-
         ctx.fillRect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
-        ctx.strokeStyle = 'rgba(0, 0, 0, 0.15)';
-        ctx.strokeRect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
       }
     }
   }
