@@ -1,26 +1,26 @@
 import { Rarity } from './constants.js';
 
 export type GatheringSkill =
-  | 'earth_delving'
-  | 'timbercraft'
-  | 'tidecalling'
-  | 'flora_husbandry'
-  | 'shadowcraft';
+  | 'mining'
+  | 'woodcutting'
+  | 'fishing'
+  | 'herbalism'
+  | 'thieving';
 
 export type CraftingSkill =
-  | 'rune_forging'
-  | 'hearthcraft'
-  | 'bow_fletching'
-  | 'apothecary'
-  | 'artificing'
-  | 'soul_attunement';
+  | 'smithing'
+  | 'cooking'
+  | 'fletching'
+  | 'alchemy'
+  | 'crafting'
+  | 'attunement';
 
 export type CombatSkill =
-  | 'bladesmanship'
-  | 'marksmanship'
-  | 'arcane_sorcery'
-  | 'bulwark'
-  | 'vitality';
+  | 'melee'
+  | 'ranged'
+  | 'magic'
+  | 'defence'
+  | 'hitpoints';
 
 export type SkillType = GatheringSkill | CraftingSkill | CombatSkill;
 

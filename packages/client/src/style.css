@@ -248,10 +248,10 @@ body, html {
   display: block;
 }
 
-/* SKILLS LIST */
+/* SKILLS LIST (2-Column Grid) */
 .skills-grid {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
   gap: 8px;
 }
 .skill-card {
@@ -285,6 +285,47 @@ body, html {
 .skill-fill {
   height: 100%;
   background: var(--accent-gold);
+}
+.skill-subtext {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  margin-top: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* JOB LADDER MODAL */
+.job-item {
+  background: var(--bg-panel-light);
+  border: 1px solid var(--border-muted);
+  border-radius: 6px;
+  padding: 10px 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  transition: border-color 0.15s;
+}
+.job-item.locked {
+  opacity: 0.6;
+}
+.job-item:hover:not(.locked) {
+  border-color: var(--accent-gold);
+}
+.job-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.job-title {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-main);
+}
+.job-meta {
+  font-size: 0.75rem;
+  color: var(--text-muted);
 }
 
 /* INVENTORY GRID */

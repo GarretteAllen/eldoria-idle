@@ -268,7 +268,7 @@ export class GameEngine {
     const def = ITEMS[slot.itemId];
     if (!def || def.category !== 'cooked_food' || !def.baseStats?.healing) return;
 
-    const maxHp = (player.skills.vitality?.level || 10);
+    const maxHp = (player.skills.hitpoints?.level || 10);
     player.currentHp = Math.min(maxHp, player.currentHp + def.baseStats.healing);
 
     slot.quantity--;
@@ -588,9 +588,9 @@ export class GameEngine {
     this.activeBoss.currentHp = Math.max(0, this.activeBoss.currentHp - hit);
     this.activeBoss.damageDealt[player.id] = (this.activeBoss.damageDealt[player.id] || 0) + hit;
 
-    // Grant bladesmanship / combat xp
-    player.skills.bladesmanship.xp += hit;
-    player.skills.bladesmanship.level = getLevelFromXp(player.skills.bladesmanship.xp);
+    // Grant melee / combat xp
+    player.skills.melee.xp += hit;
+    player.skills.melee.level = getLevelFromXp(player.skills.melee.xp);
 
     this.send(ws, {
       type: 'BOSS_HIT',

@@ -4,7 +4,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
   // === EARTH DELVING (Mining) ===
   mine_pyrite: {
     id: 'mine_pyrite',
-    skill: 'earth_delving',
+    skill: 'mining',
     levelReq: 1,
     name: 'Pyrite Vein',
     inputs: [],
@@ -15,7 +15,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
   },
   mine_galena: {
     id: 'mine_galena',
-    skill: 'earth_delving',
+    skill: 'mining',
     levelReq: 1,
     name: 'Galena Vein',
     inputs: [],
@@ -26,7 +26,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
   },
   mine_cold_iron: {
     id: 'mine_cold_iron',
-    skill: 'earth_delving',
+    skill: 'mining',
     levelReq: 15,
     name: 'Cold Iron Seam',
     inputs: [],
@@ -38,7 +38,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
   },
   mine_quicksilver: {
     id: 'mine_quicksilver',
-    skill: 'earth_delving',
+    skill: 'mining',
     levelReq: 30,
     name: 'Quicksilver Lode',
     inputs: [],
@@ -50,7 +50,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
   },
   mine_nethercoal: {
     id: 'mine_nethercoal',
-    skill: 'earth_delving',
+    skill: 'mining',
     levelReq: 40,
     name: 'Nethercoal Fissure',
     inputs: [],
@@ -62,7 +62,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
   },
   mine_solar_aurum: {
     id: 'mine_solar_aurum',
-    skill: 'earth_delving',
+    skill: 'mining',
     levelReq: 55,
     name: 'Solar Aurum Lode',
     inputs: [],
@@ -74,7 +74,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
   },
   mine_azurite: {
     id: 'mine_azurite',
-    skill: 'earth_delving',
+    skill: 'mining',
     levelReq: 65,
     name: 'Azurite Vein',
     inputs: [],
@@ -86,7 +86,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
   },
   mine_starfall: {
     id: 'mine_starfall',
-    skill: 'earth_delving',
+    skill: 'mining',
     levelReq: 85,
     name: 'Starfall Core',
     inputs: [],
@@ -100,7 +100,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
   // === TIMBERCRAFT (Woodcutting) ===
   chop_ashwood: {
     id: 'chop_ashwood',
-    skill: 'timbercraft',
+    skill: 'woodcutting',
     levelReq: 1,
     name: 'Ashwood Copse',
     inputs: [],
@@ -112,7 +112,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
   },
   chop_oak: {
     id: 'chop_oak',
-    skill: 'timbercraft',
+    skill: 'woodcutting',
     levelReq: 15,
     name: 'Whispering Oak',
     inputs: [],
@@ -124,7 +124,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
   },
   chop_willow: {
     id: 'chop_willow',
-    skill: 'timbercraft',
+    skill: 'woodcutting',
     levelReq: 30,
     name: 'Weeping Willow',
     inputs: [],
@@ -136,7 +136,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
   },
   chop_bloodwood: {
     id: 'chop_bloodwood',
-    skill: 'timbercraft',
+    skill: 'woodcutting',
     levelReq: 45,
     name: 'Bloodwood Grove',
     inputs: [],
@@ -148,7 +148,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
   },
   chop_ghostwood: {
     id: 'chop_ghostwood',
-    skill: 'timbercraft',
+    skill: 'woodcutting',
     levelReq: 60,
     name: 'Ghostwood Spirit Yew',
     inputs: [],
@@ -160,7 +160,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
   },
   chop_starlight: {
     id: 'chop_starlight',
-    skill: 'timbercraft',
+    skill: 'woodcutting',
     levelReq: 75,
     name: 'Aetherial Starlight Tree',
     inputs: [],
@@ -174,7 +174,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
   // === TIDECALLING (Fishing) ===
   fish_prawn: {
     id: 'fish_prawn',
-    skill: 'tidecalling',
+    skill: 'fishing',
     levelReq: 1,
     name: 'Shallow Shallows (Tide Prawn)',
     inputs: [],
@@ -185,7 +185,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
   },
   fish_minnow: {
     id: 'fish_minnow',
-    skill: 'tidecalling',
+    skill: 'fishing',
     levelReq: 5,
     name: 'Glimmer Pool (Minnow)',
     inputs: [],
@@ -196,7 +196,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
   },
   fish_trout: {
     id: 'fish_trout',
-    skill: 'tidecalling',
+    skill: 'fishing',
     levelReq: 20,
     name: 'River Eddy (Silverspeck Trout)',
     inputs: [],
@@ -207,7 +207,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
   },
   fish_salmon: {
     id: 'fish_salmon',
-    skill: 'tidecalling',
+    skill: 'fishing',
     levelReq: 30,
     name: 'Sunlit Rapid (Solar Crest)',
     inputs: [],
@@ -218,7 +218,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
   },
   fish_albacore: {
     id: 'fish_albacore',
-    skill: 'tidecalling',
+    skill: 'fishing',
     levelReq: 45,
     name: 'Outer Bay (Deepsea Albacore)',
     inputs: [],
@@ -229,7 +229,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
   },
   fish_ironpincer: {
     id: 'fish_ironpincer',
-    skill: 'tidecalling',
+    skill: 'fishing',
     levelReq: 60,
     name: 'Sunken Reef (Ironpincer)',
     inputs: [],
@@ -240,7 +240,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
   },
   fish_bladefin: {
     id: 'fish_bladefin',
-    skill: 'tidecalling',
+    skill: 'fishing',
     levelReq: 75,
     name: 'The Trench (Bladefin Sovereign)',
     inputs: [],
@@ -251,7 +251,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
   },
   fish_mawshark: {
     id: 'fish_mawshark',
-    skill: 'tidecalling',
+    skill: 'fishing',
     levelReq: 90,
     name: 'Abyssal Depth (Mawshark)',
     inputs: [],
@@ -264,7 +264,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
   // === RUNE-FORGING (Ingots) ===
   smelt_dawnburn_ingot: {
     id: 'smelt_dawnburn_ingot',
-    skill: 'rune_forging',
+    skill: 'smithing',
     levelReq: 1,
     name: 'Forge Dawnburn Ingot',
     inputs: [
@@ -278,7 +278,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
   },
   smelt_cold_iron_ingot: {
     id: 'smelt_cold_iron_ingot',
-    skill: 'rune_forging',
+    skill: 'smithing',
     levelReq: 15,
     name: 'Forge Cold Iron Ingot',
     inputs: [{ itemId: 'cold_iron_ore', quantity: 1 }],
@@ -289,7 +289,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
   },
   smelt_steel_ingot: {
     id: 'smelt_steel_ingot',
-    skill: 'rune_forging',
+    skill: 'smithing',
     levelReq: 30,
     name: 'Forge Steel Ingot',
     inputs: [
@@ -303,7 +303,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
   },
   smelt_azurite_ingot: {
     id: 'smelt_azurite_ingot',
-    skill: 'rune_forging',
+    skill: 'smithing',
     levelReq: 60,
     name: 'Forge Azurite Ingot',
     inputs: [
@@ -317,7 +317,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
   },
   smelt_astralite_ingot: {
     id: 'smelt_astralite_ingot',
-    skill: 'rune_forging',
+    skill: 'smithing',
     levelReq: 85,
     name: 'Forge Astralite Ingot',
     inputs: [
@@ -333,7 +333,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
   // === HEARTHCRAFT (Cooking) ===
   cook_prawn: {
     id: 'cook_prawn',
-    skill: 'hearthcraft',
+    skill: 'cooking',
     levelReq: 1,
     name: 'Smoke Tide Prawn',
     inputs: [{ itemId: 'tide_prawn', quantity: 1 }],
@@ -345,7 +345,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
   },
   cook_minnow: {
     id: 'cook_minnow',
-    skill: 'hearthcraft',
+    skill: 'cooking',
     levelReq: 5,
     name: 'Crisp Glimmer Minnow',
     inputs: [{ itemId: 'glimmer_minnow', quantity: 1 }],
@@ -357,7 +357,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
   },
   cook_trout: {
     id: 'cook_trout',
-    skill: 'hearthcraft',
+    skill: 'cooking',
     levelReq: 20,
     name: 'Sear Silverspeck Trout',
     inputs: [{ itemId: 'silverspeck_trout', quantity: 1 }],
@@ -369,7 +369,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
   },
   cook_salmon: {
     id: 'cook_salmon',
-    skill: 'hearthcraft',
+    skill: 'cooking',
     levelReq: 30,
     name: 'Poach Solar Crest Salmon',
     inputs: [{ itemId: 'solar_crest_salmon', quantity: 1 }],
@@ -381,7 +381,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
   },
   cook_albacore: {
     id: 'cook_albacore',
-    skill: 'hearthcraft',
+    skill: 'cooking',
     levelReq: 45,
     name: 'Glaze Deepsea Albacore',
     inputs: [{ itemId: 'deepsea_albacore', quantity: 1 }],
@@ -393,7 +393,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
   },
   cook_ironpincer: {
     id: 'cook_ironpincer',
-    skill: 'hearthcraft',
+    skill: 'cooking',
     levelReq: 60,
     name: 'Broil Ironpincer Crustacean',
     inputs: [{ itemId: 'ironpincer_crustacean', quantity: 1 }],
@@ -405,7 +405,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
   },
   cook_bladefin: {
     id: 'cook_bladefin',
-    skill: 'hearthcraft',
+    skill: 'cooking',
     levelReq: 75,
     name: 'Roast Bladefin Sovereign',
     inputs: [{ itemId: 'bladefin_sovereign', quantity: 1 }],
@@ -417,7 +417,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
   },
   cook_mawshark: {
     id: 'cook_mawshark',
-    skill: 'hearthcraft',
+    skill: 'cooking',
     levelReq: 90,
     name: 'Prepare Feast of the Maw',
     inputs: [{ itemId: 'abyssal_mawshark', quantity: 1 }],

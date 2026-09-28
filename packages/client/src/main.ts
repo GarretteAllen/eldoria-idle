@@ -1,6 +1,25 @@
-import { PlayerData, RECIPES, ITEMS, EquipSlot, getXpToNextLevel } from '@eldoria/shared';
+import { PlayerData, RECIPES, ITEMS, EquipSlot, SkillType, getXpToNextLevel } from '@eldoria/shared';
 import { WorldRenderer, WorldNodeDisplay } from './canvas.js';
 import { loadLdtkWorld } from './ldtkLoader.js';
+
+const SKILL_ICONS: Record<string, string> = {
+  mining: '⛏️',
+  woodcutting: '🪓',
+  fishing: '🎣',
+  herbalism: '🌿',
+  thieving: '🧤',
+  smithing: '🔨',
+  cooking: '🍲',
+  fletching: '🏹',
+  alchemy: '⚗️',
+  crafting: '💎',
+  attunement: '✨',
+  melee: '⚔️',
+  ranged: '🎯',
+  magic: '🔮',
+  defence: '🛡️',
+  hitpoints: '❤️',
+};
 
 class EldoriaClient {
   private ws: WebSocket | null = null;
@@ -8,6 +27,7 @@ class EldoriaClient {
   private renderer: WorldRenderer;
   private activeChannel = 'All';
   private selectedInventoryIndex: number | null = null;
+  private worldNodes: WorldNodeDisplay[] = [];
 
   constructor() {
     const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
@@ -31,7 +51,8 @@ class EldoriaClient {
       // 2. Fetch interactive nodes
       const res = await fetch('/api/world/nodes');
       const data = await res.json();
-      this.renderer.setNodes(data.nodes);
+      this.worldNodes = data.nodes || [];
+      this.renderer.setNodes(this.worldNodes);
 
       this.renderer.onGroundClick = (tileX, tileY) => {
         this.sendWs({ type: 'MOVE_TO', x: tileX, y: tileY });
@@ -165,7 +186,7 @@ class EldoriaClient {
 
     // Player status chip
     document.getElementById('player-display-name')!.textContent = this.player.username;
-    const maxHp = (this.player.skills.vitality?.level || 10);
+    const maxHp = (this.player.skills.hitpoints?.level || 10);
     document.getElementById('hp-text')!.textContent = `${this.player.currentHp} / ${maxHp} HP`;
     const hpPct = Math.min(100, Math.floor((this.player.currentHp / maxHp) * 100));
     document.getElementById('hp-bar-fill')!.style.width = `${hpPct}%`;
@@ -203,10 +224,16 @@ class EldoriaClient {
       progressFillEl.style.width = '100%';
 
       let icon = '⛏️';
-      if (this.player.currentTask.skill === 'timbercraft') icon = '🪓';
-      else if (this.player.currentTask.skill === 'tidecalling') icon = '🎣';
-      else if (this.player.currentTask.skill === 'rune_forging') icon = '🔨';
-      else if (this.player.currentTask.skill === 'hearthcraft') icon = '🍲';
+      if (this.player.currentTask.skill === 'woodcutting') icon = '🪓';
+      else if (this.player.currentTask.skill === 'fishing') icon = '🎣';
+      else if (this.player.currentTask.skill === 'smithing') icon = '🔨';
+      else if (this.player.currentTask.skill === 'cooking') icon = '🍲';
+      else if (this.player.currentTask.skill === 'herbalism') icon = '🌿';
+      else if (this.player.currentTask.skill === 'fletching') icon = '🏹';
+      else if (this.player.currentTask.skill === 'alchemy') icon = '⚗️';
+      else if (this.player.currentTask.skill === 'crafting') icon = '💎';
+      else if (this.player.currentTask.skill === 'attunement') icon = '✨';
+      else if (this.player.currentTask.skill === 'thieving') icon = '🧤';
       taskIconEl.textContent = icon;
     } else {
       taskNameEl.textContent = 'Idle — Choose a trade';
@@ -232,20 +259,129 @@ class EldoriaClient {
 
       const card = document.createElement('div');
       card.className = 'skill-card';
-      card.title = `Progress: ${current.toLocaleString()} / ${needed.toLocaleString()} XP to next level`;
+      card.title = `Click to view ${skillKey} trade ladder\nProgress: ${current.toLocaleString()} / ${needed.toLocaleString()} XP`;
+      const icon = SKILL_ICONS[skillKey] || '⭐';
       const cleanName = skillKey.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
+
+      // Calculate next unlock
+      let nextGoalText = '';
+      const futureRecipes = Object.values(RECIPES)
+        .filter(r => r.skill === skillKey && r.levelReq > record.level)
+        .sort((a, b) => a.levelReq - b.levelReq);
+
+      if (futureRecipes.length > 0) {
+        nextGoalText = `Next: ${futureRecipes[0].name} (Lv ${futureRecipes[0].levelReq})`;
+      } else if (['melee', 'ranged', 'magic', 'defence', 'hitpoints'].includes(skillKey)) {
+        nextGoalText = `XP: ${current.toLocaleString()}/${needed.toLocaleString()}`;
+      } else {
+        nextGoalText = `All trades unlocked`;
+      }
 
       card.innerHTML = `
         <div class="skill-header">
-          <span>${cleanName}</span>
+          <span>${icon} ${cleanName}</span>
           <span class="skill-level-badge">Lv ${record.level}</span>
         </div>
         <div class="skill-bar">
           <div class="skill-fill" style="width: ${percent}%;"></div>
         </div>
+        <div class="skill-subtext">${nextGoalText}</div>
       `;
+
+      card.addEventListener('click', () => {
+        this.openSkillLadderModal(skillKey);
+      });
+
       container.appendChild(card);
     }
+  }
+
+  private openSkillLadderModal(skillKey: string) {
+    if (!this.player) return;
+    const modal = document.getElementById('skill-ladder-modal')!;
+    const title = document.getElementById('skill-ladder-title')!;
+    const summary = document.getElementById('skill-ladder-summary')!;
+    const jobsList = document.getElementById('skill-ladder-jobs')!;
+
+    const record = this.player.skills[skillKey as SkillType] || { level: 1, xp: 0 };
+    const icon = SKILL_ICONS[skillKey] || '⭐';
+    const cleanName = skillKey.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
+
+    title.textContent = `${icon} ${cleanName} Trades`;
+    const { current, needed } = getXpToNextLevel(record.level, record.xp);
+    summary.innerHTML = `Current Rank: <b style="color:var(--accent-gold);">Level ${record.level}</b> • Progress: <b>${current.toLocaleString()}</b> / ${needed.toLocaleString()} XP to Lv ${record.level + 1}`;
+
+    jobsList.innerHTML = '';
+
+    const skillRecipes = Object.values(RECIPES)
+      .filter(r => r.skill === skillKey)
+      .sort((a, b) => a.levelReq - b.levelReq);
+
+    if (skillRecipes.length === 0) {
+      jobsList.innerHTML = `
+        <div style="padding: 16px; text-align: center; color: var(--text-muted); background: #14171d; border-radius: 6px;">
+          <p style="margin-bottom: 8px;">Train <b>${cleanName}</b> through combat against beasts in the wilds and world bosses!</p>
+          <button id="btn-hunt-monsters" class="btn-primary" style="margin: 8px auto 0;">Walk to Hunting Grounds</button>
+        </div>
+      `;
+      const huntBtn = document.getElementById('btn-hunt-monsters');
+      if (huntBtn) {
+        huntBtn.onclick = () => {
+          modal.classList.add('hidden');
+          this.sendWs({ type: 'MOVE_TO', x: 4, y: 44 });
+        };
+      }
+      modal.classList.remove('hidden');
+      return;
+    }
+
+    for (const recipe of skillRecipes) {
+      const isUnlocked = record.level >= recipe.levelReq;
+      const matchingNode = this.worldNodes.find(n => n.recipeId === recipe.id);
+      const div = document.createElement('div');
+      div.className = `job-item ${isUnlocked ? '' : 'locked'}`;
+
+      let inputsText = '';
+      if (recipe.inputs && recipe.inputs.length > 0) {
+        inputsText = ' • Requires: ' + recipe.inputs.map(i => `${i.quantity}x ${ITEMS[i.itemId]?.name || i.itemId}`).join(', ');
+      }
+
+      div.innerHTML = `
+        <div class="job-info">
+          <div class="job-title">
+            ${recipe.name}
+            ${isUnlocked ? '<span style="color:#48bb78; font-size:0.75rem; margin-left:6px;">✓ Unlocked</span>' : `<span style="color:var(--accent-red); font-size:0.75rem; margin-left:6px;">🔒 Req Lv ${recipe.levelReq}</span>`}
+          </div>
+          <div class="job-meta">
+            ⏱️ ${recipe.intervalSeconds}s • +${recipe.xp} XP${inputsText}
+          </div>
+        </div>
+        <div>
+          <button class="btn-sm" ${isUnlocked ? '' : 'disabled'}>
+            ${matchingNode ? 'Travel & Work' : 'Begin Work'}
+          </button>
+        </div>
+      `;
+
+      const btn = div.querySelector('button')!;
+      if (isUnlocked) {
+        btn.onclick = () => {
+          modal.classList.add('hidden');
+          const targetX = matchingNode ? matchingNode.x : this.player!.x;
+          const targetY = matchingNode ? matchingNode.y : this.player!.y;
+          this.sendWs({
+            type: 'START_TASK',
+            recipeId: recipe.id,
+            targetX,
+            targetY,
+          });
+        };
+      }
+
+      jobsList.appendChild(div);
+    }
+
+    modal.classList.remove('hidden');
   }
 
   private renderInventoryTab() {
@@ -387,6 +523,10 @@ class EldoriaClient {
 
     document.getElementById('hearth-close-btn')!.onclick = () => {
       document.getElementById('hearth-modal')!.classList.add('hidden');
+    };
+
+    document.getElementById('skill-ladder-close-btn')!.onclick = () => {
+      document.getElementById('skill-ladder-modal')!.classList.add('hidden');
     };
 
     document.getElementById('btn-deposit-all')!.onclick = () => {
