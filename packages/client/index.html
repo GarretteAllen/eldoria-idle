@@ -4,181 +4,271 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <title>Eldoria Idle - Shared World Fantasy MMO</title>
+    <!-- Fantasy Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/src/style.css" />
   </head>
   <body>
     <div id="app">
-      <!-- TOP STATUS BAR -->
+      <!-- 1. FULLSCREEN CANVAS VIEWPORT -->
+      <canvas id="game-canvas"></canvas>
+
+      <!-- 2. TOP STATUS BAR -->
       <header id="top-bar">
-        <div class="brand">
-          <span class="logo-icon">⚔️</span>
-          <span class="logo-text">Eldoria Idle</span>
+        <div class="top-left">
+          <div class="brand">
+            <span class="brand-crest" id="brand-crest"></span>
+            <span class="brand-name">ELDORIA IDLE</span>
+          </div>
+
+          <div class="stat-badge total-badge" title="Total Skill Level">
+            <span class="badge-label">TOTAL</span>
+            <span id="val-total-level" class="badge-val">16</span>
+          </div>
+
+          <div class="hp-bar-pill" title="Hitpoints">
+            <span class="hp-icon" id="hp-icon"></span>
+            <div class="hp-bar-track">
+              <div id="hp-bar-fill"></div>
+              <span id="hp-text">10 / 10</span>
+            </div>
+          </div>
+
+          <div id="speed-chip" class="speed-pill" title="Movement Speed">
+            <span class="speed-icon" id="speed-icon"></span>
+            <span id="speed-text">1.00 t/t</span>
+          </div>
+
+          <div class="currencies">
+            <div class="currency-chip gold" title="Gold">
+              <span class="curr-icon" id="icon-gold"></span>
+              <span id="val-gold">50</span>
+            </div>
+            <div class="currency-chip gems" title="Gems">
+              <span class="curr-icon" id="icon-gems"></span>
+              <span id="val-gems">0</span>
+            </div>
+            <div class="currency-chip anima" title="Anima">
+              <span class="curr-icon" id="icon-anima"></span>
+              <span id="val-anima">0</span>
+            </div>
+          </div>
+
+          <div id="boss-pill" class="boss-banner hidden">
+            <span class="boss-icon" id="boss-icon"></span>
+            <span id="boss-info">Astral Primordial (45:00)</span>
+            <button id="boss-join-btn">Raid</button>
+          </div>
         </div>
 
-        <div id="boss-pill" class="pill hidden">
-          <span class="boss-icon">🐉</span>
-          <span id="boss-info">Earth Titan (38:12)</span>
-          <button id="boss-join-btn">Raid</button>
-        </div>
-
-        <div class="currencies">
-          <span class="currency gold" title="Gold">🪙 <b id="val-gold">0</b></span>
-          <span class="currency gems" title="Gems">💎 <b id="val-gems">0</b></span>
-          <span class="currency anima" title="Anima">🔮 <b id="val-anima">0</b></span>
-        </div>
-
-        <div class="online-indicator" title="Connected Players">
-          <span class="dot"></span> <span id="online-count">1</span> online
+        <div class="top-right">
+          <div class="online-indicator">
+            <span class="dot"></span>
+            <span id="online-count">1</span> online
+          </div>
         </div>
       </header>
 
-      <!-- ACTIVE TASK BAR -->
-      <div id="task-bar">
-        <div class="task-info">
-          <span id="task-icon">⛏️</span>
-          <div class="task-labels">
-            <div id="task-name" class="task-title">Idle — Choose a trade</div>
-            <div id="task-subtext" class="task-sub">Click an ore, tree, or shoreline on the map</div>
-          </div>
+      <!-- 3. TOP-LEFT TASKS CARD (Parchment Float) -->
+      <div id="tasks-card" class="parchment-card">
+        <div class="tasks-card-header">
+          <span class="tasks-title">Tasks</span>
         </div>
-        <div class="task-progress-container">
-          <div id="task-progress-fill"></div>
-        </div>
-        <div class="task-controls">
-          <button id="task-stop-btn" class="btn-sm">Stop</button>
-        </div>
-      </div>
-
-      <!-- MAIN LAYOUT -->
-      <main id="main-content">
-        <!-- 2D Canvas Viewport -->
-        <section id="viewport-container">
-          <canvas id="game-canvas"></canvas>
-          <div id="hud-overlay">
-            <div id="player-status-chip">
-              <span id="player-display-name">Wanderer</span>
-              <div class="hp-bar-container">
-                <div id="hp-bar-fill"></div>
-                <span id="hp-text">10 / 10 HP</span>
-              </div>
-              <div id="speed-chip" class="speed-badge">⚡ 1.00 tiles/tick</div>
+        <div class="tasks-card-body">
+          <div id="task-running-row" class="task-running-row">
+            <div class="task-leading">
+              <span id="task-icon" class="task-icon-wrap"></span>
+              <span id="task-name" class="task-name">Idle — Choose a trade</span>
             </div>
-            <div id="map-hint">Click ground to walk • Mount equips automatically on move</div>
-          </div>
-        </section>
-
-        <!-- DOCK / TABS -->
-        <section id="dock-panel">
-          <nav class="dock-tabs">
-            <button class="tab-btn active" data-tab="skills">📜 Skills</button>
-            <button class="tab-btn" data-tab="inventory">🎒 Bag</button>
-            <button class="tab-btn" data-tab="equipment">🛡️ Gear</button>
-            <button class="tab-btn" data-tab="chat">💬 Chat</button>
-          </nav>
-
-          <div class="dock-body">
-            <!-- TAB: SKILLS -->
-            <div id="tab-skills" class="tab-content active">
-              <div id="skills-list" class="skills-grid"></div>
-            </div>
-
-            <!-- TAB: INVENTORY -->
-            <div id="tab-inventory" class="tab-content">
-              <div class="inventory-header">
-                <span>Inventory (<span id="inv-count">0</span>/28)</span>
-                <button id="btn-open-hearth" class="btn-sm">Hearth Reliquary</button>
-              </div>
-              <div id="inventory-grid" class="item-grid"></div>
-            </div>
-
-            <!-- TAB: EQUIPMENT -->
-            <div id="tab-equipment" class="tab-content">
-              <div class="combat-stats-box">
-                <div><b>Accuracy:</b> <span id="stat-acc">10</span></div>
-                <div><b>Strength:</b> <span id="stat-str">5</span></div>
-                <div><b>Defence:</b> <span id="stat-def">0</span></div>
-                <div><b>Max Hit:</b> <span id="stat-maxhit">2</span></div>
-              </div>
-              <div id="equipment-slots" class="equipment-grid"></div>
-            </div>
-
-            <!-- TAB: CHAT -->
-            <div id="tab-chat" class="tab-content">
-              <div class="chat-channels">
-                <button class="chan-btn active" data-chan="All">All</button>
-                <button class="chan-btn" data-chan="Trade">Trade</button>
-                <button class="chan-btn" data-chan="Raid">Raid</button>
-              </div>
-              <div id="chat-messages" class="chat-log"></div>
-              <form id="chat-form" class="chat-input-bar">
-                <input type="text" id="chat-input" placeholder="Speak to the world..." maxlength="150" />
-                <button type="submit" class="btn-sm">Send</button>
-              </form>
+            <div class="task-trailing">
+              <span id="task-status-tag" class="status-tag idle">IDLE</span>
+              <button id="task-home-btn" class="icon-btn-micro" title="Walk to Hearth Storage"></button>
+              <button id="task-stop-btn" class="icon-btn-micro stop" title="Stop Task"></button>
             </div>
           </div>
-        </section>
-      </main>
-
-      <!-- MODAL: HEARTH STORAGE -->
-      <div id="hearth-modal" class="modal-backdrop hidden">
-        <div class="modal-box">
-          <div class="modal-header">
-            <h3>🏦 The Hearth Reliquary</h3>
-            <button id="hearth-close-btn" class="close-btn">&times;</button>
+          <div class="task-bar-container">
+            <div id="task-progress-fill" class="task-progress-fill"></div>
           </div>
-          <div class="modal-content">
-            <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
-              <span>Vault Capacity: <b id="storage-count">0</b>/75 slots</span>
-              <button id="btn-deposit-all" class="btn-sm">Deposit All Spoils</button>
-            </div>
-            <div id="storage-grid" class="item-grid" style="max-height: 280px; overflow-y:auto;"></div>
-          </div>
+          <div id="task-subtext" class="task-subtext">Click an ore, tree, or shoreline on the map</div>
         </div>
       </div>
 
-      <!-- MODAL: ITEM ACTION -->
+      <!-- 4. BOTTOM-LEFT CHAT CARD (Dark Oak Float) -->
+      <div id="chat-card" class="dark-oak-card">
+        <div class="chat-card-header">
+          <div class="chat-header-title">
+            <span>Chat</span>
+            <span class="chat-online-sub">· <span id="chat-online-count">1</span> online</span>
+          </div>
+          <button id="chat-collapse-btn" class="icon-btn-micro">▾</button>
+        </div>
+        <div class="chat-channels">
+          <button class="chan-btn active" data-chan="All">All</button>
+          <button class="chan-btn" data-chan="Trade">Trade</button>
+          <button class="chan-btn" data-chan="Raid">Raid</button>
+          <button class="chan-btn" data-chan="System">System</button>
+        </div>
+        <div id="chat-messages" class="chat-messages"></div>
+        <form id="chat-form" class="chat-input-row">
+          <input type="text" id="chat-input" placeholder="Say something..." maxlength="150" />
+          <button type="submit" class="btn-chat-send">Send</button>
+        </form>
+      </div>
+
+      <!-- 5. FAR-RIGHT VERTICAL ICON TOOLBAR -->
+      <aside id="right-toolbar">
+        <button class="tool-btn active" data-panel="skills" id="tool-btn-skills" title="Skills"></button>
+        <button class="tool-btn" data-panel="inventory" id="tool-btn-inventory" title="Bag (Inventory)"></button>
+        <button class="tool-btn" data-panel="equipment" id="tool-btn-equipment" title="Gear (Equipment)"></button>
+        <button class="tool-btn" data-panel="storage" id="tool-btn-storage" title="Hearth Reliquary"></button>
+        <button class="tool-btn" data-panel="chat" id="tool-btn-chat" title="Toggle Chat"></button>
+      </aside>
+
+      <!-- 6. SKILLS DRAWER (Slide-out Right Panel) -->
+      <div id="skills-drawer" class="drawer-panel dark-oak-panel open">
+        <div class="drawer-header">
+          <h3>Skills</h3>
+          <span class="total-rank-label">total <span id="skills-total-badge">16</span></span>
+        </div>
+        <div class="drawer-body">
+          <div class="skill-category">
+            <div class="category-heading">Gathering</div>
+            <div id="skills-gathering" class="skills-grid-2col"></div>
+          </div>
+          <div class="skill-category">
+            <div class="category-heading">Crafting</div>
+            <div id="skills-crafting" class="skills-grid-2col"></div>
+          </div>
+          <div class="skill-category">
+            <div class="category-heading">Combat</div>
+            <div id="skills-combat" class="skills-grid-2col"></div>
+          </div>
+        </div>
+        <div class="drawer-footer">
+          <button id="btn-quick-fight" class="btn-oak"><span class="btn-icon" id="btn-fight-icon"></span> Fight</button>
+          <button id="btn-quick-home" class="btn-oak"><span class="btn-icon" id="btn-home-icon"></span> Go home</button>
+        </div>
+      </div>
+
+      <!-- 7. SKILL JOB POPUP (Floating Window Left of Skills Drawer) -->
+      <div id="skill-job-popup" class="dark-oak-panel popup-panel hidden">
+        <div class="popup-header">
+          <div class="popup-header-title">
+            <span id="popup-selected-title">Mining 1</span>
+            <span id="popup-status-pill" class="status-pill">idle</span>
+          </div>
+          <button id="popup-close-btn" class="icon-btn-micro"></button>
+        </div>
+        <div class="popup-subtext" id="popup-header-sub">Mining 1 · 0.00% to 2</div>
+
+        <div class="popup-body">
+          <div class="popup-flavor-block">
+            <h4 id="popup-skill-heading">Mining</h4>
+            <p id="popup-skill-desc">Excavate raw veins of pyrite, galena, cold iron and starfall from the ancient quarry.</p>
+            <div id="popup-next-goal" class="next-goal-row">
+              <span id="popup-next-text">Next: Cold Iron Seam at 15</span>
+            </div>
+          </div>
+
+          <div class="popup-category-heading" id="popup-jobs-heading">Jobs & Veins</div>
+          <div id="popup-jobs-list" class="popup-jobs-list"></div>
+        </div>
+
+        <div class="popup-footer">
+          <div class="how-many-row">
+            <span class="how-many-label">HOW MANY</span>
+            <div class="how-many-pills">
+              <button class="qty-pill active" data-qty="Infinity">∞</button>
+              <button class="qty-pill" data-qty="1">1</button>
+              <button class="qty-pill" data-qty="10">10</button>
+              <button class="qty-pill" data-qty="28">28</button>
+              <button class="qty-pill" data-qty="100">100</button>
+            </div>
+          </div>
+          <div class="popup-note">Draws the materials from storage, works, and stores what it made.</div>
+          <div class="popup-action-row">
+            <button id="btn-job-start" class="btn-start">Start</button>
+            <button id="btn-job-stop" class="btn-stop">Stop</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 8. INVENTORY DRAWER (Bag) -->
+      <div id="inventory-drawer" class="drawer-panel dark-oak-panel hidden">
+        <div class="drawer-header">
+          <h3>Inventory</h3>
+          <span class="total-rank-label"><span id="inv-count">0</span>/28</span>
+        </div>
+        <div class="drawer-body">
+          <div id="inventory-grid" class="rpg-item-grid"></div>
+        </div>
+        <div class="drawer-footer">
+          <button id="btn-drawer-open-hearth" class="btn-oak">Open Hearth Vault</button>
+        </div>
+      </div>
+
+      <!-- 9. EQUIPMENT DRAWER (Gear) -->
+      <div id="equipment-drawer" class="drawer-panel dark-oak-panel hidden">
+        <div class="drawer-header">
+          <h3>Equipment</h3>
+        </div>
+        <div class="drawer-body">
+          <div class="combat-stats-panel">
+            <div><b>Accuracy:</b> <span id="stat-acc">10</span></div>
+            <div><b>Strength:</b> <span id="stat-str">5</span></div>
+            <div><b>Defence:</b> <span id="stat-def">0</span></div>
+            <div><b>Max Hit:</b> <span id="stat-maxhit">2</span></div>
+          </div>
+          <div id="equipment-slots" class="equipment-list"></div>
+        </div>
+      </div>
+
+      <!-- 10. HEARTH STORAGE DRAWER (Vault) -->
+      <div id="storage-drawer" class="drawer-panel dark-oak-panel hidden">
+        <div class="drawer-header">
+          <h3>The Hearth Reliquary</h3>
+          <span class="total-rank-label"><span id="storage-count">0</span>/75</span>
+        </div>
+        <div class="drawer-body">
+          <div style="margin-bottom: 10px;">
+            <button id="btn-deposit-all" class="btn-start" style="width: 100%;">Deposit All Spoils</button>
+          </div>
+          <div id="storage-grid" class="rpg-item-grid"></div>
+        </div>
+      </div>
+
+      <!-- ITEM ACTION MODAL -->
       <div id="item-action-modal" class="modal-backdrop hidden">
-        <div class="modal-box" style="width: 300px;">
+        <div class="modal-box dark-oak-panel" style="width: 300px;">
           <div class="modal-header">
             <h4 id="action-item-name">Item Name</h4>
-            <button id="item-action-close-btn" class="close-btn">&times;</button>
+            <button id="item-action-close-btn" class="icon-btn-micro"></button>
           </div>
           <div class="modal-content" style="display:flex; flex-direction:column; gap:8px;">
-            <button id="btn-action-equip" class="btn-primary">Equip</button>
-            <button id="btn-action-eat" class="btn-primary" style="background:#48bb78; color:white;">Eat Provision</button>
-            <button id="btn-action-deposit" class="btn-sm">Deposit to Hearth</button>
+            <button id="btn-action-equip" class="btn-start">Equip</button>
+            <button id="btn-action-eat" class="btn-start" style="background: #276749;">Eat Provision</button>
+            <button id="btn-action-deposit" class="btn-oak">Deposit to Hearth</button>
           </div>
         </div>
       </div>
 
-      <!-- MODAL: SKILL JOBS / TRADES LADDER -->
-      <div id="skill-ladder-modal" class="modal-backdrop hidden">
-        <div class="modal-box" style="width: 440px; max-width: 95vw;">
-          <div class="modal-header">
-            <h3 id="skill-ladder-title">Mining Trades</h3>
-            <button id="skill-ladder-close-btn" class="close-btn">&times;</button>
-          </div>
-          <div class="modal-content">
-            <div id="skill-ladder-summary" style="margin-bottom: 12px; font-size: 0.85rem; color: var(--text-muted);"></div>
-            <div id="skill-ladder-jobs" style="display: flex; flex-direction: column; gap: 8px; max-height: 380px; overflow-y: auto;"></div>
-          </div>
-        </div>
-      </div>
-
-      <!-- MODAL: WHILE YOU WERE AWAY -->
+      <!-- WHILE IN SLUMBER MODAL (Away Progression) -->
       <div id="away-modal" class="modal-backdrop hidden">
-        <div class="modal-box">
+        <div class="modal-box dark-oak-panel" style="width: 440px;">
           <div class="modal-header">
-            <h3>🌙 While In Slumber</h3>
-            <button id="away-close-btn" class="close-btn">&times;</button>
+            <h3>While In Slumber</h3>
+            <button id="away-close-btn" class="icon-btn-micro"></button>
           </div>
           <div id="away-body" class="modal-content"></div>
-          <div class="modal-footer">
-            <button id="away-ok-btn" class="btn-primary">Awaken & Collect</button>
+          <div class="modal-footer" style="margin-top: 14px;">
+            <button id="away-ok-btn" class="btn-start" style="width: 100%;">Awaken & Collect</button>
           </div>
         </div>
       </div>
     </div>
+
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

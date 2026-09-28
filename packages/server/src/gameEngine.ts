@@ -26,7 +26,7 @@ interface ConnectedSession {
   player: PlayerData;
   ticksInTask: number;
   moveAccumulator: number;
-  pendingTask: { recipeId: string; targetX: number; targetY: number } | null;
+  pendingTask: { recipeId: string; targetX: number; targetY: number; quantity?: number } | null;
 }
 
 export class GameEngine {
@@ -117,13 +117,50 @@ export class GameEngine {
       case 'INTERACT_NODE':
       case 'START_TASK':
         if (msg.recipeId && RECIPES[msg.recipeId]) {
+          const rec = RECIPES[msg.recipeId];
           const targetX = typeof msg.targetX === 'number' ? msg.targetX : player.x;
           const targetY = typeof msg.targetY === 'number' ? msg.targetY : player.y;
+
+          // Check if crafting recipe needs inputs not in bag
+          const hasInputsInBag = !rec.inputs || rec.inputs.length === 0 || rec.inputs.every(inp => {
+            const slot = player.inventory.find(s => s.itemId === inp.itemId && s.quantity >= inp.quantity);
+            return !!slot;
+          });
+
+          if (!hasInputsInBag && rec.inputs && rec.inputs.length > 0) {
+            const hasInStorage = rec.inputs.every(inp => {
+              return player.storage.some(s => s.itemId === inp.itemId && s.quantity >= inp.quantity);
+            });
+
+            if (hasInStorage) {
+              // Path to Hearth to withdraw materials first, then go to work!
+              session.pendingTask = { recipeId: msg.recipeId, targetX, targetY, quantity: msg.quantity };
+              const pathToHearth = findPath(player.x, player.y, 8, 22);
+              player.targetX = 8;
+              player.targetY = 22;
+              player.path = pathToHearth;
+              player.isMoving = true;
+              player.bankingState = 'walking_to_bank';
+              this.send(session.ws, {
+                type: 'NOTIFICATION',
+                message: `Drawing materials from Hearth for ${rec.name}... (${pathToHearth.length} steps)`
+              });
+              this.send(session.ws, { type: 'PLAYER_UPDATE', player });
+              this.broadcastWorldState();
+              break;
+            } else {
+              this.send(session.ws, {
+                type: 'NOTIFICATION',
+                message: `Insufficient materials for ${rec.name} in bag or Hearth storage.`
+              });
+              break;
+            }
+          }
 
           // If not adjacent to or on the node, walk there first!
           const dist = Math.hypot(player.x - targetX, player.y - targetY);
           if (dist > 1.5) {
-            session.pendingTask = { recipeId: msg.recipeId, targetX, targetY };
+            session.pendingTask = { recipeId: msg.recipeId, targetX, targetY, quantity: msg.quantity };
             const path = findPath(player.x, player.y, targetX, targetY);
             player.targetX = targetX;
             player.targetY = targetY;
@@ -137,7 +174,6 @@ export class GameEngine {
             this.broadcastWorldState();
           } else {
             // Already there -> start immediately
-            const rec = RECIPES[msg.recipeId];
             player.currentTask = {
               recipeId: msg.recipeId,
               skill: rec.skill,
@@ -465,15 +501,57 @@ export class GameEngine {
     }
 
     player.inventory = keep;
+
+    // Check if target task (pendingTask or bankReturnTask) has inputs: withdraw from storage before heading to work!
+    const targetTask = session.pendingTask || player.bankReturnTask;
+    if (targetTask) {
+      const rec = RECIPES[targetTask.recipeId];
+      if (rec && rec.inputs && rec.inputs.length > 0) {
+        let canWithdraw = true;
+        for (const inp of rec.inputs) {
+          const sSlot = player.storage.find(s => s.itemId === inp.itemId && s.quantity >= inp.quantity);
+          if (!sSlot) {
+            canWithdraw = false;
+            break;
+          }
+        }
+
+        if (canWithdraw) {
+          // Withdraw up to available bag space (batch size)
+          const emptySlots = Math.max(1, 28 - player.inventory.length);
+          const batches = Math.min(20, Math.floor(emptySlots / rec.inputs.length));
+          for (const inp of rec.inputs) {
+            const sSlot = player.storage.find(s => s.itemId === inp.itemId)!;
+            const toTake = Math.min(sSlot.quantity, inp.quantity * Math.max(1, batches));
+            sSlot.quantity -= toTake;
+            const invSlot = player.inventory.find(s => s.itemId === inp.itemId && s.rarity === 'plain');
+            if (invSlot) {
+              invSlot.quantity += toTake;
+            } else {
+              player.inventory.push({ itemId: inp.itemId, quantity: toTake, rarity: 'plain', plus: 0 });
+            }
+          }
+          player.storage = player.storage.filter(s => s.quantity > 0);
+          this.send(ws, {
+            type: 'NOTIFICATION',
+            message: `Withdrew materials from Hearth for ${rec.name}. Riding to work...`
+          });
+        }
+      }
+    }
+
     this.send(ws, {
       type: 'NOTIFICATION',
       message: `Hearth reached! Deposited ${count} resources. Riding back to work...`
     });
 
-    // Walk back to previous task node!
-    if (player.bankReturnTask && typeof player.bankReturnTask.targetNodeX === 'number') {
+    // Walk back to previous task node or pending target node!
+    const destX = player.bankReturnTask ? player.bankReturnTask.targetNodeX : (session.pendingTask ? session.pendingTask.targetX : undefined);
+    const destY = player.bankReturnTask ? player.bankReturnTask.targetNodeY : (session.pendingTask ? session.pendingTask.targetY : undefined);
+
+    if (typeof destX === 'number' && typeof destY === 'number') {
       player.bankingState = 'returning_to_work';
-      const path = findPath(player.x, player.y, player.bankReturnTask.targetNodeX, player.bankReturnTask.targetNodeY!);
+      const path = findPath(player.x, player.y, destX, destY);
       player.path = path;
       player.isMoving = path.length > 0;
     } else {
@@ -490,16 +568,47 @@ export class GameEngine {
 
     // Deduct inputs
     if (recipe.inputs?.length > 0) {
+      let inputsAvailable = true;
       for (const inp of recipe.inputs) {
         const slot = player.inventory.find(s => s.itemId === inp.itemId && s.quantity >= inp.quantity);
         if (!slot) {
-          // Ran out of materials
-          player.currentTask = null;
-          this.send(ws, { type: 'NOTIFICATION', message: 'Materials depleted for task.' });
-          this.send(ws, { type: 'PLAYER_UPDATE', player });
-          return;
+          inputsAvailable = false;
+          break;
         }
       }
+
+      if (!inputsAvailable) {
+        // Check if more materials exist in Hearth storage!
+        const hasInStorage = recipe.inputs.every(inp => {
+          return player.storage.some(s => s.itemId === inp.itemId && s.quantity >= inp.quantity);
+        });
+
+        if (hasInStorage) {
+          // Autonomous run to Hearth to bank products & fetch materials!
+          player.bankReturnTask = { ...player.currentTask! };
+          player.currentTask = null;
+          player.bankingState = 'walking_to_bank';
+          const path = findPath(player.x, player.y, 8, 22);
+          player.targetX = 8;
+          player.targetY = 22;
+          player.path = path;
+          player.isMoving = path.length > 0;
+          this.send(ws, {
+            type: 'NOTIFICATION',
+            message: `Bag materials depleted. Riding to Hearth to bank and restock... (${path.length} tiles)`
+          });
+          this.send(ws, { type: 'PLAYER_UPDATE', player });
+          this.broadcastWorldState();
+          return;
+        }
+
+        // Materials depleted in storage too
+        player.currentTask = null;
+        this.send(ws, { type: 'NOTIFICATION', message: `Materials depleted for ${recipe.name}.` });
+        this.send(ws, { type: 'PLAYER_UPDATE', player });
+        return;
+      }
+
       for (const inp of recipe.inputs) {
         const slot = player.inventory.find(s => s.itemId === inp.itemId)!;
         slot.quantity -= inp.quantity;

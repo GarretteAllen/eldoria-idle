@@ -338,24 +338,34 @@ export class WorldRenderer {
       const py = node.y * TILE_SIZE;
 
       ctx.save();
+
+      // Subtle atmospheric pulsing node indicator
+      const pulse = Math.sin(this.animTick * 0.003 + node.x * 2) * 1.5;
+      ctx.fillStyle = 'rgba(212, 175, 55, 0.2)';
+      ctx.beginPath();
+      ctx.arc(px + TILE_SIZE / 2, py + TILE_SIZE / 2, 7 + pulse, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Stylized nameplate badge
+      const text = node.name;
+      ctx.font = '600 10px Inter, sans-serif';
+      const textWidth = ctx.measureText(text).width;
+      const badgeW = textWidth + 14;
+      const badgeH = 16;
+      const badgeX = px + TILE_SIZE / 2 - badgeW / 2;
+      const badgeY = py - 8;
+
+      ctx.fillStyle = 'rgba(18, 22, 28, 0.85)';
+      ctx.strokeStyle = '#5a4522';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.roundRect(badgeX, badgeY, badgeW, badgeH, 3);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = '#f3e8cb';
       ctx.textAlign = 'center';
-      ctx.font = '18px sans-serif';
-
-      let icon = '📍';
-      if (node.type === 'hearth_counter') icon = '🏦';
-      else if (node.type === 'forge') icon = '🔨';
-      else if (node.type === 'fire') icon = '🔥';
-      else if (node.type === 'mine') icon = '💎';
-      else if (node.type === 'tree') icon = '🌲';
-      else if (node.type === 'water') icon = '🐟';
-      else if (node.type === 'monster') icon = '🐺';
-      else if (node.type === 'boss_arena') icon = '🐉';
-
-      ctx.fillText(icon, px + TILE_SIZE / 2, py + TILE_SIZE / 2 + 6);
-
-      ctx.font = '10px system-ui';
-      ctx.fillStyle = '#f0e6d2';
-      ctx.fillText(node.name, px + TILE_SIZE / 2, py - 4);
+      ctx.fillText(text, px + TILE_SIZE / 2, badgeY + 11);
       ctx.restore();
     }
   }
@@ -434,10 +444,10 @@ export class WorldRenderer {
 
       // Speed Tag
       if (moveSpeed) {
-        ctx.font = '8px system-ui';
+        ctx.font = '8px Inter, sans-serif';
         ctx.fillStyle = '#48bb78';
         ctx.textAlign = 'center';
-        ctx.fillText(`⚡ ${moveSpeed} t/tick`, px, py + 22);
+        ctx.fillText(`${moveSpeed.toFixed(2)} t/tick`, px, py + 22);
       }
     } else {
       // === ON FOOT (Standing or Working) ===
@@ -451,23 +461,39 @@ export class WorldRenderer {
 
       // Working Tool Animation
       if (taskSkill) {
-        const bob = Math.sin(this.animTick * 0.008) * 4;
-        ctx.font = '12px sans-serif';
-        ctx.fillText('⛏️', px + 10, py - 8 + bob);
+        const swingAngle = Math.sin(this.animTick * 0.012) * 0.8;
+        ctx.save();
+        ctx.translate(px + 8, py - 4);
+        ctx.rotate(swingAngle);
+        // Wooden handle
+        ctx.strokeStyle = '#8b5a2b';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.lineTo(8, -8);
+        ctx.stroke();
+        // Iron head
+        ctx.strokeStyle = '#cbd5e1';
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.moveTo(4, -11);
+        ctx.lineTo(11, -4);
+        ctx.stroke();
+        ctx.restore();
       }
     }
 
     // Overhead Banking Status Badge
     if (bankingState === 'walking_to_bank') {
-      ctx.font = 'bold 9px system-ui';
+      ctx.font = 'bold 9px Inter, sans-serif';
       ctx.fillStyle = '#f6ad55';
       ctx.textAlign = 'center';
-      ctx.fillText('🏦 Riding to Hearth...', px, py - 34);
+      ctx.fillText('Riding to Hearth...', px, py - 34);
     } else if (bankingState === 'returning_to_work') {
-      ctx.font = 'bold 9px system-ui';
+      ctx.font = 'bold 9px Inter, sans-serif';
       ctx.fillStyle = '#68d391';
       ctx.textAlign = 'center';
-      ctx.fillText('⛏️ Returning to Work...', px, py - 34);
+      ctx.fillText('Returning to Work...', px, py - 34);
     }
 
     // Name & Title

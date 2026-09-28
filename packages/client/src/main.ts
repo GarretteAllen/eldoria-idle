@@ -1,25 +1,30 @@
 import { PlayerData, RECIPES, ITEMS, EquipSlot, SkillType, getXpToNextLevel } from '@eldoria/shared';
 import { WorldRenderer, WorldNodeDisplay } from './canvas.js';
 import { loadLdtkWorld } from './ldtkLoader.js';
+import { ICONS } from './icons.js';
 
-const SKILL_ICONS: Record<string, string> = {
-  mining: '⛏️',
-  woodcutting: '🪓',
-  fishing: '🎣',
-  herbalism: '🌿',
-  thieving: '🧤',
-  smithing: '🔨',
-  cooking: '🍲',
-  fletching: '🏹',
-  alchemy: '⚗️',
-  crafting: '💎',
-  attunement: '✨',
-  melee: '⚔️',
-  ranged: '🎯',
-  magic: '🔮',
-  defence: '🛡️',
-  hitpoints: '❤️',
+const SKILL_FLAVOR: Record<string, string> = {
+  mining: 'Excavate raw veins of pyrite, galena, cold iron, quicksilver and starfall from the ancient crags.',
+  fishing: 'Cast into shimmering waters, quiet streams and abyssal tides for bountiful catches.',
+  woodcutting: 'Fell whispering oaks, willows, bloodwood and ancient elders across the frontier.',
+  herbalism: 'Tend fertile soil, forage earth roots, ghost moss and mystical blooms for alchemy.',
+  thieving: 'Lurk in shadowy alcoves to pickpocket citizens, merchants and opulent nobles.',
+  smithing: 'Smelt ores into glowing ingots and hammer formidable blades and armaments at the forge.',
+  cooking: 'Prepare nourishing smoked rations, chowders and celestial feasts over the firepit.',
+  fletching: 'Carve seasoned timbers into recurve longbows and fletch deadly feathered arrows.',
+  alchemy: 'Distill enchanted herbs and pure solvents into potent elixirs of haste and warding.',
+  crafting: 'Cut celestial gems, stitch tough hides and fashion rings and talismans of power.',
+  attunement: 'Channel primordial soul anima into cosmic blessings and celestial wards.',
+  melee: 'Master the edge of the blade, crushing blows and close-quarters swordplay.',
+  ranged: 'Pinpoint weak spots from afar with recurve bows and deadly flight.',
+  magic: 'Unleash celestial sorcery, elemental tempests and arcane mysteries.',
+  defence: 'Turn aside savage strikes with heavy bulwarks, deflection and fortified plate.',
+  hitpoints: 'Endure mortal wounds through constitution, vigor and restorative feasts.',
 };
+
+const GATHERING_SKILLS: SkillType[] = ['mining', 'fishing', 'woodcutting', 'herbalism', 'thieving'];
+const CRAFTING_SKILLS: SkillType[] = ['cooking', 'smithing', 'fletching', 'alchemy', 'crafting', 'attunement'];
+const COMBAT_SKILLS: SkillType[] = ['melee', 'ranged', 'magic', 'defence', 'hitpoints'];
 
 class EldoriaClient {
   private ws: WebSocket | null = null;
@@ -29,26 +34,65 @@ class EldoriaClient {
   private selectedInventoryIndex: number | null = null;
   private worldNodes: WorldNodeDisplay[] = [];
 
+  // Deep Vein UI State
+  private activeDrawer: 'skills' | 'inventory' | 'equipment' | 'storage' = 'skills';
+  private selectedSkillKey: SkillType = 'mining';
+  private selectedRecipeId: string = 'mine_pyrite';
+  private selectedJobQuantity: number = Infinity;
+  private isPopupOpen: boolean = false;
+  private chatCollapsed: boolean = false;
+
   constructor() {
     const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
     this.renderer = new WorldRenderer(canvas);
 
-    this.setupTabs();
+    this.initStaticIcons();
+    this.setupRightToolbar();
+    this.setupTasksCard();
     this.setupChat();
-    this.setupTaskControls();
+    this.setupSkillJobPopup();
     this.setupModals();
     this.fetchNodesAndInit();
   }
 
+  private initStaticIcons() {
+    // Top Bar
+    document.getElementById('brand-crest')!.innerHTML = ICONS.logo;
+    document.getElementById('hp-icon')!.innerHTML = ICONS.heart;
+    document.getElementById('speed-icon')!.innerHTML = ICONS.speed;
+    document.getElementById('icon-gold')!.innerHTML = ICONS.gold;
+    document.getElementById('icon-gems')!.innerHTML = ICONS.gems;
+    document.getElementById('icon-anima')!.innerHTML = ICONS.anima;
+    document.getElementById('boss-icon')!.innerHTML = ICONS.boss;
+
+    // Tasks Card
+    document.getElementById('task-home-btn')!.innerHTML = ICONS.hearth;
+    document.getElementById('task-stop-btn')!.innerHTML = ICONS.stop;
+
+    // Toolbar
+    document.getElementById('tool-btn-skills')!.innerHTML = ICONS.skills;
+    document.getElementById('tool-btn-inventory')!.innerHTML = ICONS.inventory;
+    document.getElementById('tool-btn-equipment')!.innerHTML = ICONS.equipment;
+    document.getElementById('tool-btn-storage')!.innerHTML = ICONS.storage;
+    document.getElementById('tool-btn-chat')!.innerHTML = ICONS.chat;
+
+    // Drawer Buttons
+    document.getElementById('btn-fight-icon')!.innerHTML = ICONS.melee;
+    document.getElementById('btn-home-icon')!.innerHTML = ICONS.hearth;
+
+    // Popup Close
+    document.getElementById('popup-close-btn')!.innerHTML = ICONS.close;
+    document.getElementById('item-action-close-btn')!.innerHTML = ICONS.close;
+    document.getElementById('away-close-btn')!.innerHTML = ICONS.close;
+  }
+
   private async fetchNodesAndInit() {
     try {
-      // 1. Load stitched LDtk world & tileset
       const world = await loadLdtkWorld();
       if (world) {
         this.renderer.setStitchedWorld(world);
       }
 
-      // 2. Fetch interactive nodes
       const res = await fetch('/api/world/nodes');
       const data = await res.json();
       this.worldNodes = data.nodes || [];
@@ -60,6 +104,12 @@ class EldoriaClient {
 
       this.renderer.onNodeClick = (node: WorldNodeDisplay) => {
         if (node.recipeId) {
+          const rec = RECIPES[node.recipeId];
+          if (rec) {
+            this.selectedSkillKey = rec.skill;
+            this.selectedRecipeId = rec.id;
+            this.openSkillJobPopup(rec.skill, rec.id);
+          }
           this.sendWs({
             type: 'START_TASK',
             recipeId: node.recipeId,
@@ -68,7 +118,7 @@ class EldoriaClient {
           });
         } else if (node.type === 'hearth_counter') {
           this.sendWs({ type: 'MOVE_TO', x: node.x, y: node.y });
-          this.openHearthModal();
+          this.switchDrawer('storage');
         } else {
           this.sendWs({ type: 'MOVE_TO', x: node.x, y: node.y });
         }
@@ -101,7 +151,7 @@ class EldoriaClient {
     this.ws = new WebSocket(wsUrl);
 
     this.ws.onopen = () => {
-      console.log('Connected to Eldoria Idle server');
+      console.log('⚔️ Connected to Eldoria Idle server');
     };
 
     this.ws.onmessage = (event) => {
@@ -128,7 +178,7 @@ class EldoriaClient {
 
         if (msg.boss) this.updateBossBanner(msg.boss);
         if (msg.onlineCount !== undefined) {
-          document.getElementById('online-count')!.textContent = msg.onlineCount;
+          this.updateOnlineCount(msg.onlineCount);
         }
 
         if (msg.catchUp && msg.catchUp.completedCycles > 0) {
@@ -145,7 +195,7 @@ class EldoriaClient {
       case 'WORLD_STATE':
         this.renderer.updateOtherPlayers(msg.players);
         if (msg.onlineCount !== undefined) {
-          document.getElementById('online-count')!.textContent = msg.onlineCount;
+          this.updateOnlineCount(msg.onlineCount);
         }
         break;
 
@@ -160,10 +210,6 @@ class EldoriaClient {
         this.updateBossBanner(msg.boss);
         break;
 
-      case 'LEVEL_UP':
-        this.showToast(`🎉 Level Up! You achieved level ${msg.newLevel} in ${msg.skill.replace('_', ' ')}!`);
-        break;
-
       case 'NOTIFICATION':
         this.showToast(msg.message);
         break;
@@ -176,225 +222,406 @@ class EldoriaClient {
     }
   }
 
+  private updateOnlineCount(count: number) {
+    const el1 = document.getElementById('online-count');
+    const el2 = document.getElementById('chat-online-count');
+    if (el1) el1.textContent = count.toString();
+    if (el2) el2.textContent = count.toString();
+  }
+
   private updateUI() {
     if (!this.player) return;
 
-    // Currencies
+    // 1. Currencies & Core Stats
     document.getElementById('val-gold')!.textContent = this.player.gold.toLocaleString();
     document.getElementById('val-gems')!.textContent = this.player.gems.toLocaleString();
     document.getElementById('val-anima')!.textContent = this.player.anima.toLocaleString();
 
-    // Player status chip
-    document.getElementById('player-display-name')!.textContent = this.player.username;
+    // Total Level
+    let totalLevel = 0;
+    for (const rec of Object.values(this.player.skills)) {
+      totalLevel += rec.level;
+    }
+    document.getElementById('val-total-level')!.textContent = totalLevel.toString();
+    document.getElementById('skills-total-badge')!.textContent = totalLevel.toString();
+
+    // Hitpoints
     const maxHp = (this.player.skills.hitpoints?.level || 10);
-    document.getElementById('hp-text')!.textContent = `${this.player.currentHp} / ${maxHp} HP`;
+    document.getElementById('hp-text')!.textContent = `${this.player.currentHp} / ${maxHp}`;
     const hpPct = Math.min(100, Math.floor((this.player.currentHp / maxHp) * 100));
     document.getElementById('hp-bar-fill')!.style.width = `${hpPct}%`;
 
-    // Speed stat
+    // Speed
     const speed = this.player.moveSpeedTilesPerTick || 1.0;
     const bonusPct = Math.round((speed - 1.0) * 100);
-    document.getElementById('speed-chip')!.textContent = `⚡ ${speed.toFixed(2)} tiles/tick ${bonusPct > 0 ? '(+' + bonusPct + '%)' : ''}`;
+    document.getElementById('speed-text')!.textContent = `${speed.toFixed(2)} t/t ${bonusPct > 0 ? '(+' + bonusPct + '%)' : ''}`;
 
-    // Active Task Bar
+    // 2. Tasks Card (Top-Left)
+    this.updateTasksCard();
+
+    // 3. Render Active Drawer
+    if (this.activeDrawer === 'skills') this.renderSkillsDrawer();
+    else if (this.activeDrawer === 'inventory') this.renderInventoryDrawer();
+    else if (this.activeDrawer === 'equipment') this.renderEquipmentDrawer();
+    else if (this.activeDrawer === 'storage') this.renderStorageDrawer();
+
+    // If popup is open, update its display
+    if (this.isPopupOpen) {
+      this.updateSkillJobPopup();
+    }
+  }
+
+  private updateTasksCard() {
+    if (!this.player) return;
     const taskNameEl = document.getElementById('task-name')!;
     const taskSubEl = document.getElementById('task-subtext')!;
     const progressFillEl = document.getElementById('task-progress-fill')!;
     const taskIconEl = document.getElementById('task-icon')!;
+    const statusTagEl = document.getElementById('task-status-tag')!;
 
     if (this.player.bankingState === 'walking_to_bank') {
       taskNameEl.textContent = 'Banking — Riding to Hearth';
       taskSubEl.textContent = `Satchel full (28/28) • Depositing spoils...`;
       progressFillEl.style.width = '100%';
-      taskIconEl.textContent = '🐴';
+      taskIconEl.innerHTML = ICONS.mount;
+      statusTagEl.textContent = 'BANKING';
+      statusTagEl.className = 'status-tag';
     } else if (this.player.bankingState === 'returning_to_work') {
       taskNameEl.textContent = 'Returning to Work';
-      taskSubEl.textContent = `Riding back to node at ${this.player.moveSpeedTilesPerTick || 1.0} tiles/tick...`;
+      taskSubEl.textContent = `Riding back to node at ${this.player.moveSpeedTilesPerTick || 1.0} t/t...`;
       progressFillEl.style.width = '100%';
-      taskIconEl.textContent = '🐴';
+      taskIconEl.innerHTML = ICONS.mount;
+      statusTagEl.textContent = 'RIDING';
+      statusTagEl.className = 'status-tag';
     } else if (this.player.isMoving && this.player.path && this.player.path.length > 0) {
       taskNameEl.textContent = 'Traveling on Road';
-      taskSubEl.textContent = `${this.player.path.length} tiles remaining (${(this.player.moveSpeedTilesPerTick || 1.0)} tiles/tick)`;
+      taskSubEl.textContent = `${this.player.path.length} tiles remaining (${(this.player.moveSpeedTilesPerTick || 1.0)} t/t)`;
       progressFillEl.style.width = '100%';
-      taskIconEl.textContent = '🐴';
+      taskIconEl.innerHTML = ICONS.mount;
+      statusTagEl.textContent = 'TRAVEL';
+      statusTagEl.className = 'status-tag';
     } else if (this.player.currentTask) {
       const rec = RECIPES[this.player.currentTask.recipeId];
-      taskNameEl.textContent = rec ? rec.name : this.player.currentTask.skill;
-      taskSubEl.textContent = `Completed: ${this.player.currentTask.completedQuantity} • Walks to Hearth when full`;
-      progressFillEl.style.width = '100%';
+      const skill = this.player.currentTask.skill;
+      taskNameEl.textContent = rec ? `${rec.name}` : skill;
 
-      let icon = '⛏️';
-      if (this.player.currentTask.skill === 'woodcutting') icon = '🪓';
-      else if (this.player.currentTask.skill === 'fishing') icon = '🎣';
-      else if (this.player.currentTask.skill === 'smithing') icon = '🔨';
-      else if (this.player.currentTask.skill === 'cooking') icon = '🍲';
-      else if (this.player.currentTask.skill === 'herbalism') icon = '🌿';
-      else if (this.player.currentTask.skill === 'fletching') icon = '🏹';
-      else if (this.player.currentTask.skill === 'alchemy') icon = '⚗️';
-      else if (this.player.currentTask.skill === 'crafting') icon = '💎';
-      else if (this.player.currentTask.skill === 'attunement') icon = '✨';
-      else if (this.player.currentTask.skill === 'thieving') icon = '🧤';
-      taskIconEl.textContent = icon;
+      const pSkill = this.player.skills[skill as SkillType] || { level: 1, xp: 0 };
+      const { percent } = getXpToNextLevel(pSkill.level, pSkill.xp);
+      taskSubEl.textContent = `${skill.toUpperCase()} ${pSkill.level} · ${percent.toFixed(1)}% to ${pSkill.level + 1} • Auto-banks when full`;
+      progressFillEl.style.width = `${Math.max(5, percent)}%`;
+      taskIconEl.innerHTML = ICONS[skill] || ICONS.skills;
+      statusTagEl.textContent = 'WORKING';
+      statusTagEl.className = 'status-tag';
     } else {
       taskNameEl.textContent = 'Idle — Choose a trade';
-      taskSubEl.textContent = 'Click an ore, tree, or shoreline on the map';
+      taskSubEl.textContent = 'Select a trade from the skills menu or click the map';
       progressFillEl.style.width = '0%';
-      taskIconEl.textContent = '💤';
+      taskIconEl.innerHTML = ICONS.skills;
+      statusTagEl.textContent = 'IDLE';
+      statusTagEl.className = 'status-tag idle';
     }
-
-    // Render Tabs
-    this.renderSkillsTab();
-    this.renderInventoryTab();
-    this.renderEquipmentTab();
   }
 
-  private renderSkillsTab() {
+  private setupTasksCard() {
+    document.getElementById('task-stop-btn')!.onclick = () => {
+      this.sendWs({ type: 'STOP_TASK' });
+    };
+
+    document.getElementById('task-home-btn')!.onclick = () => {
+      this.sendWs({ type: 'MOVE_TO', x: 8, y: 22 });
+      this.switchDrawer('storage');
+    };
+  }
+
+  private setupRightToolbar() {
+    const buttons = document.querySelectorAll('.tool-btn');
+    buttons.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const panel = btn.getAttribute('data-panel');
+        if (panel === 'chat') {
+          this.toggleChat();
+          return;
+        }
+
+        buttons.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+
+        if (panel === 'skills' || panel === 'inventory' || panel === 'equipment' || panel === 'storage') {
+          this.switchDrawer(panel);
+        }
+      });
+    });
+
+    document.getElementById('btn-quick-fight')!.onclick = () => {
+      this.sendWs({ type: 'MOVE_TO', x: 4, y: 44 });
+    };
+
+    document.getElementById('btn-quick-home')!.onclick = () => {
+      this.sendWs({ type: 'MOVE_TO', x: 8, y: 22 });
+      this.switchDrawer('storage');
+    };
+  }
+
+  private switchDrawer(drawer: 'skills' | 'inventory' | 'equipment' | 'storage') {
+    this.activeDrawer = drawer;
+
+    const drawers = ['skills', 'inventory', 'equipment', 'storage'];
+    for (const d of drawers) {
+      const el = document.getElementById(`${d}-drawer`);
+      if (el) {
+        if (d === drawer) el.classList.remove('hidden');
+        else el.classList.add('hidden');
+      }
+    }
+
+    // Update active icon on toolbar
+    const buttons = document.querySelectorAll('.tool-btn');
+    buttons.forEach(b => {
+      if (b.getAttribute('data-panel') === drawer) b.classList.add('active');
+      else if (b.getAttribute('data-panel') !== 'chat') b.classList.remove('active');
+    });
+
+    if (drawer !== 'skills') {
+      this.closeSkillJobPopup();
+    }
+  }
+
+  private renderSkillsDrawer() {
     if (!this.player) return;
-    const container = document.getElementById('skills-list')!;
+
+    this.renderSkillCategoryGroup('skills-gathering', GATHERING_SKILLS);
+    this.renderSkillCategoryGroup('skills-crafting', CRAFTING_SKILLS);
+    this.renderSkillCategoryGroup('skills-combat', COMBAT_SKILLS);
+  }
+
+  private renderSkillCategoryGroup(containerId: string, skills: SkillType[]) {
+    const container = document.getElementById(containerId);
+    if (!container || !this.player) return;
     container.innerHTML = '';
 
-    const skillEntries = Object.entries(this.player.skills);
-    for (const [skillKey, record] of skillEntries) {
-      const { percent, current, needed } = getXpToNextLevel(record.level, record.xp);
+    for (const skillKey of skills) {
+      const record = this.player.skills[skillKey] || { level: 1, xp: 0 };
+      const { percent } = getXpToNextLevel(record.level, record.xp);
 
       const card = document.createElement('div');
-      card.className = 'skill-card';
-      card.title = `Click to view ${skillKey} trade ladder\nProgress: ${current.toLocaleString()} / ${needed.toLocaleString()} XP`;
-      const icon = SKILL_ICONS[skillKey] || '⭐';
+      card.className = `skill-card-compact ${this.selectedSkillKey === skillKey && this.isPopupOpen ? 'active' : ''}`;
+
       const cleanName = skillKey.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
 
-      // Calculate next unlock
-      let nextGoalText = '';
-      const futureRecipes = Object.values(RECIPES)
-        .filter(r => r.skill === skillKey && r.levelReq > record.level)
-        .sort((a, b) => a.levelReq - b.levelReq);
-
-      if (futureRecipes.length > 0) {
-        nextGoalText = `Next: ${futureRecipes[0].name} (Lv ${futureRecipes[0].levelReq})`;
-      } else if (['melee', 'ranged', 'magic', 'defence', 'hitpoints'].includes(skillKey)) {
-        nextGoalText = `XP: ${current.toLocaleString()}/${needed.toLocaleString()}`;
-      } else {
-        nextGoalText = `All trades unlocked`;
-      }
-
       card.innerHTML = `
-        <div class="skill-header">
-          <span>${icon} ${cleanName}</span>
-          <span class="skill-level-badge">Lv ${record.level}</span>
+        <div class="skill-card-row">
+          <div class="skill-card-title-group">
+            <span class="skill-card-icon">${ICONS[skillKey] || ICONS.skills}</span>
+            <span class="skill-card-name">${cleanName}</span>
+          </div>
+          <span class="skill-card-lvl">${record.level}</span>
         </div>
-        <div class="skill-bar">
-          <div class="skill-fill" style="width: ${percent}%;"></div>
+        <div class="skill-groove">
+          <div class="skill-groove-fill" style="width: ${percent}%;"></div>
         </div>
-        <div class="skill-subtext">${nextGoalText}</div>
+        <div class="skill-card-row">
+          <span class="skill-card-pct">${percent.toFixed(2)}%</span>
+        </div>
       `;
 
       card.addEventListener('click', () => {
-        this.openSkillLadderModal(skillKey);
+        this.openSkillJobPopup(skillKey);
       });
 
       container.appendChild(card);
     }
   }
 
-  private openSkillLadderModal(skillKey: string) {
-    if (!this.player) return;
-    const modal = document.getElementById('skill-ladder-modal')!;
-    const title = document.getElementById('skill-ladder-title')!;
-    const summary = document.getElementById('skill-ladder-summary')!;
-    const jobsList = document.getElementById('skill-ladder-jobs')!;
+  private setupSkillJobPopup() {
+    document.getElementById('popup-close-btn')!.onclick = () => {
+      this.closeSkillJobPopup();
+    };
 
-    const record = this.player.skills[skillKey as SkillType] || { level: 1, xp: 0 };
-    const icon = SKILL_ICONS[skillKey] || '⭐';
+    // HOW MANY quantity buttons
+    const qtyPills = document.querySelectorAll('.qty-pill');
+    qtyPills.forEach(pill => {
+      pill.addEventListener('click', () => {
+        qtyPills.forEach(p => p.classList.remove('active'));
+        pill.classList.add('active');
+        const q = pill.getAttribute('data-qty');
+        this.selectedJobQuantity = q === 'Infinity' ? Infinity : parseInt(q || '1', 10);
+      });
+    });
+
+    // Start button
+    document.getElementById('btn-job-start')!.onclick = () => {
+      if (!this.selectedRecipeId) return;
+      const rec = RECIPES[this.selectedRecipeId];
+      if (!rec) return;
+
+      const matchingNode = this.worldNodes.find(n => n.recipeId === rec.id);
+      const targetX = matchingNode ? matchingNode.x : this.player!.x;
+      const targetY = matchingNode ? matchingNode.y : this.player!.y;
+
+      this.sendWs({
+        type: 'START_TASK',
+        recipeId: rec.id,
+        quantity: this.selectedJobQuantity,
+        targetX,
+        targetY,
+      });
+
+      this.closeSkillJobPopup();
+    };
+
+    // Stop button
+    document.getElementById('btn-job-stop')!.onclick = () => {
+      this.sendWs({ type: 'STOP_TASK' });
+    };
+  }
+
+  private openSkillJobPopup(skillKey: SkillType, selectRecipeId?: string) {
+    this.selectedSkillKey = skillKey;
+    this.isPopupOpen = true;
+
+    const popup = document.getElementById('skill-job-popup')!;
+    popup.classList.remove('hidden');
+
+    if (selectRecipeId) {
+      this.selectedRecipeId = selectRecipeId;
+    } else {
+      // Default to first available unlocked recipe
+      const available = Object.values(RECIPES).filter(r => r.skill === skillKey);
+      if (available.length > 0) {
+        this.selectedRecipeId = available[0].id;
+      }
+    }
+
+    this.updateSkillJobPopup();
+    this.renderSkillsDrawer();
+  }
+
+  private closeSkillJobPopup() {
+    this.isPopupOpen = false;
+    document.getElementById('skill-job-popup')!.classList.add('hidden');
+    this.renderSkillsDrawer();
+  }
+
+  private updateSkillJobPopup() {
+    if (!this.player) return;
+    const skillKey = this.selectedSkillKey;
+    const record = this.player.skills[skillKey] || { level: 1, xp: 0 };
+    const { percent } = getXpToNextLevel(record.level, record.xp);
     const cleanName = skillKey.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
 
-    title.textContent = `${icon} ${cleanName} Trades`;
-    const { current, needed } = getXpToNextLevel(record.level, record.xp);
-    summary.innerHTML = `Current Rank: <b style="color:var(--accent-gold);">Level ${record.level}</b> • Progress: <b>${current.toLocaleString()}</b> / ${needed.toLocaleString()} XP to Lv ${record.level + 1}`;
+    // Titles
+    document.getElementById('popup-selected-title')!.textContent = `${cleanName} ${record.level}`;
+    document.getElementById('popup-header-sub')!.textContent = `${cleanName} ${record.level} · ${percent.toFixed(2)}% to ${record.level + 1}`;
+    document.getElementById('popup-skill-heading')!.textContent = `${cleanName} ${record.level}`;
+    document.getElementById('popup-skill-desc')!.textContent = SKILL_FLAVOR[skillKey] || 'Hone your craft across the realm.';
 
-    jobsList.innerHTML = '';
+    // Status pill
+    const statusPill = document.getElementById('popup-status-pill')!;
+    if (this.player.currentTask && this.player.currentTask.skill === skillKey) {
+      statusPill.textContent = 'working';
+      statusPill.className = 'status-pill';
+    } else {
+      statusPill.textContent = 'idle';
+      statusPill.className = 'status-pill';
+      statusPill.style.background = '#4a2f1a';
+    }
+
+    // Next unlock milestone
+    const futureRecipes = Object.values(RECIPES)
+      .filter(r => r.skill === skillKey && r.levelReq > record.level)
+      .sort((a, b) => a.levelReq - b.levelReq);
+
+    const nextGoalEl = document.getElementById('popup-next-text')!;
+    if (futureRecipes.length > 0) {
+      nextGoalEl.textContent = `Next: ${futureRecipes[0].name} at Lv ${futureRecipes[0].levelReq}`;
+    } else {
+      nextGoalEl.textContent = 'All trades unlocked';
+    }
+
+    // Jobs list
+    const jobsContainer = document.getElementById('popup-jobs-list')!;
+    jobsContainer.innerHTML = '';
 
     const skillRecipes = Object.values(RECIPES)
       .filter(r => r.skill === skillKey)
       .sort((a, b) => a.levelReq - b.levelReq);
 
     if (skillRecipes.length === 0) {
-      jobsList.innerHTML = `
-        <div style="padding: 16px; text-align: center; color: var(--text-muted); background: #14171d; border-radius: 6px;">
-          <p style="margin-bottom: 8px;">Train <b>${cleanName}</b> through combat against beasts in the wilds and world bosses!</p>
-          <button id="btn-hunt-monsters" class="btn-primary" style="margin: 8px auto 0;">Walk to Hunting Grounds</button>
+      jobsContainer.innerHTML = `
+        <div style="padding: 16px; text-align: center; color: var(--text-muted); font-size: 0.8rem;">
+          Train <b>${cleanName}</b> through combat in the wilds and world bosses!
+          <div style="margin-top: 10px;">
+            <button class="btn-start" id="btn-popup-hunt">Walk to Monster Grounds</button>
+          </div>
         </div>
       `;
-      const huntBtn = document.getElementById('btn-hunt-monsters');
-      if (huntBtn) {
-        huntBtn.onclick = () => {
-          modal.classList.add('hidden');
-          this.sendWs({ type: 'MOVE_TO', x: 4, y: 44 });
-        };
-      }
-      modal.classList.remove('hidden');
+      document.getElementById('btn-popup-hunt')?.addEventListener('click', () => {
+        this.sendWs({ type: 'MOVE_TO', x: 4, y: 44 });
+        this.closeSkillJobPopup();
+      });
       return;
     }
 
     for (const recipe of skillRecipes) {
       const isUnlocked = record.level >= recipe.levelReq;
-      const matchingNode = this.worldNodes.find(n => n.recipeId === recipe.id);
-      const div = document.createElement('div');
-      div.className = `job-item ${isUnlocked ? '' : 'locked'}`;
+      const isSelected = this.selectedRecipeId === recipe.id;
 
-      let inputsText = '';
+      const itemEl = document.createElement('div');
+      itemEl.className = `popup-job-item ${isSelected ? 'selected' : ''} ${isUnlocked ? '' : 'locked'}`;
+
+      // Calculate how many player can make from bank + inventory
+      let canMakeText = '';
       if (recipe.inputs && recipe.inputs.length > 0) {
-        inputsText = ' • Requires: ' + recipe.inputs.map(i => `${i.quantity}x ${ITEMS[i.itemId]?.name || i.itemId}`).join(', ');
+        let maxBatches = Infinity;
+        for (const inp of recipe.inputs) {
+          const inInv = this.player.inventory.find(s => s.itemId === inp.itemId)?.quantity || 0;
+          const inBank = this.player.storage.find(s => s.itemId === inp.itemId)?.quantity || 0;
+          const totalInp = inInv + inBank;
+          const batches = Math.floor(totalInp / inp.quantity);
+          if (batches < maxBatches) maxBatches = batches;
+        }
+        canMakeText = isUnlocked ? `<div class="job-can-make">${maxBatches} to make</div>` : '';
       }
 
-      div.innerHTML = `
-        <div class="job-info">
-          <div class="job-title">
-            ${recipe.name}
-            ${isUnlocked ? '<span style="color:#48bb78; font-size:0.75rem; margin-left:6px;">✓ Unlocked</span>' : `<span style="color:var(--accent-red); font-size:0.75rem; margin-left:6px;">🔒 Req Lv ${recipe.levelReq}</span>`}
+      let detailsText = '';
+      if (recipe.inputs && recipe.inputs.length > 0) {
+        detailsText = recipe.inputs.map(i => `${i.quantity}x ${ITEMS[i.itemId]?.name || i.itemId}`).join(', ');
+      } else {
+        detailsText = 'Gathers raw materials from world node';
+      }
+
+      itemEl.innerHTML = `
+        <div class="job-item-header">
+          <div class="job-name-wrap">
+            <span>${recipe.name}</span>
           </div>
-          <div class="job-meta">
-            ⏱️ ${recipe.intervalSeconds}s • +${recipe.xp} XP${inputsText}
-          </div>
+          <span class="job-rate">${isUnlocked ? `+${recipe.xp} XP (${recipe.intervalSeconds}s)` : `<span style="color:#e53e3e;">Lv ${recipe.levelReq}</span>`}</span>
         </div>
-        <div>
-          <button class="btn-sm" ${isUnlocked ? '' : 'disabled'}>
-            ${matchingNode ? 'Travel & Work' : 'Begin Work'}
-          </button>
-        </div>
+        <div class="job-details">${detailsText}</div>
+        ${canMakeText}
       `;
 
-      const btn = div.querySelector('button')!;
       if (isUnlocked) {
-        btn.onclick = () => {
-          modal.classList.add('hidden');
-          const targetX = matchingNode ? matchingNode.x : this.player!.x;
-          const targetY = matchingNode ? matchingNode.y : this.player!.y;
-          this.sendWs({
-            type: 'START_TASK',
-            recipeId: recipe.id,
-            targetX,
-            targetY,
-          });
-        };
+        itemEl.addEventListener('click', () => {
+          this.selectedRecipeId = recipe.id;
+          this.updateSkillJobPopup();
+        });
       }
 
-      jobsList.appendChild(div);
+      jobsContainer.appendChild(itemEl);
     }
-
-    modal.classList.remove('hidden');
   }
 
-  private renderInventoryTab() {
+  private renderInventoryDrawer() {
     if (!this.player) return;
     const grid = document.getElementById('inventory-grid')!;
     grid.innerHTML = '';
-
     document.getElementById('inv-count')!.textContent = this.player.inventory.length.toString();
 
     for (let i = 0; i < 28; i++) {
       const slot = this.player.inventory[i];
       const slotEl = document.createElement('div');
-      slotEl.className = 'item-slot';
+      slotEl.className = 'rpg-slot';
 
       if (slot) {
         const def = ITEMS[slot.itemId];
@@ -403,8 +630,8 @@ class EldoriaClient {
           slotEl.classList.add(`rarity-${slot.rarity}`);
         }
         slotEl.innerHTML = `
-          <div>${name}</div>
-          <span class="qty">${slot.quantity > 1 ? slot.quantity : ''}</span>
+          <div class="item-name">${name}</div>
+          <span class="item-qty">${slot.quantity > 1 ? slot.quantity : ''}</span>
         `;
         slotEl.title = `${name} (${slot.rarity || 'plain'})\nClick for actions`;
         slotEl.addEventListener('click', () => {
@@ -415,7 +642,7 @@ class EldoriaClient {
     }
   }
 
-  private renderEquipmentTab() {
+  private renderEquipmentDrawer() {
     if (!this.player) return;
     const container = document.getElementById('equipment-slots')!;
     container.innerHTML = '';
@@ -424,71 +651,118 @@ class EldoriaClient {
     for (const slotKey of slots) {
       const itemSlot = this.player.equipment[slotKey];
       const div = document.createElement('div');
-      div.className = 'item-slot';
+      div.className = 'rpg-slot';
       div.style.aspectRatio = 'auto';
-      div.style.padding = '8px';
-      div.style.marginBottom = '6px';
-      div.style.cursor = itemSlot ? 'pointer' : 'default';
+      div.style.padding = '6px 8px';
+      div.style.flexDirection = 'row';
+      div.style.justifyContent = 'space-between';
 
-      const def = itemSlot ? ITEMS[itemSlot.itemId] : null;
-      div.innerHTML = `
-        <div style="font-weight:600; text-transform:capitalize;">${slotKey}:</div>
-        <div style="color:var(--accent-gold);">${def ? def.name + ' (Click to unequip)' : '— Empty —'}</div>
-      `;
-
+      const label = slotKey.toUpperCase();
       if (itemSlot) {
-        div.addEventListener('click', () => {
+        const def = ITEMS[itemSlot.itemId];
+        div.innerHTML = `
+          <div style="font-weight:700; font-size:0.75rem; color:var(--gold-main);">${label}</div>
+          <div style="font-size:0.75rem; color:var(--text-main);">${def ? def.name : itemSlot.itemId}</div>
+        `;
+        div.onclick = () => {
           this.sendWs({ type: 'UNEQUIP_ITEM', slot: slotKey });
-        });
+        };
+      } else {
+        div.innerHTML = `
+          <div style="font-weight:600; font-size:0.75rem; color:var(--text-dim);">${label}</div>
+          <div style="font-size:0.7rem; color:var(--text-dim);">(empty)</div>
+        `;
       }
-
       container.appendChild(div);
     }
   }
 
-  private openItemActionModal(index: number) {
+  private renderStorageDrawer() {
     if (!this.player) return;
-    const slot = this.player.inventory[index];
-    if (!slot) return;
-    const def = ITEMS[slot.itemId];
-    if (!def) return;
-
-    this.selectedInventoryIndex = index;
-    const modal = document.getElementById('item-action-modal')!;
-    document.getElementById('action-item-name')!.textContent = `${def.name} (${slot.rarity || 'plain'})`;
-
-    const equipBtn = document.getElementById('btn-action-equip')!;
-    equipBtn.style.display = def.slot ? 'block' : 'none';
-
-    const eatBtn = document.getElementById('btn-action-eat')!;
-    eatBtn.style.display = def.category === 'cooked_food' ? 'block' : 'none';
-
-    modal.classList.remove('hidden');
-  }
-
-  private openHearthModal() {
-    if (!this.player) return;
-    const modal = document.getElementById('hearth-modal')!;
-    document.getElementById('storage-count')!.textContent = this.player.storage.length.toString();
-
     const grid = document.getElementById('storage-grid')!;
     grid.innerHTML = '';
+    document.getElementById('storage-count')!.textContent = this.player.storage.length.toString();
 
     for (const slot of this.player.storage) {
       const def = ITEMS[slot.itemId];
       const div = document.createElement('div');
-      div.className = 'item-slot';
+      div.className = 'rpg-slot';
       if (slot.rarity && slot.rarity !== 'plain') {
         div.classList.add(`rarity-${slot.rarity}`);
       }
       div.innerHTML = `
-        <div>${def ? def.name : slot.itemId}</div>
-        <span class="qty">${slot.quantity}</span>
+        <div class="item-name">${def ? def.name : slot.itemId}</div>
+        <span class="item-qty">${slot.quantity}</span>
       `;
       grid.appendChild(div);
     }
+  }
 
-    modal.classList.remove('hidden');
+  private setupChat() {
+    const collapseBtn = document.getElementById('chat-collapse-btn')!;
+    const chatCard = document.getElementById('chat-card')!;
+
+    collapseBtn.onclick = () => {
+      this.chatCollapsed = !this.chatCollapsed;
+      if (this.chatCollapsed) {
+        chatCard.style.maxHeight = '34px';
+        collapseBtn.textContent = '▴';
+      } else {
+        chatCard.style.maxHeight = '280px';
+        collapseBtn.textContent = '▾';
+      }
+    };
+
+    const chanBtns = document.querySelectorAll('.chan-btn');
+    chanBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        chanBtns.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        this.activeChannel = btn.getAttribute('data-chan') || 'All';
+      });
+    });
+
+    const form = document.getElementById('chat-form') as HTMLFormElement;
+    const input = document.getElementById('chat-input') as HTMLInputElement;
+
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const text = input.value.trim();
+      if (!text) return;
+      this.sendWs({
+        type: 'CHAT',
+        channel: this.activeChannel,
+        text,
+      });
+      input.value = '';
+    });
+  }
+
+  private toggleChat() {
+    const chatCard = document.getElementById('chat-card')!;
+    if (chatCard.style.display === 'none') {
+      chatCard.style.display = 'flex';
+    } else {
+      chatCard.style.display = 'none';
+    }
+  }
+
+  private appendChatMessage(msg: any) {
+    const log = document.getElementById('chat-messages')!;
+    const line = document.createElement('div');
+    line.className = 'chat-line';
+
+    const now = new Date();
+    const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+    const sender = msg.senderName || 'Wanderer';
+
+    line.innerHTML = `
+      <span class="chat-time">${timeStr}</span>
+      <span class="chat-sender">${sender}:</span>
+      <span>${msg.text}</span>
+    `;
+    log.appendChild(line);
+    log.scrollTop = log.scrollHeight;
   }
 
   private setupModals() {
@@ -517,22 +791,33 @@ class EldoriaClient {
       }
     };
 
-    document.getElementById('btn-open-hearth')!.onclick = () => {
-      this.openHearthModal();
-    };
-
-    document.getElementById('hearth-close-btn')!.onclick = () => {
-      document.getElementById('hearth-modal')!.classList.add('hidden');
-    };
-
-    document.getElementById('skill-ladder-close-btn')!.onclick = () => {
-      document.getElementById('skill-ladder-modal')!.classList.add('hidden');
-    };
-
     document.getElementById('btn-deposit-all')!.onclick = () => {
       this.sendWs({ type: 'DEPOSIT_ALL_RESOURCES' });
-      setTimeout(() => this.openHearthModal(), 200);
     };
+
+    document.getElementById('btn-drawer-open-hearth')!.onclick = () => {
+      this.switchDrawer('storage');
+    };
+  }
+
+  private openItemActionModal(index: number) {
+    this.selectedInventoryIndex = index;
+    const slot = this.player?.inventory[index];
+    if (!slot) return;
+
+    const def = ITEMS[slot.itemId];
+    if (!def) return;
+
+    const modal = document.getElementById('item-action-modal')!;
+    document.getElementById('action-item-name')!.textContent = def.name;
+
+    const equipBtn = document.getElementById('btn-action-equip')!;
+    equipBtn.style.display = def.slot ? 'block' : 'none';
+
+    const eatBtn = document.getElementById('btn-action-eat')!;
+    eatBtn.style.display = def.category === 'cooked_food' ? 'block' : 'none';
+
+    modal.classList.remove('hidden');
   }
 
   private updateBossBanner(boss: any) {
@@ -551,79 +836,18 @@ class EldoriaClient {
     };
   }
 
-  private setupTabs() {
-    const tabBtns = document.querySelectorAll('.tab-btn');
-    tabBtns.forEach(btn => {
-      btn.addEventListener('click', () => {
-        tabBtns.forEach(b => b.classList.remove('active'));
-        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-
-        btn.classList.add('active');
-        const tabTarget = btn.getAttribute('data-tab');
-        document.getElementById(`tab-${tabTarget}`)?.classList.add('active');
-      });
-    });
-  }
-
-  private setupChat() {
-    const chanBtns = document.querySelectorAll('.chan-btn');
-    chanBtns.forEach(btn => {
-      btn.addEventListener('click', () => {
-        chanBtns.forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        this.activeChannel = btn.getAttribute('data-chan') || 'All';
-      });
-    });
-
-    const form = document.getElementById('chat-form') as HTMLFormElement;
-    const input = document.getElementById('chat-input') as HTMLInputElement;
-
-    form.addEventListener('submit', (e) => {
-      e.preventDefault();
-      const text = input.value.trim();
-      if (!text) return;
-      this.sendWs({
-        type: 'CHAT',
-        channel: this.activeChannel,
-        text,
-      });
-      input.value = '';
-    });
-  }
-
-  private appendChatMessage(msg: any) {
-    const log = document.getElementById('chat-messages')!;
-    const line = document.createElement('div');
-    line.className = 'chat-line';
-
-    const sender = msg.senderName || 'Wanderer';
-    line.innerHTML = `
-      <span style="color:#718096;">[${msg.channel || 'All'}]</span>
-      <span class="chat-sender">${sender}:</span>
-      <span>${msg.text}</span>
-    `;
-    log.appendChild(line);
-    log.scrollTop = log.scrollHeight;
-  }
-
-  private setupTaskControls() {
-    document.getElementById('task-stop-btn')!.addEventListener('click', () => {
-      this.sendWs({ type: 'STOP_TASK' });
-    });
-  }
-
   private showCatchUpModal(summary: any) {
     const modal = document.getElementById('away-modal')!;
     const body = document.getElementById('away-body')!;
 
     const minutes = Math.floor(summary.elapsedSeconds / 60);
     body.innerHTML = `
-      <p>You rested for <b>${minutes} minutes</b>.</p>
-      <div style="margin: 12px 0; background: #0e1014; padding: 10px; border-radius: 6px;">
+      <p style="margin-bottom: 8px;">You rested for <b>${minutes} minutes</b>.</p>
+      <div style="background: #1c1108; padding: 10px; border-radius: 6px; border: 1px solid #4a301a; display: flex; flex-direction: column; gap: 4px; font-size: 0.8rem;">
         <div><b>Actions Finished:</b> ${summary.completedCycles}</div>
         <div><b>XP Earned:</b> +${summary.xpGained.toLocaleString()}</div>
-        ${summary.leveledUp ? '<div style="color:var(--accent-gold); font-weight:700;">⭐ You gained new levels!</div>' : ''}
-        ${summary.overflowOccurred ? '<div style="color:var(--accent-red);">⚠️ Satchel filled! Remaining spoils were safely deposited at the Hearth Altar.</div>' : ''}
+        ${summary.leveledUp ? '<div style="color:var(--gold-bright); font-weight:700;">Ascension! You gained new levels!</div>' : ''}
+        ${summary.overflowOccurred ? '<div style="color:var(--red-accent);">Satchel filled! Remaining spoils were safely deposited at the Hearth Altar.</div>' : ''}
       </div>
     `;
 
@@ -635,7 +859,6 @@ class EldoriaClient {
   }
 
   private showToast(msg: string) {
-    // Append to chat as server announcement
     this.appendChatMessage({
       channel: 'System',
       senderName: 'Eldoria',

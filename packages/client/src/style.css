@@ -1,17 +1,41 @@
+/* ========================================================
+   ELDORIA IDLE - DEEP VEIN IDLE STYLED DARK OAK / PARCHMENT UI
+   ======================================================== */
+
 :root {
-  --bg-dark: #121418;
-  --bg-panel: #1a1e24;
-  --bg-panel-light: #252b33;
-  --bg-input: #0e1014;
-  --border-gold: #c59b27;
-  --border-muted: #3a424e;
-  --text-main: #f0e6d2;
-  --text-muted: #a6b0be;
-  --accent-gold: #e5b338;
-  --accent-red: #d94b4b;
-  --accent-green: #48bb78;
-  --accent-blue: #4299e1;
-  --font-base: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-title: 'Cinzel', Georgia, serif;
+  --font-body: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+
+  /* Deep Vein Color Palette */
+  --oak-darkest: #160e07;
+  --oak-darker: #1c1108;
+  --oak-panel: #2e1e11;
+  --oak-card: #24170d;
+  --oak-card-hover: #362314;
+  --oak-border: #5c3d1f;
+  --oak-border-light: #7c522b;
+  --oak-border-gold: #b38533;
+
+  /* Parchment Colors */
+  --parchment-bg: #efe4c5;
+  --parchment-card: #f5eccf;
+  --parchment-border: #8d693f;
+  --parchment-text: #2f1e0e;
+  --parchment-muted: #6e502e;
+
+  /* Metallic & Accent Tones */
+  --gold-bright: #ffd466;
+  --gold-main: #dfa637;
+  --gold-dark: #8c6016;
+  --amber-track: #140c06;
+  --amber-fill: #c99836;
+  --red-accent: #c53030;
+  --green-accent: #2f855a;
+  --blue-accent: #3182ce;
+
+  --text-main: #ecdcc1;
+  --text-muted: #9c8b74;
+  --text-dim: #72624e;
 }
 
 * {
@@ -19,444 +43,983 @@
   margin: 0;
   padding: 0;
   user-select: none;
+  -webkit-user-drag: none;
 }
 
 body, html {
-  width: 100%;
-  height: 100%;
-  background: var(--bg-dark);
+  width: 100vw;
+  height: 100vh;
+  background: #000;
   color: var(--text-main);
-  font-family: var(--font-base);
+  font-family: var(--font-body);
   overflow: hidden;
 }
 
 #app {
-  display: flex;
-  flex-direction: column;
+  position: relative;
   width: 100vw;
   height: 100vh;
+  overflow: hidden;
 }
 
-/* TOP STATUS BAR */
+/* FULLSCREEN CANVAS */
+#game-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  display: block;
+  z-index: 1;
+}
+
+/* ========================================================
+   1. TOP STATUS BAR
+   ======================================================== */
 #top-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 38px;
+  background: #23160c;
+  border-bottom: 2px solid #4a301a;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 48px;
-  background: #16191f;
-  border-bottom: 2px solid #2d3440;
-  padding: 0 16px;
+  padding: 0 14px;
+  z-index: 100;
+}
+
+.top-left {
+  display: flex;
+  align-items: center;
   gap: 12px;
 }
 
+.top-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* Brand Logo */
 .brand {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-weight: 700;
-  color: var(--accent-gold);
-  font-size: 1.05rem;
+  gap: 7px;
+  margin-right: 6px;
 }
-
-.currencies {
-  display: flex;
-  gap: 14px;
+.brand-crest {
+  display: inline-flex;
+  width: 20px;
+  height: 20px;
+}
+.brand-name {
+  font-family: var(--font-title);
+  font-weight: 800;
   font-size: 0.95rem;
+  letter-spacing: 0.08em;
+  color: var(--gold-main);
+  text-shadow: 0 1px 2px rgba(0,0,0,0.8);
 }
 
-.pill {
+/* Total Level Badge */
+.total-badge {
   display: flex;
   align-items: center;
-  gap: 8px;
-  background: #2b1f1f;
-  border: 1px solid var(--accent-red);
-  padding: 4px 10px;
-  border-radius: 12px;
-  font-size: 0.85rem;
+  gap: 4px;
+  background: #140c06;
+  border: 1px solid #4a301a;
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 0.75rem;
+}
+.badge-label {
+  color: var(--text-dim);
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+}
+.badge-val {
+  color: var(--gold-bright);
+  font-weight: 700;
 }
 
-.online-indicator {
+/* HP Bar Pill */
+.hp-bar-pill {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 0.85rem;
-  color: var(--text-muted);
-}
-.online-indicator .dot {
-  width: 8px;
-  height: 8px;
-  background: var(--accent-green);
-  border-radius: 50%;
-  box-shadow: 0 0 6px var(--accent-green);
-}
-
-/* ACTIVE TASK BAR */
-#task-bar {
-  display: flex;
-  align-items: center;
-  height: 54px;
-  background: var(--bg-panel);
-  border-bottom: 1px solid var(--border-muted);
-  padding: 0 16px;
-  gap: 16px;
-}
-
-.task-info {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-width: 240px;
-}
-#task-icon {
-  font-size: 1.5rem;
-}
-.task-title {
-  font-weight: 600;
-  font-size: 0.95rem;
-  color: var(--accent-gold);
-}
-.task-sub {
-  font-size: 0.8rem;
-  color: var(--text-muted);
-}
-
-.task-progress-container {
-  flex: 1;
-  height: 12px;
-  background: #0e1014;
-  border-radius: 6px;
-  overflow: hidden;
-  border: 1px solid var(--border-muted);
-}
-#task-progress-fill {
-  width: 0%;
-  height: 100%;
-  background: linear-gradient(90deg, #48bb78, #38a169);
-  transition: width 0.3s ease;
-}
-
-/* MAIN LAYOUT */
-#main-content {
-  flex: 1;
-  display: flex;
-  position: relative;
-  overflow: hidden;
-}
-
-/* CANVAS VIEWPORT */
-#viewport-container {
-  flex: 1;
-  position: relative;
-  background: #0a0c0e;
-  overflow: hidden;
-}
-#game-canvas {
-  width: 100%;
-  height: 100%;
-  display: block;
-}
-
-#hud-overlay {
-  position: absolute;
-  top: 12px;
-  left: 12px;
-  pointer-events: none;
-}
-#player-status-chip {
-  background: rgba(22, 25, 31, 0.85);
-  border: 1px solid var(--border-muted);
-  padding: 8px 12px;
-  border-radius: 8px;
-  backdrop-filter: blur(4px);
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.hp-bar-container {
-  width: 140px;
-  height: 8px;
-  background: #2b1f1f;
+  background: #140c06;
+  border: 1px solid #4a301a;
   border-radius: 4px;
+  padding: 2px 8px;
+}
+.hp-icon {
+  display: inline-flex;
+  width: 14px;
+  height: 14px;
+}
+.hp-bar-track {
+  width: 60px;
+  height: 8px;
+  background: #2b0f0f;
+  border-radius: 3px;
   overflow: hidden;
   position: relative;
 }
 #hp-bar-fill {
   width: 100%;
   height: 100%;
-  background: var(--accent-red);
+  background: var(--red-accent);
+  transition: width 0.3s;
 }
 #hp-text {
-  font-size: 0.75rem;
-  color: var(--text-muted);
+  position: absolute;
+  top: -4px;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.9);
+  pointer-events: none;
 }
-#map-hint {
-  margin-top: 8px;
+
+/* Speed Pill */
+.speed-pill {
+  display: flex;
+  align-items: center;
+  gap: 4px;
   font-size: 0.75rem;
-  color: rgba(240, 230, 210, 0.6);
-  background: rgba(0, 0, 0, 0.4);
-  padding: 4px 8px;
+  color: #68d391;
+  background: #140c06;
+  border: 1px solid #4a301a;
   border-radius: 4px;
-  width: fit-content;
+  padding: 2px 6px;
+}
+.speed-icon {
+  display: inline-flex;
+  width: 13px;
+  height: 13px;
 }
 
-/* DOCK PANEL */
-#dock-panel {
-  width: 380px;
-  background: var(--bg-panel);
-  border-left: 2px solid #2d3440;
+/* Currencies */
+.currencies {
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  margin-left: 6px;
 }
-
-.dock-tabs {
+.currency-chip {
   display: flex;
-  background: #14171d;
-  border-bottom: 1px solid var(--border-muted);
+  align-items: center;
+  gap: 5px;
+  font-size: 0.8rem;
+  font-weight: 700;
 }
-.tab-btn {
-  flex: 1;
-  padding: 10px 4px;
-  background: transparent;
-  border: none;
-  color: var(--text-muted);
-  font-weight: 600;
-  font-size: 0.85rem;
-  cursor: pointer;
-  transition: all 0.2s;
-  border-bottom: 2px solid transparent;
-}
-.tab-btn:hover {
-  color: var(--text-main);
-  background: rgba(255, 255, 255, 0.03);
-}
-.tab-btn.active {
-  color: var(--accent-gold);
-  border-bottom: 2px solid var(--accent-gold);
-  background: rgba(229, 179, 56, 0.08);
+.currency-chip.gold span:last-child { color: var(--gold-bright); }
+.currency-chip.gems span:last-child { color: #38bdf8; }
+.currency-chip.anima span:last-child { color: #c084fc; }
+.curr-icon {
+  display: inline-flex;
+  width: 16px;
+  height: 16px;
 }
 
-.dock-body {
-  flex: 1;
-  overflow-y: auto;
-  padding: 12px;
-}
-
-.tab-content {
-  display: none;
-}
-.tab-content.active {
-  display: block;
-}
-
-/* SKILLS LIST (2-Column Grid) */
-.skills-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 8px;
-}
-.skill-card {
-  background: var(--bg-panel-light);
-  border: 1px solid var(--border-muted);
-  border-radius: 6px;
-  padding: 8px 12px;
-  cursor: pointer;
-  transition: transform 0.15s, border-color 0.15s;
-}
-.skill-card:hover {
-  border-color: var(--accent-gold);
-  transform: translateY(-1px);
-}
-.skill-header {
+/* Boss Banner */
+.boss-banner {
   display: flex;
-  justify-content: space-between;
-  font-size: 0.9rem;
-  font-weight: 600;
-  margin-bottom: 4px;
+  align-items: center;
+  gap: 6px;
+  background: #3b1717;
+  border: 1px solid #e53e3e;
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-size: 0.75rem;
+  color: #fed7d7;
 }
-.skill-level-badge {
-  color: var(--accent-gold);
+.boss-icon {
+  display: inline-flex;
+  width: 14px;
+  height: 14px;
 }
-.skill-bar {
-  height: 6px;
-  background: #0e1014;
+#boss-join-btn {
+  background: #9b2c2c;
+  color: #fff;
+  border: 1px solid #fc8181;
   border-radius: 3px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 1px 6px;
+  cursor: pointer;
+}
+#boss-join-btn:hover {
+  background: #c53030;
+}
+
+/* Online Indicator */
+.online-indicator {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+.online-indicator .dot {
+  width: 7px;
+  height: 7px;
+  background: #48bb78;
+  border-radius: 50%;
+  box-shadow: 0 0 5px #48bb78;
+}
+
+/* ========================================================
+   2. TOP-LEFT TASKS CARD (Parchment Float)
+   ======================================================== */
+.parchment-card {
+  position: absolute;
+  top: 48px;
+  left: 16px;
+  width: 320px;
+  background: var(--parchment-bg);
+  border: 2px solid var(--parchment-border);
+  border-radius: 8px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
+  color: var(--parchment-text);
+  padding: 8px 12px;
+  z-index: 50;
+}
+.tasks-card-header {
+  font-family: var(--font-title);
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--parchment-text);
+  margin-bottom: 6px;
+}
+.task-running-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+.task-leading {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   overflow: hidden;
 }
-.skill-fill {
-  height: 100%;
-  background: var(--accent-gold);
+.task-icon-wrap {
+  display: inline-flex;
+  width: 18px;
+  height: 18px;
+  color: var(--parchment-muted);
 }
-.skill-subtext {
+.task-name {
+  font-family: var(--font-body);
+  font-weight: 700;
+  font-size: 0.82rem;
+  color: var(--parchment-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.task-trailing {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.status-tag {
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: #276749;
+  color: #c6f6d5;
+}
+.status-tag.idle {
+  background: #744210;
+  color: #fefcbf;
+}
+.icon-btn-micro {
+  width: 20px;
+  height: 20px;
+  border: 1px solid var(--parchment-border);
+  background: #e2d1a8;
+  border-radius: 3px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--parchment-text);
+  padding: 2px;
+}
+.icon-btn-micro:hover {
+  background: #d4be8e;
+}
+.icon-btn-micro.stop {
+  color: #9b2c2c;
+}
+.task-bar-container {
+  width: 100%;
+  height: 7px;
+  background: #cfbe95;
+  border-radius: 3px;
+  overflow: hidden;
+  margin-bottom: 4px;
+}
+.task-progress-fill {
+  width: 0%;
+  height: 100%;
+  background: #b7791f;
+  transition: width 0.3s;
+}
+.task-subtext {
   font-size: 0.72rem;
-  color: var(--text-muted);
-  margin-top: 4px;
+  color: var(--parchment-muted);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-/* JOB LADDER MODAL */
-.job-item {
-  background: var(--bg-panel-light);
-  border: 1px solid var(--border-muted);
-  border-radius: 6px;
-  padding: 10px 12px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-  transition: border-color 0.15s;
-}
-.job-item.locked {
-  opacity: 0.6;
-}
-.job-item:hover:not(.locked) {
-  border-color: var(--accent-gold);
-}
-.job-info {
+/* ========================================================
+   3. BOTTOM-LEFT CHAT CARD (Dark Oak Float)
+   ======================================================== */
+.dark-oak-card {
+  position: absolute;
+  bottom: 16px;
+  left: 16px;
+  width: 380px;
+  max-height: 280px;
+  background: rgba(35, 23, 13, 0.94);
+  border: 2px solid var(--oak-border);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  z-index: 50;
+  overflow: hidden;
 }
-.job-title {
-  font-size: 0.9rem;
+.chat-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  background: #1c1108;
+  border-bottom: 1px solid #3c2411;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+.chat-header-title {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.chat-online-sub {
+  color: var(--text-dim);
+  font-size: 0.72rem;
+  font-weight: 400;
+}
+.chat-channels {
+  display: flex;
+  background: #24160c;
+  border-bottom: 1px solid #3c2411;
+  padding: 2px 6px;
+  gap: 4px;
+}
+.chan-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 0.72rem;
   font-weight: 600;
+  padding: 3px 6px;
+  border-radius: 3px;
+  cursor: pointer;
+}
+.chan-btn:hover {
+  color: var(--text-main);
+  background: rgba(255, 255, 255, 0.05);
+}
+.chan-btn.active {
+  background: #3d2614;
+  color: var(--gold-bright);
+}
+.chat-messages {
+  flex: 1;
+  min-height: 120px;
+  max-height: 160px;
+  overflow-y: auto;
+  padding: 6px 10px;
+  font-size: 0.78rem;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.chat-line {
+  line-height: 1.35;
+}
+.chat-time {
+  color: var(--text-dim);
+  margin-right: 4px;
+}
+.chat-sender {
+  color: var(--gold-main);
+  font-weight: 700;
+  margin-right: 4px;
+}
+.chat-input-row {
+  display: flex;
+  padding: 6px 8px;
+  background: #1a1008;
+  border-top: 1px solid #3c2411;
+  gap: 6px;
+}
+.chat-input-row input {
+  flex: 1;
+  background: #100a05;
+  border: 1px solid #4a301a;
+  border-radius: 4px;
+  color: var(--text-main);
+  padding: 4px 8px;
+  font-size: 0.8rem;
+  outline: none;
+}
+.chat-input-row input:focus {
+  border-color: var(--gold-main);
+}
+.btn-chat-send {
+  background: #4a301a;
+  border: 1px solid var(--oak-border);
+  color: var(--gold-bright);
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.btn-chat-send:hover {
+  background: #634023;
+}
+
+/* ========================================================
+   4. FAR-RIGHT VERTICAL ICON TOOLBAR
+   ======================================================== */
+#right-toolbar {
+  position: absolute;
+  top: 38px;
+  right: 0;
+  bottom: 0;
+  width: 44px;
+  background: var(--oak-darker);
+  border-left: 1px solid #3c2411;
+  box-shadow: -2px 0 8px rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 10px 0;
+  gap: 8px;
+  z-index: 90;
+}
+.tool-btn {
+  width: 32px;
+  height: 32px;
+  background: #2b1c10;
+  border: 1px solid #4a301a;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 5px;
+  transition: all 0.15s;
+}
+.tool-btn:hover {
+  color: var(--gold-bright);
+  border-color: var(--gold-main);
+  background: #3d2716;
+}
+.tool-btn.active {
+  color: var(--gold-bright);
+  border-color: var(--gold-bright);
+  background: #4a2f1a;
+  box-shadow: 0 0 8px rgba(223, 166, 55, 0.4);
+}
+
+/* ========================================================
+   5. DRAWER PANELS (Skills, Bag, Gear, Storage)
+   ======================================================== */
+.drawer-panel {
+  position: absolute;
+  top: 46px;
+  right: 50px;
+  width: 290px;
+  bottom: 16px;
+  background: var(--oak-panel);
+  border: 2px solid var(--oak-border);
+  border-radius: 8px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.65);
+  display: flex;
+  flex-direction: column;
+  z-index: 80;
+  overflow: hidden;
+}
+.drawer-panel.hidden {
+  display: none !important;
+}
+.drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: #23160c;
+  border-bottom: 1px solid var(--oak-border);
+}
+.drawer-header h3 {
+  font-family: var(--font-title);
+  font-size: 1.05rem;
   color: var(--text-main);
 }
-.job-meta {
+.total-rank-label {
   font-size: 0.75rem;
   color: var(--text-muted);
 }
-
-/* INVENTORY GRID */
-.inventory-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 10px;
-  font-size: 0.9rem;
+.total-rank-label span {
+  color: var(--gold-bright);
+  font-weight: 700;
 }
-.item-grid {
+.drawer-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.drawer-footer {
+  display: flex;
+  gap: 8px;
+  padding: 8px 10px;
+  background: #20140b;
+  border-top: 1px solid var(--oak-border);
+}
+
+/* Bottom Action Buttons */
+.btn-oak {
+  flex: 1;
+  background: #3b2617;
+  border: 1px solid var(--oak-border-light);
+  border-radius: 4px;
+  color: var(--text-main);
+  font-size: 0.8rem;
+  font-weight: 700;
+  padding: 6px 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  cursor: pointer;
+}
+.btn-oak:hover {
+  background: #50331e;
+  border-color: var(--gold-main);
+}
+.btn-start {
+  background: linear-gradient(180deg, #dfa637 0%, #aa741c 100%);
+  border: 1px solid #f6cf70;
+  border-radius: 4px;
+  color: #1a0f05;
+  font-family: var(--font-title);
+  font-size: 0.85rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  padding: 6px 12px;
+  cursor: pointer;
+}
+.btn-start:hover {
+  background: linear-gradient(180deg, #f0ba4f 0%, #bd8425 100%);
+}
+.btn-stop {
+  background: #3b2617;
+  border: 1px solid var(--oak-border);
+  border-radius: 4px;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  font-weight: 700;
+  padding: 6px 12px;
+  cursor: pointer;
+}
+.btn-stop:hover {
+  background: #523520;
+  color: var(--text-main);
+}
+
+/* ========================================================
+   6. SKILLS LIST (2-Column Grid inside Categories)
+   ======================================================== */
+.skill-category {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.category-heading {
+  font-family: var(--font-title);
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  letter-spacing: 0.05em;
+  padding-bottom: 2px;
+  border-bottom: 1px solid #3c2716;
+}
+.skills-grid-2col {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(2, 1fr);
+  gap: 5px;
+}
+.skill-card-compact {
+  background: var(--oak-card);
+  border: 1px solid #3e2815;
+  border-radius: 4px;
+  padding: 5px 7px;
+  cursor: pointer;
+  transition: all 0.12s;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.skill-card-compact:hover {
+  background: var(--oak-card-hover);
+  border-color: var(--gold-main);
+  transform: translateY(-1px);
+}
+.skill-card-compact.active {
+  border-color: var(--gold-bright);
+  box-shadow: 0 0 6px rgba(223, 166, 55, 0.35);
+}
+.skill-card-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.skill-card-title-group {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  overflow: hidden;
+}
+.skill-card-icon {
+  display: inline-flex;
+  width: 14px;
+  height: 14px;
+  color: var(--gold-main);
+}
+.skill-card-name {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text-main);
+  white-space: nowrap;
+}
+.skill-card-lvl {
+  font-size: 0.8rem;
+  font-weight: 800;
+  color: var(--gold-bright);
+}
+.skill-card-pct {
+  font-size: 0.65rem;
+  color: var(--text-dim);
+}
+.skill-groove {
+  width: 100%;
+  height: 3px;
+  background: var(--amber-track);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.skill-groove-fill {
+  height: 100%;
+  background: var(--amber-fill);
+}
+
+/* ========================================================
+   7. SKILL JOB POPUP (Floating Window Left of Skills Drawer)
+   ======================================================== */
+.popup-panel {
+  position: absolute;
+  top: 46px;
+  right: 348px;
+  width: 360px;
+  max-height: calc(100vh - 64px);
+  background: #2c1c0f;
+  border: 2px solid var(--oak-border);
+  border-radius: 8px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.75);
+  display: flex;
+  flex-direction: column;
+  z-index: 85;
+  overflow: hidden;
+}
+.popup-panel.hidden {
+  display: none !important;
+}
+.popup-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: #1f1309;
+  border-bottom: 1px solid #3c2411;
+}
+.popup-header-title {
+  display: flex;
+  align-items: center;
   gap: 8px;
 }
-.item-slot {
-  aspect-ratio: 1;
-  background: var(--bg-panel-light);
-  border: 1px solid var(--border-muted);
+#popup-selected-title {
+  font-family: var(--font-title);
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: var(--gold-bright);
+}
+.status-pill {
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: #276749;
+  color: #c6f6d5;
+}
+.popup-subtext {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  padding: 4px 12px;
+  background: #24160c;
+  border-bottom: 1px solid #3c2411;
+}
+.popup-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.popup-flavor-block {
+  background: #201309;
+  border: 1px solid #3c2411;
   border-radius: 6px;
+  padding: 8px 10px;
+}
+.popup-flavor-block h4 {
+  font-family: var(--font-title);
+  font-size: 0.85rem;
+  color: var(--gold-main);
+  margin-bottom: 4px;
+}
+.popup-flavor-block p {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  line-height: 1.35;
+  margin-bottom: 6px;
+}
+.next-goal-row {
+  font-size: 0.72rem;
+  color: var(--gold-bright);
+  font-weight: 600;
+}
+.popup-category-heading {
+  font-family: var(--font-title);
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  padding-bottom: 3px;
+  border-bottom: 1px solid #3c2411;
+}
+.popup-jobs-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.popup-job-item {
+  background: #23160c;
+  border: 1px solid #3c2411;
+  border-radius: 5px;
+  padding: 8px 10px;
+  cursor: pointer;
+  transition: all 0.12s;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.popup-job-item:hover:not(.locked) {
+  background: #311f11;
+  border-color: var(--gold-main);
+}
+.popup-job-item.selected {
+  border-color: var(--gold-bright);
+  background: #362213;
+  box-shadow: 0 0 6px rgba(223, 166, 55, 0.3);
+}
+.popup-job-item.locked {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.job-item-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.job-name-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 700;
+  font-size: 0.85rem;
+  color: var(--text-main);
+}
+.job-rate {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+.job-details {
+  font-size: 0.72rem;
+  color: var(--text-dim);
+  line-height: 1.3;
+}
+.job-can-make {
+  font-size: 0.72rem;
+  color: var(--gold-bright);
+  font-weight: 600;
+  text-align: right;
+}
+
+/* Popup Footer Controls */
+.popup-footer {
+  background: #1c1108;
+  border-top: 1px solid #3c2411;
+  padding: 8px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.how-many-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.how-many-label {
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  color: var(--text-dim);
+}
+.how-many-pills {
+  display: flex;
+  gap: 4px;
+}
+.qty-pill {
+  background: #2b1c10;
+  border: 1px solid #4a301a;
+  border-radius: 3px;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 2px 7px;
+  cursor: pointer;
+}
+.qty-pill:hover {
+  background: #3d2716;
+  color: var(--text-main);
+}
+.qty-pill.active {
+  background: var(--gold-main);
+  border-color: var(--gold-bright);
+  color: #1a0f05;
+}
+.popup-note {
+  font-size: 0.68rem;
+  color: var(--text-dim);
+}
+.popup-action-row {
+  display: flex;
+  gap: 8px;
+}
+.popup-action-row button {
+  flex: 1;
+}
+
+/* ========================================================
+   8. INVENTORY & STORAGE GRIDS
+   ======================================================== */
+.rpg-item-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+.rpg-slot {
+  aspect-ratio: 1;
+  background: #180f08;
+  border: 1px solid #3c2411;
+  border-radius: 4px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
+  padding: 4px;
   position: relative;
   cursor: pointer;
-  font-size: 0.8rem;
-  padding: 4px;
+  transition: all 0.12s;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.6);
+}
+.rpg-slot:hover {
+  border-color: var(--gold-main);
+  background: #24160c;
+}
+.rpg-slot .item-name {
+  font-size: 0.7rem;
+  font-weight: 600;
   text-align: center;
+  line-height: 1.1;
+  word-break: break-word;
 }
-.item-slot:hover {
-  border-color: var(--accent-gold);
-}
-.item-slot .qty {
+.rpg-slot .item-qty {
   position: absolute;
   bottom: 2px;
   right: 4px;
-  font-size: 0.75rem;
-  font-weight: 700;
-  color: var(--accent-gold);
+  font-size: 0.68rem;
+  font-weight: 800;
+  color: var(--gold-bright);
 }
-.item-slot.rarity-uncommon { border-color: #48bb78; }
-.item-slot.rarity-rare { border-color: #4299e1; }
-.item-slot.rarity-epic { border-color: #9f7aea; }
-.item-slot.rarity-legendary { border-color: #ed8936; box-shadow: 0 0 6px rgba(237, 137, 54, 0.4); }
+.rpg-slot.rarity-uncommon { border-color: #38a169; }
+.rpg-slot.rarity-rare { border-color: #3182ce; }
+.rpg-slot.rarity-epic { border-color: #805ad5; }
+.rpg-slot.rarity-legendary { border-color: #d69e2e; box-shadow: 0 0 6px rgba(214, 158, 46, 0.4); }
 
-/* CHAT */
-.chat-channels {
-  display: flex;
+/* Combat Stats */
+.combat-stats-panel {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
   gap: 6px;
+  background: #1e1309;
+  border: 1px solid #3c2411;
+  border-radius: 4px;
+  padding: 8px;
+  font-size: 0.78rem;
   margin-bottom: 8px;
 }
-.chan-btn {
-  padding: 4px 10px;
-  border: 1px solid var(--border-muted);
-  background: var(--bg-panel-light);
-  color: var(--text-muted);
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 0.8rem;
-}
-.chan-btn.active {
-  background: var(--accent-gold);
-  color: #121418;
-  font-weight: 700;
-}
-.chat-log {
-  height: 380px;
-  background: var(--bg-input);
-  border: 1px solid var(--border-muted);
-  border-radius: 6px;
-  padding: 8px;
-  overflow-y: auto;
-  font-size: 0.85rem;
+.equipment-list {
   display: flex;
   flex-direction: column;
   gap: 6px;
 }
-.chat-line {
-  line-height: 1.3;
-}
-.chat-sender {
-  color: var(--accent-gold);
-  font-weight: 600;
-}
-.chat-input-bar {
-  display: flex;
-  gap: 6px;
-  margin-top: 8px;
-}
-#chat-input {
-  flex: 1;
-  background: var(--bg-input);
-  border: 1px solid var(--border-muted);
-  color: var(--text-main);
-  padding: 8px 10px;
-  border-radius: 4px;
-  outline: none;
-}
-#chat-input:focus {
-  border-color: var(--accent-gold);
-}
 
-/* BUTTONS */
-.btn-sm {
-  padding: 4px 10px;
-  background: var(--bg-panel-light);
-  border: 1px solid var(--border-muted);
-  color: var(--text-main);
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 0.85rem;
-}
-.btn-sm:hover {
-  border-color: var(--accent-gold);
-  color: var(--accent-gold);
-}
-.btn-primary {
-  padding: 10px 20px;
-  background: var(--accent-gold);
-  border: none;
-  color: #121418;
-  font-weight: 700;
-  border-radius: 6px;
-  cursor: pointer;
-}
-.btn-primary:hover {
-  background: #f0be46;
-}
-
-/* MODAL */
+/* ========================================================
+   9. MODALS
+   ======================================================== */
 .modal-backdrop {
   position: fixed;
   inset: 0;
@@ -464,56 +1027,43 @@ body, html {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 1000;
-  backdrop-filter: blur(4px);
+  z-index: 200;
 }
 .modal-backdrop.hidden {
-  display: none;
+  display: none !important;
 }
 .modal-box {
-  width: 440px;
-  background: var(--bg-panel);
-  border: 2px solid var(--border-gold);
-  border-radius: 10px;
-  overflow: hidden;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8);
+  border: 2px solid var(--oak-border);
+  border-radius: 8px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.85);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
 }
 .modal-header {
-  padding: 12px 16px;
-  background: #14171d;
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  border-bottom: 1px solid var(--border-muted);
+  justify-content: space-between;
+  margin-bottom: 12px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #3c2411;
 }
-.modal-content {
-  padding: 16px;
-  font-size: 0.95rem;
-  line-height: 1.5;
-}
-.modal-footer {
-  padding: 12px 16px;
-  display: flex;
-  justify-content: flex-end;
-  background: #14171d;
-  border-top: 1px solid var(--border-muted);
-}
-.close-btn {
-  background: transparent;
-  border: none;
-  color: var(--text-muted);
-  font-size: 1.5rem;
-  cursor: pointer;
+.modal-header h3, .modal-header h4 {
+  font-family: var(--font-title);
+  color: var(--gold-bright);
 }
 
-@media (max-width: 800px) {
-  #dock-panel {
-    width: 100%;
-    height: 45vh;
-    border-left: none;
-    border-top: 2px solid #2d3440;
-  }
-  #main-content {
-    flex-direction: column;
-  }
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 5px;
+}
+::-webkit-scrollbar-track {
+  background: #140c06;
+}
+::-webkit-scrollbar-thumb {
+  background: #4a301a;
+  border-radius: 2px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--gold-main);
 }
