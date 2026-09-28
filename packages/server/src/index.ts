@@ -29,7 +29,19 @@ app.post('/api/auth/guest', (req, res) => {
 });
 
 app.get('/api/world/nodes', (req, res) => {
-  res.json({ nodes: WORLD_NODES });
+  res.json({ nodes: storage.getWorldNodes() });
+});
+
+app.get('/api/world/npcs', (req, res) => {
+  res.json({ npcs: storage.getNpcs() });
+});
+
+app.get('/api/world/quests', (req, res) => {
+  res.json({ quests: storage.getQuests() });
+});
+
+app.get('/api/world/collisions', (req, res) => {
+  res.json({ collisions: Array.from(storage.getCollisions()) });
 });
 
 app.get('/api/data/items', (req, res) => {

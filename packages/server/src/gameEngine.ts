@@ -65,13 +65,17 @@ export class GameEngine {
     player.moveSpeedTilesPerTick = calculatePlayerMoveSpeed(player);
     this.sessions.set(player.id, { ws, player, ticksInTask: 0, moveAccumulator: 0, pendingTask: null });
 
-    // Send initial handshake
+    // Send initial handshake with persistent world nodes, npcs, quests, and collisions
     this.send(ws, {
       type: 'INIT',
       player,
       boss: this.getBossSummary(),
       catchUp: catchUpSummary,
       onlineCount: this.sessions.size,
+      nodes: storage.getWorldNodes(),
+      npcs: storage.getNpcs(),
+      quests: storage.getQuests(),
+      collisions: Array.from(storage.getCollisions()),
     });
 
     this.broadcastWorldState();
@@ -85,6 +89,10 @@ export class GameEngine {
       this.sessions.delete(playerId);
       this.broadcastWorldState();
     }
+  }
+
+  private findPathWithCollisions(startX: number, startY: number, targetX: number, targetY: number) {
+    return findPath(startX, startY, targetX, targetY, 60, 60, (x, y) => storage.isCollidable(x, y));
   }
 
   public handleClientMessage(playerId: string, msg: any) {
@@ -104,7 +112,7 @@ export class GameEngine {
           player.bankReturnTask = null;
           player.bankingState = 'idle';
 
-          const path = findPath(player.x, player.y, msg.x, msg.y);
+          const path = this.findPathWithCollisions(player.x, player.y, msg.x, msg.y);
           player.targetX = msg.x;
           player.targetY = msg.y;
           player.path = path;
@@ -135,7 +143,7 @@ export class GameEngine {
             if (hasInStorage) {
               // Path to Hearth to withdraw materials first, then go to work!
               session.pendingTask = { recipeId: msg.recipeId, targetX, targetY, quantity: msg.quantity };
-              const pathToHearth = findPath(player.x, player.y, 8, 22);
+              const pathToHearth = this.findPathWithCollisions(player.x, player.y, 8, 22);
               player.targetX = 8;
               player.targetY = 22;
               player.path = pathToHearth;
@@ -161,7 +169,7 @@ export class GameEngine {
           const dist = Math.hypot(player.x - targetX, player.y - targetY);
           if (dist > 1.5) {
             session.pendingTask = { recipeId: msg.recipeId, targetX, targetY, quantity: msg.quantity };
-            const path = findPath(player.x, player.y, targetX, targetY);
+            const path = this.findPathWithCollisions(player.x, player.y, targetX, targetY);
             player.targetX = targetX;
             player.targetY = targetY;
             player.path = path;
@@ -227,18 +235,170 @@ export class GameEngine {
 
       case 'CHAT':
         if (typeof msg.text === 'string' && msg.text.trim().length > 0) {
+          const trimmed = msg.text.trim();
+
+          // Admin passphrase command
+          if (trimmed.startsWith('/admin')) {
+            const parts = trimmed.split(/\s+/);
+            const secret = parts[1] || '';
+            if (storage.verifyAdminSecret(secret)) {
+              player.role = 'admin';
+              storage.savePlayer(player);
+              this.send(session.ws, {
+                type: 'NOTIFICATION',
+                message: '🛡️ Admin status verified! In-Game World Editor unlocked.'
+              });
+              this.send(session.ws, { type: 'PLAYER_UPDATE', player });
+              this.broadcastWorldState();
+            } else {
+              this.send(session.ws, {
+                type: 'NOTIFICATION',
+                message: '❌ Invalid admin passphrase.'
+              });
+            }
+            break;
+          }
+
           const chatPayload = {
             type: 'CHAT_BROADCAST',
             channel: msg.channel || 'All',
             senderId: player.id,
             senderName: player.username,
+            role: player.role || 'player',
+            isAdmin: player.role === 'admin',
             title: player.activeTitle,
-            text: msg.text.trim().slice(0, 150),
+            text: trimmed.slice(0, 150),
             timestamp: Date.now(),
             x: player.x,
             y: player.y,
           };
           this.broadcast(chatPayload);
+        }
+        break;
+
+      case 'ADMIN_LOGIN':
+        if (storage.verifyAdminSecret(msg.secret)) {
+          player.role = 'admin';
+          storage.savePlayer(player);
+          this.send(session.ws, {
+            type: 'NOTIFICATION',
+            message: '🛡️ Admin status verified! In-Game World Editor unlocked.'
+          });
+          this.send(session.ws, { type: 'PLAYER_UPDATE', player });
+          this.broadcastWorldState();
+        } else {
+          this.send(session.ws, {
+            type: 'NOTIFICATION',
+            message: '❌ Invalid admin passphrase.'
+          });
+        }
+        break;
+
+      case 'ADMIN_SAVE_NODE':
+        if (player.role !== 'admin') {
+          this.send(session.ws, { type: 'NOTIFICATION', message: '❌ Admin privileges required.' });
+          break;
+        }
+        if (msg.node && msg.node.id) {
+          storage.upsertWorldNode(msg.node);
+          this.broadcast({ type: 'WORLD_NODES_UPDATE', nodes: storage.getWorldNodes() });
+          this.send(session.ws, {
+            type: 'NOTIFICATION',
+            message: `Node "${msg.node.name}" saved at (${msg.node.x}, ${msg.node.y}).`
+          });
+        }
+        break;
+
+      case 'ADMIN_DELETE_NODE':
+        if (player.role !== 'admin') {
+          this.send(session.ws, { type: 'NOTIFICATION', message: '❌ Admin privileges required.' });
+          break;
+        }
+        if (msg.nodeId) {
+          storage.deleteWorldNode(msg.nodeId);
+          this.broadcast({ type: 'WORLD_NODES_UPDATE', nodes: storage.getWorldNodes() });
+          this.send(session.ws, {
+            type: 'NOTIFICATION',
+            message: `Node ${msg.nodeId} deleted.`
+          });
+        }
+        break;
+
+      case 'ADMIN_SAVE_NPC':
+        if (player.role !== 'admin') {
+          this.send(session.ws, { type: 'NOTIFICATION', message: '❌ Admin privileges required.' });
+          break;
+        }
+        if (msg.npc && msg.npc.id) {
+          storage.upsertNpc(msg.npc);
+          this.broadcast({ type: 'NPCS_UPDATE', npcs: storage.getNpcs() });
+          this.send(session.ws, {
+            type: 'NOTIFICATION',
+            message: `NPC "${msg.npc.name}" saved at (${msg.npc.x}, ${msg.npc.y}).`
+          });
+        }
+        break;
+
+      case 'ADMIN_DELETE_NPC':
+        if (player.role !== 'admin') {
+          this.send(session.ws, { type: 'NOTIFICATION', message: '❌ Admin privileges required.' });
+          break;
+        }
+        if (msg.npcId) {
+          storage.deleteNpc(msg.npcId);
+          this.broadcast({ type: 'NPCS_UPDATE', npcs: storage.getNpcs() });
+          this.send(session.ws, {
+            type: 'NOTIFICATION',
+            message: `NPC ${msg.npcId} deleted.`
+          });
+        }
+        break;
+
+      case 'ADMIN_SAVE_QUEST':
+        if (player.role !== 'admin') {
+          this.send(session.ws, { type: 'NOTIFICATION', message: '❌ Admin privileges required.' });
+          break;
+        }
+        if (msg.quest && msg.quest.id) {
+          storage.upsertQuest(msg.quest);
+          this.broadcast({ type: 'QUESTS_UPDATE', quests: storage.getQuests() });
+          this.send(session.ws, {
+            type: 'NOTIFICATION',
+            message: `Quest "${msg.quest.title}" saved.`
+          });
+        }
+        break;
+
+      case 'ADMIN_DELETE_QUEST':
+        if (player.role !== 'admin') {
+          this.send(session.ws, { type: 'NOTIFICATION', message: '❌ Admin privileges required.' });
+          break;
+        }
+        if (msg.questId) {
+          storage.deleteQuest(msg.questId);
+          this.broadcast({ type: 'QUESTS_UPDATE', quests: storage.getQuests() });
+          this.send(session.ws, {
+            type: 'NOTIFICATION',
+            message: `Quest ${msg.questId} deleted.`
+          });
+        }
+        break;
+
+      case 'ADMIN_SAVE_COLLISIONS':
+        if (player.role !== 'admin') {
+          this.send(session.ws, { type: 'NOTIFICATION', message: '❌ Admin privileges required.' });
+          break;
+        }
+        if (Array.isArray(msg.collisions)) {
+          storage.saveCollisions(msg.collisions);
+          this.broadcast({
+            type: 'COLLISIONS_UPDATE',
+            collisions: Array.from(storage.getCollisions())
+          });
+          this.send(session.ws, {
+            type: 'NOTIFICATION',
+            message: `Saved ${msg.collisions.length} collision tiles. Pathfinding updated!`
+          });
         }
         break;
 
@@ -357,7 +517,7 @@ export class GameEngine {
       player.bankReturnTask = null;
       session.ticksInTask = 0;
 
-      const path = findPath(player.x, player.y, hearthX, hearthY);
+      const path = this.findPathWithCollisions(player.x, player.y, hearthX, hearthY);
       player.targetX = hearthX;
       player.targetY = hearthY;
       player.path = path;
@@ -425,6 +585,7 @@ export class GameEngine {
       type: 'NOTIFICATION',
       message: `Withdrew ${qtyToTake}x ${def?.name || slot.itemId} from the Reliquary.`
     });
+    storage.savePlayer(player);
     this.send(ws, { type: 'PLAYER_UPDATE', player });
   }
 
@@ -510,8 +671,8 @@ export class GameEngine {
       }
     }
 
-    // Every 50 ticks (30s) auto-save
-    if (this.tickCount % 50 === 0) {
+    // Every 15 ticks (9s) auto-save
+    if (this.tickCount % 15 === 0) {
       for (const session of this.sessions.values()) {
         session.player.lastActiveTimestamp = Date.now();
         storage.savePlayer(session.player);
@@ -602,7 +763,7 @@ export class GameEngine {
 
     if (typeof destX === 'number' && typeof destY === 'number') {
       player.bankingState = 'returning_to_work';
-      const path = findPath(player.x, player.y, destX, destY);
+      const path = this.findPathWithCollisions(player.x, player.y, destX, destY);
       player.path = path;
       player.isMoving = path.length > 0;
       this.send(ws, {
@@ -621,6 +782,7 @@ export class GameEngine {
       });
     }
 
+    storage.savePlayer(player);
     this.send(ws, { type: 'PLAYER_UPDATE', player });
     this.broadcastWorldState();
   }
@@ -651,7 +813,7 @@ export class GameEngine {
           player.bankReturnTask = { ...player.currentTask! };
           player.currentTask = null;
           player.bankingState = 'walking_to_bank';
-          const path = findPath(player.x, player.y, 8, 22);
+          const path = this.findPathWithCollisions(player.x, player.y, 8, 22);
           player.targetX = 8;
           player.targetY = 22;
           player.path = path;
@@ -701,7 +863,7 @@ export class GameEngine {
         player.currentTask = null;
         player.bankingState = 'walking_to_bank';
 
-        const path = findPath(player.x, player.y, 8, 22);
+        const path = this.findPathWithCollisions(player.x, player.y, 8, 22);
         player.targetX = 8;
         player.targetY = 22;
         player.path = path;
@@ -729,6 +891,7 @@ export class GameEngine {
           skill: recipe.skill,
           newLevel: skillRecord.level,
         });
+        storage.savePlayer(player);
       }
     }
 

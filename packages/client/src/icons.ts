@@ -299,6 +299,49 @@ export const ICONS: Record<string, string> = {
       <path d="M12 5l-4 7h8l-4-7zM12 12v6" stroke="#e5b338" stroke-width="1.4" stroke-linejoin="round"/>
     </svg>
   `,
+
+  admin: `
+    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M5 16L3 5l5.5 5L12 4l3.5 6L21 5l-2 11H5z" fill="#ffd466" stroke="#e5a823" stroke-width="1.2" stroke-linejoin="round"/>
+      <circle cx="12" cy="17" r="1.5" fill="#c53030"/>
+      <circle cx="7" cy="17" r="1.2" fill="#2b6cb0"/>
+      <circle cx="17" cy="17" r="1.2" fill="#2b6cb0"/>
+    </svg>
+  `,
+
+  editor: `
+    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+  `,
+
+  npc: `
+    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+      <circle cx="12" cy="7" r="4" stroke="currentColor" stroke-width="1.8"/>
+    </svg>
+  `,
+
+  quest: `
+    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.8"/>
+      <path d="M12 8v5M12 16h.01" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+    </svg>
+  `,
+
+  collision: `
+    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" stroke-width="1.8"/>
+      <path d="M9 3v18M15 3v18M3 9h18M3 15h18" stroke="currentColor" stroke-width="1.2"/>
+    </svg>
+  `,
+
+  mapPin: `
+    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" stroke="currentColor" stroke-width="1.8"/>
+      <circle cx="12" cy="10" r="3" stroke="currentColor" stroke-width="1.8"/>
+    </svg>
+  `,
 };
 
 /**

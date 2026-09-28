@@ -32,7 +32,8 @@ export function calculatePlayerMoveSpeed(player: PlayerData): number {
 }
 
 /**
- * Grid BFS Pathfinding (8-directional or 4-directional with bounds 0..60).
+/**
+ * Grid BFS Pathfinding (8-directional with collision avoidance, bounds 0..60).
  */
 export function findPath(
   startX: number,
@@ -40,17 +41,39 @@ export function findPath(
   targetX: number,
   targetY: number,
   maxX: number = 60,
-  maxY: number = 60
+  maxY: number = 60,
+  isBlocked?: (x: number, y: number) => boolean
 ): Array<{ x: number; y: number }> {
   const clampX = (v: number) => Math.max(0, Math.min(maxX, v));
   const clampY = (v: number) => Math.max(0, Math.min(maxY, v));
 
   const sx = clampX(Math.round(startX));
   const sy = clampY(Math.round(startY));
-  const tx = clampX(Math.round(targetX));
-  const ty = clampY(Math.round(targetY));
+  let tx = clampX(Math.round(targetX));
+  let ty = clampY(Math.round(targetY));
 
   if (sx === tx && sy === ty) return [];
+
+  // If the target tile itself is blocked, find the closest walkable adjacent tile
+  if (isBlocked && isBlocked(tx, ty)) {
+    const adjCandidates = [
+      { x: tx, y: ty - 1 },
+      { x: tx, y: ty + 1 },
+      { x: tx - 1, y: ty },
+      { x: tx + 1, y: ty },
+      { x: tx - 1, y: ty - 1 },
+      { x: tx + 1, y: ty - 1 },
+      { x: tx - 1, y: ty + 1 },
+      { x: tx + 1, y: ty + 1 },
+    ].filter(c => c.x >= 0 && c.x <= maxX && c.y >= 0 && c.y <= maxY && !isBlocked(c.x, c.y));
+
+    if (adjCandidates.length > 0) {
+      adjCandidates.sort((a, b) => Math.hypot(a.x - sx, a.y - sy) - Math.hypot(b.x - sx, b.y - sy));
+      tx = adjCandidates[0].x;
+      ty = adjCandidates[0].y;
+      if (sx === tx && sy === ty) return [];
+    }
+  }
 
   // Standard BFS queue
   const queue: Array<{ x: number; y: number }> = [{ x: sx, y: sy }];
@@ -89,6 +112,19 @@ export function findPath(
     for (const d of directions) {
       const nx = clampX(curr.x + d.dx);
       const ny = clampY(curr.y + d.dy);
+
+      // Check collision
+      if (isBlocked && isBlocked(nx, ny)) {
+        continue;
+      }
+
+      // Corner-cutting check for diagonal moves:
+      if (d.dx !== 0 && d.dy !== 0 && isBlocked) {
+        if (isBlocked(curr.x + d.dx, curr.y) && isBlocked(curr.x, curr.y + d.dy)) {
+          continue;
+        }
+      }
+
       const nCode = encode(nx, ny);
 
       if (!visited.has(nCode)) {

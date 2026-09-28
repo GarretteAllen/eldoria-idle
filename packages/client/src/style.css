@@ -1109,3 +1109,240 @@ body, html {
     z-index: 86;
   }
 }
+
+/* ========================================================
+   11. ADMIN EDITOR, BADGES & NPC DIALOGUE
+   ======================================================== */
+.admin-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: linear-gradient(135deg, #d69e2e, #b7791f);
+  color: #1a0f05;
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  padding: 2px 6px;
+  border-radius: 4px;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.25);
+  box-shadow: 0 0 6px rgba(214, 158, 46, 0.4);
+}
+.chat-admin-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background: linear-gradient(135deg, #ffd700, #b7791f);
+  color: #1a0f05;
+  font-weight: 800;
+  font-size: 0.65rem;
+  padding: 1px 4px;
+  border-radius: 3px;
+  margin-right: 4px;
+  vertical-align: middle;
+  box-shadow: 0 0 4px rgba(255, 215, 0, 0.5);
+}
+
+.editor-tabs-bar {
+  display: flex;
+  background: #1c1108;
+  border-bottom: 1px solid var(--oak-border);
+  overflow-x: auto;
+}
+.editor-tab {
+  flex: 1;
+  padding: 8px 6px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-align: center;
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  transition: all 0.12s;
+  white-space: nowrap;
+}
+.editor-tab:hover {
+  color: var(--gold-bright);
+  background: rgba(223, 166, 55, 0.08);
+}
+.editor-tab.active {
+  color: var(--gold-bright);
+  border-bottom-color: var(--gold-bright);
+  background: rgba(223, 166, 55, 0.15);
+}
+
+.editor-tab-content {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.editor-tab-content.hidden {
+  display: none !important;
+}
+
+.editor-form-box {
+  background: #1a1008;
+  border: 1px solid var(--gold-main);
+  border-radius: 6px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 8px;
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.6);
+}
+.editor-form-box.hidden {
+  display: none !important;
+}
+.form-row {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.form-row label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--gold-main);
+}
+.form-row input,
+.form-row select,
+.form-row textarea {
+  background: #120a05;
+  border: 1px solid var(--oak-border);
+  border-radius: 4px;
+  padding: 4px 8px;
+  color: var(--text-main);
+  font-size: 0.75rem;
+  outline: none;
+  font-family: inherit;
+}
+.form-row input:focus,
+.form-row select:focus,
+.form-row textarea:focus {
+  border-color: var(--gold-bright);
+  box-shadow: 0 0 5px rgba(223, 166, 55, 0.3);
+}
+
+.form-row-2col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+.form-row-2col label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--gold-main);
+  display: block;
+  margin-bottom: 2px;
+}
+.form-row-2col input,
+.form-row-2col select {
+  width: 100%;
+  background: #120a05;
+  border: 1px solid var(--oak-border);
+  border-radius: 4px;
+  padding: 4px 8px;
+  color: var(--text-main);
+  font-size: 0.75rem;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.editor-entities-list {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  max-height: calc(100vh - 280px);
+  overflow-y: auto;
+  padding-right: 2px;
+}
+.editor-entity-card {
+  background: #201309;
+  border: 1px solid #3c2411;
+  border-radius: 4px;
+  padding: 6px 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  transition: all 0.12s;
+}
+.editor-entity-card:hover {
+  background: #2b1c10;
+  border-color: var(--gold-main);
+}
+.editor-entity-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow: hidden;
+}
+.editor-entity-title {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text-main);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.editor-entity-meta {
+  font-size: 0.68rem;
+  color: var(--text-dim);
+}
+.editor-entity-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.btn-micro-edit {
+  background: #2f2014;
+  border: 1px solid #4a3320;
+  color: var(--gold-bright);
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.btn-micro-edit:hover {
+  background: #422d1c;
+}
+.btn-micro-del {
+  background: #3c1414;
+  border: 1px solid #5a1d1d;
+  color: #feb2b2;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.btn-micro-del:hover {
+  background: #5a1d1d;
+}
+
+.npc-quest-card {
+  background: #24160c;
+  border: 1px solid #4a301a;
+  border-radius: 5px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.npc-quest-title {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--gold-bright);
+}
+.npc-quest-desc {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  line-height: 1.35;
+}
+.npc-quest-rewards {
+  font-size: 0.7rem;
+  color: #a0aec0;
+}
+

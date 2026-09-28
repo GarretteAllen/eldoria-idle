@@ -1,4 +1,4 @@
-import { PlayerData, RECIPES, ITEMS, EquipSlot, SkillType, getXpToNextLevel } from '@eldoria/shared';
+import { PlayerData, RECIPES, ITEMS, EquipSlot, SkillType, getXpToNextLevel, NpcDefinition, QuestDefinition } from '@eldoria/shared';
 import { WorldRenderer, WorldNodeDisplay } from './canvas.js';
 import { loadLdtkWorld } from './ldtkLoader.js';
 import { ICONS } from './icons.js';
@@ -33,14 +33,20 @@ class EldoriaClient {
   private activeChannel = 'All';
   private selectedInventoryIndex: number | null = null;
   private worldNodes: WorldNodeDisplay[] = [];
+  private npcs: NpcDefinition[] = [];
+  private quests: QuestDefinition[] = [];
 
   // Deep Vein UI State
-  private activeDrawer: 'skills' | 'inventory' | 'equipment' | 'storage' = 'skills';
+  private activeDrawer: 'skills' | 'inventory' | 'equipment' | 'storage' | 'editor' = 'skills';
   private selectedSkillKey: SkillType = 'mining';
   private selectedRecipeId: string = 'mine_pyrite';
   private selectedJobQuantity: number = Infinity;
   private isPopupOpen: boolean = false;
   private chatCollapsed: boolean = false;
+
+  // Editor State
+  private activeEditorTab: 'nodes' | 'monsters' | 'npcs' | 'quests' | 'collisions' = 'nodes';
+  private collisionBrush: 'paint' | 'erase' = 'paint';
 
   constructor() {
     const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
@@ -52,6 +58,7 @@ class EldoriaClient {
     this.setupChat();
     this.setupSkillJobPopup();
     this.setupModals();
+    this.setupAdminEditor();
     this.fetchNodesAndInit();
   }
 
@@ -77,6 +84,12 @@ class EldoriaClient {
     document.getElementById('tool-btn-equipment')!.innerHTML = ICONS.equipment;
     document.getElementById('tool-btn-storage')!.innerHTML = ICONS.storage;
     document.getElementById('tool-btn-chat')!.innerHTML = ICONS.chat;
+    const editorToolBtn = document.getElementById('tool-btn-editor');
+    if (editorToolBtn) editorToolBtn.innerHTML = ICONS.editor;
+
+    // Editor Header Crown
+    const crownIcon = document.getElementById('editor-crown-icon');
+    if (crownIcon) crownIcon.innerHTML = ICONS.admin;
 
     // Drawer Buttons
     document.getElementById('btn-fight-icon')!.innerHTML = ICONS.melee;
@@ -86,6 +99,12 @@ class EldoriaClient {
     document.getElementById('popup-close-btn')!.innerHTML = ICONS.close;
     document.getElementById('item-action-close-btn')!.innerHTML = ICONS.close;
     document.getElementById('away-close-btn')!.innerHTML = ICONS.close;
+    const editorDrawerClose = document.getElementById('editor-drawer-close-btn');
+    if (editorDrawerClose) editorDrawerClose.innerHTML = ICONS.close;
+    const adminAuthClose = document.getElementById('admin-auth-close-btn');
+    if (adminAuthClose) adminAuthClose.innerHTML = ICONS.close;
+    const npcModalClose = document.getElementById('npc-modal-close-btn');
+    if (npcModalClose) npcModalClose.innerHTML = ICONS.close;
   }
 
   private async fetchNodesAndInit() {
@@ -95,13 +114,12 @@ class EldoriaClient {
         this.renderer.setStitchedWorld(world);
       }
 
-      const res = await fetch('/api/world/nodes');
-      const data = await res.json();
-      this.worldNodes = data.nodes || [];
-      this.renderer.setNodes(this.worldNodes);
-
       this.renderer.onGroundClick = (tileX, tileY) => {
         this.sendWs({ type: 'MOVE_TO', x: tileX, y: tileY });
+      };
+
+      this.renderer.onNpcClick = (npc: NpcDefinition) => {
+        this.openNpcDialogue(npc);
       };
 
       this.renderer.onNodeClick = (node: WorldNodeDisplay) => {
@@ -125,6 +143,39 @@ class EldoriaClient {
           this.sendWs({ type: 'MOVE_TO', x: node.x, y: node.y });
         }
       };
+
+      // Initial REST fetch for world entities
+      try {
+        const [nodesRes, npcsRes, questsRes, collRes] = await Promise.all([
+          fetch('/api/world/nodes').then(r => r.json()).catch(() => ({})),
+          fetch('/api/world/npcs').then(r => r.json()).catch(() => ({})),
+          fetch('/api/world/quests').then(r => r.json()).catch(() => ({})),
+          fetch('/api/world/collisions').then(r => r.json()).catch(() => ({})),
+        ]);
+
+        if (nodesRes && nodesRes.nodes) {
+          this.worldNodes = nodesRes.nodes;
+          this.renderer.setNodes(this.worldNodes);
+          this.renderEditorNodes();
+          this.renderEditorMonsters();
+        }
+        if (npcsRes && npcsRes.npcs) {
+          this.npcs = npcsRes.npcs;
+          this.renderer.setNpcs(this.npcs);
+          this.renderEditorNpcs();
+          this.updateQuestNpcDropdown();
+        }
+        if (questsRes && questsRes.quests) {
+          this.quests = questsRes.quests;
+          this.renderEditorQuests();
+        }
+        if (collRes && collRes.collisions) {
+          this.renderer.setCollisions(collRes.collisions);
+          this.updateCollisionCount();
+        }
+      } catch (err) {
+        console.warn('Initial REST load error:', err);
+      }
 
       await this.initAuth();
     } catch (err) {
@@ -178,6 +229,27 @@ class EldoriaClient {
         this.renderer.setLocalPlayer(this.player!);
         this.updateUI();
 
+        if (msg.nodes) {
+          this.worldNodes = msg.nodes;
+          this.renderer.setNodes(this.worldNodes);
+          this.renderEditorNodes();
+          this.renderEditorMonsters();
+        }
+        if (msg.npcs) {
+          this.npcs = msg.npcs;
+          this.renderer.setNpcs(this.npcs);
+          this.renderEditorNpcs();
+          this.updateQuestNpcDropdown();
+        }
+        if (msg.quests) {
+          this.quests = msg.quests;
+          this.renderEditorQuests();
+        }
+        if (msg.collisions) {
+          this.renderer.setCollisions(msg.collisions);
+          this.updateCollisionCount();
+        }
+
         if (msg.boss) this.updateBossBanner(msg.boss);
         if (msg.onlineCount !== undefined) {
           this.updateOnlineCount(msg.onlineCount);
@@ -199,6 +271,37 @@ class EldoriaClient {
         if (msg.onlineCount !== undefined) {
           this.updateOnlineCount(msg.onlineCount);
         }
+        break;
+
+      case 'WORLD_NODES_UPDATE':
+        this.worldNodes = msg.nodes || [];
+        this.renderer.setNodes(this.worldNodes);
+        this.renderEditorNodes();
+        this.renderEditorMonsters();
+        break;
+
+      case 'NPCS_UPDATE':
+        this.npcs = msg.npcs || [];
+        this.renderer.setNpcs(this.npcs);
+        this.renderEditorNpcs();
+        this.updateQuestNpcDropdown();
+        break;
+
+      case 'QUESTS_UPDATE':
+        this.quests = msg.quests || [];
+        this.renderEditorQuests();
+        break;
+
+      case 'COLLISIONS_UPDATE':
+        this.renderer.setCollisions(msg.collisions || []);
+        this.updateCollisionCount();
+        break;
+
+      case 'ADMIN_AUTH_SUCCESS':
+        if (this.player) this.player.role = 'admin';
+        document.getElementById('admin-auth-modal')!.classList.add('hidden');
+        this.switchDrawer('editor');
+        this.showToast('👑 Administrator access granted! In-game World Editor unlocked.');
         break;
 
       case 'CHAT_BROADCAST':
@@ -349,6 +452,17 @@ class EldoriaClient {
           return;
         }
 
+        if (panel === 'editor') {
+          if (this.player && this.player.role === 'admin') {
+            buttons.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            this.switchDrawer('editor');
+          } else {
+            document.getElementById('admin-auth-modal')!.classList.remove('hidden');
+          }
+          return;
+        }
+
         buttons.forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
 
@@ -368,15 +482,20 @@ class EldoriaClient {
     };
   }
 
-  private switchDrawer(drawer: 'skills' | 'inventory' | 'equipment' | 'storage') {
+  private switchDrawer(drawer: 'skills' | 'inventory' | 'equipment' | 'storage' | 'editor') {
     this.activeDrawer = drawer;
 
-    const drawers = ['skills', 'inventory', 'equipment', 'storage'];
+    const drawers = [
+      { id: 'skills', el: document.getElementById('skills-drawer') },
+      { id: 'inventory', el: document.getElementById('inventory-drawer') },
+      { id: 'equipment', el: document.getElementById('equipment-drawer') },
+      { id: 'storage', el: document.getElementById('storage-drawer') },
+      { id: 'editor', el: document.getElementById('admin-editor-drawer') },
+    ];
     for (const d of drawers) {
-      const el = document.getElementById(`${d}-drawer`);
-      if (el) {
-        if (d === drawer) el.classList.remove('hidden');
-        else el.classList.add('hidden');
+      if (d.el) {
+        if (d.id === drawer) d.el.classList.remove('hidden');
+        else d.el.classList.add('hidden');
       }
     }
 
@@ -389,6 +508,14 @@ class EldoriaClient {
 
     if (drawer !== 'skills') {
       this.closeSkillJobPopup();
+    }
+
+    if (drawer !== 'editor') {
+      const chk = document.getElementById('chk-show-collisions') as HTMLInputElement | null;
+      if (!chk || !chk.checked) {
+        this.renderer.showCollisions = false;
+        this.renderer.editorMode = 'none';
+      }
     }
   }
 
@@ -790,8 +917,13 @@ class EldoriaClient {
     const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
     const sender = msg.senderName || 'Wanderer';
 
+    const adminTag = msg.isAdmin
+      ? `<span class="chat-admin-badge"><span style="display:inline-flex; width:12px; height:12px; margin-right:2px; vertical-align:middle;">${ICONS.admin}</span>ADMIN</span>`
+      : '';
+
     line.innerHTML = `
       <span class="chat-time">${timeStr}</span>
+      ${adminTag}
       <span class="chat-sender">${sender}:</span>
       <span>${msg.text}</span>
     `;
@@ -803,6 +935,27 @@ class EldoriaClient {
     document.getElementById('item-action-close-btn')!.onclick = () => {
       document.getElementById('item-action-modal')!.classList.add('hidden');
     };
+
+    const adminAuthClose = document.getElementById('admin-auth-close-btn');
+    if (adminAuthClose) {
+      adminAuthClose.onclick = () => {
+        document.getElementById('admin-auth-modal')!.classList.add('hidden');
+      };
+    }
+
+    const editorClose = document.getElementById('editor-drawer-close-btn');
+    if (editorClose) {
+      editorClose.onclick = () => {
+        this.switchDrawer('skills');
+      };
+    }
+
+    const npcClose = document.getElementById('npc-modal-close-btn');
+    if (npcClose) {
+      npcClose.onclick = () => {
+        document.getElementById('npc-dialogue-modal')!.classList.add('hidden');
+      };
+    }
 
     document.getElementById('btn-action-equip')!.onclick = () => {
       if (this.selectedInventoryIndex !== null) {
@@ -912,6 +1065,588 @@ class EldoriaClient {
       text: msg,
     });
   }
+
+  /* ========================================================
+     ADMIN WORLD EDITOR METHODS
+     ======================================================== */
+  private setupAdminEditor() {
+    // 1. Admin Authentication Form
+    const authForm = document.getElementById('admin-auth-form') as HTMLFormElement | null;
+    const authInput = document.getElementById('admin-secret-input') as HTMLInputElement | null;
+    if (authForm && authInput) {
+      authForm.onsubmit = (e) => {
+        e.preventDefault();
+        const secret = authInput.value.trim();
+        if (!secret) return;
+        this.sendWs({ type: 'ADMIN_LOGIN', secret });
+        authInput.value = '';
+      };
+    }
+
+    // 2. Editor Tabs Navigation
+    const tabs = document.querySelectorAll('.editor-tab');
+    tabs.forEach(tab => {
+      tab.addEventListener('click', () => {
+        tabs.forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        const target = tab.getAttribute('data-tab') as any;
+        this.switchEditorTab(target);
+      });
+    });
+
+    // 3. Tile coordinate picker callback from map
+    this.renderer.onTileSelected = (tx: number, ty: number) => {
+      if (this.activeEditorTab === 'nodes') {
+        const xIn = document.getElementById('node-form-x') as HTMLInputElement | null;
+        const yIn = document.getElementById('node-form-y') as HTMLInputElement | null;
+        if (xIn && yIn) {
+          xIn.value = tx.toString();
+          yIn.value = ty.toString();
+        }
+        this.showToast(`Node coordinates set: (${tx}, ${ty})`);
+      } else if (this.activeEditorTab === 'monsters') {
+        const xIn = document.getElementById('monster-form-x') as HTMLInputElement | null;
+        const yIn = document.getElementById('monster-form-y') as HTMLInputElement | null;
+        if (xIn && yIn) {
+          xIn.value = tx.toString();
+          yIn.value = ty.toString();
+        }
+        this.showToast(`Monster coordinates set: (${tx}, ${ty})`);
+      } else if (this.activeEditorTab === 'npcs') {
+        const xIn = document.getElementById('npc-form-x') as HTMLInputElement | null;
+        const yIn = document.getElementById('npc-form-y') as HTMLInputElement | null;
+        if (xIn && yIn) {
+          xIn.value = tx.toString();
+          yIn.value = ty.toString();
+        }
+        this.showToast(`NPC coordinates set: (${tx}, ${ty})`);
+      }
+      this.renderer.editorMode = 'none';
+    };
+
+    // 4. Collision Tools
+    const chkCollisions = document.getElementById('chk-show-collisions') as HTMLInputElement | null;
+    if (chkCollisions) {
+      chkCollisions.onchange = () => {
+        this.renderer.showCollisions = chkCollisions.checked;
+      };
+    }
+
+    const btnPaint = document.getElementById('btn-brush-paint');
+    const btnErase = document.getElementById('btn-brush-erase');
+    if (btnPaint && btnErase) {
+      btnPaint.onclick = () => {
+        this.collisionBrush = 'paint';
+        btnPaint.classList.add('active');
+        btnErase.classList.remove('active');
+        this.renderer.editorMode = 'paint_collision';
+      };
+      btnErase.onclick = () => {
+        this.collisionBrush = 'erase';
+        btnErase.classList.add('active');
+        btnPaint.classList.remove('active');
+        this.renderer.editorMode = 'erase_collision';
+      };
+    }
+
+    this.renderer.onCollisionToggled = () => {
+      this.updateCollisionCount();
+    };
+
+    const btnClearColl = document.getElementById('btn-clear-collisions');
+    if (btnClearColl) {
+      btnClearColl.onclick = () => {
+        if (confirm('Clear all collision boundaries on the map?')) {
+          this.renderer.setCollisions([]);
+          this.updateCollisionCount();
+        }
+      };
+    }
+
+    const btnAutoColl = document.getElementById('btn-auto-collisions');
+    if (btnAutoColl) {
+      btnAutoColl.onclick = () => {
+        const existing = this.renderer.getCollisions();
+        // Add river boundaries
+        for (let y = 10; y <= 30; y++) existing.add(`3,${y}`);
+        // Add east crag walls
+        for (let y = 5; y <= 13; y++) {
+          existing.add(`26,${y}`);
+          existing.add(`27,${y}`);
+        }
+        // Add central water pool
+        for (let x = 12; x <= 14; x++) {
+          for (let y = 28; y <= 30; y++) {
+            existing.add(`${x},${y}`);
+          }
+        }
+        // Outer realm borders
+        for (let x = 0; x < 60; x++) {
+          existing.add(`${x},0`);
+          existing.add(`${x},59`);
+        }
+        for (let y = 0; y < 60; y++) {
+          existing.add(`0,${y}`);
+          existing.add(`59,${y}`);
+        }
+        this.updateCollisionCount();
+        this.showToast('Auto-detected water, river and world boundaries!');
+      };
+    }
+
+    const btnSaveColl = document.getElementById('btn-save-collisions');
+    if (btnSaveColl) {
+      btnSaveColl.onclick = () => {
+        const collArray = Array.from(this.renderer.getCollisions());
+        this.sendWs({
+          type: 'ADMIN_SAVE_COLLISIONS',
+          collisions: collArray,
+        });
+        this.showToast(`Saved ${collArray.length} collision tiles!`);
+      };
+    }
+
+    // 5. Node Form Setup
+    const recSelect = document.getElementById('node-form-recipe') as HTMLSelectElement | null;
+    if (recSelect) {
+      recSelect.innerHTML = `<option value="">None (Heuristics / Bank)</option>` +
+        Object.values(RECIPES)
+          .map(r => `<option value="${r.id}">${r.name} (${r.skill} Lv ${r.levelReq})</option>`)
+          .join('');
+    }
+
+    const nodeForm = document.getElementById('editor-node-form') as HTMLFormElement | null;
+    const btnAddNode = document.getElementById('btn-add-node');
+    const btnCancelNode = document.getElementById('btn-cancel-node');
+    const btnPickNode = document.getElementById('btn-pick-node-coord');
+
+    if (btnAddNode && nodeForm) {
+      btnAddNode.onclick = () => {
+        nodeForm.classList.remove('hidden');
+        (document.getElementById('node-form-id') as HTMLInputElement).value = '';
+        (document.getElementById('node-form-name') as HTMLInputElement).value = '';
+        (document.getElementById('node-form-x') as HTMLInputElement).value = '25';
+        (document.getElementById('node-form-y') as HTMLInputElement).value = '25';
+      };
+    }
+    if (btnCancelNode && nodeForm) {
+      btnCancelNode.onclick = () => nodeForm.classList.add('hidden');
+    }
+    if (btnPickNode) {
+      btnPickNode.onclick = () => {
+        this.renderer.editorMode = 'place_node';
+        this.showToast('Click anywhere on the map to set node coordinates...');
+      };
+    }
+    if (nodeForm) {
+      nodeForm.onsubmit = (e) => {
+        e.preventDefault();
+        const id = (document.getElementById('node-form-id') as HTMLInputElement).value || `node_${Date.now()}`;
+        const name = (document.getElementById('node-form-name') as HTMLInputElement).value.trim();
+        const type = (document.getElementById('node-form-type') as HTMLSelectElement).value as any;
+        const recipeId = (document.getElementById('node-form-recipe') as HTMLSelectElement).value || undefined;
+        const x = parseInt((document.getElementById('node-form-x') as HTMLInputElement).value, 10);
+        const y = parseInt((document.getElementById('node-form-y') as HTMLInputElement).value, 10);
+
+        this.sendWs({
+          type: 'ADMIN_SAVE_NODE',
+          node: { id, name, type, recipeId, x, y },
+        });
+        nodeForm.classList.add('hidden');
+      };
+    }
+
+    // 6. Monster Form Setup
+    const mobForm = document.getElementById('editor-monster-form') as HTMLFormElement | null;
+    const btnAddMob = document.getElementById('btn-add-monster');
+    const btnCancelMob = document.getElementById('btn-cancel-monster');
+    const btnPickMob = document.getElementById('btn-pick-monster-coord');
+
+    if (btnAddMob && mobForm) {
+      btnAddMob.onclick = () => {
+        mobForm.classList.remove('hidden');
+        (document.getElementById('monster-form-id') as HTMLInputElement).value = '';
+        (document.getElementById('monster-form-name') as HTMLInputElement).value = '';
+        (document.getElementById('monster-form-x') as HTMLInputElement).value = '4';
+        (document.getElementById('monster-form-y') as HTMLInputElement).value = '44';
+      };
+    }
+    if (btnCancelMob && mobForm) {
+      btnCancelMob.onclick = () => mobForm.classList.add('hidden');
+    }
+    if (btnPickMob) {
+      btnPickMob.onclick = () => {
+        this.renderer.editorMode = 'place_node';
+        this.showToast('Click anywhere on the map to set monster coordinates...');
+      };
+    }
+    if (mobForm) {
+      mobForm.onsubmit = (e) => {
+        e.preventDefault();
+        const id = (document.getElementById('monster-form-id') as HTMLInputElement).value || `mob_${Date.now()}`;
+        const name = (document.getElementById('monster-form-name') as HTMLInputElement).value.trim();
+        const monsterId = (document.getElementById('monster-form-mobid') as HTMLSelectElement).value;
+        const x = parseInt((document.getElementById('monster-form-x') as HTMLInputElement).value, 10);
+        const y = parseInt((document.getElementById('monster-form-y') as HTMLInputElement).value, 10);
+
+        this.sendWs({
+          type: 'ADMIN_SAVE_NODE',
+          node: { id, name, type: 'monster', monsterId, x, y },
+        });
+        mobForm.classList.add('hidden');
+      };
+    }
+
+    // 7. NPC Form Setup
+    const npcForm = document.getElementById('editor-npc-form') as HTMLFormElement | null;
+    const btnAddNpc = document.getElementById('btn-add-npc');
+    const btnCancelNpc = document.getElementById('btn-cancel-npc');
+    const btnPickNpc = document.getElementById('btn-pick-npc-coord');
+
+    if (btnAddNpc && npcForm) {
+      btnAddNpc.onclick = () => {
+        npcForm.classList.remove('hidden');
+        (document.getElementById('npc-form-id') as HTMLInputElement).value = '';
+        (document.getElementById('npc-form-name') as HTMLInputElement).value = '';
+        (document.getElementById('npc-form-title') as HTMLInputElement).value = '';
+        (document.getElementById('npc-form-dialogue') as HTMLTextAreaElement).value = '';
+        (document.getElementById('npc-form-x') as HTMLInputElement).value = '10';
+        (document.getElementById('npc-form-y') as HTMLInputElement).value = '22';
+      };
+    }
+    if (btnCancelNpc && npcForm) {
+      btnCancelNpc.onclick = () => npcForm.classList.add('hidden');
+    }
+    if (btnPickNpc) {
+      btnPickNpc.onclick = () => {
+        this.renderer.editorMode = 'place_npc';
+        this.showToast('Click anywhere on the map to place NPC...');
+      };
+    }
+    if (npcForm) {
+      npcForm.onsubmit = (e) => {
+        e.preventDefault();
+        const id = (document.getElementById('npc-form-id') as HTMLInputElement).value || `npc_${Date.now()}`;
+        const name = (document.getElementById('npc-form-name') as HTMLInputElement).value.trim();
+        const title = (document.getElementById('npc-form-title') as HTMLInputElement).value.trim() || undefined;
+        const role = (document.getElementById('npc-form-role') as HTMLSelectElement).value as any;
+        const dialogueRaw = (document.getElementById('npc-form-dialogue') as HTMLTextAreaElement).value;
+        const dialogue = dialogueRaw.split('\n').map(s => s.trim()).filter(Boolean);
+        const x = parseInt((document.getElementById('npc-form-x') as HTMLInputElement).value, 10);
+        const y = parseInt((document.getElementById('npc-form-y') as HTMLInputElement).value, 10);
+
+        this.sendWs({
+          type: 'ADMIN_SAVE_NPC',
+          npc: { id, name, title, role, dialogue, x, y },
+        });
+        npcForm.classList.add('hidden');
+      };
+    }
+
+    // 8. Quest Form Setup
+    const questForm = document.getElementById('editor-quest-form') as HTMLFormElement | null;
+    const btnAddQuest = document.getElementById('btn-add-quest');
+    const btnCancelQuest = document.getElementById('btn-cancel-quest');
+
+    if (btnAddQuest && questForm) {
+      btnAddQuest.onclick = () => {
+        questForm.classList.remove('hidden');
+        (document.getElementById('quest-form-id') as HTMLInputElement).value = '';
+        (document.getElementById('quest-form-title') as HTMLInputElement).value = '';
+        (document.getElementById('quest-form-desc') as HTMLTextAreaElement).value = '';
+        (document.getElementById('quest-form-obj-target') as HTMLInputElement).value = '';
+      };
+    }
+    if (btnCancelQuest && questForm) {
+      btnCancelQuest.onclick = () => questForm.classList.add('hidden');
+    }
+    if (questForm) {
+      questForm.onsubmit = (e) => {
+        e.preventDefault();
+        const id = (document.getElementById('quest-form-id') as HTMLInputElement).value || `quest_${Date.now()}`;
+        const title = (document.getElementById('quest-form-title') as HTMLInputElement).value.trim();
+        const description = (document.getElementById('quest-form-desc') as HTMLTextAreaElement).value.trim();
+        const npcId = (document.getElementById('quest-form-npc') as HTMLSelectElement).value;
+        const objType = (document.getElementById('quest-form-obj-type') as HTMLSelectElement).value as any;
+        const count = parseInt((document.getElementById('quest-form-obj-count') as HTMLInputElement).value, 10);
+        const targetId = (document.getElementById('quest-form-obj-target') as HTMLInputElement).value.trim();
+        const gold = parseInt((document.getElementById('quest-form-reward-gold') as HTMLInputElement).value, 10) || 0;
+        const xp = parseInt((document.getElementById('quest-form-reward-xp') as HTMLInputElement).value, 10) || 0;
+
+        this.sendWs({
+          type: 'ADMIN_SAVE_QUEST',
+          quest: {
+            id,
+            title,
+            description,
+            npcId,
+            objective: { type: objType, targetId, count },
+            reward: { gold, xp },
+          },
+        });
+        questForm.classList.add('hidden');
+      };
+    }
+  }
+
+  private switchEditorTab(tab: 'nodes' | 'monsters' | 'npcs' | 'quests' | 'collisions') {
+    this.activeEditorTab = tab;
+    const tabContents = ['nodes', 'monsters', 'npcs', 'quests', 'collisions'];
+    for (const t of tabContents) {
+      const el = document.getElementById(`tab-content-${t}`);
+      if (el) {
+        if (t === tab) el.classList.remove('hidden');
+        else el.classList.add('hidden');
+      }
+    }
+
+    if (tab === 'collisions') {
+      this.renderer.showCollisions = true;
+      const chk = document.getElementById('chk-show-collisions') as HTMLInputElement | null;
+      if (chk) chk.checked = true;
+      this.renderer.editorMode = this.collisionBrush === 'paint' ? 'paint_collision' : 'erase_collision';
+      this.updateCollisionCount();
+    } else {
+      const chk = document.getElementById('chk-show-collisions') as HTMLInputElement | null;
+      if (!chk || !chk.checked) {
+        this.renderer.showCollisions = false;
+      }
+      this.renderer.editorMode = 'none';
+    }
+  }
+
+  private updateCollisionCount() {
+    const el = document.getElementById('collision-tile-count');
+    if (el) {
+      el.textContent = `${this.renderer.getCollisions().size} tiles`;
+    }
+  }
+
+  private renderEditorNodes() {
+    const container = document.getElementById('editor-nodes-list');
+    if (!container) return;
+    container.innerHTML = '';
+
+    const nodes = this.worldNodes.filter(n => n.type !== 'monster');
+    for (const n of nodes) {
+      const card = document.createElement('div');
+      card.className = 'editor-entity-card';
+      card.innerHTML = `
+        <div class="editor-entity-info">
+          <div class="editor-entity-title">${n.name}</div>
+          <div class="editor-entity-meta">${n.type} · (${n.x}, ${n.y}) ${n.recipeId ? `· ${n.recipeId}` : ''}</div>
+        </div>
+        <div class="editor-entity-actions">
+          <button class="btn-micro-edit" data-id="${n.id}">Edit</button>
+          <button class="btn-micro-del" data-id="${n.id}">Del</button>
+        </div>
+      `;
+
+      card.querySelector('.btn-micro-edit')!.addEventListener('click', () => {
+        const form = document.getElementById('editor-node-form')!;
+        form.classList.remove('hidden');
+        (document.getElementById('node-form-id') as HTMLInputElement).value = n.id;
+        (document.getElementById('node-form-name') as HTMLInputElement).value = n.name;
+        (document.getElementById('node-form-type') as HTMLSelectElement).value = n.type;
+        (document.getElementById('node-form-recipe') as HTMLSelectElement).value = n.recipeId || '';
+        (document.getElementById('node-form-x') as HTMLInputElement).value = n.x.toString();
+        (document.getElementById('node-form-y') as HTMLInputElement).value = n.y.toString();
+      });
+
+      card.querySelector('.btn-micro-del')!.addEventListener('click', () => {
+        if (confirm(`Delete node "${n.name}"?`)) {
+          this.sendWs({ type: 'ADMIN_DELETE_NODE', id: n.id });
+        }
+      });
+
+      container.appendChild(card);
+    }
+  }
+
+  private renderEditorMonsters() {
+    const container = document.getElementById('editor-monsters-list');
+    if (!container) return;
+    container.innerHTML = '';
+
+    const monsters = this.worldNodes.filter(n => n.type === 'monster');
+    for (const m of monsters) {
+      const card = document.createElement('div');
+      card.className = 'editor-entity-card';
+      card.innerHTML = `
+        <div class="editor-entity-info">
+          <div class="editor-entity-title">${m.name}</div>
+          <div class="editor-entity-meta">${m.monsterId || 'mire_rat'} · (${m.x}, ${m.y})</div>
+        </div>
+        <div class="editor-entity-actions">
+          <button class="btn-micro-edit" data-id="${m.id}">Edit</button>
+          <button class="btn-micro-del" data-id="${m.id}">Del</button>
+        </div>
+      `;
+
+      card.querySelector('.btn-micro-edit')!.addEventListener('click', () => {
+        const form = document.getElementById('editor-monster-form')!;
+        form.classList.remove('hidden');
+        (document.getElementById('monster-form-id') as HTMLInputElement).value = m.id;
+        (document.getElementById('monster-form-name') as HTMLInputElement).value = m.name;
+        (document.getElementById('monster-form-mobid') as HTMLSelectElement).value = m.monsterId || 'mire_rat';
+        (document.getElementById('monster-form-x') as HTMLInputElement).value = m.x.toString();
+        (document.getElementById('monster-form-y') as HTMLInputElement).value = m.y.toString();
+      });
+
+      card.querySelector('.btn-micro-del')!.addEventListener('click', () => {
+        if (confirm(`Delete monster spawn "${m.name}"?`)) {
+          this.sendWs({ type: 'ADMIN_DELETE_NODE', id: m.id });
+        }
+      });
+
+      container.appendChild(card);
+    }
+  }
+
+  private renderEditorNpcs() {
+    const container = document.getElementById('editor-npcs-list');
+    if (!container) return;
+    container.innerHTML = '';
+
+    for (const npc of this.npcs) {
+      const card = document.createElement('div');
+      card.className = 'editor-entity-card';
+      card.innerHTML = `
+        <div class="editor-entity-info">
+          <div class="editor-entity-title">${npc.name} ${npc.title ? `(${npc.title})` : ''}</div>
+          <div class="editor-entity-meta">${npc.role} · (${npc.x}, ${npc.y})</div>
+        </div>
+        <div class="editor-entity-actions">
+          <button class="btn-micro-edit" data-id="${npc.id}">Edit</button>
+          <button class="btn-micro-del" data-id="${npc.id}">Del</button>
+        </div>
+      `;
+
+      card.querySelector('.btn-micro-edit')!.addEventListener('click', () => {
+        const form = document.getElementById('editor-npc-form')!;
+        form.classList.remove('hidden');
+        (document.getElementById('npc-form-id') as HTMLInputElement).value = npc.id;
+        (document.getElementById('npc-form-name') as HTMLInputElement).value = npc.name;
+        (document.getElementById('npc-form-title') as HTMLInputElement).value = npc.title || '';
+        (document.getElementById('npc-form-role') as HTMLSelectElement).value = npc.role;
+        (document.getElementById('npc-form-dialogue') as HTMLTextAreaElement).value = (npc.dialogue || []).join('\n');
+        (document.getElementById('npc-form-x') as HTMLInputElement).value = npc.x.toString();
+        (document.getElementById('npc-form-y') as HTMLInputElement).value = npc.y.toString();
+      });
+
+      card.querySelector('.btn-micro-del')!.addEventListener('click', () => {
+        if (confirm(`Delete NPC "${npc.name}"?`)) {
+          this.sendWs({ type: 'ADMIN_DELETE_NPC', id: npc.id });
+        }
+      });
+
+      container.appendChild(card);
+    }
+  }
+
+  private updateQuestNpcDropdown() {
+    const select = document.getElementById('quest-form-npc') as HTMLSelectElement | null;
+    if (!select) return;
+    select.innerHTML = this.npcs.map(n => `<option value="${n.id}">${n.name} (${n.title || n.role})</option>`).join('');
+  }
+
+  private renderEditorQuests() {
+    const container = document.getElementById('editor-quests-list');
+    if (!container) return;
+    container.innerHTML = '';
+
+    for (const q of this.quests) {
+      const xpVal = typeof q.reward.xp === 'number' ? q.reward.xp : (q.reward.xp?.amount || 0);
+      const card = document.createElement('div');
+      card.className = 'editor-entity-card';
+      card.innerHTML = `
+        <div class="editor-entity-info">
+          <div class="editor-entity-title">${q.title}</div>
+          <div class="editor-entity-meta">${q.objective.type} ${q.objective.count}x ${q.objective.targetId} · Giver: ${q.npcId}</div>
+        </div>
+        <div class="editor-entity-actions">
+          <button class="btn-micro-edit" data-id="${q.id}">Edit</button>
+          <button class="btn-micro-del" data-id="${q.id}">Del</button>
+        </div>
+      `;
+
+      card.querySelector('.btn-micro-edit')!.addEventListener('click', () => {
+        const form = document.getElementById('editor-quest-form')!;
+        form.classList.remove('hidden');
+        (document.getElementById('quest-form-id') as HTMLInputElement).value = q.id;
+        (document.getElementById('quest-form-title') as HTMLInputElement).value = q.title;
+        (document.getElementById('quest-form-desc') as HTMLTextAreaElement).value = q.description;
+        (document.getElementById('quest-form-npc') as HTMLSelectElement).value = q.npcId;
+        (document.getElementById('quest-form-obj-type') as HTMLSelectElement).value = q.objective.type;
+        (document.getElementById('quest-form-obj-count') as HTMLInputElement).value = q.objective.count.toString();
+        (document.getElementById('quest-form-obj-target') as HTMLInputElement).value = q.objective.targetId;
+        (document.getElementById('quest-form-reward-gold') as HTMLInputElement).value = (q.reward.gold || 0).toString();
+        (document.getElementById('quest-form-reward-xp') as HTMLInputElement).value = xpVal.toString();
+      });
+
+      card.querySelector('.btn-micro-del')!.addEventListener('click', () => {
+        if (confirm(`Delete Quest "${q.title}"?`)) {
+          this.sendWs({ type: 'ADMIN_DELETE_QUEST', id: q.id });
+        }
+      });
+
+      container.appendChild(card);
+    }
+  }
+
+  private openNpcDialogue(npc: NpcDefinition) {
+    const modal = document.getElementById('npc-dialogue-modal');
+    if (!modal) return;
+
+    document.getElementById('npc-modal-name')!.textContent = npc.name;
+    document.getElementById('npc-modal-title')!.textContent = npc.title || 'Town Inhabitant';
+
+    const dialEl = document.getElementById('npc-modal-dialogue')!;
+    if (npc.dialogue && npc.dialogue.length > 0) {
+      const line = npc.dialogue[Math.floor(Math.random() * npc.dialogue.length)];
+      dialEl.textContent = `"${line}"`;
+    } else {
+      dialEl.textContent = `"Greetings, traveler. Safe journey in the wilds of Eldoria."`;
+    }
+
+    const questListEl = document.getElementById('npc-modal-quests')!;
+    questListEl.innerHTML = '';
+
+    const npcQuests = this.quests.filter(q => q.npcId === npc.id);
+    if (npcQuests.length > 0) {
+      const heading = document.createElement('div');
+      heading.style.fontSize = '0.72rem';
+      heading.style.fontWeight = '700';
+      heading.style.color = 'var(--gold-bright)';
+      heading.style.marginBottom = '4px';
+      heading.textContent = 'Available Quests:';
+      questListEl.appendChild(heading);
+
+      for (const q of npcQuests) {
+        const xpVal = typeof q.reward.xp === 'number' ? q.reward.xp : (q.reward.xp?.amount || 0);
+        const card = document.createElement('div');
+        card.className = 'npc-quest-card';
+        card.innerHTML = `
+          <div class="npc-quest-title">${q.title}</div>
+          <div class="npc-quest-desc">${q.description}</div>
+          <div class="npc-quest-rewards">
+            Goal: ${q.objective.type} ${q.objective.count}x ${q.objective.targetId} • 
+            Rewards: ${q.reward.gold || 0} Gold, ${xpVal} XP
+          </div>
+          <button class="btn-start" style="font-size:0.72rem; padding:3px 8px; margin-top:4px;">Accept Quest</button>
+        `;
+        const btnAccept = card.querySelector('button')!;
+        btnAccept.onclick = () => {
+          this.showToast(`Accepted quest "${q.title}"!`);
+          modal.classList.add('hidden');
+        };
+        questListEl.appendChild(card);
+      }
+    }
+
+    modal.classList.remove('hidden');
+  }
 }
 
 new EldoriaClient();
+

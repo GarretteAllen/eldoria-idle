@@ -176,9 +176,54 @@ export interface ActiveBuff {
   expiresAt: number;
 }
 
+export interface WorldNode {
+  id: string;
+  name: string;
+  type: 'hearth_counter' | 'forge' | 'fire' | 'mine' | 'tree' | 'water' | 'farm' | 'monster' | 'boss_arena';
+  x: number;
+  y: number;
+  recipeId?: string;
+  monsterId?: string;
+}
+
+export interface NpcDefinition {
+  id: string;
+  name: string;
+  title: string;
+  x: number;
+  y: number;
+  dialogue: string[];
+  role: 'guide' | 'merchant' | 'quest_giver';
+  shopItemIds?: string[];
+  questIds?: string[];
+}
+
+export interface QuestObjective {
+  type: 'gather' | 'kill' | 'skill_level';
+  targetId: string;
+  count: number;
+}
+
+export interface QuestReward {
+  xp?: { skill?: SkillType; amount: number } | number;
+  gold?: number;
+  items?: Array<{ itemId: string; quantity: number }>;
+}
+
+export interface QuestDefinition {
+  id: string;
+  title: string;
+  description: string;
+  npcId: string;
+  objective: QuestObjective;
+  reward: QuestReward;
+  levelReq?: number;
+}
+
 export interface PlayerData {
   id: string;
   username: string;
+  role?: 'admin' | 'player';
   isGuest: boolean;
   x: number;
   y: number;

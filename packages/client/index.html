@@ -123,6 +123,7 @@
         <button class="tool-btn" data-panel="inventory" id="tool-btn-inventory" title="Bag (Inventory)"></button>
         <button class="tool-btn" data-panel="equipment" id="tool-btn-equipment" title="Gear (Equipment)"></button>
         <button class="tool-btn" data-panel="storage" id="tool-btn-storage" title="Hearth Reliquary"></button>
+        <button class="tool-btn" data-panel="editor" id="tool-btn-editor" title="In-Game World Editor (Admin)"></button>
         <button class="tool-btn" data-panel="chat" id="tool-btn-chat" title="Toggle Chat"></button>
       </aside>
 
@@ -266,6 +267,289 @@
           <div class="modal-footer" style="margin-top: 14px;">
             <button id="away-ok-btn" class="btn-start" style="width: 100%;">Awaken & Collect</button>
           </div>
+        </div>
+      </div>
+
+      <!-- 11. IN-GAME ADMIN WORLD EDITOR DRAWER -->
+      <div id="admin-editor-drawer" class="drawer-panel dark-oak-panel hidden" style="width: 380px;">
+        <div class="drawer-header">
+          <div style="display: flex; align-items: center; gap: 6px;">
+            <span class="admin-badge"><span id="editor-crown-icon"></span> ADMIN</span>
+            <h3>World Editor</h3>
+          </div>
+          <button id="editor-drawer-close-btn" class="icon-btn-micro"></button>
+        </div>
+
+        <div class="editor-tabs-bar">
+          <button class="editor-tab active" data-tab="nodes">Nodes</button>
+          <button class="editor-tab" data-tab="monsters">Enemies</button>
+          <button class="editor-tab" data-tab="npcs">NPCs</button>
+          <button class="editor-tab" data-tab="quests">Quests</button>
+          <button class="editor-tab" data-tab="collisions">Collision</button>
+        </div>
+
+        <div class="drawer-body" style="padding: 8px;">
+          <!-- TAB 1: NODES -->
+          <div id="tab-content-nodes" class="editor-tab-content">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+              <span style="font-size: 0.75rem; color: var(--gold-main); font-weight: 700;">World Resource Nodes</span>
+              <button id="btn-add-node" class="btn-oak" style="font-size: 0.7rem; padding: 2px 6px;">+ Place Node</button>
+            </div>
+
+            <!-- Add/Edit Node Form -->
+            <form id="editor-node-form" class="editor-form-box hidden">
+              <input type="hidden" id="node-form-id" />
+              <div class="form-row">
+                <label>Name:</label>
+                <input type="text" id="node-form-name" required placeholder="Node name" />
+              </div>
+              <div class="form-row">
+                <label>Type:</label>
+                <select id="node-form-type">
+                  <option value="mine">Mine</option>
+                  <option value="tree">Tree</option>
+                  <option value="water">Fishing Spot</option>
+                  <option value="farm">Farm</option>
+                  <option value="forge">Forge</option>
+                  <option value="fire">Firepit</option>
+                  <option value="hearth_counter">Hearth Bank</option>
+                </select>
+              </div>
+              <div class="form-row">
+                <label>Recipe:</label>
+                <select id="node-form-recipe"></select>
+              </div>
+              <div class="form-row-2col">
+                <div>
+                  <label>X:</label>
+                  <input type="number" id="node-form-x" min="0" max="60" required />
+                </div>
+                <div>
+                  <label>Y:</label>
+                  <input type="number" id="node-form-y" min="0" max="60" required />
+                </div>
+              </div>
+              <button type="button" id="btn-pick-node-coord" class="btn-oak" style="width: 100%; margin-top: 4px;">🎯 Pick on Map (Click Tile)</button>
+              <div style="display: flex; gap: 6px; margin-top: 8px;">
+                <button type="submit" class="btn-start" style="flex: 1;">Save Node</button>
+                <button type="button" id="btn-cancel-node" class="btn-stop" style="flex: 1;">Cancel</button>
+              </div>
+            </form>
+
+            <div id="editor-nodes-list" class="editor-entities-list"></div>
+          </div>
+
+          <!-- TAB 2: MONSTERS -->
+          <div id="tab-content-monsters" class="editor-tab-content hidden">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+              <span style="font-size: 0.75rem; color: var(--gold-main); font-weight: 700;">Monster Hunting Nodes</span>
+              <button id="btn-add-monster" class="btn-oak" style="font-size: 0.7rem; padding: 2px 6px;">+ Add Spawner</button>
+            </div>
+
+            <form id="editor-monster-form" class="editor-form-box hidden">
+              <input type="hidden" id="monster-form-id" />
+              <div class="form-row">
+                <label>Name:</label>
+                <input type="text" id="monster-form-name" required placeholder="Burrow name" />
+              </div>
+              <div class="form-row">
+                <label>Monster ID:</label>
+                <select id="monster-form-mobid">
+                  <option value="mire_rat">Mire-Rat (Lv 3)</option>
+                  <option value="stone_carapace">Cragridge Carapace (Lv 8)</option>
+                  <option value="fen_creeper">Dread Marsh Creeper (Lv 15)</option>
+                </select>
+              </div>
+              <div class="form-row-2col">
+                <div>
+                  <label>X:</label>
+                  <input type="number" id="monster-form-x" min="0" max="60" required />
+                </div>
+                <div>
+                  <label>Y:</label>
+                  <input type="number" id="monster-form-y" min="0" max="60" required />
+                </div>
+              </div>
+              <button type="button" id="btn-pick-monster-coord" class="btn-oak" style="width: 100%; margin-top: 4px;">🎯 Pick on Map (Click Tile)</button>
+              <div style="display: flex; gap: 6px; margin-top: 8px;">
+                <button type="submit" class="btn-start" style="flex: 1;">Save Monster</button>
+                <button type="button" id="btn-cancel-monster" class="btn-stop" style="flex: 1;">Cancel</button>
+              </div>
+            </form>
+
+            <div id="editor-monsters-list" class="editor-entities-list"></div>
+          </div>
+
+          <!-- TAB 3: NPCS -->
+          <div id="tab-content-npcs" class="editor-tab-content hidden">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+              <span style="font-size: 0.75rem; color: var(--gold-main); font-weight: 700;">Inhabitants & NPCs</span>
+              <button id="btn-add-npc" class="btn-oak" style="font-size: 0.7rem; padding: 2px 6px;">+ Place NPC</button>
+            </div>
+
+            <form id="editor-npc-form" class="editor-form-box hidden">
+              <input type="hidden" id="npc-form-id" />
+              <div class="form-row">
+                <label>Name:</label>
+                <input type="text" id="npc-form-name" required placeholder="Character name" />
+              </div>
+              <div class="form-row">
+                <label>Title:</label>
+                <input type="text" id="npc-form-title" placeholder="e.g. Hearth Elder" />
+              </div>
+              <div class="form-row">
+                <label>Role:</label>
+                <select id="npc-form-role">
+                  <option value="guide">Town Guide</option>
+                  <option value="merchant">Merchant</option>
+                  <option value="quest_giver">Quest Giver</option>
+                </select>
+              </div>
+              <div class="form-row">
+                <label>Dialogue (1 line each):</label>
+                <textarea id="npc-form-dialogue" rows="3" placeholder="Welcome traveler..."></textarea>
+              </div>
+              <div class="form-row-2col">
+                <div>
+                  <label>X:</label>
+                  <input type="number" id="npc-form-x" min="0" max="60" required />
+                </div>
+                <div>
+                  <label>Y:</label>
+                  <input type="number" id="npc-form-y" min="0" max="60" required />
+                </div>
+              </div>
+              <button type="button" id="btn-pick-npc-coord" class="btn-oak" style="width: 100%; margin-top: 4px;">🎯 Pick on Map (Click Tile)</button>
+              <div style="display: flex; gap: 6px; margin-top: 8px;">
+                <button type="submit" class="btn-start" style="flex: 1;">Save NPC</button>
+                <button type="button" id="btn-cancel-npc" class="btn-stop" style="flex: 1;">Cancel</button>
+              </div>
+            </form>
+
+            <div id="editor-npcs-list" class="editor-entities-list"></div>
+          </div>
+
+          <!-- TAB 4: QUESTS -->
+          <div id="tab-content-quests" class="editor-tab-content hidden">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+              <span style="font-size: 0.75rem; color: var(--gold-main); font-weight: 700;">Realm Quests</span>
+              <button id="btn-add-quest" class="btn-oak" style="font-size: 0.7rem; padding: 2px 6px;">+ Create Quest</button>
+            </div>
+
+            <form id="editor-quest-form" class="editor-form-box hidden">
+              <input type="hidden" id="quest-form-id" />
+              <div class="form-row">
+                <label>Title:</label>
+                <input type="text" id="quest-form-title" required placeholder="Quest title" />
+              </div>
+              <div class="form-row">
+                <label>Description:</label>
+                <textarea id="quest-form-desc" rows="2" placeholder="Task details..."></textarea>
+              </div>
+              <div class="form-row">
+                <label>NPC Giver:</label>
+                <select id="quest-form-npc"></select>
+              </div>
+              <div class="form-row-2col">
+                <div>
+                  <label>Objective:</label>
+                  <select id="quest-form-obj-type">
+                    <option value="gather">Gather Items</option>
+                    <option value="kill">Slay Monsters</option>
+                    <option value="skill_level">Reach Skill Lv</option>
+                  </select>
+                </div>
+                <div>
+                  <label>Count:</label>
+                  <input type="number" id="quest-form-obj-count" min="1" value="5" required />
+                </div>
+              </div>
+              <div class="form-row">
+                <label>Target ID:</label>
+                <input type="text" id="quest-form-obj-target" placeholder="itemId or monsterId" required />
+              </div>
+              <div class="form-row-2col">
+                <div>
+                  <label>Gold Reward:</label>
+                  <input type="number" id="quest-form-reward-gold" min="0" value="50" />
+                </div>
+                <div>
+                  <label>XP Reward:</label>
+                  <input type="number" id="quest-form-reward-xp" min="0" value="100" />
+                </div>
+              </div>
+              <div style="display: flex; gap: 6px; margin-top: 8px;">
+                <button type="submit" class="btn-start" style="flex: 1;">Save Quest</button>
+                <button type="button" id="btn-cancel-quest" class="btn-stop" style="flex: 1;">Cancel</button>
+              </div>
+            </form>
+
+            <div id="editor-quests-list" class="editor-entities-list"></div>
+          </div>
+
+          <!-- TAB 5: COLLISIONS -->
+          <div id="tab-content-collisions" class="editor-tab-content hidden">
+            <div style="background: #1c1108; padding: 8px; border-radius: 4px; border: 1px solid var(--oak-border); margin-bottom: 8px;">
+              <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
+                <label style="font-size: 0.75rem; font-weight: 700; color: var(--gold-bright); cursor: pointer;">
+                  <input type="checkbox" id="chk-show-collisions" /> Show Collisions
+                </label>
+                <span id="collision-tile-count" style="font-size: 0.7rem; color: var(--text-dim);">0 tiles</span>
+              </div>
+              <div style="font-size: 0.7rem; color: var(--text-muted); line-height: 1.35;">
+                Pathfinding routes AROUND these blocked tiles. Click or drag on map to paint or erase boundaries.
+              </div>
+            </div>
+
+            <div style="display: flex; gap: 6px; margin-bottom: 8px;">
+              <button id="btn-brush-paint" class="btn-oak active" style="flex: 1;">🖌️ Paint</button>
+              <button id="btn-brush-erase" class="btn-oak" style="flex: 1;">🧼 Erase</button>
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: 6px;">
+              <button id="btn-auto-collisions" class="btn-oak">🌊 Auto-Detect Water & Walls</button>
+              <button id="btn-clear-collisions" class="btn-oak" style="color: #feb2b2;">❌ Clear All</button>
+              <button id="btn-save-collisions" class="btn-start" style="width: 100%; margin-top: 4px;">💾 Save Collisions</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ADMIN AUTH MODAL -->
+      <div id="admin-auth-modal" class="modal-backdrop hidden">
+        <div class="modal-box dark-oak-panel" style="width: 340px;">
+          <div class="modal-header">
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <span class="admin-badge"><span class="badge-icon">👑</span> ADMIN</span>
+              <h4>Admin Access</h4>
+            </div>
+            <button id="admin-auth-close-btn" class="icon-btn-micro"></button>
+          </div>
+          <form id="admin-auth-form" style="display: flex; flex-direction: column; gap: 10px;">
+            <p style="font-size: 0.75rem; color: var(--text-muted); line-height: 1.35;">
+              Enter the Game Master passphrase to unlock the In-Game World Editor and GM powers.
+            </p>
+            <input type="password" id="admin-secret-input" placeholder="Passphrase..." required style="background: #140c06; border: 1px solid var(--oak-border); border-radius: 4px; padding: 6px 10px; color: var(--text-main); outline: none;" />
+            <div style="display: flex; gap: 6px;">
+              <button type="submit" class="btn-start" style="flex: 1;">Unlock Editor</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- NPC DIALOGUE & QUEST MODAL -->
+      <div id="npc-dialogue-modal" class="modal-backdrop hidden">
+        <div class="modal-box dark-oak-panel" style="width: 380px;">
+          <div class="modal-header">
+            <div>
+              <h4 id="npc-modal-name" style="color: var(--gold-bright);">NPC Name</h4>
+              <div id="npc-modal-title" style="font-size: 0.72rem; color: #a0aec0; font-style: italic;">Title</div>
+            </div>
+            <button id="npc-modal-close-btn" class="icon-btn-micro"></button>
+          </div>
+          <div id="npc-modal-dialogue" style="font-size: 0.8rem; color: var(--parchment-text); background: var(--parchment-bg); border: 1px solid var(--parchment-border); border-radius: 6px; padding: 10px 12px; line-height: 1.4; margin-bottom: 10px;">
+          </div>
+          <div id="npc-modal-quests" style="display: flex; flex-direction: column; gap: 6px;"></div>
         </div>
       </div>
     </div>

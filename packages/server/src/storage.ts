@@ -1,10 +1,33 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { PlayerData, SkillType } from '@eldoria/shared';
+import { PlayerData, SkillType, WorldNode, NpcDefinition, QuestDefinition } from '@eldoria/shared';
+import { WORLD_NODES as DEFAULT_WORLD_NODES } from './world.js';
 
-const DATA_DIR = path.resolve(process.cwd(), 'data');
-const DATA_FILE = path.join(DATA_DIR, 'players.json');
+function resolveDataDir(): string {
+  if (process.env.DATA_DIR) {
+    return path.resolve(process.env.DATA_DIR);
+  }
+  const current = process.cwd();
+  // Check if cwd is already root
+  if (fs.existsSync(path.join(current, 'packages', 'server'))) {
+    return path.join(current, 'data');
+  }
+  // Check if cwd is inside packages/server
+  if (fs.existsSync(path.join(current, '..', '..', 'packages', 'server'))) {
+    return path.resolve(current, '..', '..', 'data');
+  }
+  return path.join(current, 'data');
+}
+
+const DATA_DIR = resolveDataDir();
+const PLAYERS_FILE = path.join(DATA_DIR, 'players.json');
+const NODES_FILE = path.join(DATA_DIR, 'world_nodes.json');
+const NPCS_FILE = path.join(DATA_DIR, 'npcs.json');
+const QUESTS_FILE = path.join(DATA_DIR, 'quests.json');
+const COLLISIONS_FILE = path.join(DATA_DIR, 'collisions.json');
+
+const ADMIN_SECRET = process.env.ADMIN_SECRET || 'eldoria_admin_2026';
 
 const INITIAL_SKILLS: Record<SkillType, { xp: number; level: number }> = {
   mining: { xp: 0, level: 1 },
@@ -25,8 +48,95 @@ const INITIAL_SKILLS: Record<SkillType, { xp: number; level: number }> = {
   hitpoints: { xp: 0, level: 10 },
 };
 
+const DEFAULT_NPCS: NpcDefinition[] = [
+  {
+    id: 'npc_elder',
+    name: 'Elder Theodosius',
+    title: 'Hearth Elder',
+    x: 9,
+    y: 21,
+    role: 'guide',
+    dialogue: [
+      'Welcome to Eldoria, traveler.',
+      'The Hearth Storage Counter provides boundless vault space for all who work the land.',
+      'Deposit your spoils here before venturing into the northern quarries or eastern timberlands.'
+    ],
+    questIds: ['quest_intro_mining']
+  },
+  {
+    id: 'npc_blacksmith',
+    name: 'Gorim Anvilheart',
+    title: 'Master Smith',
+    x: 5,
+    y: 24,
+    role: 'merchant',
+    dialogue: [
+      'The Runeforge is ready. Smelt raw ores into gleaming ingots and craft steadfast arms.',
+      'Bring me pyrite and cold iron, and we will forge glory.'
+    ],
+    questIds: ['quest_intro_smithing']
+  },
+  {
+    id: 'npc_scout',
+    name: 'Ranger Elyse',
+    title: 'Frontier Scout',
+    x: 6,
+    y: 43,
+    role: 'quest_giver',
+    dialogue: [
+      'Keep your wits about you in the southern flats.',
+      'Mire-rats and carapaces infest the riverbeds. Cull their numbers for bounties and provisions.'
+    ],
+    questIds: ['quest_hunt_rats']
+  }
+];
+
+const DEFAULT_QUESTS: QuestDefinition[] = [
+  {
+    id: 'quest_intro_mining',
+    title: 'The First Spark',
+    description: 'Mine 10 Pyrite from the Northern Quarry to prove your resourcefulness.',
+    npcId: 'npc_elder',
+    objective: { type: 'gather', targetId: 'pyrite_ore', count: 10 },
+    reward: { xp: { skill: 'mining', amount: 120 }, gold: 50 },
+    levelReq: 1,
+  },
+  {
+    id: 'quest_intro_smithing',
+    title: 'Forging Ahead',
+    description: 'Smelt 5 Dawnburn Ingots at the Ancestral Runeforge in town square.',
+    npcId: 'npc_blacksmith',
+    objective: { type: 'gather', targetId: 'dawnburn_ingot', count: 5 },
+    reward: { xp: { skill: 'smithing', amount: 160 }, gold: 75 },
+    levelReq: 1,
+  },
+  {
+    id: 'quest_hunt_rats',
+    title: 'Burrow Exterminator',
+    description: 'Hunt 3 Mire-Rats in the southern marshes to safeguard the frontier trail.',
+    npcId: 'npc_scout',
+    objective: { type: 'kill', targetId: 'mire_rat', count: 3 },
+    reward: { xp: { skill: 'melee', amount: 200 }, gold: 100 },
+    levelReq: 1,
+  }
+];
+
+// Default water edge / wall obstacles for level_0 Hearth town boundaries
+const DEFAULT_COLLISIONS: string[] = [
+  // Deep river tiles south boundary
+  '0,37', '1,37', '2,37', '3,37',
+  '14,37', '15,37', '16,37', '17,37',
+  // Stone masonry walls in town
+  '7,21', '8,21', '10,21',
+  '5,23', '7,23', '9,23', '11,23',
+];
+
 class StorageManager {
   private players = new Map<string, PlayerData>();
+  private nodes: WorldNode[] = [];
+  private npcs: NpcDefinition[] = [];
+  private quests: QuestDefinition[] = [];
+  private collisions = new Set<string>();
 
   constructor() {
     this.init();
@@ -36,9 +146,11 @@ class StorageManager {
     if (!fs.existsSync(DATA_DIR)) {
       fs.mkdirSync(DATA_DIR, { recursive: true });
     }
-    if (fs.existsSync(DATA_FILE)) {
+
+    // 1. Players
+    if (fs.existsSync(PLAYERS_FILE)) {
       try {
-        const raw = fs.readFileSync(DATA_FILE, 'utf-8');
+        const raw = fs.readFileSync(PLAYERS_FILE, 'utf-8');
         const data = JSON.parse(raw);
         for (const [id, player] of Object.entries(data)) {
           this.players.set(id, player as PlayerData);
@@ -47,15 +159,83 @@ class StorageManager {
         console.error('Failed to parse players.json, starting fresh', err);
       }
     }
+
+    // 2. World Nodes
+    if (fs.existsSync(NODES_FILE)) {
+      try {
+        const raw = fs.readFileSync(NODES_FILE, 'utf-8');
+        this.nodes = JSON.parse(raw);
+      } catch (err) {
+        console.error('Failed to parse world_nodes.json, using defaults', err);
+        this.nodes = [...DEFAULT_WORLD_NODES];
+      }
+    } else {
+      this.nodes = [...DEFAULT_WORLD_NODES];
+      this.saveWorldNodes(this.nodes);
+    }
+
+    // 3. NPCs
+    if (fs.existsSync(NPCS_FILE)) {
+      try {
+        const raw = fs.readFileSync(NPCS_FILE, 'utf-8');
+        this.npcs = JSON.parse(raw);
+      } catch (err) {
+        console.error('Failed to parse npcs.json, using defaults', err);
+        this.npcs = [...DEFAULT_NPCS];
+      }
+    } else {
+      this.npcs = [...DEFAULT_NPCS];
+      this.saveNpcs(this.npcs);
+    }
+
+    // 4. Quests
+    if (fs.existsSync(QUESTS_FILE)) {
+      try {
+        const raw = fs.readFileSync(QUESTS_FILE, 'utf-8');
+        this.quests = JSON.parse(raw);
+      } catch (err) {
+        console.error('Failed to parse quests.json, using defaults', err);
+        this.quests = [...DEFAULT_QUESTS];
+      }
+    } else {
+      this.quests = [...DEFAULT_QUESTS];
+      this.saveQuests(this.quests);
+    }
+
+    // 5. Collisions
+    if (fs.existsSync(COLLISIONS_FILE)) {
+      try {
+        const raw = fs.readFileSync(COLLISIONS_FILE, 'utf-8');
+        const arr = JSON.parse(raw);
+        this.collisions = new Set<string>(arr);
+      } catch (err) {
+        console.error('Failed to parse collisions.json, using defaults', err);
+        this.collisions = new Set<string>(DEFAULT_COLLISIONS);
+      }
+    } else {
+      this.collisions = new Set<string>(DEFAULT_COLLISIONS);
+      this.saveCollisions(DEFAULT_COLLISIONS);
+    }
+
+    // Graceful process exit auto-save
+    process.on('SIGINT', () => {
+      this.saveAll();
+      process.exit(0);
+    });
+    process.on('SIGTERM', () => {
+      this.saveAll();
+      process.exit(0);
+    });
   }
 
-  public save() {
+  // --- Players ---
+  public savePlayers() {
     try {
       const obj: Record<string, PlayerData> = {};
       for (const [id, player] of this.players.entries()) {
         obj[id] = player;
       }
-      fs.writeFileSync(DATA_FILE, JSON.stringify(obj, null, 2), 'utf-8');
+      fs.writeFileSync(PLAYERS_FILE, JSON.stringify(obj, null, 2), 'utf-8');
     } catch (err) {
       console.error('Failed to save players to disk', err);
     }
@@ -67,7 +247,7 @@ class StorageManager {
 
   public savePlayer(player: PlayerData) {
     this.players.set(player.id, player);
-    this.save();
+    this.savePlayers();
   }
 
   public createGuestPlayer(): PlayerData {
@@ -78,6 +258,7 @@ class StorageManager {
     const newPlayer: PlayerData = {
       id,
       username,
+      role: 'player',
       isGuest: true,
       x: 8, // Hearth Town Square (Level_0)
       y: 24,
@@ -113,6 +294,127 @@ class StorageManager {
 
     this.savePlayer(newPlayer);
     return newPlayer;
+  }
+
+  // --- World Nodes ---
+  public getWorldNodes(): WorldNode[] {
+    return this.nodes;
+  }
+
+  public saveWorldNodes(nodes: WorldNode[]) {
+    this.nodes = nodes;
+    try {
+      fs.writeFileSync(NODES_FILE, JSON.stringify(nodes, null, 2), 'utf-8');
+    } catch (err) {
+      console.error('Failed to save world nodes to disk', err);
+    }
+  }
+
+  public upsertWorldNode(node: WorldNode) {
+    const idx = this.nodes.findIndex(n => n.id === node.id);
+    if (idx >= 0) {
+      this.nodes[idx] = node;
+    } else {
+      this.nodes.push(node);
+    }
+    this.saveWorldNodes(this.nodes);
+  }
+
+  public deleteWorldNode(nodeId: string) {
+    this.nodes = this.nodes.filter(n => n.id !== nodeId);
+    this.saveWorldNodes(this.nodes);
+  }
+
+  // --- NPCs ---
+  public getNpcs(): NpcDefinition[] {
+    return this.npcs;
+  }
+
+  public saveNpcs(npcs: NpcDefinition[]) {
+    this.npcs = npcs;
+    try {
+      fs.writeFileSync(NPCS_FILE, JSON.stringify(npcs, null, 2), 'utf-8');
+    } catch (err) {
+      console.error('Failed to save NPCs to disk', err);
+    }
+  }
+
+  public upsertNpc(npc: NpcDefinition) {
+    const idx = this.npcs.findIndex(n => n.id === npc.id);
+    if (idx >= 0) {
+      this.npcs[idx] = npc;
+    } else {
+      this.npcs.push(npc);
+    }
+    this.saveNpcs(this.npcs);
+  }
+
+  public deleteNpc(npcId: string) {
+    this.npcs = this.npcs.filter(n => n.id !== npcId);
+    this.saveNpcs(this.npcs);
+  }
+
+  // --- Quests ---
+  public getQuests(): QuestDefinition[] {
+    return this.quests;
+  }
+
+  public saveQuests(quests: QuestDefinition[]) {
+    this.quests = quests;
+    try {
+      fs.writeFileSync(QUESTS_FILE, JSON.stringify(quests, null, 2), 'utf-8');
+    } catch (err) {
+      console.error('Failed to save quests to disk', err);
+    }
+  }
+
+  public upsertQuest(quest: QuestDefinition) {
+    const idx = this.quests.findIndex(q => q.id === quest.id);
+    if (idx >= 0) {
+      this.quests[idx] = quest;
+    } else {
+      this.quests.push(quest);
+    }
+    this.saveQuests(this.quests);
+  }
+
+  public deleteQuest(questId: string) {
+    this.quests = this.quests.filter(q => q.id !== questId);
+    this.saveQuests(this.quests);
+  }
+
+  // --- Collisions ---
+  public getCollisions(): Set<string> {
+    return this.collisions;
+  }
+
+  public isCollidable(x: number, y: number): boolean {
+    return this.collisions.has(`${x},${y}`);
+  }
+
+  public saveCollisions(cols: string[] | Set<string>) {
+    const arr = Array.from(cols);
+    this.collisions = new Set<string>(arr);
+    try {
+      fs.writeFileSync(COLLISIONS_FILE, JSON.stringify(arr, null, 2), 'utf-8');
+    } catch (err) {
+      console.error('Failed to save collisions to disk', err);
+    }
+  }
+
+  // --- Admin Verification ---
+  public verifyAdminSecret(secret: string): boolean {
+    if (!secret) return false;
+    return secret.trim() === ADMIN_SECRET;
+  }
+
+  // --- Save All ---
+  public saveAll() {
+    this.savePlayers();
+    this.saveWorldNodes(this.nodes);
+    this.saveNpcs(this.npcs);
+    this.saveQuests(this.quests);
+    this.saveCollisions(this.collisions);
   }
 }
 
