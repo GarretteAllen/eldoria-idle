@@ -1067,3 +1067,45 @@ body, html {
 ::-webkit-scrollbar-thumb:hover {
   background: var(--gold-main);
 }
+
+/* ========================================================
+   10. RESPONSIVE MOBILE & TABLET LAYOUTS
+   ======================================================== */
+@media (max-width: 768px) {
+  #top-bar {
+    padding: 0 8px;
+    height: 36px;
+  }
+  .online-indicator {
+    display: none;
+  }
+  .currencies {
+    gap: 6px;
+  }
+  .parchment-card {
+    top: 42px;
+    left: 8px;
+    width: calc(100vw - 64px);
+    max-width: 320px;
+  }
+  .dark-oak-card {
+    bottom: 8px;
+    left: 8px;
+    width: calc(100vw - 64px);
+    max-width: 340px;
+  }
+  .drawer-panel {
+    top: 42px;
+    right: 48px;
+    width: calc(100vw - 58px);
+    max-width: 320px;
+    bottom: 8px;
+  }
+  .popup-panel {
+    top: 42px;
+    right: 48px;
+    width: calc(100vw - 58px);
+    max-width: 340px;
+    z-index: 86;
+  }
+}

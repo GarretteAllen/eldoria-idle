@@ -58,6 +58,8 @@ class EldoriaClient {
   private initStaticIcons() {
     // Top Bar
     document.getElementById('brand-crest')!.innerHTML = ICONS.logo;
+    const totalLvlIcon = document.getElementById('total-lvl-icon');
+    if (totalLvlIcon) totalLvlIcon.innerHTML = ICONS.equipment;
     document.getElementById('hp-icon')!.innerHTML = ICONS.heart;
     document.getElementById('speed-icon')!.innerHTML = ICONS.speed;
     document.getElementById('icon-gold')!.innerHTML = ICONS.gold;
@@ -280,8 +282,11 @@ class EldoriaClient {
     const statusTagEl = document.getElementById('task-status-tag')!;
 
     if (this.player.bankingState === 'walking_to_bank') {
+      const isSatchelFull = this.player.inventory.length >= 28;
       taskNameEl.textContent = 'Banking — Riding to Hearth';
-      taskSubEl.textContent = `Satchel full (28/28) • Depositing spoils...`;
+      taskSubEl.textContent = isSatchelFull
+        ? `Satchel full (28/28) • Depositing spoils...`
+        : `Riding to Hearth Storage Counter • Depositing spoils...`;
       progressFillEl.style.width = '100%';
       taskIconEl.innerHTML = ICONS.mount;
       statusTagEl.textContent = 'BANKING';
@@ -328,6 +333,7 @@ class EldoriaClient {
     };
 
     document.getElementById('task-home-btn')!.onclick = () => {
+      this.sendWs({ type: 'STOP_TASK' });
       this.sendWs({ type: 'MOVE_TO', x: 8, y: 22 });
       this.switchDrawer('storage');
     };
@@ -590,12 +596,17 @@ class EldoriaClient {
         detailsText = 'Gathers raw materials from world node';
       }
 
+      const xpHour = Math.round((recipe.xp / Math.max(0.6, recipe.intervalSeconds)) * 3600);
+      const rateText = isUnlocked 
+        ? `+${recipe.xp} XP (${xpHour.toLocaleString()} xp/h)` 
+        : `<span style="color:#e53e3e;">Lv ${recipe.levelReq}</span>`;
+
       itemEl.innerHTML = `
         <div class="job-item-header">
           <div class="job-name-wrap">
             <span>${recipe.name}</span>
           </div>
-          <span class="job-rate">${isUnlocked ? `+${recipe.xp} XP (${recipe.intervalSeconds}s)` : `<span style="color:#e53e3e;">Lv ${recipe.levelReq}</span>`}</span>
+          <span class="job-rate">${rateText}</span>
         </div>
         <div class="job-details">${detailsText}</div>
         ${canMakeText}
@@ -617,6 +628,12 @@ class EldoriaClient {
     const grid = document.getElementById('inventory-grid')!;
     grid.innerHTML = '';
     document.getElementById('inv-count')!.textContent = this.player.inventory.length.toString();
+
+    const isNearHearth = Math.hypot(this.player.x - 8, this.player.y - 22) <= 1.5;
+    const btnDepositInv = document.getElementById('btn-inv-deposit-all');
+    if (btnDepositInv) {
+      btnDepositInv.textContent = isNearHearth ? 'Deposit All Spoils' : 'Deposit All Spoils (Travel to Hearth)';
+    }
 
     for (let i = 0; i < 28; i++) {
       const slot = this.player.inventory[i];
@@ -683,7 +700,14 @@ class EldoriaClient {
     grid.innerHTML = '';
     document.getElementById('storage-count')!.textContent = this.player.storage.length.toString();
 
-    for (const slot of this.player.storage) {
+    const isNearHearth = Math.hypot(this.player.x - 8, this.player.y - 22) <= 1.5;
+    const btnDepositStorage = document.getElementById('btn-deposit-all');
+    if (btnDepositStorage) {
+      btnDepositStorage.textContent = isNearHearth ? 'Deposit All Spoils' : 'Deposit All Spoils (Travel to Hearth)';
+    }
+
+    for (let index = 0; index < this.player.storage.length; index++) {
+      const slot = this.player.storage[index];
       const def = ITEMS[slot.itemId];
       const div = document.createElement('div');
       div.className = 'rpg-slot';
@@ -694,6 +718,16 @@ class EldoriaClient {
         <div class="item-name">${def ? def.name : slot.itemId}</div>
         <span class="item-qty">${slot.quantity}</span>
       `;
+      div.title = isNearHearth 
+        ? `Click to withdraw ${def?.name || slot.itemId} into satchel` 
+        : `Travel to Hearth to withdraw items`;
+      div.onclick = () => {
+        if (!isNearHearth) {
+          this.sendWs({ type: 'MOVE_TO', x: 8, y: 22 });
+        } else {
+          this.sendWs({ type: 'WITHDRAW_ITEM', storageIndex: index });
+        }
+      };
       grid.appendChild(div);
     }
   }
@@ -795,6 +829,13 @@ class EldoriaClient {
       this.sendWs({ type: 'DEPOSIT_ALL_RESOURCES' });
     };
 
+    const btnInvDeposit = document.getElementById('btn-inv-deposit-all');
+    if (btnInvDeposit) {
+      btnInvDeposit.onclick = () => {
+        this.sendWs({ type: 'DEPOSIT_ALL_RESOURCES' });
+      };
+    }
+
     document.getElementById('btn-drawer-open-hearth')!.onclick = () => {
       this.switchDrawer('storage');
     };
@@ -816,6 +857,12 @@ class EldoriaClient {
 
     const eatBtn = document.getElementById('btn-action-eat')!;
     eatBtn.style.display = def.category === 'cooked_food' ? 'block' : 'none';
+
+    const isNearHearth = this.player && Math.hypot(this.player.x - 8, this.player.y - 22) <= 1.5;
+    const depositBtn = document.getElementById('btn-action-deposit');
+    if (depositBtn) {
+      depositBtn.textContent = isNearHearth ? 'Deposit to Hearth' : 'Travel & Deposit to Hearth';
+    }
 
     modal.classList.remove('hidden');
   }

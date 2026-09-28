@@ -339,33 +339,34 @@ export class WorldRenderer {
 
       ctx.save();
 
+      const isHearth = node.type === 'hearth_counter';
       // Subtle atmospheric pulsing node indicator
-      const pulse = Math.sin(this.animTick * 0.003 + node.x * 2) * 1.5;
-      ctx.fillStyle = 'rgba(212, 175, 55, 0.2)';
+      const pulse = Math.sin(this.animTick * 0.003 + node.x * 2) * (isHearth ? 2.5 : 1.5);
+      ctx.fillStyle = isHearth ? 'rgba(223, 166, 55, 0.35)' : 'rgba(212, 175, 55, 0.2)';
       ctx.beginPath();
-      ctx.arc(px + TILE_SIZE / 2, py + TILE_SIZE / 2, 7 + pulse, 0, Math.PI * 2);
+      ctx.arc(px + TILE_SIZE / 2, py + TILE_SIZE / 2, (isHearth ? 10 : 7) + pulse, 0, Math.PI * 2);
       ctx.fill();
 
       // Stylized nameplate badge
       const text = node.name;
-      ctx.font = '600 10px Inter, sans-serif';
+      ctx.font = isHearth ? '700 11px Inter, sans-serif' : '600 10px Inter, sans-serif';
       const textWidth = ctx.measureText(text).width;
-      const badgeW = textWidth + 14;
-      const badgeH = 16;
+      const badgeW = textWidth + (isHearth ? 18 : 14);
+      const badgeH = isHearth ? 18 : 16;
       const badgeX = px + TILE_SIZE / 2 - badgeW / 2;
-      const badgeY = py - 8;
+      const badgeY = py - (isHearth ? 10 : 8);
 
-      ctx.fillStyle = 'rgba(18, 22, 28, 0.85)';
-      ctx.strokeStyle = '#5a4522';
-      ctx.lineWidth = 1;
+      ctx.fillStyle = isHearth ? 'rgba(28, 17, 8, 0.95)' : 'rgba(18, 22, 28, 0.85)';
+      ctx.strokeStyle = isHearth ? '#dfa637' : '#5a4522';
+      ctx.lineWidth = isHearth ? 1.5 : 1;
       ctx.beginPath();
-      ctx.roundRect(badgeX, badgeY, badgeW, badgeH, 3);
+      ctx.roundRect(badgeX, badgeY, badgeW, badgeH, 4);
       ctx.fill();
       ctx.stroke();
 
-      ctx.fillStyle = '#f3e8cb';
+      ctx.fillStyle = isHearth ? '#ffd466' : '#f3e8cb';
       ctx.textAlign = 'center';
-      ctx.fillText(text, px + TILE_SIZE / 2, badgeY + 11);
+      ctx.fillText(text, px + TILE_SIZE / 2, badgeY + (isHearth ? 13 : 11));
       ctx.restore();
     }
   }

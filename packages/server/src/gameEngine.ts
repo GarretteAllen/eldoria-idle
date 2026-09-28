@@ -219,6 +219,12 @@ export class GameEngine {
         this.handleDepositAll(session);
         break;
 
+      case 'WITHDRAW_ITEM':
+        if (typeof msg.storageIndex === 'number') {
+          this.handleWithdrawItem(session, msg.storageIndex);
+        }
+        break;
+
       case 'CHAT':
         if (typeof msg.text === 'string' && msg.text.trim().length > 0) {
           const chatPayload = {
@@ -339,37 +345,87 @@ export class GameEngine {
   }
 
   private handleDepositAll(session: ConnectedSession) {
-    const { player } = session;
-    let count = 0;
-    const keep: InventorySlot[] = [];
+    const { player, ws } = session;
+    const hearthX = 8;
+    const hearthY = 22;
+    const distToHearth = Math.hypot(player.x - hearthX, player.y - hearthY);
 
-    for (const slot of player.inventory) {
-      const def = ITEMS[slot.itemId];
-      // Keep tools & equipped items
-      if (def?.category === 'tool' || def?.category === 'steed' || def?.category === 'weapon') {
-        keep.push(slot);
-        continue;
-      }
+    if (distToHearth > 1.5) {
+      // Out in the field: path to Hearth counter first!
+      player.currentTask = null;
+      session.pendingTask = null;
+      player.bankReturnTask = null;
+      session.ticksInTask = 0;
 
-      // Move to storage
-      const storageSlot = player.storage.find(s => s.itemId === slot.itemId && s.rarity === slot.rarity && s.plus === slot.plus);
-      if (storageSlot) {
-        storageSlot.quantity += slot.quantity;
-        count += slot.quantity;
-      } else if (player.storage.length < player.storageSlotsMax) {
-        player.storage.push(slot);
-        count += slot.quantity;
-      } else {
-        keep.push(slot);
-      }
+      const path = findPath(player.x, player.y, hearthX, hearthY);
+      player.targetX = hearthX;
+      player.targetY = hearthY;
+      player.path = path;
+      player.isMoving = path.length > 0;
+      player.bankingState = 'walking_to_bank';
+
+      this.send(ws, {
+        type: 'NOTIFICATION',
+        message: `Riding to the Hearth Storage Counter to deposit spoils... (${path.length} paces)`
+      });
+      this.send(ws, { type: 'PLAYER_UPDATE', player });
+      this.broadcastWorldState();
+      return;
     }
 
-    player.inventory = keep;
-    this.send(session.ws, {
+    // Already at Hearth counter: deposit immediately
+    this.handleAutoDepositAtHearth(session);
+  }
+
+  private handleWithdrawItem(session: ConnectedSession, storageIndex: number) {
+    const { player, ws } = session;
+    const hearthX = 8;
+    const hearthY = 22;
+    const distToHearth = Math.hypot(player.x - hearthX, player.y - hearthY);
+
+    if (distToHearth > 1.5) {
+      this.send(ws, {
+        type: 'NOTIFICATION',
+        message: 'Must be at the Hearth Storage Counter to withdraw items.'
+      });
+      return;
+    }
+
+    const slot = player.storage[storageIndex];
+    if (!slot) return;
+    const def = ITEMS[slot.itemId];
+
+    // Check inventory capacity
+    const existingInv = player.inventory.find(
+      s => s.itemId === slot.itemId && s.rarity === slot.rarity && s.plus === slot.plus
+    );
+    if (!existingInv && player.inventory.length >= 28) {
+      this.send(ws, {
+        type: 'NOTIFICATION',
+        message: 'Satchel full! Cannot withdraw items.'
+      });
+      return;
+    }
+
+    const qtyToTake = slot.quantity;
+    player.storage.splice(storageIndex, 1);
+
+    if (existingInv) {
+      existingInv.quantity += qtyToTake;
+    } else {
+      player.inventory.push({
+        itemId: slot.itemId,
+        quantity: qtyToTake,
+        rarity: slot.rarity,
+        plus: slot.plus,
+      });
+    }
+
+    this.send(ws, {
       type: 'NOTIFICATION',
-      message: `Deposited ${count} items into the Hearth Reliquary.`
+      message: `Withdrew ${qtyToTake}x ${def?.name || slot.itemId} from the Reliquary.`
     });
-    this.send(session.ws, { type: 'PLAYER_UPDATE', player });
+    this.send(ws, { type: 'PLAYER_UPDATE', player });
   }
 
   private tick() {
@@ -540,11 +596,6 @@ export class GameEngine {
       }
     }
 
-    this.send(ws, {
-      type: 'NOTIFICATION',
-      message: `Hearth reached! Deposited ${count} resources. Riding back to work...`
-    });
-
     // Walk back to previous task node or pending target node!
     const destX = player.bankReturnTask ? player.bankReturnTask.targetNodeX : (session.pendingTask ? session.pendingTask.targetX : undefined);
     const destY = player.bankReturnTask ? player.bankReturnTask.targetNodeY : (session.pendingTask ? session.pendingTask.targetY : undefined);
@@ -554,8 +605,20 @@ export class GameEngine {
       const path = findPath(player.x, player.y, destX, destY);
       player.path = path;
       player.isMoving = path.length > 0;
+      this.send(ws, {
+        type: 'NOTIFICATION',
+        message: count > 0 
+          ? `Hearth reached! Deposited ${count} resources. Riding back to work...`
+          : `Hearth reached! Riding back to work...`
+      });
     } else {
       player.bankingState = 'idle';
+      this.send(ws, {
+        type: 'NOTIFICATION',
+        message: count > 0
+          ? `Deposited ${count} resources into the Hearth Reliquary.`
+          : `No spoils to deposit in satchel.`
+      });
     }
 
     this.send(ws, { type: 'PLAYER_UPDATE', player });
