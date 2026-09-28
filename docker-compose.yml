@@ -1,0 +1,13 @@
+services:
+  eldoria:
+    build: .
+    container_name: eldoria_idle
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - HOST=0.0.0.0
+      - NODE_ENV=production
+    volumes:
+      - ./data:/app/data

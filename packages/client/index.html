@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <title>Eldoria Idle - Shared World Fantasy MMO</title>
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <div id="app">
+      <!-- TOP STATUS BAR -->
+      <header id="top-bar">
+        <div class="brand">
+          <span class="logo-icon">⚔️</span>
+          <span class="logo-text">Eldoria Idle</span>
+        </div>
+
+        <div id="boss-pill" class="pill hidden">
+          <span class="boss-icon">🐉</span>
+          <span id="boss-info">Earth Titan (38:12)</span>
+          <button id="boss-join-btn">Raid</button>
+        </div>
+
+        <div class="currencies">
+          <span class="currency gold" title="Gold">🪙 <b id="val-gold">0</b></span>
+          <span class="currency gems" title="Gems">💎 <b id="val-gems">0</b></span>
+          <span class="currency anima" title="Anima">🔮 <b id="val-anima">0</b></span>
+        </div>
+
+        <div class="online-indicator" title="Connected Players">
+          <span class="dot"></span> <span id="online-count">1</span> online
+        </div>
+      </header>
+
+      <!-- ACTIVE TASK BAR -->
+      <div id="task-bar">
+        <div class="task-info">
+          <span id="task-icon">⛏️</span>
+          <div class="task-labels">
+            <div id="task-name" class="task-title">Idle — Select a task below</div>
+            <div id="task-subtext" class="task-sub">Click any ore, tree, or fishing spot on the map</div>
+          </div>
+        </div>
+        <div class="task-progress-container">
+          <div id="task-progress-fill"></div>
+        </div>
+        <div class="task-controls">
+          <button id="task-stop-btn" class="btn-sm">Stop</button>
+        </div>
+      </div>
+
+      <!-- MAIN LAYOUT -->
+      <main id="main-content">
+        <!-- 2D Canvas Viewport -->
+        <section id="viewport-container">
+          <canvas id="game-canvas"></canvas>
+          <div id="hud-overlay">
+            <div id="player-status-chip">
+              <span id="player-display-name">Wanderer</span>
+              <div class="hp-bar-container">
+                <div id="hp-bar-fill"></div>
+                <span id="hp-text">10 / 10 HP</span>
+              </div>
+            </div>
+            <div id="map-hint">Click ground to walk • Click nodes to harvest/smelt</div>
+          </div>
+        </section>
+
+        <!-- DOCK / TABS -->
+        <section id="dock-panel">
+          <nav class="dock-tabs">
+            <button class="tab-btn active" data-tab="skills">📜 Skills</button>
+            <button class="tab-btn" data-tab="inventory">🎒 Bag</button>
+            <button class="tab-btn" data-tab="equipment">🛡️ Gear</button>
+            <button class="tab-btn" data-tab="chat">💬 Chat</button>
+          </nav>
+
+          <div class="dock-body">
+            <!-- TAB: SKILLS -->
+            <div id="tab-skills" class="tab-content active">
+              <div id="skills-list" class="skills-grid"></div>
+            </div>
+
+            <!-- TAB: INVENTORY -->
+            <div id="tab-inventory" class="tab-content">
+              <div class="inventory-header">
+                <span>Inventory (<span id="inv-count">0</span>/28)</span>
+                <button id="btn-open-hearth" class="btn-sm">Hearth Vault</button>
+              </div>
+              <div id="inventory-grid" class="item-grid"></div>
+            </div>
+
+            <!-- TAB: EQUIPMENT -->
+            <div id="tab-equipment" class="tab-content">
+              <div class="combat-stats-box">
+                <div><b>Accuracy:</b> <span id="stat-acc">10</span></div>
+                <div><b>Strength:</b> <span id="stat-str">5</span></div>
+                <div><b>Defence:</b> <span id="stat-def">0</span></div>
+                <div><b>Max Hit:</b> <span id="stat-maxhit">2</span></div>
+              </div>
+              <div id="equipment-slots" class="equipment-grid"></div>
+            </div>
+
+            <!-- TAB: CHAT -->
+            <div id="tab-chat" class="tab-content">
+              <div class="chat-channels">
+                <button class="chan-btn active" data-chan="All">All</button>
+                <button class="chan-btn" data-chan="Trade">Trade</button>
+                <button class="chan-btn" data-chan="Raid">Raid</button>
+              </div>
+              <div id="chat-messages" class="chat-log"></div>
+              <form id="chat-form" class="chat-input-bar">
+                <input type="text" id="chat-input" placeholder="Speak to the world..." maxlength="150" />
+                <button type="submit" class="btn-sm">Send</button>
+              </form>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <!-- MODAL: WHILE YOU WERE AWAY -->
+      <div id="away-modal" class="modal-backdrop hidden">
+        <div class="modal-box">
+          <div class="modal-header">
+            <h3>🌙 While In Slumber</h3>
+            <button id="away-close-btn" class="close-btn">&times;</button>
+          </div>
+          <div id="away-body" class="modal-content">
+            <!-- populated dynamically -->
+          </div>
+          <div class="modal-footer">
+            <button id="away-ok-btn" class="btn-primary">Awaken & Collect</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

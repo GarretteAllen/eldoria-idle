@@ -1,0 +1,25 @@
+{
+  "name": "eldoria-idle",
+  "version": "0.1.0",
+  "description": "Eldoria Idle - Persistent shared-world idle MMORPG",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:shared": "npm --workspace=@eldoria/shared run build -- --watch",
+    "dev:server": "npm --workspace=@eldoria/server run dev",
+    "dev:client": "npm --workspace=@eldoria/client run dev",
+    "dev": "npm run build:shared && concurrently \"npm run dev:server\" \"npm run dev:client\"",
+    "build:shared": "npm --workspace=@eldoria/shared run build",
+    "build:client": "npm --workspace=@eldoria/client run build",
+    "build:server": "npm --workspace=@eldoria/server run build",
+    "build": "npm run build:shared && npm run build:client && npm run build:server",
+    "start": "node packages/server/dist/index.js",
+    "test": "npm --workspace=@eldoria/shared test"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "typescript": "^5.7.3"
+  }
+}

@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: eldoria-idle
+    env: node
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3000
+      - key: HOST
+        value: 0.0.0.0
+    autoDeploy: true
