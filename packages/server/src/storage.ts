@@ -28,6 +28,15 @@ const QUESTS_FILE = path.join(DATA_DIR, 'quests.json');
 const COLLISIONS_FILE = path.join(DATA_DIR, 'collisions.json');
 
 const ADMIN_SECRET = process.env.ADMIN_SECRET || 'eldoria_admin_2026';
+const ADMIN_USERNAMES = (process.env.ADMIN_USERNAMES || 'gar,admin')
+  .split(',')
+  .map(s => s.trim().toLowerCase())
+  .filter(Boolean);
+
+const ADMIN_USER_IDS = (process.env.ADMIN_USER_IDS || '')
+  .split(',')
+  .map(s => s.trim().toLowerCase())
+  .filter(Boolean);
 
 const INITIAL_SKILLS: Record<SkillType, { xp: number; level: number }> = {
   mining: { xp: 0, level: 1 },
@@ -241,24 +250,45 @@ class StorageManager {
     }
   }
 
+  public isPlayerAdmin(player: PlayerData): boolean {
+    if (!player) return false;
+    if (player.id && ADMIN_USER_IDS.includes(player.id.toLowerCase())) return true;
+    if (player.username && ADMIN_USERNAMES.includes(player.username.toLowerCase())) return true;
+    return player.role === 'admin';
+  }
+
+  public getAdminUsernames(): string[] {
+    return ADMIN_USERNAMES;
+  }
+
   public getPlayer(id: string): PlayerData | undefined {
-    return this.players.get(id);
+    const p = this.players.get(id);
+    if (p) {
+      if (this.isPlayerAdmin(p)) {
+        p.role = 'admin';
+      }
+    }
+    return p;
   }
 
   public savePlayer(player: PlayerData) {
+    if (this.isPlayerAdmin(player)) {
+      player.role = 'admin';
+    }
     this.players.set(player.id, player);
     this.savePlayers();
   }
 
-  public createGuestPlayer(): PlayerData {
+  public createGuestPlayer(desiredUsername?: string): PlayerData {
     const id = 'guest_' + crypto.randomBytes(6).toString('hex');
     const randomSuffix = Math.floor(1000 + Math.random() * 9000);
-    const username = `Wanderer_${randomSuffix}`;
+    const username = desiredUsername ? desiredUsername.trim().slice(0, 16) : `Wanderer_${randomSuffix}`;
+    const isAdmin = ADMIN_USERNAMES.includes(username.toLowerCase()) || ADMIN_USER_IDS.includes(id.toLowerCase());
 
     const newPlayer: PlayerData = {
       id,
       username,
-      role: 'player',
+      role: isAdmin ? 'admin' : 'player',
       isGuest: true,
       x: 8, // Hearth Town Square (Level_0)
       y: 24,

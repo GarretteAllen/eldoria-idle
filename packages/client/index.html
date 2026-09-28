@@ -526,12 +526,13 @@
             <button id="admin-auth-close-btn" class="icon-btn-micro"></button>
           </div>
           <form id="admin-auth-form" style="display: flex; flex-direction: column; gap: 10px;">
-            <p style="font-size: 0.75rem; color: var(--text-muted); line-height: 1.35;">
-              Enter the Game Master passphrase to unlock the In-Game World Editor and GM powers.
+            <p style="font-size: 0.75rem; color: var(--text-muted); line-height: 1.4;">
+              Admin access is account-bound via the server environment variable (<code style="color:var(--gold-bright);">ADMIN_USERNAMES=gar</code>).
+              Type <code style="color:var(--gold-bright);">/name &lt;your_name&gt;</code> in chat to claim your account, or enter the emergency passphrase below:
             </p>
-            <input type="password" id="admin-secret-input" placeholder="Passphrase..." required style="background: #140c06; border: 1px solid var(--oak-border); border-radius: 4px; padding: 6px 10px; color: var(--text-main); outline: none;" />
+            <input type="password" id="admin-secret-input" placeholder="Passphrase..." style="background: #140c06; border: 1px solid var(--oak-border); border-radius: 4px; padding: 6px 10px; color: var(--text-main); outline: none;" />
             <div style="display: flex; gap: 6px;">
-              <button type="submit" class="btn-start" style="flex: 1;">Unlock Editor</button>
+              <button type="submit" class="btn-start" style="flex: 1;">Verify Access</button>
             </div>
           </form>
         </div>

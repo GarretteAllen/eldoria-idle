@@ -61,6 +61,10 @@ export class GameEngine {
       }
     }
 
+    if (storage.isPlayerAdmin(player)) {
+      player.role = 'admin';
+    }
+
     player.lastActiveTimestamp = Date.now();
     player.moveSpeedTilesPerTick = calculatePlayerMoveSpeed(player);
     this.sessions.set(player.id, { ws, player, ticksInTask: 0, moveAccumulator: 0, pendingTask: null });
@@ -237,23 +241,49 @@ export class GameEngine {
         if (typeof msg.text === 'string' && msg.text.trim().length > 0) {
           const trimmed = msg.text.trim();
 
-          // Admin passphrase command
+          // Set name command: /name <username> or /nick <username>
+          if (trimmed.startsWith('/name ') || trimmed.startsWith('/nick ') || trimmed.startsWith('/setname ')) {
+            const newName = trimmed.replace(/^\/(name|nick|setname)\s+/, '').trim().slice(0, 16);
+            if (newName) {
+              player.username = newName;
+              if (storage.isPlayerAdmin(player)) {
+                player.role = 'admin';
+                this.send(session.ws, {
+                  type: 'NOTIFICATION',
+                  message: `👑 Name changed to "${newName}". Recognized as Server Administrator!`,
+                });
+              } else {
+                player.role = 'player';
+                this.send(session.ws, {
+                  type: 'NOTIFICATION',
+                  message: `Name changed to "${newName}".`,
+                });
+              }
+              storage.savePlayer(player);
+              this.send(session.ws, { type: 'PLAYER_UPDATE', player });
+              this.broadcastWorldState();
+            }
+            break;
+          }
+
+          // Admin passphrase command (legacy or emergency fallback)
           if (trimmed.startsWith('/admin')) {
             const parts = trimmed.split(/\s+/);
             const secret = parts[1] || '';
-            if (storage.verifyAdminSecret(secret)) {
+            if (storage.isPlayerAdmin(player) || storage.verifyAdminSecret(secret)) {
               player.role = 'admin';
               storage.savePlayer(player);
               this.send(session.ws, {
                 type: 'NOTIFICATION',
                 message: '🛡️ Admin status verified! In-Game World Editor unlocked.'
               });
+              this.send(session.ws, { type: 'ADMIN_AUTH_SUCCESS' });
               this.send(session.ws, { type: 'PLAYER_UPDATE', player });
               this.broadcastWorldState();
             } else {
               this.send(session.ws, {
                 type: 'NOTIFICATION',
-                message: '❌ Invalid admin passphrase.'
+                message: '❌ Invalid admin credentials. Administrator accounts are configured via ADMIN_USERNAMES.'
               });
             }
             break;
@@ -277,19 +307,20 @@ export class GameEngine {
         break;
 
       case 'ADMIN_LOGIN':
-        if (storage.verifyAdminSecret(msg.secret)) {
+        if (storage.isPlayerAdmin(player) || storage.verifyAdminSecret(msg.secret)) {
           player.role = 'admin';
           storage.savePlayer(player);
           this.send(session.ws, {
             type: 'NOTIFICATION',
             message: '🛡️ Admin status verified! In-Game World Editor unlocked.'
           });
+          this.send(session.ws, { type: 'ADMIN_AUTH_SUCCESS' });
           this.send(session.ws, { type: 'PLAYER_UPDATE', player });
           this.broadcastWorldState();
         } else {
           this.send(session.ws, {
             type: 'NOTIFICATION',
-            message: '❌ Invalid admin passphrase.'
+            message: '❌ Invalid admin credentials. Administrator accounts are configured in server environment variables (ADMIN_USERNAMES).'
           });
         }
         break;
