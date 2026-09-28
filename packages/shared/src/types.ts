@@ -168,16 +168,33 @@ export interface PlayerStats {
   walkSpeedBonus: number;
 }
 
+export interface ActiveBuff {
+  id: string;
+  name: string;
+  type: 'speed' | 'food_damage' | 'crop_defence' | 'gather_xp';
+  value: number;
+  expiresAt: number;
+}
+
 export interface PlayerData {
   id: string;
   username: string;
   isGuest: boolean;
   x: number;
   y: number;
+  targetX?: number;
+  targetY?: number;
+  path?: Array<{ x: number; y: number }>;
+  isMoving?: boolean;
+  moveSpeedTilesPerTick?: number;
+  bankingState?: 'idle' | 'walking_to_bank' | 'depositing' | 'returning_to_work';
+  bankReturnTask?: ActiveTask | null;
+  dropWhenFull?: boolean;
   gold: number;
   gems: number;
   anima: number;
   activeTitle?: string;
+  activeBuffs?: ActiveBuff[];
   skills: Record<SkillType, { xp: number; level: number }>;
   inventory: InventorySlot[];
   storage: InventorySlot[];

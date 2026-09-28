@@ -1,8 +1,118 @@
-import { Rarity, RARITY_CHANCES } from './constants.js';
+import { Rarity, RARITY_CHANCES, getSteedWalkSpeedBonus } from './constants.js';
 import { getLevelFromXp, getJobSpeedMultiplier } from './levels.js';
 import { ITEMS } from './items.js';
 import { RECIPES } from './recipes.js';
 import { PlayerData, InventorySlot, RecipeDefinition } from './types.js';
+
+/**
+ * Calculates effective move speed in tiles per 600ms tick.
+ * Base = 1.0 tile/tick.
+ * Steed adds +12% (plain) up to +150% (legendary +10).
+ * Potions add further multipliers.
+ */
+export function calculatePlayerMoveSpeed(player: PlayerData): number {
+  let speed = 1.0;
+
+  // Mount bonus
+  const steedSlot = player.equipment?.steed;
+  if (steedSlot) {
+    const bonus = getSteedWalkSpeedBonus(steedSlot.rarity || 'plain', steedSlot.plus || 0);
+    speed += bonus;
+  }
+
+  // Active Potion Buffs
+  if (player.activeBuffs) {
+    const speedBuff = player.activeBuffs.find(b => b.type === 'speed' && b.expiresAt > Date.now());
+    if (speedBuff) {
+      speed += speedBuff.value;
+    }
+  }
+
+  return Number(speed.toFixed(3));
+}
+
+/**
+ * Grid BFS Pathfinding (8-directional or 4-directional with bounds 0..60).
+ */
+export function findPath(
+  startX: number,
+  startY: number,
+  targetX: number,
+  targetY: number,
+  maxX: number = 60,
+  maxY: number = 60
+): Array<{ x: number; y: number }> {
+  const clampX = (v: number) => Math.max(0, Math.min(maxX, v));
+  const clampY = (v: number) => Math.max(0, Math.min(maxY, v));
+
+  const sx = clampX(Math.round(startX));
+  const sy = clampY(Math.round(startY));
+  const tx = clampX(Math.round(targetX));
+  const ty = clampY(Math.round(targetY));
+
+  if (sx === tx && sy === ty) return [];
+
+  // Standard BFS queue
+  const queue: Array<{ x: number; y: number }> = [{ x: sx, y: sy }];
+  const cameFrom = new Map<number, number>();
+  const visited = new Set<number>();
+
+  const encode = (x: number, y: number) => y * (maxX + 1) + x;
+  const decode = (code: number) => ({ x: code % (maxX + 1), y: Math.floor(code / (maxX + 1)) });
+
+  const startCode = encode(sx, sy);
+  const targetCode = encode(tx, ty);
+  visited.add(startCode);
+
+  const directions = [
+    { dx: 0, dy: -1 },
+    { dx: 0, dy: 1 },
+    { dx: -1, dy: 0 },
+    { dx: 1, dy: 0 },
+    { dx: -1, dy: -1 },
+    { dx: 1, dy: -1 },
+    { dx: -1, dy: 1 },
+    { dx: 1, dy: 1 },
+  ];
+
+  let found = false;
+
+  while (queue.length > 0) {
+    const curr = queue.shift()!;
+    const currCode = encode(curr.x, curr.y);
+
+    if (curr.x === tx && curr.y === ty) {
+      found = true;
+      break;
+    }
+
+    for (const d of directions) {
+      const nx = clampX(curr.x + d.dx);
+      const ny = clampY(curr.y + d.dy);
+      const nCode = encode(nx, ny);
+
+      if (!visited.has(nCode)) {
+        visited.add(nCode);
+        cameFrom.set(nCode, currCode);
+        queue.push({ x: nx, y: ny });
+      }
+    }
+  }
+
+  if (!found) return [];
+
+  // Reconstruct path
+  const path: Array<{ x: number; y: number }> = [];
+  let curr = targetCode;
+  while (curr !== startCode) {
+    path.push(decode(curr));
+    const prev = cameFrom.get(curr);
+    if (prev === undefined) break;
+    curr = prev;
+  }
+
+  return path.reverse();
+}
 
 /**
  * Combat Chance To Hit Formula:

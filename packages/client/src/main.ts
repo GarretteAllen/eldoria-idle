@@ -1,4 +1,4 @@
-import { PlayerData, RECIPES, ITEMS, getXpToNextLevel } from '@eldoria/shared';
+import { PlayerData, RECIPES, ITEMS, EquipSlot, getXpToNextLevel } from '@eldoria/shared';
 import { WorldRenderer, WorldNodeDisplay } from './canvas.js';
 
 class EldoriaClient {
@@ -6,6 +6,7 @@ class EldoriaClient {
   private player: PlayerData | null = null;
   private renderer: WorldRenderer;
   private activeChannel = 'All';
+  private selectedInventoryIndex: number | null = null;
 
   constructor() {
     const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
@@ -14,6 +15,7 @@ class EldoriaClient {
     this.setupTabs();
     this.setupChat();
     this.setupTaskControls();
+    this.setupModals();
     this.fetchNodesAndInit();
   }
 
@@ -24,11 +26,10 @@ class EldoriaClient {
       this.renderer.setNodes(data.nodes);
 
       this.renderer.onGroundClick = (tileX, tileY) => {
-        this.sendWs({ type: 'MOVE', x: tileX, y: tileY });
+        this.sendWs({ type: 'MOVE_TO', x: tileX, y: tileY });
       };
 
       this.renderer.onNodeClick = (node: WorldNodeDisplay) => {
-        this.sendWs({ type: 'MOVE', x: node.x, y: node.y });
         if (node.recipeId) {
           this.sendWs({
             type: 'START_TASK',
@@ -36,6 +37,11 @@ class EldoriaClient {
             targetX: node.x,
             targetY: node.y,
           });
+        } else if (node.type === 'hearth_counter') {
+          this.sendWs({ type: 'MOVE_TO', x: node.x, y: node.y });
+          this.openHearthModal();
+        } else {
+          this.sendWs({ type: 'MOVE_TO', x: node.x, y: node.y });
         }
       };
 
@@ -126,11 +132,11 @@ class EldoriaClient {
         break;
 
       case 'LEVEL_UP':
-        this.showNotification(`🎉 Level Up! You achieved level ${msg.newLevel} in ${msg.skill.replace('_', ' ')}!`);
+        this.showToast(`🎉 Level Up! You achieved level ${msg.newLevel} in ${msg.skill.replace('_', ' ')}!`);
         break;
 
       case 'NOTIFICATION':
-        this.showNotification(msg.message);
+        this.showToast(msg.message);
         break;
     }
   }
@@ -149,12 +155,17 @@ class EldoriaClient {
     document.getElementById('val-gems')!.textContent = this.player.gems.toLocaleString();
     document.getElementById('val-anima')!.textContent = this.player.anima.toLocaleString();
 
-    // Player chip
+    // Player status chip
     document.getElementById('player-display-name')!.textContent = this.player.username;
     const maxHp = (this.player.skills.vitality?.level || 10);
     document.getElementById('hp-text')!.textContent = `${this.player.currentHp} / ${maxHp} HP`;
     const hpPct = Math.min(100, Math.floor((this.player.currentHp / maxHp) * 100));
     document.getElementById('hp-bar-fill')!.style.width = `${hpPct}%`;
+
+    // Speed stat
+    const speed = this.player.moveSpeedTilesPerTick || 1.0;
+    const bonusPct = Math.round((speed - 1.0) * 100);
+    document.getElementById('speed-chip')!.textContent = `⚡ ${speed.toFixed(2)} tiles/tick ${bonusPct > 0 ? '(+' + bonusPct + '%)' : ''}`;
 
     // Active Task Bar
     const taskNameEl = document.getElementById('task-name')!;
@@ -162,10 +173,25 @@ class EldoriaClient {
     const progressFillEl = document.getElementById('task-progress-fill')!;
     const taskIconEl = document.getElementById('task-icon')!;
 
-    if (this.player.currentTask) {
+    if (this.player.bankingState === 'walking_to_bank') {
+      taskNameEl.textContent = 'Banking — Riding to Hearth';
+      taskSubEl.textContent = `Satchel full (28/28) • Depositing spoils...`;
+      progressFillEl.style.width = '100%';
+      taskIconEl.textContent = '🐴';
+    } else if (this.player.bankingState === 'returning_to_work') {
+      taskNameEl.textContent = 'Returning to Work';
+      taskSubEl.textContent = `Riding back to node at ${this.player.moveSpeedTilesPerTick || 1.0} tiles/tick...`;
+      progressFillEl.style.width = '100%';
+      taskIconEl.textContent = '🐴';
+    } else if (this.player.isMoving && this.player.path && this.player.path.length > 0) {
+      taskNameEl.textContent = 'Traveling on Road';
+      taskSubEl.textContent = `${this.player.path.length} tiles remaining (${(this.player.moveSpeedTilesPerTick || 1.0)} tiles/tick)`;
+      progressFillEl.style.width = '100%';
+      taskIconEl.textContent = '🐴';
+    } else if (this.player.currentTask) {
       const rec = RECIPES[this.player.currentTask.recipeId];
       taskNameEl.textContent = rec ? rec.name : this.player.currentTask.skill;
-      taskSubEl.textContent = `Completed: ${this.player.currentTask.completedQuantity} • Auto-deposits to Hearth`;
+      taskSubEl.textContent = `Completed: ${this.player.currentTask.completedQuantity} • Walks to Hearth when full`;
       progressFillEl.style.width = '100%';
 
       let icon = '⛏️';
@@ -236,7 +262,10 @@ class EldoriaClient {
           <div>${name}</div>
           <span class="qty">${slot.quantity > 1 ? slot.quantity : ''}</span>
         `;
-        slotEl.title = `${name} (${slot.rarity || 'plain'})\nVendor Floor: ${def?.vendorFloorPrice || 0} Gold`;
+        slotEl.title = `${name} (${slot.rarity || 'plain'})\nClick for actions`;
+        slotEl.addEventListener('click', () => {
+          this.openItemActionModal(i);
+        });
       }
       grid.appendChild(slotEl);
     }
@@ -247,22 +276,115 @@ class EldoriaClient {
     const container = document.getElementById('equipment-slots')!;
     container.innerHTML = '';
 
-    const slots = ['weapon', 'shield', 'helmet', 'body', 'legs', 'ring', 'amulet', 'steed', 'tool'];
+    const slots: EquipSlot[] = ['weapon', 'shield', 'helmet', 'body', 'legs', 'ring', 'amulet', 'steed', 'tool'];
     for (const slotKey of slots) {
-      const itemSlot = this.player.equipment[slotKey as keyof typeof this.player.equipment];
+      const itemSlot = this.player.equipment[slotKey];
       const div = document.createElement('div');
       div.className = 'item-slot';
       div.style.aspectRatio = 'auto';
       div.style.padding = '8px';
       div.style.marginBottom = '6px';
+      div.style.cursor = itemSlot ? 'pointer' : 'default';
 
       const def = itemSlot ? ITEMS[itemSlot.itemId] : null;
       div.innerHTML = `
         <div style="font-weight:600; text-transform:capitalize;">${slotKey}:</div>
-        <div style="color:var(--accent-gold);">${def ? def.name : '— Empty —'}</div>
+        <div style="color:var(--accent-gold);">${def ? def.name + ' (Click to unequip)' : '— Empty —'}</div>
       `;
+
+      if (itemSlot) {
+        div.addEventListener('click', () => {
+          this.sendWs({ type: 'UNEQUIP_ITEM', slot: slotKey });
+        });
+      }
+
       container.appendChild(div);
     }
+  }
+
+  private openItemActionModal(index: number) {
+    if (!this.player) return;
+    const slot = this.player.inventory[index];
+    if (!slot) return;
+    const def = ITEMS[slot.itemId];
+    if (!def) return;
+
+    this.selectedInventoryIndex = index;
+    const modal = document.getElementById('item-action-modal')!;
+    document.getElementById('action-item-name')!.textContent = `${def.name} (${slot.rarity || 'plain'})`;
+
+    const equipBtn = document.getElementById('btn-action-equip')!;
+    equipBtn.style.display = def.slot ? 'block' : 'none';
+
+    const eatBtn = document.getElementById('btn-action-eat')!;
+    eatBtn.style.display = def.category === 'cooked_food' ? 'block' : 'none';
+
+    modal.classList.remove('hidden');
+  }
+
+  private openHearthModal() {
+    if (!this.player) return;
+    const modal = document.getElementById('hearth-modal')!;
+    document.getElementById('storage-count')!.textContent = this.player.storage.length.toString();
+
+    const grid = document.getElementById('storage-grid')!;
+    grid.innerHTML = '';
+
+    for (const slot of this.player.storage) {
+      const def = ITEMS[slot.itemId];
+      const div = document.createElement('div');
+      div.className = 'item-slot';
+      if (slot.rarity && slot.rarity !== 'plain') {
+        div.classList.add(`rarity-${slot.rarity}`);
+      }
+      div.innerHTML = `
+        <div>${def ? def.name : slot.itemId}</div>
+        <span class="qty">${slot.quantity}</span>
+      `;
+      grid.appendChild(div);
+    }
+
+    modal.classList.remove('hidden');
+  }
+
+  private setupModals() {
+    document.getElementById('item-action-close-btn')!.onclick = () => {
+      document.getElementById('item-action-modal')!.classList.add('hidden');
+    };
+
+    document.getElementById('btn-action-equip')!.onclick = () => {
+      if (this.selectedInventoryIndex !== null) {
+        this.sendWs({ type: 'EQUIP_ITEM', inventoryIndex: this.selectedInventoryIndex });
+        document.getElementById('item-action-modal')!.classList.add('hidden');
+      }
+    };
+
+    document.getElementById('btn-action-eat')!.onclick = () => {
+      if (this.selectedInventoryIndex !== null) {
+        this.sendWs({ type: 'EAT_FOOD', inventoryIndex: this.selectedInventoryIndex });
+        document.getElementById('item-action-modal')!.classList.add('hidden');
+      }
+    };
+
+    document.getElementById('btn-action-deposit')!.onclick = () => {
+      if (this.selectedInventoryIndex !== null) {
+        this.sendWs({ type: 'DEPOSIT_ALL_RESOURCES' });
+        document.getElementById('item-action-modal')!.classList.add('hidden');
+      }
+    };
+
+    document.getElementById('btn-open-hearth')!.onclick = () => {
+      this.openHearthModal();
+    };
+
+    document.getElementById('hearth-close-btn')!.onclick = () => {
+      document.getElementById('hearth-modal')!.classList.add('hidden');
+    };
+
+    document.getElementById('btn-deposit-all')!.onclick = () => {
+      this.sendWs({ type: 'DEPOSIT_ALL_RESOURCES' });
+      setTimeout(() => this.openHearthModal(), 200);
+    };
   }
 
   private updateBossBanner(boss: any) {
@@ -364,8 +486,13 @@ class EldoriaClient {
     document.getElementById('away-ok-btn')!.onclick = close;
   }
 
-  private showNotification(msg: string) {
-    console.log(msg);
+  private showToast(msg: string) {
+    // Append to chat as server announcement
+    this.appendChatMessage({
+      channel: 'System',
+      senderName: 'Eldoria',
+      text: msg,
+    });
   }
 }
 
