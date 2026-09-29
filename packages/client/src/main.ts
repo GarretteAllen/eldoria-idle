@@ -229,7 +229,7 @@ class EldoriaClient {
     this.ws = new WebSocket(wsUrl);
 
     this.ws.onopen = () => {
-      console.log('⚔️ Connected to Eldoria Idle server');
+      console.log('Connected to Eldoria server');
     };
 
     this.ws.onmessage = (event) => {
@@ -375,7 +375,7 @@ class EldoriaClient {
         if (charPill) charPill.title = 'Guest Adventurer — Click to register permanent account';
       } else {
         nameEl.textContent = this.player.role === 'admin' 
-          ? `👑 ${this.player.username || 'Admin'}` 
+          ? `[ADMIN] ${this.player.username || 'Admin'}` 
           : (this.player.username || 'Adventurer');
         if (charPill) charPill.title = this.player.role === 'admin'
           ? 'Administrator Account — Click for profile'
@@ -515,7 +515,7 @@ class EldoriaClient {
             btn.classList.add('active');
             this.switchDrawer('editor');
           } else {
-            this.showToast('🔒 World Editor is restricted to server administrators.');
+            this.showToast('World Editor is restricted to server administrators.');
           }
           return;
         }
@@ -1202,7 +1202,7 @@ class EldoriaClient {
           modal?.classList.add('hidden');
           this.reconnectWs();
           this.updateUI();
-          this.showToast(`⚔️ Welcome back, ${data.player.username}!`);
+          this.showToast(`Welcome back, ${data.player.username}.`);
         } catch (err) {
           showError('Network error while logging in.');
         }
@@ -1241,7 +1241,7 @@ class EldoriaClient {
           modal?.classList.add('hidden');
           this.reconnectWs();
           this.updateUI();
-          this.showToast(`🛡️ Account created! Welcome to Eldoria, ${data.player.username}!`);
+          this.showToast(`Account created. Welcome to Eldoria, ${data.player.username}.`);
         } catch (err) {
           showError('Network error while creating account.');
         }
@@ -1251,7 +1251,7 @@ class EldoriaClient {
     if (btnPlayGuest) {
       const savedGuestId = localStorage.getItem('eldoria_guest_id');
       if (savedGuestId) {
-        btnPlayGuest.textContent = '🎒 Continue as Guest';
+        btnPlayGuest.textContent = 'Continue as Guest';
       }
 
       btnPlayGuest.onclick = async () => {
@@ -1273,7 +1273,7 @@ class EldoriaClient {
             modal?.classList.add('hidden');
             this.connectWs();
             this.updateUI();
-            this.showToast(`🎒 Welcome, ${this.player.username}! You are playing as a guest.`);
+            this.showToast(`Entering as guest: ${this.player.username}. Register anytime to save progress.`);
           }
         } catch (err) {
           showError('Failed to enter as guest. Please try again.');
@@ -1320,7 +1320,7 @@ class EldoriaClient {
         } else {
           if (roleBadge) {
             if (this.player.role === 'admin') {
-              roleBadge.textContent = '👑 ADMIN';
+              roleBadge.textContent = 'ADMIN';
               roleBadge.className = 'status-tag';
             } else {
               roleBadge.textContent = 'ADVENTURER';
