@@ -56,6 +56,14 @@ class EldoriaClient {
   // Interaction State
   private pendingNpcTarget: NpcDefinition | null = null;
   private pendingMonsterTarget: WorldNodeDisplay | null = null;
+  private activeCombatMonster: {
+    id: string;
+    name: string;
+    level?: number;
+    currentHp: number;
+    maxHp: number;
+    combatStyle: string;
+  } | null = null;
 
   constructor() {
     const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
@@ -436,19 +444,28 @@ class EldoriaClient {
           if (msg.nodeId && msg.monsterHp !== undefined && msg.monsterMaxHp !== undefined) {
             this.renderer.monsterHpMap.set(msg.nodeId, { currentHp: msg.monsterHp, maxHp: msg.monsterMaxHp });
           }
+          const style = (msg.combatStyle || this.getPlayerCombatStyle()) as 'melee' | 'ranged' | 'magic';
           if (typeof msg.playerX === 'number' && typeof msg.targetX === 'number') {
-            const style = msg.combatStyle || this.getPlayerCombatStyle();
             this.renderer.addCombatProjectile(msg.playerX, msg.playerY, msg.targetX, msg.targetY, style);
           }
-          if (msg.damage > 0) {
-            this.showToast(`⚔️ Hit ${msg.monsterName} for ${msg.damage}! (${msg.monsterHp}/${msg.monsterMaxHp} HP)`);
-          } else {
-            this.showToast(`🛡️ You splashed against ${msg.monsterName}! (0 damage)`);
-          }
+          // Trigger attack animation strictly on hit
+          this.renderer.triggerPlayerAttack(style);
+
+          // Update active combat HUD
+          this.activeCombatMonster = {
+            id: msg.monsterId,
+            name: msg.monsterName || MONSTERS[msg.monsterId]?.name || 'Target',
+            level: MONSTERS[msg.monsterId]?.level,
+            currentHp: msg.monsterHp !== undefined ? msg.monsterHp : (this.activeCombatMonster?.currentHp ?? 10),
+            maxHp: msg.monsterMaxHp !== undefined ? msg.monsterMaxHp : (this.activeCombatMonster?.maxHp ?? 10),
+            combatStyle: style,
+          };
+          this.updateCombatHud();
         } else if (msg.target === 'player') {
-          if (msg.damage > 0) {
-            this.showToast(`💥 ${msg.monsterName} struck you for ${msg.damage} damage!`);
+          if (typeof msg.playerHp === 'number' && this.player) {
+            this.player.currentHp = msg.playerHp;
           }
+          this.updateCombatHud();
         }
         break;
 
@@ -544,6 +561,73 @@ class EldoriaClient {
     if (topLogoutBtn) {
       topLogoutBtn.style.display = 'inline-flex';
     }
+
+    // 4. Update Combat Encounter HUD
+    this.updateCombatHud();
+  }
+
+  private updateCombatHud() {
+    const hud = document.getElementById('combat-encounter-hud');
+    if (!hud) return;
+
+    const task = this.player?.currentTask;
+    const isCombatTask = task && (task.skill === 'melee' || task.skill === 'ranged' || task.skill === 'magic');
+
+    if (!isCombatTask || !this.player) {
+      hud.classList.add('hidden');
+      this.activeCombatMonster = null;
+      return;
+    }
+
+    // Ensure activeCombatMonster is initialized from current combat task if not set
+    if (!this.activeCombatMonster && task.recipeId && MONSTERS[task.recipeId]) {
+      const def = MONSTERS[task.recipeId];
+      const cached = this.renderer.monsterHpMap.get(def.id) || (task.targetNodeX !== undefined ? this.renderer.monsterHpMap.get(`mob_${task.targetNodeX}_${task.targetNodeY}`) : undefined);
+      this.activeCombatMonster = {
+        id: def.id,
+        name: def.name,
+        level: def.level,
+        currentHp: cached ? cached.currentHp : def.hp,
+        maxHp: cached ? cached.maxHp : def.hp,
+        combatStyle: task.skill,
+      };
+    }
+
+    if (!this.activeCombatMonster) {
+      hud.classList.add('hidden');
+      return;
+    }
+
+    hud.classList.remove('hidden');
+
+    // Player stats
+    const pMaxHp = this.player.skills.hitpoints?.level || 10;
+    const pCurHp = Math.max(0, Math.min(pMaxHp, this.player.currentHp));
+    const pPct = Math.max(0, Math.min(100, Math.round((pCurHp / pMaxHp) * 100)));
+
+    const pNameEl = document.getElementById('combat-hud-player-name');
+    const pHpTextEl = document.getElementById('combat-hud-player-hp-text');
+    const pHpFillEl = document.getElementById('combat-hud-player-hp-fill');
+
+    if (pNameEl) pNameEl.textContent = this.player.username || 'Adventurer';
+    if (pHpTextEl) pHpTextEl.textContent = `${pCurHp} / ${pMaxHp} HP`;
+    if (pHpFillEl) pHpFillEl.style.width = `${pPct}%`;
+
+    // Monster stats
+    const m = this.activeCombatMonster;
+    const mMaxHp = Math.max(1, m.maxHp);
+    const mCurHp = Math.max(0, Math.min(mMaxHp, m.currentHp));
+    const mPct = Math.max(0, Math.min(100, Math.round((mCurHp / mMaxHp) * 100)));
+
+    const mNameEl = document.getElementById('combat-hud-monster-name');
+    const mHpTextEl = document.getElementById('combat-hud-monster-hp-text');
+    const mHpFillEl = document.getElementById('combat-hud-monster-hp-fill');
+    const styleTagEl = document.getElementById('combat-hud-style-tag');
+
+    if (mNameEl) mNameEl.textContent = m.level ? `${m.name} [Lvl ${m.level}]` : m.name;
+    if (mHpTextEl) mHpTextEl.textContent = `${mCurHp} / ${mMaxHp} HP`;
+    if (mHpFillEl) mHpFillEl.style.width = `${mPct}%`;
+    if (styleTagEl) styleTagEl.textContent = (m.combatStyle || this.getPlayerCombatStyle()).toUpperCase();
   }
 
   private updateTasksCard() {
@@ -1670,11 +1754,14 @@ class EldoriaClient {
       ? `<span class="chat-admin-badge"><span style="display:inline-flex; width:12px; height:12px; margin-right:2px; vertical-align:middle;">${ICONS.admin}</span>ADMIN</span>`
       : '';
 
+    // Strip unnecessary emojis from chat messages
+    const cleanText = (msg.text || '').replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, '').trim();
+
     line.innerHTML = `
       <span class="chat-time">${timeStr}</span>
       ${adminTag}
       <span class="chat-sender">${sender}:</span>
-      <span>${msg.text}</span>
+      <span>${cleanText}</span>
     `;
     log.appendChild(line);
     log.scrollTop = log.scrollHeight;

@@ -315,7 +315,7 @@ export class GameEngine {
             if (!player.isGuest) {
               this.send(session.ws, {
                 type: 'NOTIFICATION',
-                message: `🔒 Your adventurer name is bound to your registered account (${player.username}).`,
+                message: `Your adventurer name is bound to your registered account (${player.username}).`,
               });
               break;
             }
@@ -323,7 +323,7 @@ export class GameEngine {
               if (storage.isUsernameTaken(newName) || storage.isAdminUsername(newName)) {
                 this.send(session.ws, {
                   type: 'NOTIFICATION',
-                  message: `❌ "${newName}" is a registered or reserved account name. Please log in or register with a password to claim it.`,
+                  message: `"${newName}" is a registered or reserved account name. Please log in or register with a password to claim it.`,
                 });
                 break;
               }
@@ -343,7 +343,7 @@ export class GameEngine {
           // Admin give command: /give <item> [qty] or /give <player> <item> [qty]
           if (trimmed.startsWith('/give ') || trimmed.startsWith('/item ')) {
             if (player.role !== 'admin') {
-              this.send(session.ws, { type: 'NOTIFICATION', message: '❌ Admin privileges required.' });
+              this.send(session.ws, { type: 'NOTIFICATION', message: 'Admin privileges required.' });
               break;
             }
             const parts = trimmed.split(/\s+/).slice(1);
@@ -361,7 +361,7 @@ export class GameEngine {
               const qty = Math.max(1, parseInt(parts[2], 10) || 1);
               this.handleAdminGiveItem(session, { target, itemId, quantity: qty, destination: 'inventory' });
             } else {
-              this.send(session.ws, { type: 'NOTIFICATION', message: `❌ Unknown item ID: "${parts[0]}". Check item ID or use the Admin panel.` });
+              this.send(session.ws, { type: 'NOTIFICATION', message: `Unknown item ID: "${parts[0]}". Check item ID or use the Admin panel.` });
             }
             break;
           }
@@ -394,7 +394,7 @@ export class GameEngine {
 
       case 'ADMIN_SAVE_NODE':
         if (player.role !== 'admin') {
-          this.send(session.ws, { type: 'NOTIFICATION', message: '❌ Admin privileges required.' });
+          this.send(session.ws, { type: 'NOTIFICATION', message: 'Admin privileges required.' });
           break;
         }
         if (msg.node && msg.node.id) {
@@ -409,7 +409,7 @@ export class GameEngine {
 
       case 'ADMIN_DELETE_NODE':
         if (player.role !== 'admin') {
-          this.send(session.ws, { type: 'NOTIFICATION', message: '❌ Admin privileges required.' });
+          this.send(session.ws, { type: 'NOTIFICATION', message: 'Admin privileges required.' });
           break;
         }
         const deleteNodeId = msg.nodeId || msg.id;
@@ -425,7 +425,7 @@ export class GameEngine {
 
       case 'ADMIN_SAVE_NPC':
         if (player.role !== 'admin') {
-          this.send(session.ws, { type: 'NOTIFICATION', message: '❌ Admin privileges required.' });
+          this.send(session.ws, { type: 'NOTIFICATION', message: 'Admin privileges required.' });
           break;
         }
         if (msg.npc && msg.npc.id) {
@@ -462,7 +462,7 @@ export class GameEngine {
 
       case 'ADMIN_DELETE_NPC':
         if (player.role !== 'admin') {
-          this.send(session.ws, { type: 'NOTIFICATION', message: '❌ Admin privileges required.' });
+          this.send(session.ws, { type: 'NOTIFICATION', message: 'Admin privileges required.' });
           break;
         }
         const deleteNpcId = msg.npcId || msg.id;
@@ -493,7 +493,7 @@ export class GameEngine {
 
       case 'ADMIN_SAVE_QUEST':
         if (player.role !== 'admin') {
-          this.send(session.ws, { type: 'NOTIFICATION', message: '❌ Admin privileges required.' });
+          this.send(session.ws, { type: 'NOTIFICATION', message: 'Admin privileges required.' });
           break;
         }
         if (msg.quest && msg.quest.id) {
@@ -530,7 +530,7 @@ export class GameEngine {
 
       case 'ADMIN_DELETE_QUEST':
         if (player.role !== 'admin') {
-          this.send(session.ws, { type: 'NOTIFICATION', message: '❌ Admin privileges required.' });
+          this.send(session.ws, { type: 'NOTIFICATION', message: 'Admin privileges required.' });
           break;
         }
         const deleteQuestId = msg.questId || msg.id;
@@ -546,7 +546,7 @@ export class GameEngine {
 
       case 'ADMIN_SAVE_COLLISIONS':
         if (player.role !== 'admin') {
-          this.send(session.ws, { type: 'NOTIFICATION', message: '❌ Admin privileges required.' });
+          this.send(session.ws, { type: 'NOTIFICATION', message: 'Admin privileges required.' });
           break;
         }
         if (Array.isArray(msg.collisions)) {
@@ -1480,7 +1480,7 @@ export class GameEngine {
   private handleAdminGiveItem(session: ConnectedSession, msg: any) {
     const { player, ws } = session;
     if (player.role !== 'admin') {
-      this.send(ws, { type: 'NOTIFICATION', message: '❌ Admin privileges required.' });
+      this.send(ws, { type: 'NOTIFICATION', message: 'Admin privileges required.' });
       return;
     }
 
@@ -1489,7 +1489,7 @@ export class GameEngine {
     const destination: 'inventory' | 'storage' = msg.destination === 'storage' ? 'storage' : 'inventory';
 
     if (!ITEMS[itemId]) {
-      this.send(ws, { type: 'NOTIFICATION', message: `❌ Unknown item ID: "${itemId}". No item given.` });
+      this.send(ws, { type: 'NOTIFICATION', message: `Unknown item ID: "${itemId}". No item given.` });
       return;
     }
 
@@ -1511,7 +1511,7 @@ export class GameEngine {
       if (!targetPlayer) {
         targetPlayer = storage.getPlayerByUsername(targetName);
         if (!targetPlayer) {
-          this.send(ws, { type: 'NOTIFICATION', message: `❌ Player "${targetName}" not found.` });
+          this.send(ws, { type: 'NOTIFICATION', message: `Player "${targetName}" not found.` });
           return;
         }
       }
@@ -1543,7 +1543,7 @@ export class GameEngine {
       } else {
         this.send(ws, {
           type: 'NOTIFICATION',
-          message: `❌ ${targetPlayer.username}'s inventory is full (28 slots). Try Storage destination.`,
+          message: `${targetPlayer.username}'s inventory is full (28 slots). Try Storage destination.`,
         });
         return;
       }
@@ -1554,14 +1554,14 @@ export class GameEngine {
     const itemName = ITEMS[itemId].name;
     this.send(ws, {
       type: 'NOTIFICATION',
-      message: `✅ Gave ${quantity}x ${itemName} to ${targetPlayer.username}'s ${destination}.`,
+      message: `Gave ${quantity}x ${itemName} to ${targetPlayer.username}'s ${destination}.`,
     });
 
     if (targetSession && targetSession !== session) {
       if (msg.silent === false) {
         this.send(targetSession.ws, {
           type: 'NOTIFICATION',
-          message: `📦 An admin gave you ${quantity}x ${itemName}!`,
+          message: `An admin gave you ${quantity}x ${itemName}.`,
         });
       }
       this.send(targetSession.ws, { type: 'PLAYER_UPDATE', player: targetPlayer });
@@ -1619,10 +1619,6 @@ export class GameEngine {
       player.isMoving = path.length > 0;
       session.pendingCombat = { monsterId, targetX, targetY, nodeId: msg.nodeId };
       session.activeCombat = null;
-      this.send(ws, {
-        type: 'NOTIFICATION',
-        message: `Walking into range of ${monsterDef.name}... (${path.length} tiles)`,
-      });
       this.send(ws, { type: 'PLAYER_UPDATE', player });
       this.broadcastWorldState();
     } else {
@@ -1681,10 +1677,6 @@ export class GameEngine {
       targetNodeY: targetY,
     };
 
-    this.send(ws, {
-      type: 'NOTIFICATION',
-      message: `⚔️ Engaged in combat with ${monsterDef.name} using ${combatStyle.toUpperCase()}!`,
-    });
     this.send(ws, { type: 'PLAYER_UPDATE', player });
     this.broadcastWorldState();
   }
@@ -1787,7 +1779,7 @@ export class GameEngine {
           this.giveLootItem(player, monsterDef.rareDrop.itemId, 1);
           this.send(ws, {
             type: 'NOTIFICATION',
-            message: `✨ RARE DROP! You found ${ITEMS[monsterDef.rareDrop.itemId].name}!`,
+            message: `RARE DROP: You found ${ITEMS[monsterDef.rareDrop.itemId].name}!`,
           });
         }
 
@@ -1795,11 +1787,6 @@ export class GameEngine {
         player.skills[combatStyle].level = getLevelFromXp(player.skills[combatStyle].xp);
 
         this.progressKillQuests(player, monsterDef.id);
-
-        this.send(ws, {
-          type: 'NOTIFICATION',
-          message: `⚔️ Defeated ${monsterDef.name}! +${coinDrop} gold, +${monsterDef.xp} XP.`,
-        });
 
         // Check if satchel full
         if (player.inventory.length >= 28) {
@@ -1891,7 +1878,7 @@ export class GameEngine {
           if (foodSlot.quantity <= 0) player.inventory.splice(foodIdx, 1);
           this.send(ws, {
             type: 'NOTIFICATION',
-            message: `🍖 Ate ${foodDef.name} (+${heal} HP, now ${player.currentHp}/${maxHp})`,
+            message: `Ate ${foodDef.name} (+${heal} HP, now ${player.currentHp}/${maxHp})`,
           });
         }
       }
@@ -1909,7 +1896,7 @@ export class GameEngine {
         storage.savePlayer(player);
         this.send(ws, {
           type: 'NOTIFICATION',
-          message: `💀 Slain by ${monsterDef.name}! You awoke safely at the Hearth.`,
+          message: `Slain by ${monsterDef.name}. You awoke safely at the Hearth.`,
         });
         this.send(ws, { type: 'PLAYER_UPDATE', player });
         this.broadcastWorldState();

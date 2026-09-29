@@ -78,6 +78,37 @@
         </div>
       </header>
 
+      <!-- 2b. COMBAT ENCOUNTER HUD (Top-Center Floating Banner) -->
+      <div id="combat-encounter-hud" class="combat-encounter-hud hidden">
+        <!-- Left: Player Side -->
+        <div class="combat-hud-side combat-hud-player">
+          <div class="combat-hud-info">
+            <span class="combat-hud-name" id="combat-hud-player-name">Player</span>
+            <span class="combat-hud-hp-text" id="combat-hud-player-hp-text">10 / 10 HP</span>
+          </div>
+          <div class="combat-hud-bar-track">
+            <div class="combat-hud-bar-fill player-fill" id="combat-hud-player-hp-fill" style="width: 100%;"></div>
+          </div>
+        </div>
+
+        <!-- Center: VS Badge & Style Indicator -->
+        <div class="combat-hud-center">
+          <div class="combat-hud-vs-badge">VS</div>
+          <span class="combat-hud-style-tag" id="combat-hud-style-tag">MELEE</span>
+        </div>
+
+        <!-- Right: Target Monster Side -->
+        <div class="combat-hud-side combat-hud-monster">
+          <div class="combat-hud-info right-aligned">
+            <span class="combat-hud-name" id="combat-hud-monster-name">Target</span>
+            <span class="combat-hud-hp-text" id="combat-hud-monster-hp-text">10 / 10 HP</span>
+          </div>
+          <div class="combat-hud-bar-track">
+            <div class="combat-hud-bar-fill monster-fill" id="combat-hud-monster-hp-fill" style="width: 100%;"></div>
+          </div>
+        </div>
+      </div>
+
       <!-- 3. TOP-LEFT TASKS CARD (Parchment Float) -->
       <div id="tasks-card" class="parchment-card">
         <div class="tasks-card-header">

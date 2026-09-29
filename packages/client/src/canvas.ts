@@ -83,6 +83,21 @@ export class WorldRenderer {
     });
   }
 
+  // Attack animation state: weapon animates strictly when an attack swing occurs!
+  public playerAttackAnim: {
+    startTime: number;
+    duration: number;
+    style: 'melee' | 'ranged' | 'magic';
+  } | null = null;
+
+  public triggerPlayerAttack(style: 'melee' | 'ranged' | 'magic') {
+    this.playerAttackAnim = {
+      startTime: performance.now(),
+      duration: 380,
+      style,
+    };
+  }
+
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d')!;
@@ -927,28 +942,91 @@ export class WorldRenderer {
           const isBow = taskSkill === 'ranged' || weaponId.includes('bow');
           const isStaff = taskSkill === 'magic' || weaponId.includes('staff') || weaponId.includes('wand');
 
+          // Attack animation strictly plays only during active attack swings!
+          const now = performance.now();
+          const attack = isSelf ? this.playerAttackAnim : null;
+          const isAttacking = Boolean(attack && (now - attack.startTime < attack.duration));
+          const progress = isAttacking ? Math.min(1, Math.max(0, (now - attack!.startTime) / attack!.duration)) : 0;
+
           if (isBow) {
-            // Ranged Bow Animation: Aim, pull string back with notch, and snap release!
+            // Ranged Bow: Held ready between attacks; draws string back and snaps forward only when attacking!
             const weaponCoord = getSprite(weapon?.itemId) || getSprite('ashwood_shortbow');
-            const drawAngle = Math.sin(this.animTick * 0.018) * 0.35 - 0.1;
-            const drawX = Math.round(Math.cos(this.animTick * 0.018) * 1.5 - 1);
+            let drawAngle = -0.05;
+            let drawX = 0;
+            if (isAttacking) {
+              if (progress < 0.6) {
+                // Draw bow back
+                const p = progress / 0.6;
+                drawAngle = -0.05 - p * 0.28;
+                drawX = -Math.round(p * 2);
+              } else if (progress < 0.8) {
+                // Snap release forward
+                const p = (progress - 0.6) / 0.2;
+                drawAngle = -0.33 + p * 0.35;
+                drawX = 1 - Math.round(p * 1);
+              } else {
+                // Return to rest
+                drawAngle = -0.05;
+                drawX = 0;
+              }
+            }
             if (weaponCoord) {
               drawLayer(weaponCoord, drawX, breatheBob, drawAngle);
             }
           } else if (isStaff) {
-            // Magic Staff Animation: Raise high overhead and pulse mystic wave!
+            // Magic Staff: Held upright; raises overhead and casts forward burst only when attacking!
             const weaponCoord = getSprite(weapon?.itemId) || getSprite('ashwood_staff');
-            const castTilt = Math.sin(this.animTick * 0.012) * 0.4 - 0.25;
-            const castY = breatheBob - 2 + Math.round(Math.sin(this.animTick * 0.012) * 1.5);
+            let castTilt = -0.08;
+            let castY = breatheBob;
+            let castX = 0;
+            if (isAttacking) {
+              if (progress < 0.45) {
+                // Raise high overhead to gather arcane energy
+                const p = progress / 0.45;
+                castTilt = -0.08 - p * 0.32;
+                castY = breatheBob - Math.round(p * 3);
+              } else if (progress < 0.75) {
+                // Thrust forward to project magic bolt
+                const p = (progress - 0.45) / 0.3;
+                castTilt = -0.40 + p * 0.52;
+                castY = breatheBob - 3 + Math.round(p * 3);
+                castX = Math.round(p * 2);
+              } else {
+                // Settle back to neutral
+                const p = (progress - 0.75) / 0.25;
+                castTilt = 0.12 - p * 0.20;
+                castY = breatheBob;
+                castX = Math.round((1 - p) * 2);
+              }
+            }
             if (weaponCoord) {
-              drawLayer(weaponCoord, 0, castY, castTilt);
+              drawLayer(weaponCoord, castX, castY, castTilt);
             }
           } else {
-            // Melee Blade / Greatsword Animation: Slashing strike!
+            // Melee Blade: Held at ready side guard; winds up and executes power slash strike only when attacking!
             const weaponCoord = getSprite(weapon?.itemId) || getSprite('blade_iron');
-            const attackSlash = Math.sin(this.animTick * 0.016) * 0.55;
+            let slashAngle = -0.15;
+            let slashX = 0;
+            if (isAttacking) {
+              if (progress < 0.25) {
+                // Wind-up: pull back
+                const p = progress / 0.25;
+                slashAngle = -0.15 - p * 0.35;
+                slashX = -Math.round(p * 1);
+              } else if (progress < 0.65) {
+                // Power slash strike across target
+                const p = (progress - 0.25) / 0.4;
+                slashAngle = -0.50 + p * 1.25;
+                slashX = Math.round((p - 0.5) * 3);
+              } else {
+                // Return to ready guard
+                const p = (progress - 0.65) / 0.35;
+                slashAngle = 0.75 - p * 0.90;
+                slashX = 0;
+              }
+            }
             if (weaponCoord) {
-              drawLayer(weaponCoord, 0, breatheBob, attackSlash);
+              drawLayer(weaponCoord, slashX, breatheBob, slashAngle);
             }
           }
         } else {
