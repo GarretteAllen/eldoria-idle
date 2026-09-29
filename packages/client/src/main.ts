@@ -2283,11 +2283,18 @@ class EldoriaClient {
       const allItems = Object.entries(ITEMS).map(([id, def]) => ({ id, name: def.name }))
         .sort((a, b) => a.name.localeCompare(b.name));
       const buildOptions = (filter: string) => {
-        const lower = filter.toLowerCase();
-        const filtered = filter ? allItems.filter(i => i.name.toLowerCase().includes(lower) || i.id.toLowerCase().includes(lower)) : allItems;
-        giveItemSelect.innerHTML = filtered
-          .map(i => `<option value="${i.id}">${i.name} (${i.id})</option>`)
-          .join('');
+        const lower = filter.toLowerCase().trim();
+        const filtered = filter
+          ? allItems.filter(i => i.name.toLowerCase().includes(lower) || i.id.toLowerCase().includes(lower))
+          : allItems;
+        if (filtered.length === 0) {
+          giveItemSelect.innerHTML = `<option disabled style="color: #a0aec0; padding: 6px;">No items match "${filter}"</option>`;
+        } else {
+          giveItemSelect.innerHTML = filtered
+            .map(i => `<option value="${i.id}">${i.name} (${i.id})</option>`)
+            .join('');
+          giveItemSelect.selectedIndex = 0;
+        }
       };
       buildOptions('');
 
@@ -2303,6 +2310,8 @@ class EldoriaClient {
         const target = (document.getElementById('give-item-target') as HTMLInputElement)?.value.trim();
         const qty = parseInt((document.getElementById('give-item-qty') as HTMLInputElement)?.value, 10) || 1;
         const dest = (document.querySelector('input[name="give-dest"]:checked') as HTMLInputElement)?.value || 'inventory';
+        const silentEl = document.getElementById('give-item-silent') as HTMLInputElement | null;
+        const silent = silentEl ? silentEl.checked : true;
 
         if (!itemId) {
           this.showToast('Select an item first.');
@@ -2315,6 +2324,7 @@ class EldoriaClient {
           quantity: qty,
           destination: dest,
           target: target || undefined,
+          silent,
         });
       };
     }

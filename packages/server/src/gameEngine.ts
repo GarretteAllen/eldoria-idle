@@ -1524,10 +1524,12 @@ export class GameEngine {
     });
 
     if (targetSession && targetSession !== session) {
-      this.send(targetSession.ws, {
-        type: 'NOTIFICATION',
-        message: `📦 An admin gave you ${quantity}x ${itemName}!`,
-      });
+      if (msg.silent === false) {
+        this.send(targetSession.ws, {
+          type: 'NOTIFICATION',
+          message: `📦 An admin gave you ${quantity}x ${itemName}!`,
+        });
+      }
       this.send(targetSession.ws, { type: 'PLAYER_UPDATE', player: targetPlayer });
     } else if (targetSession) {
       // Giving to self — update their own client

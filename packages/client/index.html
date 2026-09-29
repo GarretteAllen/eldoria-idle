@@ -631,8 +631,8 @@
               </div>
               <div class="form-row">
                 <label>Item:</label>
-                <input type="text" id="give-item-search" placeholder="Search item..." autocomplete="off" style="margin-bottom: 4px;" />
-                <select id="give-item-select" size="5" style="width: 100%; background: #110c07; color: var(--parchment-text); border: 1px solid var(--oak-border); border-radius: 4px; font-size: 0.72rem; padding: 2px;"></select>
+                <input type="text" id="give-item-search" placeholder="Filter items by name or ID..." autocomplete="off" style="margin-bottom: 4px;" />
+                <select id="give-item-select" size="8" class="give-item-select-styled"></select>
               </div>
               <div class="form-row">
                 <label>Quantity:</label>
@@ -648,6 +648,11 @@
                     <input type="radio" name="give-dest" value="storage" /> Storage
                   </label>
                 </div>
+              </div>
+              <div class="form-row" style="margin-top: 2px;">
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 0.75rem; color: #cbd5e0; font-weight: normal;">
+                  <input type="checkbox" id="give-item-silent" checked /> Silent delivery (no announcement/popup to recipient)
+                </label>
               </div>
               <button type="submit" class="btn-start" style="width: 100%;">Give Item</button>
             </form>
