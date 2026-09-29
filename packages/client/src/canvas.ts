@@ -762,11 +762,11 @@ export class WorldRenderer {
       ctx.restore();
     };
 
-    const isMounted = isMoving || (equipment && equipment.steed);
+    const isMounted = Boolean(equipment && equipment.steed);
 
     if (isMounted) {
       // === MOUNTED GALLOPING ON STEED ===
-      const gallopBob = Math.sin(this.animTick * 0.02) * 2;
+      const gallopBob = isMoving ? Math.sin(this.animTick * 0.02) * 2 : 0;
 
       // Ground shadow under steed
       ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
@@ -806,9 +806,11 @@ export class WorldRenderer {
       const shieldCoord = getSprite(equipment?.shield?.itemId);
       if (shieldCoord) drawLayer(shieldCoord, -1, riderY);
 
-      // 7. Weapon
-      const weaponCoord = getSprite(equipment?.weapon?.itemId) || getSprite(equipment?.tool?.itemId) || getSprite('steel_blade');
-      drawLayer(weaponCoord, -1, riderY);
+      // 7. Weapon (Mounted: show weapon if equipped)
+      const weaponCoord = getSprite(equipment?.weapon?.itemId);
+      if (weaponCoord) {
+        drawLayer(weaponCoord, -1, riderY);
+      }
 
       // Speed Tag
       if (moveSpeed) {
@@ -818,8 +820,9 @@ export class WorldRenderer {
         ctx.fillText(`${moveSpeed.toFixed(1)} t/t`, px, py + 22);
       }
     } else {
-      // === DISMOUNTED / WORKING / IDLE ===
-      const breatheBob = Math.sin(this.animTick * 0.003) * 1.5;
+      // === DISMOUNTED / WALKING ON FOOT / WORKING / IDLE ===
+      // Natural walking step bob when moving on foot, gentle breathing bob when standing
+      const breatheBob = isMoving ? Math.sin(this.animTick * 0.015) * 1.5 : Math.sin(this.animTick * 0.003) * 1.5;
 
       // Ground shadow under player
       ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
@@ -852,30 +855,59 @@ export class WorldRenderer {
       const shieldCoord = getSprite(equipment?.shield?.itemId);
       if (shieldCoord) drawLayer(shieldCoord, 0, breatheBob);
 
-      // 6. Weapon / Tool
+      // 6. Weapon / Toolbelt Working Tool
       if (taskSkill) {
-        const swing = Math.sin(this.animTick * 0.012) * 0.4;
-        const toolCoord = getSprite(equipment?.tool?.itemId) || getSprite('rune_pickaxe_steel');
-        drawLayer(toolCoord, 0, breatheBob, swing);
+        // Toolbelt tools are ONLY visible and animated when actively working on that skill!
+        if (taskSkill === 'mining') {
+          const swing = Math.sin(this.animTick * 0.014) * 0.5;
+          const pickaxe = equipment?.tool_pickaxe || equipment?.tool;
+          const toolCoord = getSprite(pickaxe?.itemId) || getSprite('rune_pickaxe_dawnburn');
+          drawLayer(toolCoord, 0, breatheBob, swing);
+        } else if (taskSkill === 'woodcutting') {
+          const chop = Math.sin(this.animTick * 0.014) * 0.5;
+          const axe = equipment?.tool_axe || equipment?.tool;
+          const toolCoord = getSprite(axe?.itemId) || getSprite('rune_axe_dawnburn');
+          drawLayer(toolCoord, 0, breatheBob, chop);
+        } else if (taskSkill === 'fishing') {
+          const rodTug = Math.sin(this.animTick * 0.007) * 0.18;
+          const rod = equipment?.tool_rod || equipment?.tool;
+          const toolCoord = getSprite(rod?.itemId) || getSprite('fishing_rod_willow');
+          drawLayer(toolCoord, 0, breatheBob, rodTug);
+        } else {
+          const genericTool = equipment?.tool || equipment?.weapon;
+          const toolCoord = getSprite(genericTool?.itemId);
+          if (toolCoord) {
+            const swing = Math.sin(this.animTick * 0.012) * 0.35;
+            drawLayer(toolCoord, 0, breatheBob, swing);
+          }
+        }
       } else {
-        const weaponCoord = getSprite(equipment?.weapon?.itemId) || getSprite(equipment?.tool?.itemId);
+        // When IDLE, WALKING, or STANDING: ONLY draw weapon if weapon is equipped! Tools on toolbelt are invisible!
+        const weaponCoord = getSprite(equipment?.weapon?.itemId);
         if (weaponCoord) {
           drawLayer(weaponCoord, 0, breatheBob);
         }
       }
     }
 
+    // Overhead Name & Title & Badges Positioning
+    // Shifted upwards cleanly so names never obscure player heads, tall helmets, or mounts!
+    const nameBaseY = isMounted ? py - 30 : py - 24;
+    const titleY = nameBaseY - 11;
+    const adminY = title ? titleY - 11 : nameBaseY - 11;
+    const bankingY = (isAdmin ? adminY : (title ? titleY : nameBaseY)) - 12;
+
     // Overhead Banking Status Badge
     if (bankingState === 'walking_to_bank') {
       ctx.font = 'bold 9px Inter, sans-serif';
       ctx.fillStyle = '#f6ad55';
       ctx.textAlign = 'center';
-      ctx.fillText('Riding to Hearth...', px, py - 34);
+      ctx.fillText('Riding to Hearth...', px, bankingY);
     } else if (bankingState === 'returning_to_work') {
       ctx.font = 'bold 9px Inter, sans-serif';
       ctx.fillStyle = '#68d391';
       ctx.textAlign = 'center';
-      ctx.fillText('Returning to Work...', px, py - 34);
+      ctx.fillText('Returning to Work...', px, bankingY);
     }
 
     // Overhead Admin Crown / Badge
@@ -883,23 +915,35 @@ export class WorldRenderer {
       ctx.font = 'bold 9px Inter, sans-serif';
       ctx.fillStyle = '#ffd700';
       ctx.textAlign = 'center';
-      ctx.fillText('👑 [ADMIN]', px, title ? py - 34 : py - 24);
+      ctx.fillText('👑 [ADMIN]', px, adminY);
     }
 
-    // Name & Title
+    // Name with 4-directional dark stroke for sharp contrast against all terrains
     ctx.textAlign = 'center';
     ctx.font = 'bold 11px system-ui, -apple-system, BlinkMacSystemFont, sans-serif';
-    ctx.fillStyle = isSelf ? '#ffd700' : '#e2e8f0';
-    ctx.fillText(name, px, py - 14);
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
+    ctx.fillText(name, px - 1, nameBaseY);
+    ctx.fillText(name, px + 1, nameBaseY);
+    ctx.fillText(name, px, nameBaseY - 1);
+    ctx.fillText(name, px, nameBaseY + 1);
+
+    ctx.fillStyle = isSelf ? '#ffd700' : '#f0f4f8';
+    ctx.fillText(name, px, nameBaseY);
 
     if (title) {
       ctx.font = 'italic 9px system-ui, -apple-system, BlinkMacSystemFont, sans-serif';
-      ctx.fillStyle = '#a0aec0';
-      ctx.fillText(`"${title}"`, px, py - 24);
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+      ctx.fillText(`"${title}"`, px - 1, titleY);
+      ctx.fillText(`"${title}"`, px + 1, titleY);
+      ctx.fillText(`"${title}"`, px, titleY - 1);
+      ctx.fillText(`"${title}"`, px, titleY + 1);
+
+      ctx.fillStyle = '#cbd5e0';
+      ctx.fillText(`"${title}"`, px, titleY);
     }
 
-
     ctx.restore();
+
   }
 
   private drawChatBubbles() {

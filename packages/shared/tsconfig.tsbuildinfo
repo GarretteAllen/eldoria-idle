@@ -1,1 +1,1 @@
-{"root":["./src/constants.ts","./src/formulas.ts","./src/index.ts","./src/items.ts","./src/levels.ts","./src/monsters.ts","./src/recipes.ts","./src/types.ts"],"version":"5.9.3"}
+{"root":["./src/constants.ts","./src/formulas.ts","./src/index.ts","./src/items.ts","./src/levels.ts","./src/monsterSprites.ts","./src/monsters.ts","./src/playerEquipmentSprites.ts","./src/recipes.ts","./src/types.ts"],"version":"5.9.3"}

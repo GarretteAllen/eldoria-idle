@@ -986,38 +986,164 @@ class EldoriaClient {
 
   private renderEquipmentDrawer() {
     if (!this.player) return;
+
+    // 1. Calculate & Update Combat Stats
+    let totalAcc = (this.player.skills.melee?.level || 1) * 2;
+    let totalStr = (this.player.skills.melee?.level || 1);
+    let totalDef = (this.player.skills.defence?.level || 1);
+    for (const item of Object.values(this.player.equipment)) {
+      if (!item) continue;
+      const def = ITEMS[item.itemId];
+      if (def?.baseStats) {
+        if (def.baseStats.accuracy) totalAcc += def.baseStats.accuracy;
+        if (def.baseStats.strength) totalStr += def.baseStats.strength;
+        if (def.baseStats.defence) totalDef += def.baseStats.defence;
+      }
+    }
+    const maxHit = Math.max(1, Math.floor(1 + totalStr * 0.4));
+    const accEl = document.getElementById('stat-acc');
+    const strEl = document.getElementById('stat-str');
+    const defEl = document.getElementById('stat-def');
+    const maxhitEl = document.getElementById('stat-maxhit');
+    if (accEl) accEl.textContent = totalAcc.toString();
+    if (strEl) strEl.textContent = totalStr.toString();
+    if (defEl) defEl.textContent = totalDef.toString();
+    if (maxhitEl) maxhitEl.textContent = maxHit.toString();
+
+    // 2. Render Worn Combat & Attire Equipment
     const container = document.getElementById('equipment-slots')!;
     container.innerHTML = '';
 
-    const slots: EquipSlot[] = ['weapon', 'shield', 'helmet', 'body', 'legs', 'ring', 'amulet', 'steed', 'tool'];
-    for (const slotKey of slots) {
-      const itemSlot = this.player.equipment[slotKey];
+    const wornSlots: Array<{ key: EquipSlot; label: string; icon: string }> = [
+      { key: 'weapon', label: 'Main Weapon', icon: '⚔️' },
+      { key: 'shield', label: 'Shield / Off-Hand', icon: '🛡️' },
+      { key: 'helmet', label: 'Headgear', icon: '🪖' },
+      { key: 'body', label: 'Body Armour', icon: '🥋' },
+      { key: 'legs', label: 'Leg Greaves', icon: '👖' },
+      { key: 'steed', label: 'Mount / Steed', icon: '🐎' },
+      { key: 'amulet', label: 'Amulet', icon: '📿' },
+      { key: 'ring', label: 'Ring', icon: '💍' },
+    ];
+
+    for (const slotDef of wornSlots) {
+      const itemSlot = this.player.equipment[slotDef.key];
       const div = document.createElement('div');
       div.className = 'rpg-slot';
       div.style.aspectRatio = 'auto';
-      div.style.padding = '6px 8px';
+      div.style.padding = '8px 10px';
       div.style.flexDirection = 'row';
       div.style.justifyContent = 'space-between';
+      div.style.alignItems = 'center';
+      div.style.cursor = itemSlot ? 'pointer' : 'default';
 
-      const label = slotKey.toUpperCase();
       if (itemSlot) {
         const def = ITEMS[itemSlot.itemId];
+        const rarityCol = itemSlot.rarity === 'legendary' ? '#f6ad55' :
+                          itemSlot.rarity === 'epic' ? '#b794f4' :
+                          itemSlot.rarity === 'rare' ? '#63b3ed' :
+                          itemSlot.rarity === 'uncommon' ? '#68d391' : '#e2e8f0';
+
         div.innerHTML = `
-          <div style="font-weight:700; font-size:0.75rem; color:var(--gold-main);">${label}</div>
-          <div style="font-size:0.75rem; color:var(--text-main);">${def ? def.name : itemSlot.itemId}</div>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span style="font-size:1.1rem;">${slotDef.icon}</span>
+            <div>
+              <div style="font-weight:700; font-size:0.75rem; color:var(--gold-main);">${slotDef.label}</div>
+              <div style="font-size:0.78rem; font-weight:600; color:${rarityCol};">${def ? def.name : itemSlot.itemId}</div>
+            </div>
+          </div>
+          <button class="btn-oak" style="padding:2px 8px; font-size:0.68rem; height:22px;">Unequip</button>
         `;
+        div.title = `${def?.name || itemSlot.itemId}\nClick to unequip into satchel`;
         div.onclick = () => {
-          this.sendWs({ type: 'UNEQUIP_ITEM', slot: slotKey });
+          this.sendWs({ type: 'UNEQUIP_ITEM', slot: slotDef.key });
         };
       } else {
         div.innerHTML = `
-          <div style="font-weight:600; font-size:0.75rem; color:var(--text-dim);">${label}</div>
-          <div style="font-size:0.7rem; color:var(--text-dim);">(empty)</div>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span style="font-size:1rem; opacity:0.4;">${slotDef.icon}</span>
+            <div style="font-weight:600; font-size:0.75rem; color:var(--text-dim);">${slotDef.label}</div>
+          </div>
+          <div style="font-size:0.7rem; color:var(--text-dim); font-style:italic;">(empty)</div>
         `;
       }
       container.appendChild(div);
     }
+
+    // 3. Render Toolbelt
+    const toolbeltContainer = document.getElementById('toolbelt-slots');
+    if (toolbeltContainer) {
+      toolbeltContainer.innerHTML = '';
+
+      const toolbeltSlots: Array<{
+        key: EquipSlot;
+        fallbackKey?: EquipSlot;
+        label: string;
+        icon: string;
+        matchCategory: string;
+      }> = [
+        { key: 'tool_pickaxe', fallbackKey: 'tool', label: 'Mining Pickaxe', icon: '⛏️', matchCategory: 'pickaxe' },
+        { key: 'tool_axe', fallbackKey: 'tool', label: 'Woodcutting Axe', icon: '🪓', matchCategory: 'axe' },
+        { key: 'tool_rod', fallbackKey: 'tool', label: 'Fishing Tackle', icon: '🎣', matchCategory: 'rod' },
+      ];
+
+      for (const slotDef of toolbeltSlots) {
+        let itemSlot = this.player.equipment[slotDef.key];
+        let actualSlotKey = slotDef.key;
+
+        // Check fallback 'tool' slot if matching
+        if (!itemSlot && slotDef.fallbackKey && this.player.equipment[slotDef.fallbackKey]) {
+          const fallbackItem = this.player.equipment[slotDef.fallbackKey]!;
+          if (fallbackItem.itemId.includes(slotDef.matchCategory)) {
+            itemSlot = fallbackItem;
+            actualSlotKey = slotDef.fallbackKey;
+          }
+        }
+
+        const div = document.createElement('div');
+        div.className = 'rpg-slot';
+        div.style.aspectRatio = 'auto';
+        div.style.padding = '8px 10px';
+        div.style.flexDirection = 'row';
+        div.style.justifyContent = 'space-between';
+        div.style.alignItems = 'center';
+        div.style.cursor = itemSlot ? 'pointer' : 'default';
+
+        if (itemSlot) {
+          const def = ITEMS[itemSlot.itemId];
+          const speedBonus = def?.baseStats?.toolSpeedBonus ? `+${Math.round(def.baseStats.toolSpeedBonus * 100)}% Speed` : 'Equipped';
+          const rarityCol = itemSlot.rarity === 'legendary' ? '#f6ad55' :
+                            itemSlot.rarity === 'epic' ? '#b794f4' :
+                            itemSlot.rarity === 'rare' ? '#63b3ed' :
+                            itemSlot.rarity === 'uncommon' ? '#68d391' : '#e2e8f0';
+
+          div.innerHTML = `
+            <div style="display:flex; align-items:center; gap:8px;">
+              <span style="font-size:1.1rem;">${slotDef.icon}</span>
+              <div>
+                <div style="font-weight:700; font-size:0.75rem; color:var(--gold-main);">${slotDef.label}</div>
+                <div style="font-size:0.78rem; font-weight:600; color:${rarityCol};">${def ? def.name : itemSlot.itemId} <span style="font-size:0.7rem; color:#48bb78;">(${speedBonus})</span></div>
+              </div>
+            </div>
+            <button class="btn-oak" style="padding:2px 8px; font-size:0.68rem; height:22px;">Unequip</button>
+          `;
+          div.title = `${def?.name || itemSlot.itemId} (${speedBonus})\nClick to unequip into satchel`;
+          div.onclick = () => {
+            this.sendWs({ type: 'UNEQUIP_ITEM', slot: actualSlotKey });
+          };
+        } else {
+          div.innerHTML = `
+            <div style="display:flex; align-items:center; gap:8px;">
+              <span style="font-size:1rem; opacity:0.4;">${slotDef.icon}</span>
+              <div style="font-weight:600; font-size:0.75rem; color:var(--text-dim);">${slotDef.label}</div>
+            </div>
+            <div style="font-size:0.7rem; color:var(--text-dim); font-style:italic;">(empty)</div>
+          `;
+        }
+        toolbeltContainer.appendChild(div);
+      }
+    }
   }
+
 
   private renderStorageDrawer() {
     if (!this.player) return;
@@ -1485,10 +1611,11 @@ class EldoriaClient {
 
     document.getElementById('btn-action-deposit')!.onclick = () => {
       if (this.selectedInventoryIndex !== null) {
-        this.sendWs({ type: 'DEPOSIT_ALL_RESOURCES' });
+        this.sendWs({ type: 'DEPOSIT_ITEM', inventoryIndex: this.selectedInventoryIndex });
         document.getElementById('item-action-modal')!.classList.add('hidden');
       }
     };
+
 
     document.getElementById('btn-deposit-all')!.onclick = () => {
       this.sendWs({ type: 'DEPOSIT_ALL_RESOURCES' });
@@ -1821,8 +1948,43 @@ class EldoriaClient {
     const modal = document.getElementById('item-action-modal')!;
     document.getElementById('action-item-name')!.textContent = def.name;
 
+    const detailsEl = document.getElementById('action-item-details');
+    if (detailsEl) {
+      const statParts: string[] = [];
+      if (def.baseStats?.toolSpeedBonus) statParts.push(`⚡ Tool Speed: +${Math.round(def.baseStats.toolSpeedBonus * 100)}%`);
+      if (def.baseStats?.accuracy) statParts.push(`🎯 Accuracy: +${def.baseStats.accuracy}`);
+      if (def.baseStats?.strength) statParts.push(`💪 Strength: +${def.baseStats.strength}`);
+      if (def.baseStats?.defence) statParts.push(`🛡️ Defence: +${def.baseStats.defence}`);
+      if (def.baseStats?.healing) statParts.push(`❤️ Heals: +${def.baseStats.healing} HP`);
+
+      detailsEl.innerHTML = `
+        <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+          <span style="text-transform:capitalize; color:var(--gold-main); font-weight:700;">${slot.rarity || 'plain'} Tier ${def.tier || 1}</span>
+          <span>Qty: <b>${slot.quantity}</b></span>
+        </div>
+        ${statParts.length > 0 ? `<div style="color:#68d391; margin-bottom:4px; font-weight:600;">${statParts.join(' · ')}</div>` : ''}
+        ${def.description ? `<div style="font-style:italic; opacity:0.85; margin-bottom:4px;">${def.description}</div>` : ''}
+        <div style="font-size:0.7rem; color:#a0aec0;">Vendor Floor: ${def.vendorFloorPrice || 1} Gold each</div>
+      `;
+    }
+
     const equipBtn = document.getElementById('btn-action-equip')!;
-    equipBtn.style.display = def.slot ? 'block' : 'none';
+    const isEquippable = Boolean(def.slot || def.category === 'tool' || def.category === 'weapon' || def.category === 'armour' || def.category === 'steed');
+    if (isEquippable) {
+      equipBtn.style.display = 'block';
+      let slotLabel = 'Gear Slot';
+      if (def.category === 'tool' || def.slot?.startsWith('tool')) {
+        if (def.id.includes('pickaxe')) slotLabel = 'Toolbelt (Mining)';
+        else if (def.id.includes('axe')) slotLabel = 'Toolbelt (Woodcutting)';
+        else if (def.id.includes('rod') || def.id.includes('fish')) slotLabel = 'Toolbelt (Fishing)';
+        else slotLabel = 'Toolbelt';
+      } else if (def.slot) {
+        slotLabel = def.slot.toUpperCase();
+      }
+      equipBtn.textContent = `Equip into ${slotLabel}`;
+    } else {
+      equipBtn.style.display = 'none';
+    }
 
     const eatBtn = document.getElementById('btn-action-eat')!;
     eatBtn.style.display = def.category === 'cooked_food' ? 'block' : 'none';
@@ -1831,11 +1993,12 @@ class EldoriaClient {
     const isNearHearth = this.player && Math.hypot(this.player.x - hearth.x, this.player.y - hearth.y) <= 1.5;
     const depositBtn = document.getElementById('btn-action-deposit');
     if (depositBtn) {
-      depositBtn.textContent = isNearHearth ? 'Deposit to Hearth' : 'Travel & Deposit to Hearth';
+      depositBtn.textContent = isNearHearth ? `Deposit ${def.name} to Hearth` : `Walk to Hearth & Deposit ${def.name}`;
     }
 
     modal.classList.remove('hidden');
   }
+
 
   private updateBossBanner(boss: any) {
     const pill = document.getElementById('boss-pill')!;

@@ -33,7 +33,11 @@ export type EquipSlot =
   | 'ring'
   | 'amulet'
   | 'steed'
-  | 'tool';
+  | 'tool'
+  | 'tool_pickaxe'
+  | 'tool_axe'
+  | 'tool_rod';
+
 
 export type ItemCategory =
   | 'ore'

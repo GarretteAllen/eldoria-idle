@@ -181,12 +181,22 @@ export const ITEMS: Record<string, ItemDefinition> = {
   astralite_plate: { id: 'astralite_plate', name: 'Astralite Plate', category: 'armour', tier: 6, slot: 'body', equipReq: { skill: 'melee', level: 85 }, baseStats: { accuracy: 20, defence: 56 }, vendorFloorPrice: 3500 },
   primordial_plate: { id: 'primordial_plate', name: 'Primordial Plate', category: 'armour', tier: 6, slot: 'body', equipReq: { skill: 'melee', level: 99 }, baseStats: { accuracy: 24, defence: 70 }, vendorFloorPrice: 11000 },
 
-  // --- Tools (Equippable) ---
-  rune_pickaxe_dawnburn: { id: 'rune_pickaxe_dawnburn', name: 'Dawnburn Rune Pickaxe', category: 'tool', tier: 1, slot: 'tool', baseStats: { toolSpeedBonus: 0.08 }, vendorFloorPrice: 15 },
-  rune_pickaxe_cold_iron: { id: 'rune_pickaxe_cold_iron', name: 'Cold Iron Rune Pickaxe', category: 'tool', tier: 2, slot: 'tool', equipReq: { skill: 'mining', level: 15 }, baseStats: { toolSpeedBonus: 0.16 }, vendorFloorPrice: 50 },
-  rune_pickaxe_steel: { id: 'rune_pickaxe_steel', name: 'Steel Rune Pickaxe', category: 'tool', tier: 3, slot: 'tool', equipReq: { skill: 'mining', level: 30 }, baseStats: { toolSpeedBonus: 0.25 }, vendorFloorPrice: 160 },
-  rune_pickaxe_azurite: { id: 'rune_pickaxe_azurite', name: 'Azurite Rune Pickaxe', category: 'tool', tier: 5, slot: 'tool', equipReq: { skill: 'mining', level: 60 }, baseStats: { toolSpeedBonus: 0.38 }, vendorFloorPrice: 600 },
-  rune_pickaxe_astralite: { id: 'rune_pickaxe_astralite', name: 'Astralite Rune Pickaxe', category: 'tool', tier: 6, slot: 'tool', equipReq: { skill: 'mining', level: 85 }, baseStats: { toolSpeedBonus: 0.50 }, vendorFloorPrice: 2000 },
+  // --- Tools (Equippable to Skilling Toolbelt) ---
+  rune_pickaxe_dawnburn: { id: 'rune_pickaxe_dawnburn', name: 'Dawnburn Rune Pickaxe', category: 'tool', tier: 1, slot: 'tool_pickaxe', baseStats: { toolSpeedBonus: 0.08 }, vendorFloorPrice: 15 },
+  rune_pickaxe_cold_iron: { id: 'rune_pickaxe_cold_iron', name: 'Cold Iron Rune Pickaxe', category: 'tool', tier: 2, slot: 'tool_pickaxe', equipReq: { skill: 'mining', level: 15 }, baseStats: { toolSpeedBonus: 0.16 }, vendorFloorPrice: 50 },
+  rune_pickaxe_steel: { id: 'rune_pickaxe_steel', name: 'Steel Rune Pickaxe', category: 'tool', tier: 3, slot: 'tool_pickaxe', equipReq: { skill: 'mining', level: 30 }, baseStats: { toolSpeedBonus: 0.25 }, vendorFloorPrice: 160 },
+  rune_pickaxe_azurite: { id: 'rune_pickaxe_azurite', name: 'Azurite Rune Pickaxe', category: 'tool', tier: 5, slot: 'tool_pickaxe', equipReq: { skill: 'mining', level: 60 }, baseStats: { toolSpeedBonus: 0.38 }, vendorFloorPrice: 600 },
+  rune_pickaxe_astralite: { id: 'rune_pickaxe_astralite', name: 'Astralite Rune Pickaxe', category: 'tool', tier: 6, slot: 'tool_pickaxe', equipReq: { skill: 'mining', level: 85 }, baseStats: { toolSpeedBonus: 0.50 }, vendorFloorPrice: 2000 },
+
+  rune_axe_dawnburn: { id: 'rune_axe_dawnburn', name: 'Dawnburn Wood Axe', category: 'tool', tier: 1, slot: 'tool_axe', baseStats: { toolSpeedBonus: 0.08 }, vendorFloorPrice: 15 },
+  rune_axe_cold_iron: { id: 'rune_axe_cold_iron', name: 'Cold Iron Wood Axe', category: 'tool', tier: 2, slot: 'tool_axe', equipReq: { skill: 'woodcutting', level: 15 }, baseStats: { toolSpeedBonus: 0.16 }, vendorFloorPrice: 50 },
+  rune_axe_steel: { id: 'rune_axe_steel', name: 'Steel Wood Axe', category: 'tool', tier: 3, slot: 'tool_axe', equipReq: { skill: 'woodcutting', level: 30 }, baseStats: { toolSpeedBonus: 0.25 }, vendorFloorPrice: 160 },
+  rune_axe_azurite: { id: 'rune_axe_azurite', name: 'Azurite Wood Axe', category: 'tool', tier: 5, slot: 'tool_axe', equipReq: { skill: 'woodcutting', level: 60 }, baseStats: { toolSpeedBonus: 0.38 }, vendorFloorPrice: 600 },
+  rune_axe_astralite: { id: 'rune_axe_astralite', name: 'Astralite Wood Axe', category: 'tool', tier: 6, slot: 'tool_axe', equipReq: { skill: 'woodcutting', level: 85 }, baseStats: { toolSpeedBonus: 0.50 }, vendorFloorPrice: 2000 },
+
+  fishing_rod_willow: { id: 'fishing_rod_willow', name: 'Willow Fishing Rod', category: 'tool', tier: 1, slot: 'tool_rod', baseStats: { toolSpeedBonus: 0.08 }, vendorFloorPrice: 15 },
+  fishing_rod_oak: { id: 'fishing_rod_oak', name: 'Oak Fishing Rod', category: 'tool', tier: 2, slot: 'tool_rod', equipReq: { skill: 'fishing', level: 20 }, baseStats: { toolSpeedBonus: 0.18 }, vendorFloorPrice: 60 },
+  fishing_rod_yew: { id: 'fishing_rod_yew', name: 'Yew Deep-Sea Rod', category: 'tool', tier: 4, slot: 'tool_rod', equipReq: { skill: 'fishing', level: 50 }, baseStats: { toolSpeedBonus: 0.32 }, vendorFloorPrice: 350 },
 
   // --- Steeds (Mounts) ---
   steed_courser: { id: 'steed_courser', name: 'Eldorian Courser', category: 'steed', tier: 2, slot: 'steed', vendorFloorPrice: 20000, description: 'Grants walking speed haste on the road' }

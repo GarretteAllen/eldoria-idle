@@ -27,7 +27,9 @@ interface ConnectedSession {
   ticksInTask: number;
   moveAccumulator: number;
   pendingTask: { recipeId: string; targetX: number; targetY: number; quantity?: number } | null;
+  pendingDeposit?: { itemId: string; rarity?: string; plus?: number; quantity?: number } | null;
 }
+
 
 export class GameEngine {
   private sessions = new Map<string, ConnectedSession>();
@@ -521,7 +523,16 @@ export class GameEngine {
     const slot = player.inventory[invIndex];
     if (!slot) return;
     const def = ITEMS[slot.itemId];
-    if (!def || !def.slot) return;
+    if (!def) return;
+
+    let targetSlot = def.slot;
+    if (targetSlot === 'tool' || def.category === 'tool') {
+      if (def.id.includes('pickaxe')) targetSlot = 'tool_pickaxe';
+      else if (def.id.includes('axe')) targetSlot = 'tool_axe';
+      else if (def.id.includes('rod') || def.id.includes('fish')) targetSlot = 'tool_rod';
+      else targetSlot = 'tool';
+    }
+    if (!targetSlot) return;
 
     // Check level req
     if (def.equipReq) {
@@ -539,13 +550,16 @@ export class GameEngine {
     player.inventory.splice(invIndex, 1);
 
     // Unequip currently worn in that slot if any
-    const existing = player.equipment[def.slot];
+    const existing = player.equipment[targetSlot];
     if (existing) {
       player.inventory.push(existing);
     }
 
-    player.equipment[def.slot] = slot;
+    player.equipment[targetSlot] = slot;
     player.moveSpeedTilesPerTick = calculatePlayerMoveSpeed(player);
+
+    storage.savePlayer(player);
+    storage.checkpoint();
 
     this.send(session.ws, {
       type: 'NOTIFICATION',
@@ -567,6 +581,9 @@ export class GameEngine {
     delete player.equipment[slotKey];
     player.inventory.push(worn);
     player.moveSpeedTilesPerTick = calculatePlayerMoveSpeed(player);
+
+    storage.savePlayer(player);
+    storage.checkpoint();
 
     this.send(session.ws, { type: 'PLAYER_UPDATE', player });
   }
@@ -747,20 +764,52 @@ export class GameEngine {
 
   private handleDepositItem(session: ConnectedSession, inventoryIndex: number, requestedQty?: number) {
     const { player, ws } = session;
+    const slot = player.inventory[inventoryIndex];
+    if (!slot) return;
+    const def = ITEMS[slot.itemId];
+
     const hearth = this.getHearthLocation(player.x, player.y);
     const distToHearth = Math.hypot(player.x - hearth.x, player.y - hearth.y);
 
     if (distToHearth > 1.5) {
-      this.send(ws, {
-        type: 'NOTIFICATION',
-        message: 'Must be at the Hearth Storage Counter to deposit items.'
-      });
-      return;
+      const path = this.findPathWithCollisions(player.x, player.y, hearth.x, hearth.y);
+      if (path.length === 0) {
+        if (distToHearth > 3.0) {
+          this.send(ws, {
+            type: 'NOTIFICATION',
+            message: 'Unable to reach the Hearth Storage Counter (path blocked).'
+          });
+          return;
+        }
+      } else {
+        player.currentTask = null;
+        session.pendingTask = null;
+        player.bankReturnTask = null;
+        session.ticksInTask = 0;
+
+        session.pendingDeposit = {
+          itemId: slot.itemId,
+          rarity: slot.rarity,
+          plus: slot.plus,
+          quantity: requestedQty,
+        };
+
+        player.targetX = hearth.x;
+        player.targetY = hearth.y;
+        player.path = path;
+        player.isMoving = true;
+        player.bankingState = 'walking_to_bank';
+
+        this.send(ws, {
+          type: 'NOTIFICATION',
+          message: `Traveling to the Hearth to deposit ${def?.name || slot.itemId}... (${path.length} paces)`
+        });
+        this.send(ws, { type: 'PLAYER_UPDATE', player });
+        this.broadcastWorldState();
+        return;
+      }
     }
 
-    const slot = player.inventory[inventoryIndex];
-    if (!slot) return;
-    const def = ITEMS[slot.itemId];
 
     const maxSlots = player.storageSlotsMax || 75;
     const existingStorage = player.storage.find(
@@ -941,7 +990,21 @@ export class GameEngine {
 
           // Arrived at destination! Check banking state machine
           if (player.bankingState === 'walking_to_bank') {
-            this.handleAutoDepositAtHearth(session);
+            if (session.pendingDeposit) {
+              const pending = session.pendingDeposit;
+              session.pendingDeposit = null;
+              player.bankingState = 'idle';
+              const invIdx = player.inventory.findIndex(
+                s => s.itemId === pending.itemId && (pending.rarity === undefined || s.rarity === pending.rarity)
+              );
+              if (invIdx >= 0) {
+                this.handleDepositItem(session, invIdx, pending.quantity);
+              } else {
+                this.send(ws, { type: 'PLAYER_UPDATE', player });
+              }
+            } else {
+              this.handleAutoDepositAtHearth(session);
+            }
           } else if (player.bankingState === 'returning_to_work') {
             player.bankingState = 'idle';
             if (player.bankReturnTask) {
@@ -987,8 +1050,28 @@ export class GameEngine {
         if (recipe) {
           const level = player.skills[recipe.skill]?.level || 1;
           const speedMult = getJobSpeedMultiplier(level, recipe.levelReq);
-          const effectiveInterval = Math.max(0.6, recipe.intervalSeconds / speedMult);
+
+          let toolBonus = 0;
+          if (recipe.skill === 'mining') {
+            const toolItem = player.equipment?.tool_pickaxe || player.equipment?.tool;
+            if (toolItem && ITEMS[toolItem.itemId]?.baseStats?.toolSpeedBonus) {
+              toolBonus = ITEMS[toolItem.itemId].baseStats!.toolSpeedBonus!;
+            }
+          } else if (recipe.skill === 'woodcutting') {
+            const toolItem = player.equipment?.tool_axe || player.equipment?.tool;
+            if (toolItem && ITEMS[toolItem.itemId]?.baseStats?.toolSpeedBonus) {
+              toolBonus = ITEMS[toolItem.itemId].baseStats!.toolSpeedBonus!;
+            }
+          } else if (recipe.skill === 'fishing') {
+            const toolItem = player.equipment?.tool_rod || player.equipment?.tool;
+            if (toolItem && ITEMS[toolItem.itemId]?.baseStats?.toolSpeedBonus) {
+              toolBonus = ITEMS[toolItem.itemId].baseStats!.toolSpeedBonus!;
+            }
+          }
+
+          const effectiveInterval = Math.max(0.6, recipe.intervalSeconds / (speedMult * (1 + toolBonus)));
           const requiredTicks = Math.max(1, Math.round(effectiveInterval / (TICK_MS / 1000)));
+
 
           if (session.ticksInTask >= requiredTicks) {
             session.ticksInTask = 0;

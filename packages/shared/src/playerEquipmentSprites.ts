@@ -69,14 +69,23 @@ export const PLAYER_EQUIPMENT_SPRITES: Record<string, EquipmentSpriteCoord> = {
   rune_pickaxe_steel: { col: 8, row: 5, slot: 'tool' },
   rune_pickaxe_azurite: { col: 9, row: 5, slot: 'tool' },
   rune_pickaxe_astralite: { col: 10, row: 5, slot: 'tool' },
+  rune_axe_dawnburn: { col: 11, row: 5, slot: 'tool' },
+  rune_axe_cold_iron: { col: 12, row: 5, slot: 'tool' },
+  rune_axe_steel: { col: 13, row: 5, slot: 'tool' },
+  rune_axe_azurite: { col: 14, row: 5, slot: 'tool' },
+  rune_axe_astralite: { col: 15, row: 5, slot: 'tool' },
 
-  // Weapons - Staves (Row 6)
+  // Weapons - Staves & Fishing Rods (Row 6)
   ashwood_staff: { col: 0, row: 6, slot: 'weapon' },
   oak_staff: { col: 1, row: 6, slot: 'weapon' },
   willow_staff: { col: 2, row: 6, slot: 'weapon' },
   bloodwood_staff: { col: 3, row: 6, slot: 'weapon' },
   ghostwood_staff: { col: 4, row: 6, slot: 'weapon' },
   starlight_staff: { col: 5, row: 6, slot: 'weapon' },
+  fishing_rod_willow: { col: 6, row: 6, slot: 'tool' },
+  fishing_rod_oak: { col: 7, row: 6, slot: 'tool' },
+  fishing_rod_yew: { col: 8, row: 6, slot: 'tool' },
+
 
   // Shields & Offhands (Row 7)
   dawnburn_shield: { col: 0, row: 7, slot: 'shield' },
