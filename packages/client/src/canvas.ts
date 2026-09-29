@@ -900,16 +900,39 @@ export class WorldRenderer {
     const monsterNodes = this.nodes.filter(n => n.type === 'monster');
     if (monsterNodes.length === 0) return;
 
-    // Group monster nodes by monsterId
-    const groups = new Map<string, WorldNodeDisplay[]>();
+    // Group monster nodes by monsterId, then partition by spatial proximity (<= 7 tiles)
+    const byMob = new Map<string, WorldNodeDisplay[]>();
     for (const node of monsterNodes) {
       const mobId = node.monsterId || 'mire_rat';
-      if (!groups.has(mobId)) groups.set(mobId, []);
-      groups.get(mobId)!.push(node);
+      if (!byMob.has(mobId)) byMob.set(mobId, []);
+      byMob.get(mobId)!.push(node);
+    }
+
+    const clusters: { mobId: string; nodes: WorldNodeDisplay[] }[] = [];
+    for (const [mobId, nodes] of byMob.entries()) {
+      const visited = new Set<string>();
+      for (const node of nodes) {
+        if (visited.has(node.id)) continue;
+        const cluster: WorldNodeDisplay[] = [];
+        const queue: WorldNodeDisplay[] = [node];
+        visited.add(node.id);
+
+        while (queue.length > 0) {
+          const curr = queue.shift()!;
+          cluster.push(curr);
+          for (const other of nodes) {
+            if (!visited.has(other.id) && Math.hypot(curr.x - other.x, curr.y - other.y) <= 7) {
+              visited.add(other.id);
+              queue.push(other);
+            }
+          }
+        }
+        clusters.push({ mobId, nodes: cluster });
+      }
     }
 
     ctx.save();
-    for (const [mobId, nodes] of groups.entries()) {
+    for (const { mobId, nodes } of clusters) {
       let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
       for (const n of nodes) {
         if (n.x < minX) minX = n.x;
