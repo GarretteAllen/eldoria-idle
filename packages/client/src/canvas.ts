@@ -1,4 +1,4 @@
-import { PlayerData, NpcDefinition, WorldNode } from '@eldoria/shared';
+import { PlayerData, NpcDefinition, WorldNode, MONSTER_SPRITES } from '@eldoria/shared';
 import { StitchedWorld } from './ldtkLoader.js';
 
 export interface RemotePlayer {
@@ -41,6 +41,7 @@ export class WorldRenderer {
   private collisions = new Set<string>();
   private stitchedWorld: StitchedWorld | null = null;
   private terrainCanvas: HTMLCanvasElement | null = null;
+  private enemiesImage: HTMLImageElement | null = null;
 
   // Editor states
   public editorMode: 'none' | 'place_node' | 'place_npc' | 'paint_collision' | 'erase_collision' = 'none';
@@ -69,6 +70,9 @@ export class WorldRenderer {
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d')!;
+
+    this.enemiesImage = new Image();
+    this.enemiesImage.src = '/maps/enemies.png';
 
     this.resize();
     window.addEventListener('resize', () => this.resize());
@@ -187,7 +191,8 @@ export class WorldRenderer {
 
       if (this.editorMode === 'none') {
         const isHoveringNpc = this.npcs.some(n => n.x === this.hoverTileX && n.y === this.hoverTileY);
-        this.canvas.style.cursor = isHoveringNpc ? 'pointer' : 'default';
+        const isHoveringMonster = this.nodes.some(n => n.type === 'monster' && n.x === this.hoverTileX && n.y === this.hoverTileY);
+        this.canvas.style.cursor = (isHoveringNpc || isHoveringMonster) ? 'pointer' : 'default';
       }
     });
 
@@ -487,6 +492,82 @@ export class WorldRenderer {
       const py = node.y * TILE_SIZE;
 
       ctx.save();
+
+      // === MONSTER / ENEMY NODES ===
+      if (node.type === 'monster') {
+        const mobId = node.monsterId || 'mire_rat';
+        const spriteCoord = MONSTER_SPRITES[mobId] || MONSTER_SPRITES['mire_rat'];
+
+        // Red/Crimson combat hover outline feedback if hovered
+        if (this.hoverTileX === node.x && this.hoverTileY === node.y) {
+          ctx.fillStyle = 'rgba(229, 62, 62, 0.2)';
+          ctx.fillRect(px + 1, py + 1, TILE_SIZE - 2, TILE_SIZE - 2);
+
+          ctx.strokeStyle = '#e53e3e';
+          ctx.lineWidth = 1.5;
+          ctx.strokeRect(px + 0.5, py + 0.5, TILE_SIZE - 1, TILE_SIZE - 1);
+
+          // Corner brackets
+          ctx.strokeStyle = '#feb2b2';
+          ctx.lineWidth = 2;
+          const c = 5;
+          ctx.beginPath();
+          ctx.moveTo(px, py + c); ctx.lineTo(px, py); ctx.lineTo(px + c, py);
+          ctx.moveTo(px + TILE_SIZE - c, py); ctx.lineTo(px + TILE_SIZE, py); ctx.lineTo(px + TILE_SIZE, py + c);
+          ctx.moveTo(px, py + TILE_SIZE - c); ctx.lineTo(px, py + TILE_SIZE); ctx.lineTo(px + c, py + TILE_SIZE);
+          ctx.moveTo(px + TILE_SIZE - c, py + TILE_SIZE); ctx.lineTo(px + TILE_SIZE, py + TILE_SIZE); ctx.lineTo(px + TILE_SIZE, py + TILE_SIZE - c);
+          ctx.stroke();
+        }
+
+        // Idle breathing / bobbing animation
+        const idleBob = Math.sin(this.animTick * 0.004 + node.x * 2) * 1.5;
+
+        // Shadow under the enemy sprite
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+        ctx.beginPath();
+        ctx.ellipse(px + TILE_SIZE / 2, py + TILE_SIZE - 2, 9, 4, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Render the 2D pixel-art sprite matching the tileset
+        if (this.enemiesImage && this.enemiesImage.complete) {
+          ctx.imageSmoothingEnabled = false;
+          ctx.drawImage(
+            this.enemiesImage,
+            spriteCoord.col * 16,
+            spriteCoord.row * 16,
+            16,
+            16,
+            px,
+            py + idleBob,
+            TILE_SIZE,
+            TILE_SIZE
+          );
+        }
+
+        // Stylized Enemy nameplate badge overhead
+        const text = node.name;
+        ctx.font = '700 10px Inter, system-ui, sans-serif';
+        const textWidth = ctx.measureText(text).width;
+        const badgeW = textWidth + 14;
+        const badgeH = 16;
+        const badgeX = px + TILE_SIZE / 2 - badgeW / 2;
+        const badgeY = py - 8;
+
+        ctx.fillStyle = 'rgba(28, 12, 12, 0.9)';
+        ctx.strokeStyle = '#9b2c2c';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.roundRect(badgeX, badgeY, badgeW, badgeH, 4);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = '#feb2b2';
+        ctx.textAlign = 'center';
+        ctx.fillText(text, px + TILE_SIZE / 2, badgeY + 11);
+
+        ctx.restore();
+        continue;
+      }
 
       const isHearth = node.type === 'hearth_counter';
       const pulse = Math.sin(this.animTick * 0.003 + node.x * 2) * (isHearth ? 2.5 : 1.5);
