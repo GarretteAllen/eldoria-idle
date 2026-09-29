@@ -32,7 +32,7 @@ jobs:
             npm run build
 
             # Zero-downtime reload with PM2 (or start if not already running)
-            pm2 reload eldoria || pm2 start packages/server/dist/index.js --name "eldoria" --env DATA_DIR=/var/data/eldoria
+            pm2 reload eldoria --update-env || pm2 start packages/server/dist/index.js --name "eldoria" --update-env
             pm2 save
 
             echo "✅ Deployment completed successfully!"

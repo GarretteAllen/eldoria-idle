@@ -21,6 +21,17 @@ function resolveDataDir(): string {
   return path.join(current, 'data');
 }
 
+// Automatically load .env file if present
+try {
+  const rootEnv = path.resolve(process.cwd(), '.env');
+  const serverEnv = path.resolve(process.cwd(), 'packages', 'server', '.env');
+  if (fs.existsSync(rootEnv) && typeof (process as any).loadEnvFile === 'function') {
+    (process as any).loadEnvFile(rootEnv);
+  } else if (fs.existsSync(serverEnv) && typeof (process as any).loadEnvFile === 'function') {
+    (process as any).loadEnvFile(serverEnv);
+  }
+} catch {}
+
 const DATA_DIR = resolveDataDir();
 const DB_FILE = path.join(DATA_DIR, 'eldoria.db');
 
@@ -485,13 +496,26 @@ class StorageManager {
 
   public isPlayerAdmin(player: PlayerData): boolean {
     if (!player) return false;
-    if (player.id && ADMIN_USER_IDS.includes(player.id.toLowerCase())) return true;
-    if (!player.isGuest && player.username && ADMIN_USERNAMES.includes(player.username.toLowerCase())) return true;
+    const adminUsernames = this.getAdminUsernames();
+    const adminIds = (process.env.ADMIN_USER_IDS || '')
+      .split(',')
+      .map(s => s.trim().toLowerCase())
+      .filter(Boolean);
+
+    if (player.id && adminIds.includes(player.id.toLowerCase())) return true;
+    if (!player.isGuest && player.username && adminUsernames.includes(player.username.toLowerCase())) return true;
     return player.role === 'admin';
   }
 
   public getAdminUsernames(): string[] {
-    return ADMIN_USERNAMES;
+    return (process.env.ADMIN_USERNAMES || 'gar,admin')
+      .split(',')
+      .map(s => s.trim().toLowerCase())
+      .filter(Boolean);
+  }
+
+  public isAdminUsername(username: string): boolean {
+    return this.getAdminUsernames().includes(username.trim().toLowerCase());
   }
 
   public createGuestPlayer(desiredUsername?: string): PlayerData {
@@ -601,9 +625,6 @@ class StorageManager {
     }
   }
 
-  public isAdminUsername(username: string): boolean {
-    return ADMIN_USERNAMES.includes(username.trim().toLowerCase());
-  }
 
   public isUsernameTaken(username: string): boolean {
     const norm = username.trim().toLowerCase();
