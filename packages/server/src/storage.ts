@@ -208,6 +208,8 @@ class StorageManager {
   private stmtGetCollisions: Database.Statement;
   private stmtInsertCollision: Database.Statement;
   private stmtDeleteAllCollisions: Database.Statement;
+  private stmtGetMeta: Database.Statement;
+  private stmtSetMeta: Database.Statement;
 
   constructor() {
     if (!fs.existsSync(DATA_DIR)) {
@@ -274,6 +276,12 @@ class StorageManager {
     this.stmtInsertCollision = this.db.prepare('INSERT OR IGNORE INTO collisions (coord) VALUES (?)');
     this.stmtDeleteAllCollisions = this.db.prepare('DELETE FROM collisions');
 
+    this.stmtGetMeta = this.db.prepare('SELECT val FROM metadata WHERE key = ?');
+    this.stmtSetMeta = this.db.prepare(
+      `INSERT INTO metadata (key, val) VALUES (?, ?)
+       ON CONFLICT(key) DO UPDATE SET val = excluded.val`
+    );
+
     // Run automatic migration from legacy json files if upgrading
     this.migrateLegacyJson();
 
@@ -283,6 +291,10 @@ class StorageManager {
 
   private initSchema() {
     this.db.exec(`
+      CREATE TABLE IF NOT EXISTS metadata (
+        key TEXT PRIMARY KEY,
+        val TEXT NOT NULL
+      );
       CREATE TABLE IF NOT EXISTS accounts (
         id TEXT PRIMARY KEY,
         username TEXT NOT NULL,
@@ -393,6 +405,25 @@ class StorageManager {
       }
     }
 
+    // World entities seeding check:
+    // If the world has already been seeded in the past, NEVER re-seed default entities!
+    // (If the table is empty, that is an intentional admin action like deleting all NPCs or nodes.)
+    const seeded = this.stmtGetMeta.get('world_seeded') as { val: string } | undefined;
+    if (seeded) {
+      return;
+    }
+
+    // If accounts or players already exist, this is an active database with custom data.
+    // Preserve all existing data and do not re-seed defaults!
+    const existingAccounts = (this.db.prepare('SELECT COUNT(*) as count FROM accounts').get() as { count: number }).count;
+    const existingPlayers = (this.db.prepare('SELECT COUNT(*) as count FROM players').get() as { count: number }).count;
+    if (existingAccounts > 0 || existingPlayers > 0) {
+      console.log('📦 SQLite: Active world detected. Preserving custom NPCs, nodes, and quests without overwriting.');
+      this.stmtSetMeta.run('world_seeded', 'true');
+      this.checkpoint();
+      return;
+    }
+
     // World Nodes
     const nodeCount = (this.db.prepare('SELECT COUNT(*) as count FROM world_nodes').get() as { count: number }).count;
     if (nodeCount === 0) {
@@ -440,6 +471,9 @@ class StorageManager {
       }
       this.saveCollisions(cols);
     }
+
+    this.stmtSetMeta.run('world_seeded', 'true');
+    this.checkpoint();
   }
 
   private loadCaches() {
@@ -795,6 +829,15 @@ class StorageManager {
     return { success: true, account, player, token };
   }
 
+  private syncJsonFile(filename: string, data: any) {
+    try {
+      const p = path.join(DATA_DIR, filename);
+      fs.writeFileSync(p, JSON.stringify(data, null, 2), 'utf-8');
+    } catch (err) {
+      console.error(`Failed to sync ${filename}`, err);
+    }
+  }
+
   // --- World Nodes ---
   public getWorldNodes(): WorldNode[] {
     return this.nodesCache;
@@ -809,6 +852,8 @@ class StorageManager {
       }
     });
     tx();
+    this.checkpoint();
+    this.syncJsonFile('world_nodes.json', this.nodesCache);
   }
 
   public upsertWorldNode(node: WorldNode) {
@@ -819,11 +864,15 @@ class StorageManager {
       this.nodesCache.push(node);
     }
     this.stmtUpsertWorldNode.run(node.id, node.type, JSON.stringify(node));
+    this.checkpoint();
+    this.syncJsonFile('world_nodes.json', this.nodesCache);
   }
 
   public deleteWorldNode(nodeId: string) {
     this.nodesCache = this.nodesCache.filter(n => n.id !== nodeId);
     this.stmtDeleteWorldNode.run(nodeId);
+    this.checkpoint();
+    this.syncJsonFile('world_nodes.json', this.nodesCache);
   }
 
   // --- NPCs ---
@@ -840,6 +889,8 @@ class StorageManager {
       }
     });
     tx();
+    this.checkpoint();
+    this.syncJsonFile('npcs.json', this.npcsCache);
   }
 
   public upsertNpc(npc: NpcDefinition) {
@@ -850,11 +901,15 @@ class StorageManager {
       this.npcsCache.push(npc);
     }
     this.stmtUpsertNpc.run(npc.id, JSON.stringify(npc));
+    this.checkpoint();
+    this.syncJsonFile('npcs.json', this.npcsCache);
   }
 
   public deleteNpc(npcId: string) {
     this.npcsCache = this.npcsCache.filter(n => n.id !== npcId);
     this.stmtDeleteNpc.run(npcId);
+    this.checkpoint();
+    this.syncJsonFile('npcs.json', this.npcsCache);
   }
 
   // --- Quests ---
@@ -871,6 +926,8 @@ class StorageManager {
       }
     });
     tx();
+    this.checkpoint();
+    this.syncJsonFile('quests.json', this.questsCache);
   }
 
   public upsertQuest(quest: QuestDefinition) {
@@ -881,11 +938,15 @@ class StorageManager {
       this.questsCache.push(quest);
     }
     this.stmtUpsertQuest.run(quest.id, JSON.stringify(quest));
+    this.checkpoint();
+    this.syncJsonFile('quests.json', this.questsCache);
   }
 
   public deleteQuest(questId: string) {
     this.questsCache = this.questsCache.filter(q => q.id !== questId);
     this.stmtDeleteQuest.run(questId);
+    this.checkpoint();
+    this.syncJsonFile('quests.json', this.questsCache);
   }
 
   // --- Collisions ---
@@ -907,6 +968,22 @@ class StorageManager {
       }
     });
     tx();
+    this.checkpoint();
+    this.syncJsonFile('collisions.json', Array.from(this.collisionsCache));
+  }
+
+  public addCollision(coord: string) {
+    this.collisionsCache.add(coord);
+    this.stmtInsertCollision.run(coord);
+    this.checkpoint();
+    this.syncJsonFile('collisions.json', Array.from(this.collisionsCache));
+  }
+
+  public removeCollision(coord: string) {
+    this.collisionsCache.delete(coord);
+    this.db.prepare('DELETE FROM collisions WHERE coord = ?').run(coord);
+    this.checkpoint();
+    this.syncJsonFile('collisions.json', Array.from(this.collisionsCache));
   }
 
   // --- Admin Verification ---

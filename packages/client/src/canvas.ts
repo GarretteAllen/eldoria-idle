@@ -542,44 +542,32 @@ export class WorldRenderer {
       ctx.arc(px, py - 6, 6, 0, Math.PI * 2);
       ctx.fill();
 
-      // Nameplate badge
+      // Render ONLY the name, moved up cleanly above the NPC head
       const name = npc.name;
-      ctx.font = 'bold 10px Inter, sans-serif';
+      ctx.font = 'bold 11px Inter, system-ui, sans-serif';
       ctx.textAlign = 'center';
-      const textWidth = ctx.measureText(name).width;
-      const badgeW = textWidth + 18;
-      const badgeH = 16;
-      const badgeX = px - badgeW / 2;
-      const badgeY = py - 26;
 
-      ctx.fillStyle = 'rgba(12, 28, 28, 0.92)';
-      ctx.strokeStyle = '#38b2ac';
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.roundRect(badgeX, badgeY, badgeW, badgeH, 3);
-      ctx.fill();
-      ctx.stroke();
+      // Crisp dark text shadow for high contrast on any background
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
+      ctx.fillText(name, px + 1, py - 19);
+      ctx.fillText(name, px - 1, py - 19);
+      ctx.fillText(name, px, py - 18);
+      ctx.fillText(name, px, py - 20);
 
+      // Clean bright NPC name
       ctx.fillStyle = '#81e6d9';
-      ctx.fillText(name, px, badgeY + 11);
+      ctx.fillText(name, px, py - 19);
 
-      // Title
-      if (npc.title) {
-        ctx.font = 'italic 8px Inter, sans-serif';
-        ctx.fillStyle = '#a0aec0';
-        ctx.fillText(npc.title, px, badgeY - 3);
-      }
-
-      // Floating Quest Exclamation Mark
+      // Floating Quest Exclamation Mark (if NPC has active quests)
       if (npc.questIds && npc.questIds.length > 0) {
         const bob = Math.sin(this.animTick * 0.005) * 2;
         ctx.fillStyle = '#ecc94b';
         ctx.beginPath();
-        ctx.arc(px, badgeY - 14 + bob, 5, 0, Math.PI * 2);
+        ctx.arc(px, py - 32 + bob, 5, 0, Math.PI * 2);
         ctx.fill();
         ctx.fillStyle = '#1a202c';
         ctx.font = 'bold 9px Inter, sans-serif';
-        ctx.fillText('!', px, badgeY - 11 + bob);
+        ctx.fillText('!', px, py - 29 + bob);
       }
 
       ctx.restore();
