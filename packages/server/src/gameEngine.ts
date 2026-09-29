@@ -48,6 +48,15 @@ export class GameEngine {
   }
 
   public registerConnection(ws: WebSocket, playerId: string) {
+    const existing = this.sessions.get(playerId);
+    if (existing) {
+      existing.player.lastActiveTimestamp = Date.now();
+      storage.savePlayer(existing.player);
+      try {
+        existing.ws.close();
+      } catch {}
+    }
+
     let player = storage.getPlayer(playerId);
     let catchUpSummary = null;
 
@@ -58,6 +67,9 @@ export class GameEngine {
       const elapsedSeconds = (Date.now() - player.lastActiveTimestamp) / 1000;
       if (elapsedSeconds > 10) {
         catchUpSummary = simulateOfflineCatchUp(player, elapsedSeconds);
+        if (catchUpSummary && catchUpSummary.completedCycles > 0) {
+          storage.savePlayer(player);
+        }
       }
     }
 
@@ -85,14 +97,28 @@ export class GameEngine {
     this.broadcastWorldState();
   }
 
-  public removeConnection(playerId: string) {
+  public removeConnection(playerId: string, ws?: WebSocket) {
     const session = this.sessions.get(playerId);
     if (session) {
+      if (ws && session.ws !== ws) {
+        // Disconnect event from a replaced socket; do not destroy active session
+        return;
+      }
       session.player.lastActiveTimestamp = Date.now();
       storage.savePlayer(session.player);
       this.sessions.delete(playerId);
       this.broadcastWorldState();
     }
+  }
+
+  public shutdown() {
+    console.log(`💾 Saving ${this.sessions.size} active player session(s)...`);
+    for (const session of this.sessions.values()) {
+      session.player.lastActiveTimestamp = Date.now();
+      storage.savePlayer(session.player);
+    }
+    storage.checkpoint();
+    storage.close();
   }
 
   private findPathWithCollisions(startX: number, startY: number, targetX: number, targetY: number) {
@@ -534,21 +560,35 @@ export class GameEngine {
 
   private handleDepositAll(session: ConnectedSession) {
     const { player, ws } = session;
+    // Explicit manual deposit: cancel active/pending return tasks
+    player.currentTask = null;
+    session.pendingTask = null;
+    player.bankReturnTask = null;
+    session.ticksInTask = 0;
+
     const hearth = this.getHearthLocation(player.x, player.y);
     const distToHearth = Math.hypot(player.x - hearth.x, player.y - hearth.y);
 
     if (distToHearth > 1.5) {
-      // Out in the field: path to Hearth counter first!
-      player.currentTask = null;
-      session.pendingTask = null;
-      player.bankReturnTask = null;
-      session.ticksInTask = 0;
-
       const path = this.findPathWithCollisions(player.x, player.y, hearth.x, hearth.y);
+      if (path.length === 0) {
+        if (distToHearth <= 3.0) {
+          this.handleAutoDepositAtHearth(session);
+          return;
+        }
+        this.send(ws, {
+          type: 'NOTIFICATION',
+          message: 'Unable to reach the Hearth Storage Counter (path blocked).'
+        });
+        player.bankingState = 'idle';
+        this.send(ws, { type: 'PLAYER_UPDATE', player });
+        return;
+      }
+
       player.targetX = hearth.x;
       player.targetY = hearth.y;
       player.path = path;
-      player.isMoving = path.length > 0;
+      player.isMoving = true;
       player.bankingState = 'walking_to_bank';
 
       this.send(ws, {
@@ -697,8 +737,8 @@ export class GameEngine {
       }
     }
 
-    // Every 15 ticks (9s) auto-save
-    if (this.tickCount % 15 === 0) {
+    // Every 5 ticks (3s) auto-save
+    if (this.tickCount % 5 === 0) {
       for (const session of this.sessions.values()) {
         session.player.lastActiveTimestamp = Date.now();
         storage.savePlayer(session.player);
@@ -809,6 +849,7 @@ export class GameEngine {
     }
 
     storage.savePlayer(player);
+    storage.checkpoint();
     this.send(ws, { type: 'PLAYER_UPDATE', player });
     this.broadcastWorldState();
   }
@@ -940,6 +981,7 @@ export class GameEngine {
       }
     }
 
+    storage.savePlayer(player);
     this.send(ws, { type: 'PLAYER_UPDATE', player });
   }
 

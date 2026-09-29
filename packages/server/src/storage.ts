@@ -1,30 +1,38 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import { fileURLToPath } from 'node:url';
 import Database from 'better-sqlite3';
 import { PlayerData, SkillType, WorldNode, NpcDefinition, QuestDefinition } from '@eldoria/shared';
 import { WORLD_NODES as DEFAULT_WORLD_NODES } from './world.js';
 
-function resolveDataDir(): string {
-  if (process.env.DATA_DIR) {
-    return path.resolve(process.env.DATA_DIR);
+function getProjectRoot(): string {
+  let curr = path.dirname(fileURLToPath(import.meta.url));
+  for (let i = 0; i < 5; i++) {
+    if (fs.existsSync(path.join(curr, 'packages', 'server')) || fs.existsSync(path.join(curr, 'package.json'))) {
+      const pkgPath = path.join(curr, 'package.json');
+      if (fs.existsSync(pkgPath)) {
+        try {
+          const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
+          if (pkg.name === 'eldoria-idle' || pkg.workspaces) {
+            return curr;
+          }
+        } catch {}
+      }
+    }
+    const parent = path.dirname(curr);
+    if (parent === curr) break;
+    curr = parent;
   }
-  const current = process.cwd();
-  // Check if cwd is already root
-  if (fs.existsSync(path.join(current, 'packages', 'server'))) {
-    return path.join(current, 'data');
-  }
-  // Check if cwd is inside packages/server
-  if (fs.existsSync(path.join(current, '..', '..', 'packages', 'server'))) {
-    return path.resolve(current, '..', '..', 'data');
-  }
-  return path.join(current, 'data');
+  return process.cwd();
 }
+
+const PROJECT_ROOT = getProjectRoot();
 
 // Automatically load .env file if present
 try {
-  const rootEnv = path.resolve(process.cwd(), '.env');
-  const serverEnv = path.resolve(process.cwd(), 'packages', 'server', '.env');
+  const rootEnv = path.join(PROJECT_ROOT, '.env');
+  const serverEnv = path.join(PROJECT_ROOT, 'packages', 'server', '.env');
   if (fs.existsSync(rootEnv) && typeof (process as any).loadEnvFile === 'function') {
     (process as any).loadEnvFile(rootEnv);
   } else if (fs.existsSync(serverEnv) && typeof (process as any).loadEnvFile === 'function') {
@@ -32,8 +40,16 @@ try {
   }
 } catch {}
 
+function resolveDataDir(): string {
+  if (process.env.DATA_DIR) {
+    return path.resolve(process.env.DATA_DIR);
+  }
+  return path.join(PROJECT_ROOT, 'data');
+}
+
 const DATA_DIR = resolveDataDir();
 const DB_FILE = path.join(DATA_DIR, 'eldoria.db');
+console.log(`🗄️ SQLite Database: ${DB_FILE}`);
 
 export interface AccountRecord {
   id: string;
@@ -263,16 +279,6 @@ class StorageManager {
 
     // Load active caches
     this.loadCaches();
-
-    // Graceful process exit
-    process.on('SIGINT', () => {
-      this.close();
-      process.exit(0);
-    });
-    process.on('SIGTERM', () => {
-      this.close();
-      process.exit(0);
-    });
   }
 
   private initSchema() {
@@ -454,10 +460,21 @@ class StorageManager {
     this.collisionsCache = new Set<string>(collRows.map(r => r.coord));
   }
 
+  public checkpoint() {
+    try {
+      this.db.pragma('wal_checkpoint(PASSIVE)');
+    } catch (err) {
+      console.error('SQLite wal_checkpoint error', err);
+    }
+  }
+
   public close() {
     try {
+      this.db.pragma('wal_checkpoint(TRUNCATE)');
       this.db.close();
-    } catch {}
+    } catch (err) {
+      console.error('Error closing SQLite DB', err);
+    }
   }
 
   // --- Players ---

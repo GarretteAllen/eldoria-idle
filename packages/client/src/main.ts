@@ -409,11 +409,15 @@ class EldoriaClient {
     // 2. Tasks Card (Top-Left)
     this.updateTasksCard();
 
-    // 3. Render Active Drawer
-    if (this.activeDrawer === 'skills') this.renderSkillsDrawer();
-    else if (this.activeDrawer === 'inventory') this.renderInventoryDrawer();
-    else if (this.activeDrawer === 'equipment') this.renderEquipmentDrawer();
-    else if (this.activeDrawer === 'storage') this.renderStorageDrawer();
+    // 3. Render Drawers (ensure all drawers and counters stay perfectly updated)
+    this.renderSkillsDrawer();
+    this.renderInventoryDrawer();
+    this.renderEquipmentDrawer();
+    this.renderStorageDrawer();
+    if (this.activeDrawer === 'editor') {
+      this.renderEditorNodes();
+      this.renderEditorMonsters();
+    }
 
     // If popup is open, update its display
     if (this.isPopupOpen) {
@@ -613,6 +617,13 @@ class EldoriaClient {
       const btnErase = document.getElementById('btn-brush-erase');
       if (btnPaint) btnPaint.classList.remove('active');
       if (btnErase) btnErase.classList.remove('active');
+    }
+
+    if (this.player) {
+      if (drawer === 'skills') this.renderSkillsDrawer();
+      else if (drawer === 'inventory') this.renderInventoryDrawer();
+      else if (drawer === 'equipment') this.renderEquipmentDrawer();
+      else if (drawer === 'storage') this.renderStorageDrawer();
     }
   }
 

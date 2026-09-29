@@ -172,9 +172,22 @@ wss.on('connection', (ws: WebSocket, req) => {
   });
 
   ws.on('close', () => {
-    gameEngine.removeConnection(playerId);
+    gameEngine.removeConnection(playerId, ws);
   });
 });
+
+const handleGracefulShutdown = (signal: string) => {
+  console.log(`🛑 Received ${signal}, shutting down gracefully...`);
+  try {
+    gameEngine.shutdown();
+  } catch (err) {
+    console.error('Error during shutdown:', err);
+  }
+  process.exit(0);
+};
+
+process.on('SIGINT', () => handleGracefulShutdown('SIGINT'));
+process.on('SIGTERM', () => handleGracefulShutdown('SIGTERM'));
 
 server.listen(PORT, HOST, () => {
   console.log(`⚔️ Eldoria Idle Server listening on http://${HOST}:${PORT}`);
