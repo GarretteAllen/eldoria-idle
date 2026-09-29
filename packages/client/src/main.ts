@@ -1126,14 +1126,26 @@ class EldoriaClient {
     if (tab === 'login') {
       tabLogin?.classList.add('active');
       tabRegister?.classList.remove('active');
-      formLogin?.classList.remove('hidden');
-      formRegister?.classList.add('hidden');
+      if (formLogin) {
+        formLogin.classList.remove('hidden');
+        formLogin.style.display = 'flex';
+      }
+      if (formRegister) {
+        formRegister.classList.add('hidden');
+        formRegister.style.display = 'none';
+      }
       (document.getElementById('login-username') as HTMLInputElement | null)?.focus();
     } else {
       tabLogin?.classList.remove('active');
       tabRegister?.classList.add('active');
-      formLogin?.classList.add('hidden');
-      formRegister?.classList.remove('hidden');
+      if (formLogin) {
+        formLogin.classList.add('hidden');
+        formLogin.style.display = 'none';
+      }
+      if (formRegister) {
+        formRegister.classList.remove('hidden');
+        formRegister.style.display = 'flex';
+      }
       (document.getElementById('register-username') as HTMLInputElement | null)?.focus();
     }
   }

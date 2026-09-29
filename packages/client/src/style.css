@@ -1465,6 +1465,10 @@ body, html {
   background: var(--gold-main);
 }
 
+.hidden {
+  display: none !important;
+}
+
 /* Auth / Account Gate Modal */
 .auth-tabs-bar {
   display: flex;
@@ -1474,6 +1478,14 @@ body, html {
   padding: 2px;
   gap: 2px;
   margin-bottom: 10px;
+}
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.auth-form.hidden {
+  display: none !important;
 }
 .auth-tab-btn {
   flex: 1;

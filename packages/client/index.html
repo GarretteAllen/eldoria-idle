@@ -561,7 +561,7 @@
           <div id="auth-error-banner" class="auth-error-box"></div>
 
           <!-- Tab 1: Log In -->
-          <form id="form-auth-login" style="display: flex; flex-direction: column; gap: 8px;">
+          <form id="form-auth-login" class="auth-form">
             <div class="form-row">
               <label>Adventurer Username</label>
               <input type="text" id="login-username" placeholder="Username..." autocomplete="username" required />
@@ -574,7 +574,7 @@
           </form>
 
           <!-- Tab 2: Create Account -->
-          <form id="form-auth-register" class="hidden" style="display: flex; flex-direction: column; gap: 8px;">
+          <form id="form-auth-register" class="auth-form hidden">
             <div id="register-guest-hint" style="font-size: 0.7rem; color: var(--gold-bright); background: rgba(223, 166, 55, 0.1); border: 1px solid var(--border-oak-light); border-radius: 4px; padding: 6px 8px; line-height: 1.35; display: none;">
               ✨ <b>Save Progress:</b> Your current guest character and spoils will be permanently bound to this account!
             </div>
