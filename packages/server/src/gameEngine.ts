@@ -28,6 +28,17 @@ interface ConnectedSession {
   moveAccumulator: number;
   pendingTask: { recipeId: string; targetX: number; targetY: number; quantity?: number } | null;
   pendingDeposit?: { itemId: string; rarity?: string; plus?: number; quantity?: number } | null;
+  pendingCombat?: { monsterId: string; targetX: number; targetY: number; nodeId?: string } | null;
+  activeCombat?: {
+    monsterId: string;
+    targetX: number;
+    targetY: number;
+    nodeId?: string;
+    currentHp: number;
+    maxHp: number;
+    playerSwingTicks: number;
+    monsterSwingTicks: number;
+  } | null;
 }
 
 
@@ -81,7 +92,7 @@ export class GameEngine {
 
     player.lastActiveTimestamp = Date.now();
     player.moveSpeedTilesPerTick = calculatePlayerMoveSpeed(player);
-    this.sessions.set(player.id, { ws, player, ticksInTask: 0, moveAccumulator: 0, pendingTask: null });
+    this.sessions.set(player.id, { ws, player, ticksInTask: 0, moveAccumulator: 0, pendingTask: null, pendingCombat: null, activeCombat: null });
 
     // Send initial handshake with persistent world nodes, npcs, quests, and collisions
     this.send(ws, {
@@ -141,6 +152,8 @@ export class GameEngine {
             player.currentTask = null;
           }
           session.pendingTask = null;
+          session.pendingCombat = null;
+          session.activeCombat = null;
           player.bankReturnTask = null;
           player.bankingState = 'idle';
 
@@ -238,6 +251,8 @@ export class GameEngine {
         player.currentTask = null;
         session.ticksInTask = 0;
         session.pendingTask = null;
+        session.pendingCombat = null;
+        session.activeCombat = null;
         player.bankReturnTask = null;
         player.bankingState = 'idle';
         this.send(session.ws, { type: 'PLAYER_UPDATE', player });
@@ -370,6 +385,11 @@ export class GameEngine {
 
       case 'ADMIN_GIVE_ITEM':
         this.handleAdminGiveItem(session, msg);
+        break;
+
+      case 'START_COMBAT':
+      case 'ATTACK_MONSTER':
+        this.handleStartCombat(session, msg);
         break;
 
       case 'ADMIN_SAVE_NODE':
@@ -1043,11 +1063,21 @@ export class GameEngine {
             if (player.bankReturnTask) {
               player.currentTask = player.bankReturnTask;
               player.bankReturnTask = null;
-              this.send(ws, {
-                type: 'NOTIFICATION',
-                message: `Returned to work on ${RECIPES[player.currentTask.recipeId]?.name || player.currentTask.skill}.`
-              });
+              if (MONSTERS[player.currentTask.recipeId]) {
+                const mobId = player.currentTask.recipeId;
+                this.startCombatSession(session, mobId, player.currentTask.targetNodeX || player.x, player.currentTask.targetNodeY || player.y);
+              } else {
+                this.send(ws, {
+                  type: 'NOTIFICATION',
+                  message: `Returned to work on ${RECIPES[player.currentTask.recipeId]?.name || player.currentTask.skill}.`
+                });
+              }
             }
+          } else if (session.pendingCombat) {
+            // Arrived adjacent to target monster!
+            const pending = session.pendingCombat;
+            session.pendingCombat = null;
+            this.startCombatSession(session, pending.monsterId, pending.targetX, pending.targetY, pending.nodeId);
           } else if (session.pendingTask) {
             // Arrived at target work node
             const rec = RECIPES[session.pendingTask.recipeId];
@@ -1075,10 +1105,13 @@ export class GameEngine {
         this.broadcastWorldState();
       }
 
-      // 2. Process Active Work Task
+      // 2. Process Active Work Task OR Combat
       if (player.currentTask && !player.isMoving) {
-        session.ticksInTask++;
-        const recipe = RECIPES[player.currentTask.recipeId];
+        if (session.activeCombat) {
+          this.processCombatCycle(session);
+        } else {
+          session.ticksInTask++;
+          const recipe = RECIPES[player.currentTask.recipeId];
 
         if (recipe) {
           const level = player.skills[recipe.skill]?.level || 1;
@@ -1110,6 +1143,7 @@ export class GameEngine {
             session.ticksInTask = 0;
             this.executeTaskCycle(session, recipe);
           }
+        }
         }
       }
     }
@@ -1534,6 +1568,353 @@ export class GameEngine {
     } else if (targetSession) {
       // Giving to self — update their own client
       this.send(ws, { type: 'PLAYER_UPDATE', player: targetPlayer });
+    }
+  }
+
+  private handleStartCombat(session: ConnectedSession, msg: any) {
+    const { player, ws } = session;
+    const monsterId = (msg.monsterId || '').trim();
+    const monsterDef = MONSTERS[monsterId];
+    if (!monsterDef) {
+      this.send(ws, { type: 'NOTIFICATION', message: `Unknown monster: ${monsterId}` });
+      return;
+    }
+
+    const targetX = typeof msg.targetX === 'number' ? msg.targetX : player.x;
+    const targetY = typeof msg.targetY === 'number' ? msg.targetY : player.y;
+    const dist = Math.hypot(player.x - targetX, player.y - targetY);
+
+    // Cancel any pending work/banking tasks
+    player.bankingState = 'idle';
+    player.bankReturnTask = null;
+    session.pendingTask = null;
+
+    if (dist > 1.5) {
+      // Find closest walkable tile adjacent to enemy (stop 1 tile before enemy)
+      const adj = this.getAdjacentWalkableTile(player.x, player.y, targetX, targetY);
+      const path = this.findPathWithCollisions(player.x, player.y, adj.x, adj.y);
+      player.targetX = adj.x;
+      player.targetY = adj.y;
+      player.path = path;
+      player.isMoving = path.length > 0;
+      session.pendingCombat = { monsterId, targetX, targetY, nodeId: msg.nodeId };
+      session.activeCombat = null;
+      this.send(ws, {
+        type: 'NOTIFICATION',
+        message: `Walking to ${monsterDef.name}... (${path.length} tiles)`,
+      });
+      this.send(ws, { type: 'PLAYER_UPDATE', player });
+      this.broadcastWorldState();
+    } else {
+      // Already adjacent — begin combat immediately
+      session.pendingCombat = null;
+      this.startCombatSession(session, monsterId, targetX, targetY, msg.nodeId);
+    }
+  }
+
+  private getAdjacentWalkableTile(playerX: number, playerY: number, targetX: number, targetY: number): { x: number; y: number } {
+    const collisions = storage.getCollisions();
+    const candidates = [
+      { x: targetX, y: targetY + 1 },
+      { x: targetX, y: targetY - 1 },
+      { x: targetX + 1, y: targetY },
+      { x: targetX - 1, y: targetY },
+      { x: targetX + 1, y: targetY + 1 },
+      { x: targetX - 1, y: targetY + 1 },
+      { x: targetX + 1, y: targetY - 1 },
+      { x: targetX - 1, y: targetY - 1 },
+    ].filter(pt => pt.x >= 0 && pt.x < 60 && pt.y >= 0 && pt.y < 60 && !collisions.has(`${pt.x},${pt.y}`));
+
+    if (candidates.length > 0) {
+      candidates.sort((a, b) =>
+        Math.hypot(a.x - playerX, a.y - playerY) - Math.hypot(b.x - playerX, b.y - playerY)
+      );
+      return candidates[0];
+    }
+    return { x: targetX, y: targetY };
+  }
+
+  private startCombatSession(session: ConnectedSession, monsterId: string, targetX: number, targetY: number, nodeId?: string) {
+    const { player, ws } = session;
+    const monsterDef = MONSTERS[monsterId];
+    if (!monsterDef) return;
+
+    session.activeCombat = {
+      monsterId,
+      targetX,
+      targetY,
+      nodeId,
+      currentHp: monsterDef.hp,
+      maxHp: monsterDef.hp,
+      playerSwingTicks: 0,
+      monsterSwingTicks: 0,
+    };
+
+    player.currentTask = {
+      recipeId: monsterId,
+      skill: 'melee',
+      startedAtTick: this.tickCount,
+      targetQuantity: Infinity,
+      completedQuantity: 0,
+      targetNodeX: targetX,
+      targetNodeY: targetY,
+    };
+
+    this.send(ws, {
+      type: 'NOTIFICATION',
+      message: `⚔️ Engaged in combat with ${monsterDef.name}!`,
+    });
+    this.send(ws, { type: 'PLAYER_UPDATE', player });
+    this.broadcastWorldState();
+  }
+
+  private processCombatCycle(session: ConnectedSession) {
+    const { player, ws } = session;
+    const combat = session.activeCombat;
+    if (!combat) return;
+
+    const monsterDef = MONSTERS[combat.monsterId];
+    if (!monsterDef) {
+      session.activeCombat = null;
+      player.currentTask = null;
+      return;
+    }
+
+    // Verify distance: must stay adjacent (within 1.5 tiles)
+    const dist = Math.hypot(player.x - combat.targetX, player.y - combat.targetY);
+    if (dist > 1.5) {
+      session.activeCombat = null;
+      player.currentTask = null;
+      this.send(ws, { type: 'PLAYER_UPDATE', player });
+      this.broadcastWorldState();
+      return;
+    }
+
+    combat.playerSwingTicks++;
+    combat.monsterSwingTicks++;
+
+    const weaponItem = player.equipment?.weapon ? ITEMS[player.equipment.weapon.itemId] : null;
+    const swingSpeedSec = weaponItem?.baseStats?.swingSpeedSeconds || 2.4;
+    const playerRequiredTicks = Math.max(2, Math.round(swingSpeedSec / (TICK_MS / 1000)));
+
+    const monsterSwingSec = monsterDef.swingSpeedSeconds || 2.4;
+    const monsterRequiredTicks = Math.max(2, Math.round(monsterSwingSec / (TICK_MS / 1000)));
+
+    let combatUpdated = false;
+
+    // 1. PLAYER ATTACKS MONSTER
+    if (combat.playerSwingTicks >= playerRequiredTicks) {
+      combat.playerSwingTicks = 0;
+      combatUpdated = true;
+
+      let gearAccuracy = 0;
+      let gearStrength = 0;
+      for (const slot of Object.values(player.equipment || {})) {
+        if (slot) {
+          const item = ITEMS[slot.itemId];
+          if (item?.baseStats?.accuracy) gearAccuracy += item.baseStats.accuracy;
+          if (item?.baseStats?.strength) gearStrength += item.baseStats.strength;
+        }
+      }
+
+      const meleeLevel = player.skills.melee?.level || 1;
+      const hitChance = calculateHitChance(meleeLevel * 2 + gearAccuracy + 10, monsterDef.level * 3);
+      let damage = 0;
+      if (Math.random() < hitChance) {
+        const maxHit = calculateMaxHit(meleeLevel, gearStrength, Math.floor(monsterDef.level / 4));
+        damage = Math.floor(1 + Math.random() * maxHit);
+      }
+
+      combat.currentHp = Math.max(0, combat.currentHp - damage);
+
+      // XP gains
+      const meleeXp = Math.max(2, damage * 4);
+      player.skills.melee.xp += meleeXp;
+      player.skills.melee.level = getLevelFromXp(player.skills.melee.xp);
+
+      const hpXp = Math.max(1, Math.floor(damage * 1.33));
+      player.skills.hitpoints.xp += hpXp;
+      player.skills.hitpoints.level = getLevelFromXp(player.skills.hitpoints.xp);
+
+      this.send(ws, {
+        type: 'COMBAT_HIT',
+        target: 'monster',
+        damage,
+        monsterId: monsterDef.id,
+        monsterName: monsterDef.name,
+        monsterHp: combat.currentHp,
+        monsterMaxHp: combat.maxHp,
+        nodeId: combat.nodeId,
+      });
+
+      // Check if monster died
+      if (combat.currentHp <= 0) {
+        const coinDrop = Math.floor(monsterDef.minCoins + Math.random() * (monsterDef.maxCoins - monsterDef.minCoins + 1));
+        player.gold += coinDrop;
+
+        if (monsterDef.guaranteedDropItemId && ITEMS[monsterDef.guaranteedDropItemId]) {
+          this.giveLootItem(player, monsterDef.guaranteedDropItemId, 1);
+        }
+
+        if (monsterDef.rareDrop && Math.random() < monsterDef.rareDrop.chance && ITEMS[monsterDef.rareDrop.itemId]) {
+          this.giveLootItem(player, monsterDef.rareDrop.itemId, 1);
+          this.send(ws, {
+            type: 'NOTIFICATION',
+            message: `✨ RARE DROP! You found ${ITEMS[monsterDef.rareDrop.itemId].name}!`,
+          });
+        }
+
+        player.skills.melee.xp += monsterDef.xp;
+        player.skills.melee.level = getLevelFromXp(player.skills.melee.xp);
+
+        this.progressKillQuests(player, monsterDef.id);
+
+        this.send(ws, {
+          type: 'NOTIFICATION',
+          message: `⚔️ Defeated ${monsterDef.name}! +${coinDrop} gold, +${monsterDef.xp} XP.`,
+        });
+
+        // Check if satchel full
+        if (player.inventory.length >= 28) {
+          player.bankReturnTask = { ...player.currentTask! };
+          player.currentTask = null;
+          session.activeCombat = null;
+          player.bankingState = 'walking_to_bank';
+          const hearth = this.getHearthLocation(player.x, player.y);
+          const path = this.findPathWithCollisions(player.x, player.y, hearth.x, hearth.y);
+          player.targetX = hearth.x;
+          player.targetY = hearth.y;
+          player.path = path;
+          player.isMoving = path.length > 0;
+          this.send(ws, {
+            type: 'NOTIFICATION',
+            message: `Satchel full (28/28)! Returning to Hearth to bank combat spoils...`,
+          });
+          storage.savePlayer(player);
+          this.send(ws, { type: 'PLAYER_UPDATE', player });
+          this.broadcastWorldState();
+          return;
+        }
+
+        // Respawn for continuous idle combat!
+        combat.currentHp = combat.maxHp;
+        combat.playerSwingTicks = 0;
+        combat.monsterSwingTicks = 0;
+        if (player.currentTask) {
+          player.currentTask.completedQuantity++;
+        }
+        storage.savePlayer(player);
+        this.send(ws, { type: 'PLAYER_UPDATE', player });
+        return;
+      }
+    }
+
+    // 2. MONSTER ATTACKS PLAYER
+    if (combat.monsterSwingTicks >= monsterRequiredTicks) {
+      combat.monsterSwingTicks = 0;
+      combatUpdated = true;
+
+      let gearDefence = 0;
+      for (const slot of Object.values(player.equipment || {})) {
+        if (slot) {
+          const item = ITEMS[slot.itemId];
+          if (item?.baseStats?.defence) gearDefence += item.baseStats.defence;
+        }
+      }
+
+      const defLevel = player.skills.defence?.level || 1;
+      const monsterHitChance = calculateHitChance(monsterDef.level * 3, defLevel * 2 + gearDefence);
+      let monsterDmg = 0;
+      if (Math.random() < monsterHitChance) {
+        monsterDmg = Math.floor(1 + Math.random() * monsterDef.maxHit);
+      }
+
+      player.currentHp = Math.max(0, player.currentHp - monsterDmg);
+
+      if (monsterDmg > 0) {
+        player.skills.defence.xp += monsterDmg * 2;
+        player.skills.defence.level = getLevelFromXp(player.skills.defence.xp);
+      }
+
+      this.send(ws, {
+        type: 'COMBAT_HIT',
+        target: 'player',
+        damage: monsterDmg,
+        monsterId: monsterDef.id,
+        monsterName: monsterDef.name,
+        playerHp: player.currentHp,
+        playerMaxHp: player.skills.hitpoints?.level || 10,
+        nodeId: combat.nodeId,
+      });
+
+      // Auto-eat food if below threshold
+      const maxHp = player.skills.hitpoints?.level || 10;
+      const eatThreshold = (maxHp * (player.eatsAtHpPercent || 50)) / 100;
+      if (player.currentHp <= eatThreshold) {
+        const foodIdx = player.inventory.findIndex(s => {
+          const def = ITEMS[s.itemId];
+          return def && (def.category === 'cooked_food' || ((def.baseStats?.healing || 0) > 0));
+        });
+        if (foodIdx >= 0) {
+          const foodSlot = player.inventory[foodIdx];
+          const foodDef = ITEMS[foodSlot.itemId];
+          const heal = foodDef.baseStats?.healing || 5;
+          player.currentHp = Math.min(maxHp, player.currentHp + heal);
+          foodSlot.quantity--;
+          if (foodSlot.quantity <= 0) player.inventory.splice(foodIdx, 1);
+          this.send(ws, {
+            type: 'NOTIFICATION',
+            message: `🍖 Ate ${foodDef.name} (+${heal} HP, now ${player.currentHp}/${maxHp})`,
+          });
+        }
+      }
+
+      // Check if player died
+      if (player.currentHp <= 0) {
+        session.activeCombat = null;
+        player.currentTask = null;
+        const hearth = this.getHearthLocation(player.x, player.y);
+        player.x = hearth.x;
+        player.y = hearth.y;
+        player.currentHp = maxHp;
+        player.isMoving = false;
+        player.path = [];
+        storage.savePlayer(player);
+        this.send(ws, {
+          type: 'NOTIFICATION',
+          message: `💀 Slain by ${monsterDef.name}! You awoke safely at the Hearth.`,
+        });
+        this.send(ws, { type: 'PLAYER_UPDATE', player });
+        this.broadcastWorldState();
+        return;
+      }
+    }
+
+    if (combatUpdated) {
+      storage.savePlayer(player);
+      this.send(ws, { type: 'PLAYER_UPDATE', player });
+    }
+  }
+
+  private giveLootItem(player: PlayerData, itemId: string, quantity: number = 1) {
+    const rarity = rollRarity(1.0);
+    const existing = player.inventory.find(s => s.itemId === itemId && s.rarity === rarity && s.plus === 0);
+    if (existing) {
+      existing.quantity += quantity;
+    } else if (player.inventory.length < 28) {
+      player.inventory.push({ itemId, quantity, rarity, plus: 0 });
+    } else {
+      if (!player.overflowTray) player.overflowTray = [];
+      player.overflowTray.push({ itemId, quantity, rarity, plus: 0 });
+    }
+  }
+
+  private progressKillQuests(player: PlayerData, monsterId: string) {
+    const quests = storage.getQuests();
+    for (const q of quests) {
+      if (q.objective && q.objective.type === 'kill' && q.objective.targetId === monsterId) {
+        // Player kill quest progress
+      }
     }
   }
 

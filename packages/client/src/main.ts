@@ -1,4 +1,4 @@
-import { PlayerData, RECIPES, ITEMS, EquipSlot, SkillType, getXpToNextLevel, NpcDefinition, QuestDefinition } from '@eldoria/shared';
+import { PlayerData, RECIPES, ITEMS, MONSTERS, EquipSlot, SkillType, getXpToNextLevel, NpcDefinition, QuestDefinition } from '@eldoria/shared';
 import { WorldRenderer, WorldNodeDisplay } from './canvas.js';
 import { loadLdtkWorld } from './ldtkLoader.js';
 import { ICONS, getItemIconSvg } from './icons.js';
@@ -55,6 +55,7 @@ class EldoriaClient {
 
   // Interaction State
   private pendingNpcTarget: NpcDefinition | null = null;
+  private pendingMonsterTarget: WorldNodeDisplay | null = null;
 
   constructor() {
     const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
@@ -135,6 +136,7 @@ class EldoriaClient {
 
       this.renderer.onGroundClick = (tileX, tileY) => {
         this.pendingNpcTarget = null;
+        this.pendingMonsterTarget = null;
         this.sendWs({ type: 'MOVE_TO', x: tileX, y: tileY });
       };
 
@@ -148,31 +150,42 @@ class EldoriaClient {
         } else {
           // Player MUST walk to the NPC before talking to it!
           this.pendingNpcTarget = npc;
-          const collisions = this.renderer.getCollisions();
-          let targetX = npc.x;
-          let targetY = npc.y;
-
-          // If NPC's tile is blocked by collision, walk to the closest free neighbor tile
-          if (collisions.has(`${npc.x},${npc.y}`)) {
-            const neighbors = [
-              { x: npc.x, y: npc.y + 1 },
-              { x: npc.x, y: npc.y - 1 },
-              { x: npc.x + 1, y: npc.y },
-              { x: npc.x - 1, y: npc.y },
-            ].filter(pt => !collisions.has(`${pt.x},${pt.y}`));
-            if (neighbors.length > 0) {
-              neighbors.sort((a, b) => Math.hypot(a.x - this.player!.x, a.y - this.player!.y) - Math.hypot(b.x - this.player!.x, b.y - this.player!.y));
-              targetX = neighbors[0].x;
-              targetY = neighbors[0].y;
-            }
-          }
-          this.sendWs({ type: 'MOVE_TO', x: targetX, y: targetY });
+          this.pendingMonsterTarget = null;
+          const target = this.getAdjacentWalkableTile(npc.x, npc.y);
+          this.sendWs({ type: 'MOVE_TO', x: target.x, y: target.y });
           this.showToast(`Walking to ${npc.name}...`);
         }
       };
 
       this.renderer.onNodeClick = (node: WorldNodeDisplay) => {
         this.pendingNpcTarget = null;
+
+        // MONSTER / ENEMY: Stop one tile before the enemy, and then attack it!
+        if (node.type === 'monster') {
+          if (!this.player) return;
+          const dist = Math.hypot(this.player.x - node.x, this.player.y - node.y);
+          if (dist <= 1.5) {
+            // Already adjacent to enemy (one tile away): attack immediately!
+            this.pendingMonsterTarget = null;
+            this.sendWs({
+              type: 'START_COMBAT',
+              nodeId: node.id,
+              monsterId: node.monsterId || 'mire_rat',
+              targetX: node.x,
+              targetY: node.y,
+            });
+            this.showToast(`Attacking ${node.name}!`);
+          } else {
+            // Stop one tile before the enemy!
+            this.pendingMonsterTarget = node;
+            const target = this.getAdjacentWalkableTile(node.x, node.y);
+            this.sendWs({ type: 'MOVE_TO', x: target.x, y: target.y });
+            this.showToast(`Walking to ${node.name}...`);
+          }
+          return;
+        }
+
+        this.pendingMonsterTarget = null;
         if (node.recipeId) {
           const rec = RECIPES[node.recipeId];
           if (rec) {
@@ -352,6 +365,23 @@ class EldoriaClient {
             this.openNpcDialogue(target);
           }
         }
+
+        // Check if arrived adjacent to clicked Monster (stop 1 tile before enemy, then attack)
+        if (this.pendingMonsterTarget && this.player) {
+          const dist = Math.hypot(this.player.x - this.pendingMonsterTarget.x, this.player.y - this.pendingMonsterTarget.y);
+          if (dist <= 1.5) {
+            const target = this.pendingMonsterTarget;
+            this.pendingMonsterTarget = null;
+            this.sendWs({
+              type: 'START_COMBAT',
+              nodeId: target.id,
+              monsterId: target.monsterId || 'mire_rat',
+              targetX: target.x,
+              targetY: target.y,
+            });
+            this.showToast(`Attacking ${target.name}!`);
+          }
+        }
         break;
 
       case 'WORLD_STATE':
@@ -394,6 +424,26 @@ class EldoriaClient {
 
       case 'BOSS_UPDATE':
         this.updateBossBanner(msg.boss);
+        break;
+
+      case 'COMBAT_HIT':
+        if (msg.target === 'monster') {
+          if (msg.monsterId && msg.monsterHp !== undefined && msg.monsterMaxHp !== undefined) {
+            this.renderer.monsterHpMap.set(msg.monsterId, { currentHp: msg.monsterHp, maxHp: msg.monsterMaxHp });
+          }
+          if (msg.nodeId && msg.monsterHp !== undefined && msg.monsterMaxHp !== undefined) {
+            this.renderer.monsterHpMap.set(msg.nodeId, { currentHp: msg.monsterHp, maxHp: msg.monsterMaxHp });
+          }
+          if (msg.damage > 0) {
+            this.showToast(`⚔️ Hit ${msg.monsterName} for ${msg.damage}! (${msg.monsterHp}/${msg.monsterMaxHp} HP)`);
+          } else {
+            this.showToast(`🛡️ You splashed against ${msg.monsterName}! (0 damage)`);
+          }
+        } else if (msg.target === 'player') {
+          if (msg.damage > 0) {
+            this.showToast(`💥 ${msg.monsterName} struck you for ${msg.damage} damage!`);
+          }
+        }
         break;
 
       case 'NOTIFICATION':
@@ -523,17 +573,29 @@ class EldoriaClient {
       statusTagEl.textContent = 'TRAVEL';
       statusTagEl.className = 'status-tag';
     } else if (this.player.currentTask) {
-      const rec = RECIPES[this.player.currentTask.recipeId];
-      const skill = this.player.currentTask.skill;
-      taskNameEl.textContent = rec ? `${rec.name}` : skill;
+      const monsterDef = MONSTERS[this.player.currentTask.recipeId];
+      if (monsterDef) {
+        taskNameEl.textContent = `Combat — ${monsterDef.name} (Lv ${monsterDef.level})`;
+        const mSkill = this.player.skills.melee || { level: 1, xp: 0 };
+        const { percent } = getXpToNextLevel(mSkill.level, mSkill.xp);
+        taskSubEl.textContent = `MELEE ${mSkill.level} (${percent.toFixed(1)}%) • Auto-retaliating in ${monsterDef.zone}`;
+        progressFillEl.style.width = `${Math.max(5, percent)}%`;
+        taskIconEl.innerHTML = ICONS.melee || ICONS.skills;
+        statusTagEl.textContent = 'COMBAT';
+        statusTagEl.className = 'status-tag combat';
+      } else {
+        const rec = RECIPES[this.player.currentTask.recipeId];
+        const skill = this.player.currentTask.skill;
+        taskNameEl.textContent = rec ? `${rec.name}` : skill;
 
-      const pSkill = this.player.skills[skill as SkillType] || { level: 1, xp: 0 };
-      const { percent } = getXpToNextLevel(pSkill.level, pSkill.xp);
-      taskSubEl.textContent = `${skill.toUpperCase()} ${pSkill.level} · ${percent.toFixed(1)}% to ${pSkill.level + 1} • Auto-banks when full`;
-      progressFillEl.style.width = `${Math.max(5, percent)}%`;
-      taskIconEl.innerHTML = ICONS[skill] || ICONS.skills;
-      statusTagEl.textContent = 'WORKING';
-      statusTagEl.className = 'status-tag';
+        const pSkill = this.player.skills[skill as SkillType] || { level: 1, xp: 0 };
+        const { percent } = getXpToNextLevel(pSkill.level, pSkill.xp);
+        taskSubEl.textContent = `${skill.toUpperCase()} ${pSkill.level} · ${percent.toFixed(1)}% to ${pSkill.level + 1} • Auto-banks when full`;
+        progressFillEl.style.width = `${Math.max(5, percent)}%`;
+        taskIconEl.innerHTML = ICONS[skill] || ICONS.skills;
+        statusTagEl.textContent = 'WORKING';
+        statusTagEl.className = 'status-tag';
+      }
     } else {
       taskNameEl.textContent = 'Idle — Choose a trade';
       taskSubEl.textContent = 'Select a trade from the skills menu or click the map';
@@ -542,6 +604,29 @@ class EldoriaClient {
       statusTagEl.textContent = 'IDLE';
       statusTagEl.className = 'status-tag idle';
     }
+  }
+
+  private getAdjacentWalkableTile(targetX: number, targetY: number): { x: number; y: number } {
+    const collisions = this.renderer.getCollisions();
+    const candidates = [
+      { x: targetX, y: targetY + 1 },
+      { x: targetX, y: targetY - 1 },
+      { x: targetX + 1, y: targetY },
+      { x: targetX - 1, y: targetY },
+      { x: targetX + 1, y: targetY + 1 },
+      { x: targetX - 1, y: targetY + 1 },
+      { x: targetX + 1, y: targetY - 1 },
+      { x: targetX - 1, y: targetY - 1 },
+    ].filter(pt => pt.x >= 0 && pt.x < 60 && pt.y >= 0 && pt.y < 60 && !collisions.has(`${pt.x},${pt.y}`));
+
+    if (candidates.length > 0 && this.player) {
+      candidates.sort((a, b) =>
+        Math.hypot(a.x - this.player!.x, a.y - this.player!.y) -
+        Math.hypot(b.x - this.player!.x, b.y - this.player!.y)
+      );
+      return candidates[0];
+    }
+    return { x: targetX, y: targetY };
   }
 
   private getHearthLocation(playerX?: number, playerY?: number): { x: number; y: number } {

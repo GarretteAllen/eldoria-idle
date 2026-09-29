@@ -437,6 +437,11 @@ body, html {
   border-color: #633e20;
   color: #fbd38d;
 }
+.status-tag.combat {
+  background: #4a1212;
+  border-color: #9b2c2c;
+  color: #feb2b2;
+}
 .icon-btn-micro {
   width: 18px;
   height: 18px;

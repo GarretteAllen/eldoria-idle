@@ -60,6 +60,7 @@ export class WorldRenderer {
   public onGroundClick?: (tileX: number, tileY: number) => void;
   public onTileSelected?: (tileX: number, tileY: number) => void;
   public onCollisionToggled?: (tileX: number, tileY: number, added: boolean) => void;
+  public monsterHpMap = new Map<string, { currentHp: number; maxHp: number }>();
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -552,6 +553,17 @@ export class WorldRenderer {
         ctx.textAlign = 'center';
         ctx.fillText(text, px + TILE_SIZE / 2, badgeY + 11);
 
+        // Monster HP bar below badge if in combat
+        const hpInfo = this.monsterHpMap.get(node.id) || this.monsterHpMap.get(mobId);
+        if (hpInfo && hpInfo.maxHp > 0) {
+          const hpPct = Math.max(0, Math.min(1, hpInfo.currentHp / hpInfo.maxHp));
+          const hpBarY = badgeY + badgeH + 2;
+          ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
+          ctx.fillRect(badgeX, hpBarY, badgeW, 4);
+          ctx.fillStyle = hpPct > 0.5 ? '#48bb78' : hpPct > 0.25 ? '#ecc94b' : '#e53e3e';
+          ctx.fillRect(badgeX, hpBarY, badgeW * hpPct, 4);
+        }
+
         ctx.restore();
         continue;
       }
@@ -833,6 +845,13 @@ export class WorldRenderer {
           const rod = equipment?.tool_rod || equipment?.tool;
           const toolCoord = getSprite(rod?.itemId) || getSprite('fishing_rod_willow');
           drawLayer(toolCoord, 0, breatheBob, rodTug);
+        } else if (taskSkill === 'melee') {
+          const weapon = equipment?.weapon;
+          const weaponCoord = getSprite(weapon?.itemId) || getSprite('blade_iron');
+          const attackSlash = Math.sin(this.animTick * 0.016) * 0.55;
+          if (weaponCoord) {
+            drawLayer(weaponCoord, 0, breatheBob, attackSlash);
+          }
         } else {
           const genericTool = equipment?.tool || equipment?.weapon;
           const toolCoord = getSprite(genericTool?.itemId);
