@@ -61,6 +61,27 @@ export class WorldRenderer {
   public onTileSelected?: (tileX: number, tileY: number) => void;
   public onCollisionToggled?: (tileX: number, tileY: number, added: boolean) => void;
   public monsterHpMap = new Map<string, { currentHp: number; maxHp: number }>();
+  private combatProjectiles: Array<{
+    startX: number;
+    startY: number;
+    targetX: number;
+    targetY: number;
+    startTime: number;
+    duration: number;
+    style: 'melee' | 'ranged' | 'magic';
+  }> = [];
+
+  public addCombatProjectile(startX: number, startY: number, targetX: number, targetY: number, style: 'melee' | 'ranged' | 'magic') {
+    this.combatProjectiles.push({
+      startX,
+      startY,
+      targetX,
+      targetY,
+      startTime: Date.now(),
+      duration: style === 'melee' ? 220 : 380,
+      style,
+    });
+  }
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -336,14 +357,69 @@ export class WorldRenderer {
       );
     }
 
-    // 10. Draw Overhead Chat Bubbles
+    // 10. Draw Combat Projectiles & Effects
+    this.drawCombatProjectiles();
+
+    // 11. Draw Overhead Chat Bubbles
     this.drawChatBubbles();
 
-    // 11. Draw Editor Preview Overlay
+    // 12. Draw Editor Preview Overlay
     this.drawEditorOverlay();
 
     ctx.restore();
     requestAnimationFrame((ts) => this.render(ts));
+  }
+
+  private drawCombatProjectiles() {
+    const now = Date.now();
+    this.combatProjectiles = this.combatProjectiles.filter(p => now - p.startTime < p.duration);
+    if (this.combatProjectiles.length === 0) return;
+    const { ctx } = this;
+
+    for (const p of this.combatProjectiles) {
+      const progress = Math.min(1, (now - p.startTime) / p.duration);
+      const curTileX = p.startX + (p.targetX - p.startX) * progress;
+      const curTileY = p.startY + (p.targetY - p.startY) * progress;
+      const px = Math.round(curTileX * TILE_SIZE + TILE_SIZE / 2);
+      const py = Math.round(curTileY * TILE_SIZE + TILE_SIZE / 2);
+
+      ctx.save();
+      if (p.style === 'ranged') {
+        // Arrow projectile
+        const angle = Math.atan2(p.targetY - p.startY, p.targetX - p.startX);
+        ctx.translate(px, py);
+        ctx.rotate(angle);
+        ctx.strokeStyle = '#d69e2e';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(-7, 0);
+        ctx.lineTo(7, 0);
+        ctx.stroke();
+        // Arrowhead
+        ctx.fillStyle = '#f6e05e';
+        ctx.beginPath();
+        ctx.moveTo(7, 0);
+        ctx.lineTo(3, -3);
+        ctx.lineTo(3, 3);
+        ctx.fill();
+      } else if (p.style === 'magic') {
+        // Glowing magic spark orb
+        ctx.fillStyle = '#63b3ed';
+        ctx.shadowColor = '#4299e1';
+        ctx.shadowBlur = 8;
+        ctx.beginPath();
+        ctx.arc(px, py, 4, 0, Math.PI * 2);
+        ctx.fill();
+      } else {
+        // Melee slash spark arc
+        ctx.strokeStyle = `rgba(254, 178, 178, ${1 - progress})`;
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.arc(px, py, 10 * progress, -Math.PI / 4, Math.PI / 2);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
   }
 
   private drawTerrain() {
@@ -845,12 +921,35 @@ export class WorldRenderer {
           const rod = equipment?.tool_rod || equipment?.tool;
           const toolCoord = getSprite(rod?.itemId) || getSprite('fishing_rod_willow');
           drawLayer(toolCoord, 0, breatheBob, rodTug);
-        } else if (taskSkill === 'melee') {
+        } else if (taskSkill === 'melee' || taskSkill === 'ranged' || taskSkill === 'magic') {
           const weapon = equipment?.weapon;
-          const weaponCoord = getSprite(weapon?.itemId) || getSprite('blade_iron');
-          const attackSlash = Math.sin(this.animTick * 0.016) * 0.55;
-          if (weaponCoord) {
-            drawLayer(weaponCoord, 0, breatheBob, attackSlash);
+          const weaponId = weapon?.itemId || '';
+          const isBow = taskSkill === 'ranged' || weaponId.includes('bow');
+          const isStaff = taskSkill === 'magic' || weaponId.includes('staff') || weaponId.includes('wand');
+
+          if (isBow) {
+            // Ranged Bow Animation: Aim, pull string back with notch, and snap release!
+            const weaponCoord = getSprite(weapon?.itemId) || getSprite('ashwood_shortbow');
+            const drawAngle = Math.sin(this.animTick * 0.018) * 0.35 - 0.1;
+            const drawX = Math.round(Math.cos(this.animTick * 0.018) * 1.5 - 1);
+            if (weaponCoord) {
+              drawLayer(weaponCoord, drawX, breatheBob, drawAngle);
+            }
+          } else if (isStaff) {
+            // Magic Staff Animation: Raise high overhead and pulse mystic wave!
+            const weaponCoord = getSprite(weapon?.itemId) || getSprite('ashwood_staff');
+            const castTilt = Math.sin(this.animTick * 0.012) * 0.4 - 0.25;
+            const castY = breatheBob - 2 + Math.round(Math.sin(this.animTick * 0.012) * 1.5);
+            if (weaponCoord) {
+              drawLayer(weaponCoord, 0, castY, castTilt);
+            }
+          } else {
+            // Melee Blade / Greatsword Animation: Slashing strike!
+            const weaponCoord = getSprite(weapon?.itemId) || getSprite('blade_iron');
+            const attackSlash = Math.sin(this.animTick * 0.016) * 0.55;
+            if (weaponCoord) {
+              drawLayer(weaponCoord, 0, breatheBob, attackSlash);
+            }
           }
         } else {
           const genericTool = equipment?.tool || equipment?.weapon;

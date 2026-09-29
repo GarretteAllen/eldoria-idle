@@ -163,9 +163,10 @@ class EldoriaClient {
         // MONSTER / ENEMY: Stop one tile before the enemy, and then attack it!
         if (node.type === 'monster') {
           if (!this.player) return;
+          const maxRange = this.getCombatMaxRange();
           const dist = Math.hypot(this.player.x - node.x, this.player.y - node.y);
-          if (dist <= 1.5) {
-            // Already adjacent to enemy (one tile away): attack immediately!
+          if (dist <= maxRange) {
+            // Within attack range: attack immediately!
             this.pendingMonsterTarget = null;
             this.sendWs({
               type: 'START_COMBAT',
@@ -176,11 +177,11 @@ class EldoriaClient {
             });
             this.showToast(`Attacking ${node.name}!`);
           } else {
-            // Stop one tile before the enemy!
+            // Approach enemy: stop within range (1 tile before for melee, at distance for bow/staff)
             this.pendingMonsterTarget = node;
             const target = this.getAdjacentWalkableTile(node.x, node.y);
             this.sendWs({ type: 'MOVE_TO', x: target.x, y: target.y });
-            this.showToast(`Walking to ${node.name}...`);
+            this.showToast(`Walking into range of ${node.name}...`);
           }
           return;
         }
@@ -366,10 +367,11 @@ class EldoriaClient {
           }
         }
 
-        // Check if arrived adjacent to clicked Monster (stop 1 tile before enemy, then attack)
+        // Check if arrived within attack range of clicked Monster
         if (this.pendingMonsterTarget && this.player) {
+          const maxRange = this.getCombatMaxRange();
           const dist = Math.hypot(this.player.x - this.pendingMonsterTarget.x, this.player.y - this.pendingMonsterTarget.y);
-          if (dist <= 1.5) {
+          if (dist <= maxRange) {
             const target = this.pendingMonsterTarget;
             this.pendingMonsterTarget = null;
             this.sendWs({
@@ -433,6 +435,10 @@ class EldoriaClient {
           }
           if (msg.nodeId && msg.monsterHp !== undefined && msg.monsterMaxHp !== undefined) {
             this.renderer.monsterHpMap.set(msg.nodeId, { currentHp: msg.monsterHp, maxHp: msg.monsterMaxHp });
+          }
+          if (typeof msg.playerX === 'number' && typeof msg.targetX === 'number') {
+            const style = msg.combatStyle || this.getPlayerCombatStyle();
+            this.renderer.addCombatProjectile(msg.playerX, msg.playerY, msg.targetX, msg.targetY, style);
           }
           if (msg.damage > 0) {
             this.showToast(`⚔️ Hit ${msg.monsterName} for ${msg.damage}! (${msg.monsterHp}/${msg.monsterMaxHp} HP)`);
@@ -575,12 +581,13 @@ class EldoriaClient {
     } else if (this.player.currentTask) {
       const monsterDef = MONSTERS[this.player.currentTask.recipeId];
       if (monsterDef) {
-        taskNameEl.textContent = `Combat — ${monsterDef.name} (Lv ${monsterDef.level})`;
-        const mSkill = this.player.skills.melee || { level: 1, xp: 0 };
-        const { percent } = getXpToNextLevel(mSkill.level, mSkill.xp);
-        taskSubEl.textContent = `MELEE ${mSkill.level} (${percent.toFixed(1)}%) • Auto-retaliating in ${monsterDef.zone}`;
+        const style = (this.player.currentTask.skill || this.getPlayerCombatStyle()) as SkillType;
+        const cSkill = this.player.skills[style] || { level: 1, xp: 0 };
+        const { percent } = getXpToNextLevel(cSkill.level, cSkill.xp);
+        taskNameEl.textContent = `Combat (${style.toUpperCase()}) — ${monsterDef.name} (Lv ${monsterDef.level})`;
+        taskSubEl.textContent = `${style.toUpperCase()} ${cSkill.level} (${percent.toFixed(1)}%) • Auto-retaliating in ${monsterDef.zone}`;
         progressFillEl.style.width = `${Math.max(5, percent)}%`;
-        taskIconEl.innerHTML = ICONS.melee || ICONS.skills;
+        taskIconEl.innerHTML = ICONS[style] || ICONS.melee || ICONS.skills;
         statusTagEl.textContent = 'COMBAT';
         statusTagEl.className = 'status-tag combat';
       } else {
@@ -627,6 +634,22 @@ class EldoriaClient {
       return candidates[0];
     }
     return { x: targetX, y: targetY };
+  }
+
+  private getPlayerCombatStyle(): 'melee' | 'ranged' | 'magic' {
+    if (!this.player) return 'melee';
+    const weapon = this.player.equipment?.weapon;
+    if (weapon) {
+      const def = ITEMS[weapon.itemId];
+      if (def?.equipReq?.skill === 'ranged' || def?.id.includes('bow')) return 'ranged';
+      if (def?.equipReq?.skill === 'magic' || def?.id.includes('staff') || def?.id.includes('wand')) return 'magic';
+    }
+    return 'melee';
+  }
+
+  private getCombatMaxRange(): number {
+    const style = this.getPlayerCombatStyle();
+    return (style === 'ranged' || style === 'magic') ? 4.5 : 1.5;
   }
 
   private getHearthLocation(playerX?: number, playerY?: number): { x: number; y: number } {

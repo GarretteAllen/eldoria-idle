@@ -1571,6 +1571,25 @@ export class GameEngine {
     }
   }
 
+  private getPlayerCombatStyle(player: PlayerData): 'melee' | 'ranged' | 'magic' {
+    const weaponSlot = player.equipment?.weapon;
+    if (weaponSlot) {
+      const def = ITEMS[weaponSlot.itemId];
+      if (def?.equipReq?.skill === 'ranged' || def?.id.includes('bow')) {
+        return 'ranged';
+      }
+      if (def?.equipReq?.skill === 'magic' || def?.id.includes('staff') || def?.id.includes('wand')) {
+        return 'magic';
+      }
+    }
+    return 'melee';
+  }
+
+  private getCombatMaxRange(player: PlayerData): number {
+    const style = this.getPlayerCombatStyle(player);
+    return (style === 'ranged' || style === 'magic') ? 4.5 : 1.5;
+  }
+
   private handleStartCombat(session: ConnectedSession, msg: any) {
     const { player, ws } = session;
     const monsterId = (msg.monsterId || '').trim();
@@ -1589,8 +1608,9 @@ export class GameEngine {
     player.bankReturnTask = null;
     session.pendingTask = null;
 
-    if (dist > 1.5) {
-      // Find closest walkable tile adjacent to enemy (stop 1 tile before enemy)
+    const maxRange = this.getCombatMaxRange(player);
+    if (dist > maxRange) {
+      // Find closest walkable tile within range (stop 1 tile before enemy for melee, or at range for bow/staff)
       const adj = this.getAdjacentWalkableTile(player.x, player.y, targetX, targetY);
       const path = this.findPathWithCollisions(player.x, player.y, adj.x, adj.y);
       player.targetX = adj.x;
@@ -1601,12 +1621,12 @@ export class GameEngine {
       session.activeCombat = null;
       this.send(ws, {
         type: 'NOTIFICATION',
-        message: `Walking to ${monsterDef.name}... (${path.length} tiles)`,
+        message: `Walking into range of ${monsterDef.name}... (${path.length} tiles)`,
       });
       this.send(ws, { type: 'PLAYER_UPDATE', player });
       this.broadcastWorldState();
     } else {
-      // Already adjacent — begin combat immediately
+      // Already within attack range — begin combat immediately
       session.pendingCombat = null;
       this.startCombatSession(session, monsterId, targetX, targetY, msg.nodeId);
     }
@@ -1650,9 +1670,10 @@ export class GameEngine {
       monsterSwingTicks: 0,
     };
 
+    const combatStyle = this.getPlayerCombatStyle(player);
     player.currentTask = {
       recipeId: monsterId,
-      skill: 'melee',
+      skill: combatStyle,
       startedAtTick: this.tickCount,
       targetQuantity: Infinity,
       completedQuantity: 0,
@@ -1662,7 +1683,7 @@ export class GameEngine {
 
     this.send(ws, {
       type: 'NOTIFICATION',
-      message: `⚔️ Engaged in combat with ${monsterDef.name}!`,
+      message: `⚔️ Engaged in combat with ${monsterDef.name} using ${combatStyle.toUpperCase()}!`,
     });
     this.send(ws, { type: 'PLAYER_UPDATE', player });
     this.broadcastWorldState();
@@ -1680,9 +1701,9 @@ export class GameEngine {
       return;
     }
 
-    // Verify distance: must stay adjacent (within 1.5 tiles)
+    const maxRange = this.getCombatMaxRange(player);
     const dist = Math.hypot(player.x - combat.targetX, player.y - combat.targetY);
-    if (dist > 1.5) {
+    if (dist > maxRange + 0.5) {
       session.activeCombat = null;
       player.currentTask = null;
       this.send(ws, { type: 'PLAYER_UPDATE', player });
@@ -1693,8 +1714,9 @@ export class GameEngine {
     combat.playerSwingTicks++;
     combat.monsterSwingTicks++;
 
+    const combatStyle = this.getPlayerCombatStyle(player);
     const weaponItem = player.equipment?.weapon ? ITEMS[player.equipment.weapon.itemId] : null;
-    const swingSpeedSec = weaponItem?.baseStats?.swingSpeedSeconds || 2.4;
+    const swingSpeedSec = weaponItem?.baseStats?.swingSpeedSeconds || (combatStyle === 'ranged' ? 1.8 : combatStyle === 'magic' ? 3.6 : 2.4);
     const playerRequiredTicks = Math.max(2, Math.round(swingSpeedSec / (TICK_MS / 1000)));
 
     const monsterSwingSec = monsterDef.swingSpeedSeconds || 2.4;
@@ -1717,20 +1739,20 @@ export class GameEngine {
         }
       }
 
-      const meleeLevel = player.skills.melee?.level || 1;
-      const hitChance = calculateHitChance(meleeLevel * 2 + gearAccuracy + 10, monsterDef.level * 3);
+      const combatLevel = player.skills[combatStyle]?.level || 1;
+      const hitChance = calculateHitChance(combatLevel * 2 + gearAccuracy + 10, monsterDef.level * 3);
       let damage = 0;
       if (Math.random() < hitChance) {
-        const maxHit = calculateMaxHit(meleeLevel, gearStrength, Math.floor(monsterDef.level / 4));
+        const maxHit = calculateMaxHit(combatLevel, gearStrength, Math.floor(monsterDef.level / 4));
         damage = Math.floor(1 + Math.random() * maxHit);
       }
 
       combat.currentHp = Math.max(0, combat.currentHp - damage);
 
-      // XP gains
-      const meleeXp = Math.max(2, damage * 4);
-      player.skills.melee.xp += meleeXp;
-      player.skills.melee.level = getLevelFromXp(player.skills.melee.xp);
+      // XP gains to the matching combat style!
+      const styleXp = Math.max(2, damage * 4);
+      player.skills[combatStyle].xp += styleXp;
+      player.skills[combatStyle].level = getLevelFromXp(player.skills[combatStyle].xp);
 
       const hpXp = Math.max(1, Math.floor(damage * 1.33));
       player.skills.hitpoints.xp += hpXp;
@@ -1740,11 +1762,16 @@ export class GameEngine {
         type: 'COMBAT_HIT',
         target: 'monster',
         damage,
+        combatStyle,
         monsterId: monsterDef.id,
         monsterName: monsterDef.name,
         monsterHp: combat.currentHp,
         monsterMaxHp: combat.maxHp,
         nodeId: combat.nodeId,
+        playerX: player.x,
+        playerY: player.y,
+        targetX: combat.targetX,
+        targetY: combat.targetY,
       });
 
       // Check if monster died
@@ -1764,8 +1791,8 @@ export class GameEngine {
           });
         }
 
-        player.skills.melee.xp += monsterDef.xp;
-        player.skills.melee.level = getLevelFromXp(player.skills.melee.xp);
+        player.skills[combatStyle].xp += monsterDef.xp;
+        player.skills[combatStyle].level = getLevelFromXp(player.skills[combatStyle].xp);
 
         this.progressKillQuests(player, monsterDef.id);
 
