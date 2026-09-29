@@ -105,6 +105,12 @@ class EldoriaClient {
     if (adminAuthClose) adminAuthClose.innerHTML = ICONS.close;
     const npcModalClose = document.getElementById('npc-modal-close-btn');
     if (npcModalClose) npcModalClose.innerHTML = ICONS.close;
+    const topCharIcon = document.getElementById('top-char-icon');
+    if (topCharIcon) topCharIcon.innerHTML = ICONS.character;
+    const accountCrestIcon = document.getElementById('account-crest-icon');
+    if (accountCrestIcon) accountCrestIcon.innerHTML = ICONS.logo;
+    const accountClose = document.getElementById('account-close-btn');
+    if (accountClose) accountClose.innerHTML = ICONS.close;
   }
 
   private async fetchNodesAndInit() {
@@ -338,6 +344,13 @@ class EldoriaClient {
     if (!this.player) return;
 
     // 1. Currencies & Core Stats
+    const nameEl = document.getElementById('top-player-name');
+    if (nameEl) {
+      nameEl.textContent = this.player.role === 'admin' 
+        ? `👑 ${this.player.username || 'Admin'}` 
+        : (this.player.username || 'Wanderer');
+    }
+
     document.getElementById('val-gold')!.textContent = this.player.gold.toLocaleString();
     document.getElementById('val-gems')!.textContent = this.player.gems.toLocaleString();
     document.getElementById('val-anima')!.textContent = this.player.anima.toLocaleString();
@@ -728,16 +741,45 @@ class EldoriaClient {
         ? `+${recipe.xp} XP (${xpHour.toLocaleString()} xp/h)` 
         : `<span style="color:#e53e3e;">Lv ${recipe.levelReq}</span>`;
 
+      // Find matching world node if one exists for direct recipe or its primary input
+      let matchingNode = this.worldNodes.find(n => n.recipeId === recipe.id);
+      if (!matchingNode && recipe.inputs && recipe.inputs.length > 0) {
+        const inputId = recipe.inputs[0].itemId;
+        const sourceRecipe = Object.values(RECIPES).find(r => r.outputItemId === inputId);
+        if (sourceRecipe) {
+          matchingNode = this.worldNodes.find(n => n.recipeId === sourceRecipe.id);
+        }
+      }
+
+      const iconSvg = ICONS[recipe.outputItemId] || ICONS[recipe.skill] || ICONS.skills;
+
       itemEl.innerHTML = `
-        <div class="job-item-header">
+        <div class="job-item-icon-box">
+          ${iconSvg}
+        </div>
+        <div class="job-item-body">
           <div class="job-name-wrap">
             <span>${recipe.name}</span>
+            ${matchingNode ? `<button class="btn-job-where" type="button" title="Walk to node">Where?</button>` : ''}
           </div>
-          <span class="job-rate">${rateText}</span>
+          <div class="job-details">${detailsText}</div>
         </div>
-        <div class="job-details">${detailsText}</div>
-        ${canMakeText}
+        <div class="job-item-side">
+          <span class="job-rate">${rateText}</span>
+          ${canMakeText}
+        </div>
       `;
+
+      const whereBtn = itemEl.querySelector('.btn-job-where');
+      if (whereBtn && matchingNode) {
+        const nodeToTarget = matchingNode;
+        whereBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          this.sendWs({ type: 'MOVE_TO', x: nodeToTarget.x, y: nodeToTarget.y });
+          this.showToast(`Traveling to ${nodeToTarget.name || recipe.name} (${nodeToTarget.x}, ${nodeToTarget.y})`);
+          this.closeSkillJobPopup();
+        });
+      }
 
       if (isUnlocked) {
         itemEl.addEventListener('click', () => {
@@ -992,6 +1034,55 @@ class EldoriaClient {
     document.getElementById('btn-drawer-open-hearth')!.onclick = () => {
       this.switchDrawer('storage');
     };
+
+    // Account / Character Identity Modal
+    const charPill = document.getElementById('top-character-pill');
+    const accountModal = document.getElementById('account-modal');
+    const accountCloseBtn = document.getElementById('account-close-btn');
+    const accountForm = document.getElementById('account-form') as HTMLFormElement | null;
+    const accountUserInput = document.getElementById('account-username-input') as HTMLInputElement | null;
+    const accountIdDisplay = document.getElementById('account-id-display');
+    const btnAccountNew = document.getElementById('btn-account-new');
+
+    if (charPill && accountModal) {
+      charPill.onclick = () => {
+        if (accountUserInput && this.player) {
+          accountUserInput.value = this.player.username || '';
+        }
+        if (accountIdDisplay && this.player) {
+          accountIdDisplay.textContent = this.player.id || '';
+        }
+        accountModal.classList.remove('hidden');
+        if (accountUserInput) accountUserInput.focus();
+      };
+    }
+
+    if (accountCloseBtn && accountModal) {
+      accountCloseBtn.onclick = () => {
+        accountModal.classList.add('hidden');
+      };
+    }
+
+    if (accountForm) {
+      accountForm.onsubmit = (e) => {
+        e.preventDefault();
+        if (accountUserInput && accountUserInput.value.trim()) {
+          const newName = accountUserInput.value.trim();
+          this.sendWs({ type: 'CHAT_MESSAGE', text: `/name ${newName}` });
+          if (accountModal) accountModal.classList.add('hidden');
+          this.showToast(`Updated adventurer name to "${newName}"`);
+        }
+      };
+    }
+
+    if (btnAccountNew) {
+      btnAccountNew.onclick = () => {
+        if (confirm('Create a new character? Your current character guest ID will be reset.')) {
+          localStorage.removeItem('eldoria_guest_id');
+          window.location.reload();
+        }
+      };
+    }
   }
 
   private openItemActionModal(index: number) {
