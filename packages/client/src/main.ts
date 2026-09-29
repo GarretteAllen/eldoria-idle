@@ -474,8 +474,9 @@ class EldoriaClient {
           if (typeof msg.playerX === 'number' && typeof msg.targetX === 'number') {
             this.renderer.addCombatProjectile(msg.playerX, msg.playerY, msg.targetX, msg.targetY, style);
           }
-          // Trigger attack animation strictly on hit
-          this.renderer.triggerPlayerAttack(style);
+          // Trigger attack animation on the specific attacking player (local or remote)
+          const attackerId = msg.attackerId || this.player?.id || 'self';
+          this.renderer.triggerPlayerAttack(style, attackerId);
 
           // Audio: weapon swing
           if (style === 'melee') sound.play('sword');
@@ -500,34 +501,41 @@ class EldoriaClient {
           } else if (msg.monsterHp !== undefined && msg.monsterHp <= 0) {
             sound.play('coin');
             this.renderer.addDeathEffect(targetX, targetY);
-            if (msg.xp) {
+            if (msg.xp && (!msg.attackerId || msg.attackerId === this.player?.id)) {
               this.renderer.addFloatingText(targetX, targetY - 0.5, `+${msg.xp} XP`, 'xp');
             }
           }
 
-          // Update active combat HUD
-          this.activeCombatMonster = {
-            id: msg.monsterId,
-            name: msg.monsterName || MONSTERS[msg.monsterId]?.name || 'Target',
-            level: MONSTERS[msg.monsterId]?.level,
-            currentHp: msg.monsterHp !== undefined ? msg.monsterHp : (this.activeCombatMonster?.currentHp ?? 10),
-            maxHp: msg.monsterMaxHp !== undefined ? msg.monsterMaxHp : (this.activeCombatMonster?.maxHp ?? 10),
-            combatStyle: style,
-          };
-          this.updateCombatHud();
-        } else if (msg.target === 'player') {
-          if (typeof msg.playerHp === 'number' && this.player) {
-            const dmg = typeof msg.damage === 'number' ? msg.damage : Math.max(0, this.player.currentHp - msg.playerHp);
-            this.player.currentHp = msg.playerHp;
-            if (dmg > 0) {
-              sound.play('impact');
-              this.renderer.addFloatingText(this.player.x, this.player.y, `-${dmg}`, 'damage');
-            } else {
-              sound.play('splash');
-              this.renderer.addFloatingText(this.player.x, this.player.y, '0', 'splash');
-            }
+          // Update active combat HUD only if local player is the attacker
+          if (!msg.attackerId || msg.attackerId === this.player?.id) {
+            this.activeCombatMonster = {
+              id: msg.monsterId,
+              name: msg.monsterName || MONSTERS[msg.monsterId]?.name || 'Target',
+              level: MONSTERS[msg.monsterId]?.level,
+              currentHp: msg.monsterHp !== undefined ? msg.monsterHp : (this.activeCombatMonster?.currentHp ?? 10),
+              maxHp: msg.monsterMaxHp !== undefined ? msg.monsterMaxHp : (this.activeCombatMonster?.maxHp ?? 10),
+              combatStyle: style,
+            };
+            this.updateCombatHud();
           }
-          this.updateCombatHud();
+        } else if (msg.target === 'player') {
+          const isMe = !msg.targetPlayerId || msg.targetPlayerId === this.player?.id;
+          const px = typeof msg.playerX === 'number' ? msg.playerX : (this.player?.x ?? 0);
+          const py = typeof msg.playerY === 'number' ? msg.playerY : (this.player?.y ?? 0);
+          const dmg = typeof msg.damage === 'number' ? msg.damage : 0;
+
+          if (isMe && typeof msg.playerHp === 'number' && this.player) {
+            this.player.currentHp = msg.playerHp;
+            this.updateCombatHud();
+          }
+
+          if (dmg > 0) {
+            sound.play('impact');
+            this.renderer.addFloatingText(px, py, `-${dmg}`, 'damage');
+          } else {
+            sound.play('splash');
+            this.renderer.addFloatingText(px, py, '0', 'splash');
+          }
         }
         break;
 

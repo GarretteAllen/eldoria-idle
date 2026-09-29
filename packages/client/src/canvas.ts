@@ -1,4 +1,4 @@
-import { PlayerData, NpcDefinition, WorldNode, MONSTERS, MONSTER_SPRITES, PLAYER_EQUIPMENT_SPRITES, EquipmentSpriteCoord, EquipSlot, InventorySlot } from '@eldoria/shared';
+import { PlayerData, NpcDefinition, WorldNode, ITEMS, MONSTERS, MONSTER_SPRITES, PLAYER_EQUIPMENT_SPRITES, EquipmentSpriteCoord, EquipSlot, InventorySlot } from '@eldoria/shared';
 import { StitchedWorld } from './ldtkLoader.js';
 
 export interface RemotePlayer {
@@ -85,19 +85,19 @@ export class WorldRenderer {
     });
   }
 
-  // Attack animation state: weapon animates strictly when an attack swing occurs!
-  public playerAttackAnim: {
+  // Attack animation state per player (both local player and other players in the world)
+  public playerAttackAnims = new Map<string, {
     startTime: number;
     duration: number;
     style: 'melee' | 'ranged' | 'magic';
-  } | null = null;
+  }>();
 
-  public triggerPlayerAttack(style: 'melee' | 'ranged' | 'magic') {
-    this.playerAttackAnim = {
+  public triggerPlayerAttack(style: 'melee' | 'ranged' | 'magic', playerId: string = 'self') {
+    this.playerAttackAnims.set(playerId, {
       startTime: performance.now(),
       duration: 380,
       style,
-    };
+    });
   }
 
   // Floating combat texts (hitsplats, miss, heals, gold drops)
@@ -397,13 +397,18 @@ export class WorldRenderer {
         remote.bankingState,
         undefined,
         remote.role === 'admin',
-        remote.equipment
+        remote.equipment,
+        remote.id
       );
     }
 
     // 9. Draw Local Player (Interpolated)
     if (this.localPlayer) {
       const isMoving = this.localPlayer.isMoving || (this.localPlayer.path && this.localPlayer.path.length > 0) || Math.hypot(this.localPlayer.x - this.visualX, this.localPlayer.y - this.visualY) > 0.1;
+      const currentTaskSkill = this.localPlayer.currentTask
+        ? ((this.localPlayer.currentTask.skill as string) === 'combat' ? this.getPlayerCombatStyle(this.localPlayer) : this.localPlayer.currentTask.skill)
+        : null;
+
       this.drawPlayer(
         this.visualX,
         this.visualY,
@@ -411,11 +416,12 @@ export class WorldRenderer {
         this.localPlayer.activeTitle,
         true,
         isMoving,
-        this.localPlayer.currentTask ? this.localPlayer.currentTask.skill : null,
+        currentTaskSkill,
         this.localPlayer.bankingState,
         this.localPlayer.moveSpeedTilesPerTick,
         this.localPlayer.role === 'admin',
-        this.localPlayer.equipment
+        this.localPlayer.equipment,
+        this.localPlayer.id
       );
     }
 
@@ -1208,6 +1214,15 @@ export class WorldRenderer {
     }
   }
 
+  private getPlayerCombatStyle(player: PlayerData): 'melee' | 'ranged' | 'magic' {
+    if (player.equipment?.weapon) {
+      const def = ITEMS[player.equipment.weapon.itemId];
+      if (def?.equipReq?.skill === 'ranged' || def?.id.includes('bow')) return 'ranged';
+      if (def?.equipReq?.skill === 'magic' || def?.id.includes('staff') || def?.id.includes('wand')) return 'magic';
+    }
+    return 'melee';
+  }
+
   private drawPlayer(
     x: number,
     y: number,
@@ -1219,7 +1234,8 @@ export class WorldRenderer {
     bankingState?: string,
     moveSpeed?: number,
     isAdmin: boolean = false,
-    equipment?: Partial<Record<EquipSlot, InventorySlot>>
+    equipment?: Partial<Record<EquipSlot, InventorySlot>>,
+    playerId?: string
   ) {
     const { ctx } = this;
     const px = x * TILE_SIZE + TILE_SIZE / 2;
@@ -1393,7 +1409,7 @@ export class WorldRenderer {
 
           // Attack animation strictly plays only during active attack swings!
           const now = performance.now();
-          const attack = isSelf ? this.playerAttackAnim : null;
+          const attack = playerId ? this.playerAttackAnims.get(playerId) : null;
           const isAttacking = Boolean(attack && (now - attack.startTime < attack.duration));
           const progress = isAttacking ? Math.min(1, Math.max(0, (now - attack!.startTime) / attack!.duration)) : 0;
 

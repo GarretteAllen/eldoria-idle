@@ -631,6 +631,7 @@ export class GameEngine {
         : `Equipped ${def.name}.`
     });
     this.send(session.ws, { type: 'PLAYER_UPDATE', player });
+    this.broadcastWorldState();
   }
 
 
@@ -652,6 +653,7 @@ export class GameEngine {
     storage.checkpoint();
 
     this.send(session.ws, { type: 'PLAYER_UPDATE', player });
+    this.broadcastWorldState();
   }
 
   private handleEatFood(session: ConnectedSession, invIndex: number) {
@@ -1786,9 +1788,10 @@ export class GameEngine {
       player.skills.hitpoints.xp = Math.max(1478, (player.skills.hitpoints.xp || 1478) + hpXp);
       player.skills.hitpoints.level = Math.max(10, getLevelFromXp(player.skills.hitpoints.xp));
 
-      this.send(ws, {
+      this.broadcast({
         type: 'COMBAT_HIT',
         target: 'monster',
+        attackerId: player.id,
         damage,
         combatStyle,
         monsterId: monsterDef.id,
@@ -1862,9 +1865,10 @@ export class GameEngine {
           player.currentTask.completedQuantity++;
         }
         storage.savePlayer(player);
-        this.send(ws, {
+        this.broadcast({
           type: 'COMBAT_HIT',
           target: 'monster',
+          attackerId: player.id,
           damage: 0,
           combatStyle,
           monsterId: monsterDef.id,
@@ -1910,14 +1914,17 @@ export class GameEngine {
         player.skills.defence.level = getLevelFromXp(player.skills.defence.xp);
       }
 
-      this.send(ws, {
+      this.broadcast({
         type: 'COMBAT_HIT',
         target: 'player',
+        targetPlayerId: player.id,
         damage: monsterDmg,
         monsterId: monsterDef.id,
         monsterName: monsterDef.name,
         playerHp: player.currentHp,
         playerMaxHp: player.skills.hitpoints?.level || 10,
+        playerX: player.x,
+        playerY: player.y,
         nodeId: combat.nodeId,
       });
 
@@ -1997,9 +2004,14 @@ export class GameEngine {
       id: s.player.id,
       name: s.player.username,
       title: s.player.activeTitle,
+      role: s.player.role,
       x: s.player.x,
       y: s.player.y,
-      currentTask: s.player.currentTask ? s.player.currentTask.skill : null,
+      isMoving: s.player.isMoving || Boolean(s.player.path && s.player.path.length > 0),
+      currentTask: s.player.currentTask
+        ? ((s.player.currentTask.skill as string) === 'combat' ? this.getPlayerCombatStyle(s.player) : s.player.currentTask.skill)
+        : null,
+      bankingState: s.player.bankingState,
       equipment: s.player.equipment,
     }));
 
