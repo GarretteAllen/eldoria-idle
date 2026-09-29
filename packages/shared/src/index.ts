@@ -5,4 +5,5 @@ export * from './items.js';
 export * from './recipes.js';
 export * from './monsters.js';
 export * from './monsterSprites.js';
+export * from './playerEquipmentSprites.js';
 export * from './formulas.js';

@@ -1335,6 +1335,7 @@ export class GameEngine {
       x: s.player.x,
       y: s.player.y,
       currentTask: s.player.currentTask ? s.player.currentTask.skill : null,
+      equipment: s.player.equipment,
     }));
 
     this.broadcast({

@@ -1,4 +1,4 @@
-import { PlayerData, NpcDefinition, WorldNode, MONSTER_SPRITES } from '@eldoria/shared';
+import { PlayerData, NpcDefinition, WorldNode, MONSTER_SPRITES, PLAYER_EQUIPMENT_SPRITES, EquipmentSpriteCoord, EquipSlot, InventorySlot } from '@eldoria/shared';
 import { StitchedWorld } from './ldtkLoader.js';
 
 export interface RemotePlayer {
@@ -11,6 +11,7 @@ export interface RemotePlayer {
   isMoving?: boolean;
   currentTask: string | null;
   bankingState?: string;
+  equipment?: Partial<Record<EquipSlot, InventorySlot>>;
 }
 
 export interface ChatBubble {
@@ -42,6 +43,7 @@ export class WorldRenderer {
   private stitchedWorld: StitchedWorld | null = null;
   private terrainCanvas: HTMLCanvasElement | null = null;
   private enemiesImage: HTMLImageElement | null = null;
+  private playerEquipmentImage: HTMLImageElement | null = null;
 
   // Editor states
   public editorMode: 'none' | 'place_node' | 'place_npc' | 'paint_collision' | 'erase_collision' = 'none';
@@ -73,6 +75,9 @@ export class WorldRenderer {
 
     this.enemiesImage = new Image();
     this.enemiesImage.src = '/maps/enemies.png';
+
+    this.playerEquipmentImage = new Image();
+    this.playerEquipmentImage.src = '/maps/player_equipment.png';
 
     this.resize();
     window.addEventListener('resize', () => this.resize());
@@ -327,7 +332,8 @@ export class WorldRenderer {
         remote.currentTask,
         remote.bankingState,
         undefined,
-        remote.role === 'admin'
+        remote.role === 'admin',
+        remote.equipment
       );
     }
 
@@ -344,7 +350,8 @@ export class WorldRenderer {
         this.localPlayer.currentTask ? this.localPlayer.currentTask.skill : null,
         this.localPlayer.bankingState,
         this.localPlayer.moveSpeedTilesPerTick,
-        this.localPlayer.role === 'admin'
+        this.localPlayer.role === 'admin',
+        this.localPlayer.equipment
       );
     }
 
@@ -701,7 +708,8 @@ export class WorldRenderer {
     taskSkill: string | null = null,
     bankingState?: string,
     moveSpeed?: number,
-    isAdmin: boolean = false
+    isAdmin: boolean = false,
+    equipment?: Partial<Record<EquipSlot, InventorySlot>>
   ) {
     const { ctx } = this;
     const px = x * TILE_SIZE + TILE_SIZE / 2;
@@ -709,38 +717,98 @@ export class WorldRenderer {
 
     ctx.save();
 
-    // Shadow
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
-    ctx.beginPath();
-    ctx.ellipse(px, py + 12, isMoving ? 14 : 10, 6, 0, 0, Math.PI * 2);
-    ctx.fill();
+    // Helper to resolve an equipment sprite from an itemId or key
+    const getSprite = (key?: string): EquipmentSpriteCoord | undefined => {
+      if (!key) return undefined;
+      if (PLAYER_EQUIPMENT_SPRITES[key]) return PLAYER_EQUIPMENT_SPRITES[key];
+      for (const k of Object.keys(PLAYER_EQUIPMENT_SPRITES)) {
+        if (key.includes(k) || k.includes(key)) return PLAYER_EQUIPMENT_SPRITES[k];
+      }
+      return undefined;
+    };
 
-    if (isMoving) {
-      // === MOUNTED STATE (Galloping on Steed) ===
+    // Helper to draw a 16x16 layer from player_equipment.png scaled to 32x32
+    const drawLayer = (coord?: EquipmentSpriteCoord, offX: number = 0, offY: number = 0, rotation?: number) => {
+      if (!coord || !this.playerEquipmentImage || !this.playerEquipmentImage.complete) return;
+      ctx.save();
+      ctx.imageSmoothingEnabled = false;
+      if (rotation !== undefined && rotation !== 0) {
+        ctx.translate(px + offX, py + offY);
+        ctx.rotate(rotation);
+        ctx.drawImage(
+          this.playerEquipmentImage,
+          coord.col * 16,
+          coord.row * 16,
+          16,
+          16,
+          -TILE_SIZE / 2,
+          -TILE_SIZE / 2,
+          TILE_SIZE,
+          TILE_SIZE
+        );
+      } else {
+        ctx.drawImage(
+          this.playerEquipmentImage,
+          coord.col * 16,
+          coord.row * 16,
+          16,
+          16,
+          px - TILE_SIZE / 2 + offX,
+          py - TILE_SIZE / 2 + offY,
+          TILE_SIZE,
+          TILE_SIZE
+        );
+      }
+      ctx.restore();
+    };
+
+    const isMounted = isMoving || (equipment && equipment.steed);
+
+    if (isMounted) {
+      // === MOUNTED GALLOPING ON STEED ===
       const gallopBob = Math.sin(this.animTick * 0.02) * 2;
 
-      // Horse Body
-      ctx.fillStyle = '#8b5a2b';
+      // Ground shadow under steed
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
       ctx.beginPath();
-      ctx.roundRect(px - 10, py - 2 + gallopBob, 20, 12, 4);
-      ctx.fill();
-      ctx.strokeStyle = '#5c3a1e';
-      ctx.stroke();
-
-      // Horse Head / Neck
-      ctx.fillStyle = '#7a4e25';
-      ctx.beginPath();
-      ctx.ellipse(px + 8, py - 4 + gallopBob, 6, 4, -0.4, 0, Math.PI * 2);
+      ctx.ellipse(px, py + 12, 14, 6, 0, 0, Math.PI * 2);
       ctx.fill();
 
-      // Rider on Mount
-      ctx.fillStyle = isSelf ? '#e5b338' : '#4299e1';
-      ctx.beginPath();
-      ctx.arc(px, py - 9 + gallopBob, 7, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = '#ffffff';
-      ctx.lineWidth = 1;
-      ctx.stroke();
+      // 1. Draw Steed
+      const steedCoord = getSprite(equipment?.steed?.itemId || 'steed_courser');
+      drawLayer(steedCoord, 0, gallopBob);
+
+      // Rider seated in the saddle
+      const riderY = -3 + gallopBob;
+
+      // 2. Base Body
+      drawLayer(getSprite('base_male'), -1, riderY);
+
+      // 3. Leg Armor
+      const legCoord = getSprite(equipment?.legs?.itemId) || getSprite('tunic_pants');
+      drawLayer(legCoord, -1, riderY);
+
+      // 4. Body Armor
+      const bodyCoord = getSprite(equipment?.body?.itemId) || getSprite('tunic_cloth');
+      drawLayer(bodyCoord, -1, riderY);
+
+      // 5. Helmet / Hair
+      const helmCoord = getSprite(equipment?.helmet?.itemId);
+      if (helmCoord) {
+        drawLayer(helmCoord, -1, riderY);
+      } else if (isAdmin) {
+        drawLayer(getSprite('astralite_helm'), -1, riderY);
+      } else {
+        drawLayer(getSprite('hair_adventurer'), -1, riderY);
+      }
+
+      // 6. Shield / Offhand
+      const shieldCoord = getSprite(equipment?.shield?.itemId);
+      if (shieldCoord) drawLayer(shieldCoord, -1, riderY);
+
+      // 7. Weapon
+      const weaponCoord = getSprite(equipment?.weapon?.itemId) || getSprite(equipment?.tool?.itemId) || getSprite('steel_blade');
+      drawLayer(weaponCoord, -1, riderY);
 
       // Speed Tag
       if (moveSpeed) {
@@ -750,42 +818,50 @@ export class WorldRenderer {
         ctx.fillText(`${moveSpeed.toFixed(1)} t/t`, px, py + 22);
       }
     } else {
-      // === DISMOUNTED / GATHERING / WORKING STATE ===
-      const breatheBob = Math.sin(this.animTick * 0.003) * 1;
+      // === DISMOUNTED / WORKING / IDLE ===
+      const breatheBob = Math.sin(this.animTick * 0.003) * 1.5;
 
-      // Character Cloak / Torso
-      ctx.fillStyle = isSelf ? '#2b6cb0' : '#4a5568';
+      // Ground shadow under player
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
       ctx.beginPath();
-      ctx.arc(px, py + 2 + breatheBob, 8, 0, Math.PI * 2);
+      ctx.ellipse(px, py + 12, 10, 5, 0, 0, Math.PI * 2);
       ctx.fill();
 
-      // Head
-      ctx.fillStyle = isSelf ? '#e5b338' : '#cbd5e0';
-      ctx.beginPath();
-      ctx.arc(px, py - 6 + breatheBob, 5, 0, Math.PI * 2);
-      ctx.fill();
+      // 1. Base Body
+      drawLayer(getSprite('base_male'), 0, breatheBob);
 
-      // If working, animate swinging vector tool
+      // 2. Leg Armor
+      const legCoord = getSprite(equipment?.legs?.itemId) || getSprite('tunic_pants');
+      drawLayer(legCoord, 0, breatheBob);
+
+      // 3. Body Armor
+      const bodyCoord = getSprite(equipment?.body?.itemId) || getSprite('tunic_cloth');
+      drawLayer(bodyCoord, 0, breatheBob);
+
+      // 4. Helmet / Hair
+      const helmCoord = getSprite(equipment?.helmet?.itemId);
+      if (helmCoord) {
+        drawLayer(helmCoord, 0, breatheBob);
+      } else if (isAdmin) {
+        drawLayer(getSprite('astralite_helm'), 0, breatheBob);
+      } else {
+        drawLayer(getSprite('hair_adventurer'), 0, breatheBob);
+      }
+
+      // 5. Shield / Offhand
+      const shieldCoord = getSprite(equipment?.shield?.itemId);
+      if (shieldCoord) drawLayer(shieldCoord, 0, breatheBob);
+
+      // 6. Weapon / Tool
       if (taskSkill) {
-        const swing = Math.sin(this.animTick * 0.012) * 0.8;
-        ctx.save();
-        ctx.translate(px + 7, py + 2);
-        ctx.rotate(swing);
-        // Wooden handle
-        ctx.strokeStyle = '#8b5a2b';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(0, 0);
-        ctx.lineTo(8, -8);
-        ctx.stroke();
-        // Iron head
-        ctx.strokeStyle = '#cbd5e1';
-        ctx.lineWidth = 2.5;
-        ctx.beginPath();
-        ctx.moveTo(4, -11);
-        ctx.lineTo(11, -4);
-        ctx.stroke();
-        ctx.restore();
+        const swing = Math.sin(this.animTick * 0.012) * 0.4;
+        const toolCoord = getSprite(equipment?.tool?.itemId) || getSprite('rune_pickaxe_steel');
+        drawLayer(toolCoord, 0, breatheBob, swing);
+      } else {
+        const weaponCoord = getSprite(equipment?.weapon?.itemId) || getSprite(equipment?.tool?.itemId);
+        if (weaponCoord) {
+          drawLayer(weaponCoord, 0, breatheBob);
+        }
       }
     }
 
@@ -812,15 +888,16 @@ export class WorldRenderer {
 
     // Name & Title
     ctx.textAlign = 'center';
-    ctx.font = 'bold 11px system-ui';
+    ctx.font = 'bold 11px system-ui, -apple-system, BlinkMacSystemFont, sans-serif';
     ctx.fillStyle = isSelf ? '#ffd700' : '#e2e8f0';
     ctx.fillText(name, px, py - 14);
 
     if (title) {
-      ctx.font = 'italic 9px system-ui';
+      ctx.font = 'italic 9px system-ui, -apple-system, BlinkMacSystemFont, sans-serif';
       ctx.fillStyle = '#a0aec0';
       ctx.fillText(`"${title}"`, px, py - 24);
     }
+
 
     ctx.restore();
   }
