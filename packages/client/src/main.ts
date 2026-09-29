@@ -568,11 +568,14 @@ class EldoriaClient {
     }
 
     if (drawer !== 'editor') {
+      this.renderer.editorMode = 'none';
+      this.renderer.showCollisions = false;
       const chk = document.getElementById('chk-show-collisions') as HTMLInputElement | null;
-      if (!chk || !chk.checked) {
-        this.renderer.showCollisions = false;
-        this.renderer.editorMode = 'none';
-      }
+      if (chk) chk.checked = false;
+      const btnPaint = document.getElementById('btn-brush-paint');
+      const btnErase = document.getElementById('btn-brush-erase');
+      if (btnPaint) btnPaint.classList.remove('active');
+      if (btnErase) btnErase.classList.remove('active');
     }
   }
 
@@ -1834,7 +1837,7 @@ class EldoriaClient {
 
       card.querySelector('.btn-micro-del')!.addEventListener('click', () => {
         if (confirm(`Delete node "${n.name}"?`)) {
-          this.sendWs({ type: 'ADMIN_DELETE_NODE', id: n.id });
+          this.sendWs({ type: 'ADMIN_DELETE_NODE', nodeId: n.id, id: n.id });
         }
       });
 
@@ -1874,7 +1877,7 @@ class EldoriaClient {
 
       card.querySelector('.btn-micro-del')!.addEventListener('click', () => {
         if (confirm(`Delete monster spawn "${m.name}"?`)) {
-          this.sendWs({ type: 'ADMIN_DELETE_NODE', id: m.id });
+          this.sendWs({ type: 'ADMIN_DELETE_NODE', nodeId: m.id, id: m.id });
         }
       });
 
@@ -1915,7 +1918,7 @@ class EldoriaClient {
 
       card.querySelector('.btn-micro-del')!.addEventListener('click', () => {
         if (confirm(`Delete NPC "${npc.name}"?`)) {
-          this.sendWs({ type: 'ADMIN_DELETE_NPC', id: npc.id });
+          this.sendWs({ type: 'ADMIN_DELETE_NPC', npcId: npc.id, id: npc.id });
         }
       });
 
@@ -1965,7 +1968,7 @@ class EldoriaClient {
 
       card.querySelector('.btn-micro-del')!.addEventListener('click', () => {
         if (confirm(`Delete Quest "${q.title}"?`)) {
-          this.sendWs({ type: 'ADMIN_DELETE_QUEST', id: q.id });
+          this.sendWs({ type: 'ADMIN_DELETE_QUEST', questId: q.id, id: q.id });
         }
       });
 

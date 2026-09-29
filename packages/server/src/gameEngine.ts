@@ -309,12 +309,13 @@ export class GameEngine {
           this.send(session.ws, { type: 'NOTIFICATION', message: '❌ Admin privileges required.' });
           break;
         }
-        if (msg.nodeId) {
-          storage.deleteWorldNode(msg.nodeId);
+        const deleteNodeId = msg.nodeId || msg.id;
+        if (deleteNodeId) {
+          storage.deleteWorldNode(deleteNodeId);
           this.broadcast({ type: 'WORLD_NODES_UPDATE', nodes: storage.getWorldNodes() });
           this.send(session.ws, {
             type: 'NOTIFICATION',
-            message: `Node ${msg.nodeId} deleted.`
+            message: `Node ${deleteNodeId} deleted.`
           });
         }
         break;
@@ -339,12 +340,13 @@ export class GameEngine {
           this.send(session.ws, { type: 'NOTIFICATION', message: '❌ Admin privileges required.' });
           break;
         }
-        if (msg.npcId) {
-          storage.deleteNpc(msg.npcId);
+        const deleteNpcId = msg.npcId || msg.id;
+        if (deleteNpcId) {
+          storage.deleteNpc(deleteNpcId);
           this.broadcast({ type: 'NPCS_UPDATE', npcs: storage.getNpcs() });
           this.send(session.ws, {
             type: 'NOTIFICATION',
-            message: `NPC ${msg.npcId} deleted.`
+            message: `NPC ${deleteNpcId} deleted.`
           });
         }
         break;
@@ -369,12 +371,13 @@ export class GameEngine {
           this.send(session.ws, { type: 'NOTIFICATION', message: '❌ Admin privileges required.' });
           break;
         }
-        if (msg.questId) {
-          storage.deleteQuest(msg.questId);
+        const deleteQuestId = msg.questId || msg.id;
+        if (deleteQuestId) {
+          storage.deleteQuest(deleteQuestId);
           this.broadcast({ type: 'QUESTS_UPDATE', quests: storage.getQuests() });
           this.send(session.ws, {
             type: 'NOTIFICATION',
-            message: `Quest ${msg.questId} deleted.`
+            message: `Quest ${deleteQuestId} deleted.`
           });
         }
         break;
