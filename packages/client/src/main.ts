@@ -622,12 +622,19 @@ class EldoriaClient {
     const mNameEl = document.getElementById('combat-hud-monster-name');
     const mHpTextEl = document.getElementById('combat-hud-monster-hp-text');
     const mHpFillEl = document.getElementById('combat-hud-monster-hp-fill');
-    const styleTagEl = document.getElementById('combat-hud-style-tag');
 
     if (mNameEl) mNameEl.textContent = m.level ? `${m.name} [Lvl ${m.level}]` : m.name;
     if (mHpTextEl) mHpTextEl.textContent = `${mCurHp} / ${mMaxHp} HP`;
     if (mHpFillEl) mHpFillEl.style.width = `${mPct}%`;
-    if (styleTagEl) styleTagEl.textContent = (m.combatStyle || this.getPlayerCombatStyle()).toUpperCase();
+
+    const styleIconEl = document.getElementById('combat-hud-style-icon');
+    if (styleIconEl) {
+      const style = m.combatStyle || this.getPlayerCombatStyle();
+      const svg = ICONS[style] || ICONS.melee;
+      if (styleIconEl.innerHTML !== svg) {
+        styleIconEl.innerHTML = svg;
+      }
+    }
   }
 
   private updateTasksCard() {
