@@ -1078,7 +1078,7 @@ export class GameEngine {
               player.bankReturnTask = null;
               if (MONSTERS[player.currentTask.recipeId]) {
                 const mobId = player.currentTask.recipeId;
-                this.startCombatSession(session, mobId, player.currentTask.targetNodeX || player.x, player.currentTask.targetNodeY || player.y);
+                this.startCombatSession(session, mobId, player.currentTask.targetNodeX || player.x, player.currentTask.targetNodeY || player.y, player.currentTask.targetNodeId);
               } else {
                 this.send(ws, {
                   type: 'NOTIFICATION',
@@ -1684,11 +1684,17 @@ export class GameEngine {
     const monsterDef = MONSTERS[monsterId];
     if (!monsterDef) return;
 
+    let effectiveNodeId = nodeId;
+    if (!effectiveNodeId) {
+      const match = storage.getWorldNodes().find(n => n.type === 'monster' && n.x === targetX && n.y === targetY);
+      effectiveNodeId = match ? match.id : `mob_${targetX}_${targetY}`;
+    }
+
     session.activeCombat = {
       monsterId,
       targetX,
       targetY,
-      nodeId,
+      nodeId: effectiveNodeId,
       currentHp: monsterDef.hp,
       maxHp: monsterDef.hp,
       playerSwingTicks: 0,
@@ -1704,6 +1710,7 @@ export class GameEngine {
       completedQuantity: 0,
       targetNodeX: targetX,
       targetNodeY: targetY,
+      targetNodeId: effectiveNodeId,
     };
 
     this.send(ws, { type: 'PLAYER_UPDATE', player });
@@ -1855,6 +1862,22 @@ export class GameEngine {
           player.currentTask.completedQuantity++;
         }
         storage.savePlayer(player);
+        this.send(ws, {
+          type: 'COMBAT_HIT',
+          target: 'monster',
+          damage: 0,
+          combatStyle,
+          monsterId: monsterDef.id,
+          monsterName: monsterDef.name,
+          monsterHp: combat.maxHp,
+          monsterMaxHp: combat.maxHp,
+          nodeId: combat.nodeId,
+          playerX: player.x,
+          playerY: player.y,
+          targetX: combat.targetX,
+          targetY: combat.targetY,
+          isRespawn: true,
+        });
         this.send(ws, { type: 'PLAYER_UPDATE', player });
         return;
       }

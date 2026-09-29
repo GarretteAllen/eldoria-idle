@@ -466,11 +466,9 @@ class EldoriaClient {
 
       case 'COMBAT_HIT':
         if (msg.target === 'monster') {
-          if (msg.monsterId && msg.monsterHp !== undefined && msg.monsterMaxHp !== undefined) {
-            this.renderer.monsterHpMap.set(msg.monsterId, { currentHp: msg.monsterHp, maxHp: msg.monsterMaxHp });
-          }
-          if (msg.nodeId && msg.monsterHp !== undefined && msg.monsterMaxHp !== undefined) {
-            this.renderer.monsterHpMap.set(msg.nodeId, { currentHp: msg.monsterHp, maxHp: msg.monsterMaxHp });
+          const targetKey = msg.nodeId || (typeof msg.targetX === 'number' && typeof msg.targetY === 'number' ? `mob_${msg.targetX}_${msg.targetY}` : msg.monsterId);
+          if (targetKey && msg.monsterHp !== undefined && msg.monsterMaxHp !== undefined) {
+            this.renderer.monsterHpMap.set(targetKey, { currentHp: msg.monsterHp, maxHp: msg.monsterMaxHp });
           }
           const style = (msg.combatStyle || this.getPlayerCombatStyle()) as 'melee' | 'ranged' | 'magic';
           if (typeof msg.playerX === 'number' && typeof msg.targetX === 'number') {
@@ -485,7 +483,6 @@ class EldoriaClient {
           else if (style === 'magic') sound.play('spell');
 
           const dmg = typeof msg.damage === 'number' ? msg.damage : (msg.hit ? 1 : 0);
-          const targetKey = msg.nodeId || msg.monsterId;
           const targetX = typeof msg.targetX === 'number' ? msg.targetX : (this.worldNodes.find(n => n.id === targetKey)?.x ?? this.player?.x ?? 0);
           const targetY = typeof msg.targetY === 'number' ? msg.targetY : (this.worldNodes.find(n => n.id === targetKey)?.y ?? this.player?.y ?? 0);
 
@@ -493,12 +490,14 @@ class EldoriaClient {
             sound.play('impact');
             this.renderer.addFloatingText(targetX, targetY, `-${dmg}`, 'damage');
             if (targetKey) this.renderer.triggerMonsterFlinch(targetKey);
-          } else {
+          } else if (!msg.isRespawn) {
             sound.play('splash');
             this.renderer.addFloatingText(targetX, targetY, '0', 'splash');
           }
 
-          if (msg.monsterHp !== undefined && msg.monsterHp <= 0) {
+          if (msg.isRespawn && targetKey) {
+            this.renderer.monsterHpMap.set(targetKey, { currentHp: msg.monsterMaxHp, maxHp: msg.monsterMaxHp });
+          } else if (msg.monsterHp !== undefined && msg.monsterHp <= 0) {
             sound.play('coin');
             this.renderer.addDeathEffect(targetX, targetY);
             if (msg.xp) {
@@ -845,12 +844,6 @@ class EldoriaClient {
     return { x: hearthNodes[0].x, y: hearthNodes[0].y };
   }
 
-  private getFightLocation(): { x: number; y: number } {
-    const monsterNode = this.worldNodes.find(n => n.type === 'monster' || n.type === 'boss_arena');
-    if (monsterNode) return { x: monsterNode.x, y: monsterNode.y };
-    return { x: 4, y: 44 };
-  }
-
   private setupTasksCard() {
     document.getElementById('task-stop-btn')!.onclick = () => {
       this.sendWs({ type: 'STOP_TASK' });
@@ -900,8 +893,7 @@ class EldoriaClient {
     });
 
     document.getElementById('btn-quick-fight')!.onclick = () => {
-      const fight = this.getFightLocation();
-      this.sendWs({ type: 'MOVE_TO', x: fight.x, y: fight.y });
+      this.openCombatDirectory();
     };
 
     document.getElementById('btn-quick-home')!.onclick = () => {
@@ -1001,7 +993,11 @@ class EldoriaClient {
       `;
 
       card.addEventListener('click', () => {
-        this.openSkillJobPopup(skillKey);
+        if (COMBAT_SKILLS.includes(skillKey)) {
+          this.openCombatDirectory(skillKey);
+        } else {
+          this.openSkillJobPopup(skillKey);
+        }
       });
 
       container.appendChild(card);
@@ -1047,11 +1043,17 @@ class EldoriaClient {
 
     // Stop button
     document.getElementById('btn-job-stop')!.onclick = () => {
+      this.pendingMonsterTarget = null;
       this.sendWs({ type: 'STOP_TASK' });
     };
   }
 
   private openSkillJobPopup(skillKey: SkillType, selectRecipeId?: string) {
+    if (COMBAT_SKILLS.includes(skillKey)) {
+      this.openCombatDirectory(skillKey);
+      return;
+    }
+
     this.selectedSkillKey = skillKey;
     this.isPopupOpen = true;
 
@@ -1072,6 +1074,161 @@ class EldoriaClient {
     this.renderSkillsDrawer();
   }
 
+  private openCombatDirectory(focusedSkill: SkillType = 'melee') {
+    this.selectedSkillKey = focusedSkill;
+    this.isPopupOpen = true;
+
+    const popup = document.getElementById('skill-job-popup')!;
+    popup.classList.remove('hidden');
+
+    this.updateCombatDirectory(focusedSkill);
+    this.renderSkillsDrawer();
+  }
+
+  private updateCombatDirectory(focusedSkill: SkillType = 'melee') {
+    if (!this.player) return;
+    const cleanName = focusedSkill.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
+    const record = this.player.skills[focusedSkill] || { level: 1, xp: 0 };
+    const { percent } = getXpToNextLevel(record.level, record.xp);
+
+    const isFighting = Boolean(this.player.currentTask && (this.player.currentTask.skill as string) === 'combat');
+    const activeMobId = isFighting ? this.player.currentTask?.recipeId : null;
+
+    // Header & Titles
+    document.getElementById('popup-selected-title')!.textContent = `${cleanName} ${record.level}`;
+    document.getElementById('popup-header-sub')!.textContent = `${cleanName} ${record.level} · ${percent.toFixed(2)}% to ${record.level + 1}`;
+    document.getElementById('popup-skill-heading')!.textContent = `Monster Habitats & Hunting`;
+    document.getElementById('popup-skill-desc')!.textContent = `Travel to wild creature territories across Eldoria. Engage quarry in combat to gain combat experience, pelts, and rare treasures.`;
+
+    const statusPill = document.getElementById('popup-status-pill')!;
+    if (isFighting) {
+      statusPill.textContent = 'fighting';
+      statusPill.className = 'status-pill';
+      statusPill.style.background = '#9b2c2c';
+    } else {
+      statusPill.textContent = 'idle';
+      statusPill.className = 'status-pill';
+      statusPill.style.background = '#4a2f1a';
+    }
+
+    const nextGoalEl = document.getElementById('popup-next-text')!;
+    nextGoalEl.textContent = `Habitats: The Murkwarrens (Lv 2) to Sunken Barrow (Lv 12)`;
+
+    const jobsHeading = document.getElementById('popup-jobs-heading')!;
+    if (jobsHeading) jobsHeading.textContent = `Huntable Foes & Habitats`;
+
+    // Footer adjustments for combat
+    const howManyRow = document.querySelector('.how-many-row') as HTMLElement | null;
+    if (howManyRow) howManyRow.style.display = 'none';
+
+    const btnStart = document.getElementById('btn-job-start') as HTMLElement | null;
+    if (btnStart) btnStart.style.display = 'none';
+
+    const btnStop = document.getElementById('btn-job-stop') as HTMLElement | null;
+    if (btnStop) {
+      btnStop.style.display = isFighting ? 'inline-block' : 'none';
+      btnStop.textContent = 'Flee Combat';
+    }
+
+    const popupNote = document.querySelector('.popup-note') as HTMLElement | null;
+    if (popupNote) {
+      popupNote.textContent = 'Select any enemy to travel to their territory and fight continuously.';
+    }
+
+    // Foes list
+    const jobsContainer = document.getElementById('popup-jobs-list')!;
+    jobsContainer.innerHTML = '';
+
+    const monstersList = Object.values(MONSTERS).sort((a, b) => a.level - b.level);
+    for (const mob of monstersList) {
+      const matchingNodes = this.worldNodes.filter(n => n.type === 'monster' && n.monsterId === mob.id);
+      const hasNodes = matchingNodes.length > 0;
+      const isTargeted = Boolean(activeMobId === mob.id);
+
+      const itemEl = document.createElement('div');
+      itemEl.className = `popup-job-item combat-job-item ${isTargeted ? 'selected' : ''}`;
+
+      let dropsSummary = '';
+      if (mob.guaranteedDropItemId) {
+        dropsSummary += ITEMS[mob.guaranteedDropItemId]?.name || mob.guaranteedDropItemId;
+      }
+      dropsSummary += (dropsSummary ? ' · ' : '') + `${mob.minCoins}-${mob.maxCoins} coins`;
+      if (mob.rareDrop && ITEMS[mob.rareDrop.itemId]) {
+        dropsSummary += ` · Rare: ${ITEMS[mob.rareDrop.itemId].name}`;
+      }
+
+      itemEl.innerHTML = `
+        <div class="job-item-icon-box" style="background: #1c0e08; border-color: ${isTargeted ? '#e53e3e' : '#844c27'}; color: #feb2b2;">
+          <span style="font-size: 1.2rem;">⚔️</span>
+        </div>
+        <div class="job-item-body">
+          <div class="job-name-wrap">
+            <span style="font-weight: 700; color: #ffd699;">${mob.name}</span>
+            <span style="font-size: 0.7rem; font-weight: 700; color: #feb2b2; background: rgba(155, 44, 44, 0.4); padding: 1px 5px; border-radius: 3px; border: 1px solid #742a2a;">Lv ${mob.level}</span>
+            <span style="font-size: 0.7rem; color: #a0aec0; margin-left: 2px;">· ${mob.zone}</span>
+          </div>
+          <div class="job-details" style="color: #cbd5e0; margin-top: 2px;">
+            <span style="color: #68d391; font-weight: 600;">${mob.hp} HP</span> · Max Hit: <b style="color: #fc8181;">${mob.maxHit}</b> · Spd: ${mob.swingSpeedSeconds}s · <span style="color: #f6ad55;">+${mob.xp} XP</span>
+          </div>
+          <div class="job-details" style="color: #9c8a79; font-size: 0.68rem; margin-top: 2px;">
+            Drops: <span style="color: #e2e8f0;">${dropsSummary}</span>
+          </div>
+        </div>
+        <div class="job-item-side" style="display: flex; flex-direction: column; align-items: flex-end; justify-content: center; gap: 4px;">
+          <button class="btn-start btn-fight-foe" type="button" style="padding: 4px 10px; font-size: 0.74rem; white-space: nowrap; ${isTargeted ? 'background: #9b2c2c;' : ''}">
+            ${isTargeted ? 'Fighting' : '⚔️ Fight'}
+          </button>
+          ${hasNodes ? `<span style="font-size: 0.65rem; color: #718096;">${matchingNodes.length} in habitat</span>` : `<span style="font-size: 0.65rem; color: #718096;">Uncharted</span>`}
+        </div>
+      `;
+
+      itemEl.addEventListener('click', () => {
+        this.huntMonster(mob.id);
+      });
+
+      jobsContainer.appendChild(itemEl);
+    }
+  }
+
+  private huntMonster(monsterId: string) {
+    const mobDef = MONSTERS[monsterId];
+    if (!mobDef) return;
+
+    const matchingNodes = this.worldNodes.filter(n => n.type === 'monster' && n.monsterId === monsterId);
+    if (matchingNodes.length === 0) {
+      this.showToast(`No habitat found for ${mobDef.name} yet.`);
+      return;
+    }
+
+    // Sort by proximity to player to pick the closest one in the cluster
+    const px = this.player?.x ?? 0;
+    const py = this.player?.y ?? 0;
+    matchingNodes.sort((a, b) => Math.hypot(a.x - px, a.y - py) - Math.hypot(b.x - px, b.y - py));
+    const targetNode = matchingNodes[0];
+
+    const maxRange = this.getCombatMaxRange();
+    const dist = Math.hypot(px - targetNode.x, py - targetNode.y);
+
+    if (dist <= maxRange) {
+      this.pendingMonsterTarget = null;
+      this.sendWs({
+        type: 'START_COMBAT',
+        nodeId: targetNode.id,
+        monsterId: targetNode.monsterId || monsterId,
+        targetX: targetNode.x,
+        targetY: targetNode.y,
+      });
+      this.showToast(`Engaging ${targetNode.name} in ${mobDef.zone}!`);
+    } else {
+      this.pendingMonsterTarget = targetNode;
+      const targetTile = this.getAdjacentWalkableTile(targetNode.x, targetNode.y);
+      this.sendWs({ type: 'MOVE_TO', x: targetTile.x, y: targetTile.y });
+      this.showToast(`Traveling to ${mobDef.zone} to hunt ${targetNode.name}...`);
+    }
+
+    this.closeSkillJobPopup();
+  }
+
   private closeSkillJobPopup() {
     this.isPopupOpen = false;
     document.getElementById('skill-job-popup')!.classList.add('hidden');
@@ -1081,6 +1238,28 @@ class EldoriaClient {
   private updateSkillJobPopup() {
     if (!this.player) return;
     const skillKey = this.selectedSkillKey;
+    if (COMBAT_SKILLS.includes(skillKey)) {
+      this.updateCombatDirectory(skillKey);
+      return;
+    }
+
+    // Restore standard crafting/gathering popup UI
+    const howManyRow = document.querySelector('.how-many-row') as HTMLElement | null;
+    if (howManyRow) howManyRow.style.display = 'flex';
+    const btnStart = document.getElementById('btn-job-start') as HTMLElement | null;
+    if (btnStart) btnStart.style.display = 'inline-block';
+    const btnStop = document.getElementById('btn-job-stop') as HTMLElement | null;
+    if (btnStop) {
+      btnStop.style.display = 'inline-block';
+      btnStop.textContent = 'Stop';
+    }
+    const popupNote = document.querySelector('.popup-note') as HTMLElement | null;
+    if (popupNote) {
+      popupNote.textContent = 'Draws the materials from storage, works, and stores what it made.';
+    }
+    const jobsHeading = document.getElementById('popup-jobs-heading')!;
+    if (jobsHeading) jobsHeading.textContent = 'Jobs & Veins';
+
     const record = this.player.skills[skillKey] || { level: 1, xp: 0 };
     const { percent } = getXpToNextLevel(record.level, record.xp);
     const cleanName = skillKey.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());

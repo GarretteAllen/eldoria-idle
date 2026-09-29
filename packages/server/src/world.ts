@@ -38,10 +38,31 @@ export const WORLD_NODES: WorldNode[] = [
   { id: 'shore_salmon', name: 'Solar Crest Rapids', type: 'water', x: 6, y: 40, recipeId: 'fish_salmon' },
   { id: 'shore_mawshark', name: 'Abyssal Depth', type: 'water', x: 10, y: 42, recipeId: 'fish_mawshark' },
 
-  // --- Monster Hunting Grounds ---
-  { id: 'mob_mire_rat', name: 'Mire-Rat Burrow', type: 'monster', x: 4, y: 44, monsterId: 'mire_rat' },
-  { id: 'mob_stone_carapace', name: 'Cragridge Carapaces', type: 'monster', x: 8, y: 44, monsterId: 'stone_carapace' },
-  { id: 'mob_fen_creeper', name: 'Dread Marsh Creepers', type: 'monster', x: 12, y: 44, monsterId: 'fen_creeper' },
+  // --- Monster Hunting Grounds & Habitats ---
+  // Zone 1: The Murkwarrens (Mire-Rats · Lv 2)
+  { id: 'mob_mire_rat_1', name: 'Mire-Rat', type: 'monster', x: 3, y: 44, monsterId: 'mire_rat' },
+  { id: 'mob_mire_rat_2', name: 'Mire-Rat', type: 'monster', x: 5, y: 43, monsterId: 'mire_rat' },
+  { id: 'mob_mire_rat_3', name: 'Mire-Rat', type: 'monster', x: 4, y: 46, monsterId: 'mire_rat' },
+
+  // Zone 2: Cragridge (Stone Carapaces · Lv 3)
+  { id: 'mob_stone_carapace_1', name: 'Stone Carapace', type: 'monster', x: 8, y: 43, monsterId: 'stone_carapace' },
+  { id: 'mob_stone_carapace_2', name: 'Stone Carapace', type: 'monster', x: 9, y: 45, monsterId: 'stone_carapace' },
+  { id: 'mob_stone_carapace_3', name: 'Stone Carapace', type: 'monster', x: 7, y: 46, monsterId: 'stone_carapace' },
+
+  // Zone 3: Dread Marsh (Fen Creepers · Lv 5)
+  { id: 'mob_fen_creeper_1', name: 'Fen Creeper', type: 'monster', x: 12, y: 43, monsterId: 'fen_creeper' },
+  { id: 'mob_fen_creeper_2', name: 'Fen Creeper', type: 'monster', x: 14, y: 44, monsterId: 'fen_creeper' },
+  { id: 'mob_fen_creeper_3', name: 'Fen Creeper', type: 'monster', x: 11, y: 46, monsterId: 'fen_creeper' },
+
+  // Zone 4: Blackbog (Mire Ghouls · Lv 8)
+  { id: 'mob_mire_ghoul_1', name: 'Mire Ghoul', type: 'monster', x: 17, y: 43, monsterId: 'mire_ghoul' },
+  { id: 'mob_mire_ghoul_2', name: 'Mire Ghoul', type: 'monster', x: 18, y: 45, monsterId: 'mire_ghoul' },
+  { id: 'mob_mire_ghoul_3', name: 'Mire Ghoul', type: 'monster', x: 16, y: 46, monsterId: 'mire_ghoul' },
+
+  // Zone 5: Sunken Barrow (Carrion Scarabs · Lv 12)
+  { id: 'mob_carrion_scarab_1', name: 'Carrion Scarab', type: 'monster', x: 21, y: 43, monsterId: 'carrion_scarab' },
+  { id: 'mob_carrion_scarab_2', name: 'Carrion Scarab', type: 'monster', x: 22, y: 45, monsterId: 'carrion_scarab' },
+  { id: 'mob_carrion_scarab_3', name: 'Carrion Scarab', type: 'monster', x: 20, y: 46, monsterId: 'carrion_scarab' },
 
   // --- World Boss Arena ---
   { id: 'boss_arena', name: 'Astral Primordial Crater', type: 'boss_arena', x: 24, y: 28 },

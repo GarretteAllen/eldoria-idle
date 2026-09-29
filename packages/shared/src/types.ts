@@ -155,6 +155,7 @@ export interface ActiveTask {
   completedQuantity: number;
   targetNodeX?: number;
   targetNodeY?: number;
+  targetNodeId?: string;
 }
 
 export interface QueuedTask {

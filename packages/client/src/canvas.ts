@@ -1,4 +1,4 @@
-import { PlayerData, NpcDefinition, WorldNode, MONSTER_SPRITES, PLAYER_EQUIPMENT_SPRITES, EquipmentSpriteCoord, EquipSlot, InventorySlot } from '@eldoria/shared';
+import { PlayerData, NpcDefinition, WorldNode, MONSTERS, MONSTER_SPRITES, PLAYER_EQUIPMENT_SPRITES, EquipmentSpriteCoord, EquipSlot, InventorySlot } from '@eldoria/shared';
 import { StitchedWorld } from './ldtkLoader.js';
 
 export interface RemotePlayer {
@@ -895,8 +895,92 @@ export class WorldRenderer {
     ctx.restore();
   }
 
+  private drawMonsterZones() {
+    const { ctx } = this;
+    const monsterNodes = this.nodes.filter(n => n.type === 'monster');
+    if (monsterNodes.length === 0) return;
+
+    // Group monster nodes by monsterId
+    const groups = new Map<string, WorldNodeDisplay[]>();
+    for (const node of monsterNodes) {
+      const mobId = node.monsterId || 'mire_rat';
+      if (!groups.has(mobId)) groups.set(mobId, []);
+      groups.get(mobId)!.push(node);
+    }
+
+    ctx.save();
+    for (const [mobId, nodes] of groups.entries()) {
+      let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+      for (const n of nodes) {
+        if (n.x < minX) minX = n.x;
+        if (n.x > maxX) maxX = n.x;
+        if (n.y < minY) minY = n.y;
+        if (n.y > maxY) maxY = n.y;
+      }
+
+      const pad = 0.55;
+      const zx = Math.round((minX - pad) * TILE_SIZE);
+      const zy = Math.round((minY - pad) * TILE_SIZE);
+      const zw = Math.round((maxX - minX + 1 + pad * 2) * TILE_SIZE);
+      const zh = Math.round((maxY - minY + 1 + pad * 2) * TILE_SIZE);
+
+      // 1. Subtle territory ground tint
+      ctx.fillStyle = 'rgba(25, 12, 7, 0.35)';
+      ctx.beginPath();
+      ctx.roundRect(zx, zy, zw, zh, 8);
+      ctx.fill();
+
+      // 2. Dashed territory boundary
+      ctx.setLineDash([6, 6]);
+      ctx.strokeStyle = 'rgba(223, 166, 55, 0.35)';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // 3. Corner accents
+      const c = 8;
+      ctx.strokeStyle = '#dfa637';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(zx, zy + c); ctx.lineTo(zx, zy); ctx.lineTo(zx + c, zy);
+      ctx.moveTo(zx + zw - c, zy); ctx.lineTo(zx + zw, zy); ctx.lineTo(zx + zw, zy + c);
+      ctx.moveTo(zx, zy + zh - c); ctx.lineTo(zx, zy + zh); ctx.lineTo(zx + c, zy + zh);
+      ctx.moveTo(zx + zw - c, zy + zh); ctx.lineTo(zx + zw, zy + zh); ctx.lineTo(zx + zw, zy + zh - c);
+      ctx.stroke();
+
+      // 4. Territory Zone Header Badge
+      const mobDef = MONSTERS[mobId];
+      const zoneName = mobDef ? mobDef.zone : 'Wilderness';
+      const mobName = mobDef ? mobDef.name : nodes[0]?.name || mobId;
+      const mobLevel = mobDef ? mobDef.level : 1;
+      const label = `${zoneName} · ${mobName} (Lvl ${mobLevel})`;
+
+      ctx.font = '700 10.5px Inter, system-ui, sans-serif';
+      const labelW = ctx.measureText(label).width + 16;
+      const labelH = 18;
+      const labelX = zx + 8;
+      const labelY = zy - 10;
+
+      ctx.fillStyle = 'rgba(18, 10, 5, 0.92)';
+      ctx.strokeStyle = '#84613b';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.roundRect(labelX, labelY, labelW, labelH, 4);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = '#ffd699';
+      ctx.textAlign = 'left';
+      ctx.fillText(label, labelX + 8, labelY + 13);
+    }
+    ctx.restore();
+  }
+
   private drawNodes() {
     const { ctx } = this;
+    // Draw monster territory zone boundaries under the nodes
+    this.drawMonsterZones();
+
     for (const node of this.nodes) {
       const px = node.x * TILE_SIZE;
       const py = node.y * TILE_SIZE;
@@ -938,8 +1022,8 @@ export class WorldRenderer {
         ctx.ellipse(px + TILE_SIZE / 2, py + TILE_SIZE - 2, 9, 4, 0, 0, Math.PI * 2);
         ctx.fill();
 
-        // Check if monster was recently struck (flinch recoil & red flash)
-        const lastHit = this.monsterHitFlashes.get(node.id) || this.monsterHitFlashes.get(mobId) || 0;
+        // Check if monster was recently struck (flinch recoil & red flash) - ONLY for this specific node!
+        const lastHit = this.monsterHitFlashes.get(node.id) || 0;
         const flinchElapsed = performance.now() - lastHit;
         const isFlinching = flinchElapsed < 160;
         const flinchX = isFlinching ? Math.sin(flinchElapsed * 0.12) * 3 : 0;
@@ -986,8 +1070,8 @@ export class WorldRenderer {
         ctx.textAlign = 'center';
         ctx.fillText(text, px + TILE_SIZE / 2, badgeY + 11);
 
-        // Monster HP bar below badge if in combat
-        const hpInfo = this.monsterHpMap.get(node.id) || this.monsterHpMap.get(mobId);
+        // Monster HP bar below badge if in combat - STRICTLY for this individual enemy!
+        const hpInfo = this.monsterHpMap.get(node.id);
         if (hpInfo && hpInfo.maxHp > 0) {
           const hpPct = Math.max(0, Math.min(1, hpInfo.currentHp / hpInfo.maxHp));
           const hpBarY = badgeY + badgeH + 2;
