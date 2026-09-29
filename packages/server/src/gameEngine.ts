@@ -325,6 +325,32 @@ export class GameEngine {
             break;
           }
 
+          // Admin give command: /give <item> [qty] or /give <player> <item> [qty]
+          if (trimmed.startsWith('/give ') || trimmed.startsWith('/item ')) {
+            if (player.role !== 'admin') {
+              this.send(session.ws, { type: 'NOTIFICATION', message: '❌ Admin privileges required.' });
+              break;
+            }
+            const parts = trimmed.split(/\s+/).slice(1);
+            if (parts.length === 0) {
+              this.send(session.ws, { type: 'NOTIFICATION', message: 'Usage: /give <itemId> [qty] OR /give <player> <itemId> [qty]' });
+              break;
+            }
+            if (ITEMS[parts[0]]) {
+              const itemId = parts[0];
+              const qty = Math.max(1, parseInt(parts[1], 10) || 1);
+              this.handleAdminGiveItem(session, { itemId, quantity: qty, destination: 'inventory' });
+            } else if (parts.length >= 2 && ITEMS[parts[1]]) {
+              const target = parts[0];
+              const itemId = parts[1];
+              const qty = Math.max(1, parseInt(parts[2], 10) || 1);
+              this.handleAdminGiveItem(session, { target, itemId, quantity: qty, destination: 'inventory' });
+            } else {
+              this.send(session.ws, { type: 'NOTIFICATION', message: `❌ Unknown item ID: "${parts[0]}". Check item ID or use the Admin panel.` });
+            }
+            break;
+          }
+
           const chatPayload = {
             type: 'CHAT_BROADCAST',
             channel: msg.channel || 'All',
@@ -340,6 +366,10 @@ export class GameEngine {
           };
           this.broadcast(chatPayload);
         }
+        break;
+
+      case 'ADMIN_GIVE_ITEM':
+        this.handleAdminGiveItem(session, msg);
         break;
 
       case 'ADMIN_SAVE_NODE':
@@ -1411,6 +1441,98 @@ export class GameEngine {
       weakness: this.activeBoss.def.styleWeakness,
       expiresAt: this.activeBoss.expiresAt,
     };
+  }
+
+  private handleAdminGiveItem(session: ConnectedSession, msg: any) {
+    const { player, ws } = session;
+    if (player.role !== 'admin') {
+      this.send(ws, { type: 'NOTIFICATION', message: '❌ Admin privileges required.' });
+      return;
+    }
+
+    const itemId = (msg.itemId || '').trim();
+    const quantity = Math.max(1, Math.min(10000, parseInt(msg.quantity, 10) || 1));
+    const destination: 'inventory' | 'storage' = msg.destination === 'storage' ? 'storage' : 'inventory';
+
+    if (!ITEMS[itemId]) {
+      this.send(ws, { type: 'NOTIFICATION', message: `❌ Unknown item ID: "${itemId}". No item given.` });
+      return;
+    }
+
+    // Determine target player
+    let targetSession: ConnectedSession | undefined;
+    let targetPlayer: PlayerData | undefined;
+    const targetName = (msg.target || '').trim();
+
+    if (targetName) {
+      // Find online session first
+      for (const s of this.sessions.values()) {
+        if (s.player.username?.toLowerCase() === targetName.toLowerCase()) {
+          targetSession = s;
+          targetPlayer = s.player;
+          break;
+        }
+      }
+      // Fallback: load from DB
+      if (!targetPlayer) {
+        targetPlayer = storage.getPlayerByUsername(targetName);
+        if (!targetPlayer) {
+          this.send(ws, { type: 'NOTIFICATION', message: `❌ Player "${targetName}" not found.` });
+          return;
+        }
+      }
+    } else {
+      targetPlayer = player;
+      targetSession = session;
+    }
+
+    // Give item — stack if matching slot exists
+    const slot: InventorySlot = { itemId, quantity, rarity: 'plain', plus: 0 };
+    if (destination === 'storage') {
+      const existing = (targetPlayer.storage || []).find(
+        (s: InventorySlot) => s.itemId === itemId && s.rarity === 'plain' && s.plus === 0
+      );
+      if (existing) {
+        existing.quantity += quantity;
+      } else {
+        if (!targetPlayer.storage) targetPlayer.storage = [];
+        targetPlayer.storage.push(slot);
+      }
+    } else {
+      const existing = targetPlayer.inventory.find(
+        (s: InventorySlot) => s.itemId === itemId && s.rarity === 'plain' && s.plus === 0
+      );
+      if (existing) {
+        existing.quantity += quantity;
+      } else if (targetPlayer.inventory.length < 28) {
+        targetPlayer.inventory.push(slot);
+      } else {
+        this.send(ws, {
+          type: 'NOTIFICATION',
+          message: `❌ ${targetPlayer.username}'s inventory is full (28 slots). Try Storage destination.`,
+        });
+        return;
+      }
+    }
+
+    storage.savePlayer(targetPlayer);
+
+    const itemName = ITEMS[itemId].name;
+    this.send(ws, {
+      type: 'NOTIFICATION',
+      message: `✅ Gave ${quantity}x ${itemName} to ${targetPlayer.username}'s ${destination}.`,
+    });
+
+    if (targetSession && targetSession !== session) {
+      this.send(targetSession.ws, {
+        type: 'NOTIFICATION',
+        message: `📦 An admin gave you ${quantity}x ${itemName}!`,
+      });
+      this.send(targetSession.ws, { type: 'PLAYER_UPDATE', player: targetPlayer });
+    } else if (targetSession) {
+      // Giving to self — update their own client
+      this.send(ws, { type: 'PLAYER_UPDATE', player: targetPlayer });
+    }
   }
 
   private broadcastWorldState() {

@@ -2273,7 +2273,54 @@ class EldoriaClient {
       };
     }
 
+    // 5b. Give Items Tab Setup
+    const giveItemSelect = document.getElementById('give-item-select') as HTMLSelectElement | null;
+    const giveItemSearch = document.getElementById('give-item-search') as HTMLInputElement | null;
+    const giveItemForm = document.getElementById('editor-give-item-form') as HTMLFormElement | null;
+
+    if (giveItemSelect) {
+      // Populate item dropdown from shared ITEMS map
+      const allItems = Object.entries(ITEMS).map(([id, def]) => ({ id, name: def.name }))
+        .sort((a, b) => a.name.localeCompare(b.name));
+      const buildOptions = (filter: string) => {
+        const lower = filter.toLowerCase();
+        const filtered = filter ? allItems.filter(i => i.name.toLowerCase().includes(lower) || i.id.toLowerCase().includes(lower)) : allItems;
+        giveItemSelect.innerHTML = filtered
+          .map(i => `<option value="${i.id}">${i.name} (${i.id})</option>`)
+          .join('');
+      };
+      buildOptions('');
+
+      if (giveItemSearch) {
+        giveItemSearch.oninput = () => buildOptions(giveItemSearch.value);
+      }
+    }
+
+    if (giveItemForm) {
+      giveItemForm.onsubmit = (e) => {
+        e.preventDefault();
+        const itemId = (document.getElementById('give-item-select') as HTMLSelectElement)?.value;
+        const target = (document.getElementById('give-item-target') as HTMLInputElement)?.value.trim();
+        const qty = parseInt((document.getElementById('give-item-qty') as HTMLInputElement)?.value, 10) || 1;
+        const dest = (document.querySelector('input[name="give-dest"]:checked') as HTMLInputElement)?.value || 'inventory';
+
+        if (!itemId) {
+          this.showToast('Select an item first.');
+          return;
+        }
+
+        this.sendWs({
+          type: 'ADMIN_GIVE_ITEM',
+          itemId,
+          quantity: qty,
+          destination: dest,
+          target: target || undefined,
+        });
+      };
+    }
+
     // 5. Node Form Setup
+
     const recSelect = document.getElementById('node-form-recipe') as HTMLSelectElement | null;
     if (recSelect) {
       recSelect.innerHTML = `<option value="">None (Heuristics / Bank)</option>` +

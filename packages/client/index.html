@@ -369,6 +369,7 @@
           <button class="editor-tab" data-tab="npcs">NPCs</button>
           <button class="editor-tab" data-tab="quests">Quests</button>
           <button class="editor-tab" data-tab="collisions">Collision</button>
+          <button class="editor-tab" data-tab="giveitems">Give Items</button>
         </div>
 
         <div class="drawer-body" style="padding: 8px;">
@@ -619,8 +620,42 @@
               <button id="btn-save-collisions" class="btn-start" style="width: 100%; margin-top: 4px;">Save Collisions to World</button>
             </div>
           </div>
+
+          <!-- TAB 6: GIVE ITEMS -->
+          <div id="tab-content-giveitems" class="editor-tab-content hidden">
+            <div style="font-size: 0.75rem; color: var(--gold-main); font-weight: 700; margin-bottom: 8px;">Give Item to Player</div>
+            <form id="editor-give-item-form" class="editor-form-box" style="display: flex; flex-direction: column; gap: 8px;">
+              <div class="form-row">
+                <label>Player (blank = yourself):</label>
+                <input type="text" id="give-item-target" placeholder="Leave blank for yourself" autocomplete="off" />
+              </div>
+              <div class="form-row">
+                <label>Item:</label>
+                <input type="text" id="give-item-search" placeholder="Search item..." autocomplete="off" style="margin-bottom: 4px;" />
+                <select id="give-item-select" size="5" style="width: 100%; background: #110c07; color: var(--parchment-text); border: 1px solid var(--oak-border); border-radius: 4px; font-size: 0.72rem; padding: 2px;"></select>
+              </div>
+              <div class="form-row">
+                <label>Quantity:</label>
+                <input type="number" id="give-item-qty" min="1" max="10000" value="1" />
+              </div>
+              <div class="form-row">
+                <label>Destination:</label>
+                <div style="display: flex; gap: 10px; font-size: 0.75rem;">
+                  <label style="display: flex; align-items: center; gap: 4px; cursor: pointer;">
+                    <input type="radio" name="give-dest" value="inventory" checked /> Inventory
+                  </label>
+                  <label style="display: flex; align-items: center; gap: 4px; cursor: pointer;">
+                    <input type="radio" name="give-dest" value="storage" /> Storage
+                  </label>
+                </div>
+              </div>
+              <button type="submit" class="btn-start" style="width: 100%;">Give Item</button>
+            </form>
+          </div>
+
         </div>
       </div>
+
 
 
 

@@ -527,6 +527,22 @@ class StorageManager {
     }
   }
 
+  public getPlayerByUsername(username: string): PlayerData | undefined {
+    const trimmed = (username || '').trim();
+    if (!trimmed) return undefined;
+    const account = this.getAccountByUsername(trimmed);
+    if (account && account.playerId) {
+      return this.getPlayer(account.playerId);
+    }
+    try {
+      const row = this.db.prepare('SELECT id FROM players WHERE username = ? COLLATE NOCASE').get(trimmed) as { id: string } | undefined;
+      if (row) return this.getPlayer(row.id);
+    } catch (err) {
+      console.error('SQLite getPlayerByUsername error', err);
+    }
+    return undefined;
+  }
+
   public savePlayer(player: PlayerData) {
     if (this.isPlayerAdmin(player)) {
       player.role = 'admin';
