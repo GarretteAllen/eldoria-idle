@@ -106,8 +106,10 @@ class EldoriaClient {
 
     // Popup Close
     document.getElementById('popup-close-btn')!.innerHTML = ICONS.close;
-    document.getElementById('item-action-close-btn')!.innerHTML = ICONS.close;
+    const oldActionClose = document.getElementById('item-action-close-btn');
+    if (oldActionClose) oldActionClose.innerHTML = ICONS.close;
     document.getElementById('away-close-btn')!.innerHTML = ICONS.close;
+
     const editorDrawerClose = document.getElementById('editor-drawer-close-btn');
     if (editorDrawerClose) editorDrawerClose.innerHTML = ICONS.close;
     const npcModalClose = document.getElementById('npc-modal-close-btn');
@@ -976,11 +978,13 @@ class EldoriaClient {
           <span class="item-qty">${slot.quantity > 1 ? slot.quantity : ''}</span>
         `;
         slotEl.title = `${name} (${slot.rarity || 'plain'})\nClick for actions`;
-        slotEl.addEventListener('click', () => {
-          this.openItemActionModal(i);
+        slotEl.addEventListener('click', (e: MouseEvent) => {
+          e.stopPropagation();
+          this.openItemContextMenu(i, e);
         });
       }
       grid.appendChild(slotEl);
+
     }
   }
 
@@ -1568,9 +1572,89 @@ class EldoriaClient {
   }
 
   private setupModals() {
-    document.getElementById('item-action-close-btn')!.onclick = () => {
-      document.getElementById('item-action-modal')!.classList.add('hidden');
-    };
+    // In-Panel Context Menu (matching contextmenu.png)
+    const ctxMenu = document.getElementById('item-context-menu');
+    const ctxClose = document.getElementById('ctx-close-btn');
+    if (ctxClose && ctxMenu) {
+      ctxClose.onclick = (e) => {
+        e.stopPropagation();
+        ctxMenu.classList.add('hidden');
+      };
+    }
+
+    // Dismiss context menu when clicking outside or pressing Escape
+    document.addEventListener('pointerdown', (e) => {
+      if (ctxMenu && !ctxMenu.classList.contains('hidden')) {
+        if (!ctxMenu.contains(e.target as Node)) {
+          ctxMenu.classList.add('hidden');
+        }
+      }
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && ctxMenu) {
+        ctxMenu.classList.add('hidden');
+      }
+    });
+
+    const ctxBtnEquip = document.getElementById('ctx-btn-equip');
+    if (ctxBtnEquip && ctxMenu) {
+      ctxBtnEquip.onclick = () => {
+        if (this.selectedInventoryIndex !== null) {
+          this.sendWs({ type: 'EQUIP_ITEM', inventoryIndex: this.selectedInventoryIndex });
+          ctxMenu.classList.add('hidden');
+        }
+      };
+    }
+
+    const ctxBtnEat = document.getElementById('ctx-btn-eat');
+    if (ctxBtnEat && ctxMenu) {
+      ctxBtnEat.onclick = () => {
+        if (this.selectedInventoryIndex !== null) {
+          this.sendWs({ type: 'EAT_FOOD', inventoryIndex: this.selectedInventoryIndex });
+          ctxMenu.classList.add('hidden');
+        }
+      };
+    }
+
+    const ctxBtnDep1 = document.getElementById('ctx-btn-deposit-1');
+    if (ctxBtnDep1 && ctxMenu) {
+      ctxBtnDep1.onclick = () => {
+        if (this.selectedInventoryIndex !== null) {
+          this.sendWs({ type: 'DEPOSIT_ITEM', inventoryIndex: this.selectedInventoryIndex, quantity: 1 });
+          ctxMenu.classList.add('hidden');
+        }
+      };
+    }
+
+    const ctxBtnDepX = document.getElementById('ctx-btn-deposit-x');
+    if (ctxBtnDepX && ctxMenu) {
+      ctxBtnDepX.onclick = () => {
+        if (this.selectedInventoryIndex !== null && this.player) {
+          const slot = this.player.inventory[this.selectedInventoryIndex];
+          if (slot) {
+            const countStr = prompt(`How many ${ITEMS[slot.itemId]?.name || 'items'} to deposit?`, String(slot.quantity));
+            const count = parseInt(countStr || '', 10);
+            if (!isNaN(count) && count > 0) {
+              this.sendWs({ type: 'DEPOSIT_ITEM', inventoryIndex: this.selectedInventoryIndex, quantity: count });
+            }
+          }
+          ctxMenu.classList.add('hidden');
+        }
+      };
+    }
+
+    const ctxBtnDepAll = document.getElementById('ctx-btn-deposit-all');
+    if (ctxBtnDepAll && ctxMenu) {
+      ctxBtnDepAll.onclick = () => {
+        if (this.selectedInventoryIndex !== null && this.player) {
+          const slot = this.player.inventory[this.selectedInventoryIndex];
+          const qty = slot ? slot.quantity : undefined;
+          this.sendWs({ type: 'DEPOSIT_ITEM', inventoryIndex: this.selectedInventoryIndex, quantity: qty });
+          ctxMenu.classList.add('hidden');
+        }
+      };
+    }
 
     const topLogoutBtn = document.getElementById('btn-top-logout');
     if (topLogoutBtn) {
@@ -1595,26 +1679,15 @@ class EldoriaClient {
       };
     }
 
-    document.getElementById('btn-action-equip')!.onclick = () => {
-      if (this.selectedInventoryIndex !== null) {
-        this.sendWs({ type: 'EQUIP_ITEM', inventoryIndex: this.selectedInventoryIndex });
-        document.getElementById('item-action-modal')!.classList.add('hidden');
-      }
-    };
+    const btnActionDeposit = document.getElementById('btn-action-deposit');
+    if (btnActionDeposit) {
+      btnActionDeposit.onclick = () => {
+        if (this.selectedInventoryIndex !== null) {
+          this.sendWs({ type: 'DEPOSIT_ITEM', inventoryIndex: this.selectedInventoryIndex });
+        }
+      };
+    }
 
-    document.getElementById('btn-action-eat')!.onclick = () => {
-      if (this.selectedInventoryIndex !== null) {
-        this.sendWs({ type: 'EAT_FOOD', inventoryIndex: this.selectedInventoryIndex });
-        document.getElementById('item-action-modal')!.classList.add('hidden');
-      }
-    };
-
-    document.getElementById('btn-action-deposit')!.onclick = () => {
-      if (this.selectedInventoryIndex !== null) {
-        this.sendWs({ type: 'DEPOSIT_ITEM', inventoryIndex: this.selectedInventoryIndex });
-        document.getElementById('item-action-modal')!.classList.add('hidden');
-      }
-    };
 
 
     document.getElementById('btn-deposit-all')!.onclick = () => {
@@ -1937,7 +2010,7 @@ class EldoriaClient {
     window.location.reload();
   }
 
-  private openItemActionModal(index: number) {
+  private openItemContextMenu(index: number, e: MouseEvent) {
     this.selectedInventoryIndex = index;
     const slot = this.player?.inventory[index];
     if (!slot) return;
@@ -1945,59 +2018,85 @@ class EldoriaClient {
     const def = ITEMS[slot.itemId];
     if (!def) return;
 
-    const modal = document.getElementById('item-action-modal')!;
-    document.getElementById('action-item-name')!.textContent = def.name;
+    const menu = document.getElementById('item-context-menu');
+    if (!menu) return;
 
-    const detailsEl = document.getElementById('action-item-details');
-    if (detailsEl) {
+    const titleEl = document.getElementById('ctx-item-name');
+    if (titleEl) titleEl.textContent = def.name;
+
+    const statsEl = document.getElementById('ctx-item-stats');
+    if (statsEl) {
       const statParts: string[] = [];
-      if (def.baseStats?.toolSpeedBonus) statParts.push(`⚡ Tool Speed: +${Math.round(def.baseStats.toolSpeedBonus * 100)}%`);
-      if (def.baseStats?.accuracy) statParts.push(`🎯 Accuracy: +${def.baseStats.accuracy}`);
-      if (def.baseStats?.strength) statParts.push(`💪 Strength: +${def.baseStats.strength}`);
-      if (def.baseStats?.defence) statParts.push(`🛡️ Defence: +${def.baseStats.defence}`);
-      if (def.baseStats?.healing) statParts.push(`❤️ Heals: +${def.baseStats.healing} HP`);
-
-      detailsEl.innerHTML = `
-        <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
-          <span style="text-transform:capitalize; color:var(--gold-main); font-weight:700;">${slot.rarity || 'plain'} Tier ${def.tier || 1}</span>
-          <span>Qty: <b>${slot.quantity}</b></span>
-        </div>
-        ${statParts.length > 0 ? `<div style="color:#68d391; margin-bottom:4px; font-weight:600;">${statParts.join(' · ')}</div>` : ''}
-        ${def.description ? `<div style="font-style:italic; opacity:0.85; margin-bottom:4px;">${def.description}</div>` : ''}
-        <div style="font-size:0.7rem; color:#a0aec0;">Vendor Floor: ${def.vendorFloorPrice || 1} Gold each</div>
-      `;
+      if (def.baseStats?.accuracy) statParts.push(`+${def.baseStats.accuracy} acc`);
+      if (def.baseStats?.strength) statParts.push(`+${def.baseStats.strength} str`);
+      if (def.baseStats?.defence) statParts.push(`+${def.baseStats.defence} def`);
+      if (def.baseStats?.toolSpeedBonus) statParts.push(`+${Math.round(def.baseStats.toolSpeedBonus * 100)}% Speed`);
+      if (def.baseStats?.healing) statParts.push(`Heals +${def.baseStats.healing} HP`);
+      if (def.equipReq) statParts.push(`${def.equipReq.skill} ${def.equipReq.level}`);
+      statsEl.textContent = statParts.length > 0 ? statParts.join(' ') : (def.description || `${slot.rarity || 'plain'} item`);
     }
 
-    const equipBtn = document.getElementById('btn-action-equip')!;
+    const equipBtn = document.getElementById('ctx-btn-equip');
     const isEquippable = Boolean(def.slot || def.category === 'tool' || def.category === 'weapon' || def.category === 'armour' || def.category === 'steed');
-    if (isEquippable) {
-      equipBtn.style.display = 'block';
-      let slotLabel = 'Gear Slot';
-      if (def.category === 'tool' || def.slot?.startsWith('tool')) {
-        if (def.id.includes('pickaxe')) slotLabel = 'Toolbelt (Mining)';
-        else if (def.id.includes('axe')) slotLabel = 'Toolbelt (Woodcutting)';
-        else if (def.id.includes('rod') || def.id.includes('fish')) slotLabel = 'Toolbelt (Fishing)';
-        else slotLabel = 'Toolbelt';
-      } else if (def.slot) {
-        slotLabel = def.slot.toUpperCase();
+    if (equipBtn) {
+      equipBtn.style.display = isEquippable ? 'flex' : 'none';
+      if (isEquippable) {
+        let slotName = 'Gear Slot';
+        if (def.category === 'tool' || def.slot?.startsWith('tool')) {
+          if (def.id.includes('pickaxe')) slotName = 'Toolbelt (Mining)';
+          else if (def.id.includes('axe')) slotName = 'Toolbelt (Woodcutting)';
+          else if (def.id.includes('rod') || def.id.includes('fish')) slotName = 'Toolbelt (Fishing)';
+          else slotName = 'Toolbelt';
+        } else if (def.slot) {
+          slotName = def.slot.toUpperCase();
+        }
+        equipBtn.textContent = `Equip (${slotName})`;
       }
-      equipBtn.textContent = `Equip into ${slotLabel}`;
-    } else {
-      equipBtn.style.display = 'none';
     }
 
-    const eatBtn = document.getElementById('btn-action-eat')!;
-    eatBtn.style.display = def.category === 'cooked_food' ? 'block' : 'none';
+    const eatBtn = document.getElementById('ctx-btn-eat');
+    if (eatBtn) {
+      eatBtn.style.display = def.category === 'cooked_food' ? 'flex' : 'none';
+    }
 
     const hearth = this.getHearthLocation(this.player?.x, this.player?.y);
     const isNearHearth = this.player && Math.hypot(this.player.x - hearth.x, this.player.y - hearth.y) <= 1.5;
-    const depositBtn = document.getElementById('btn-action-deposit');
-    if (depositBtn) {
-      depositBtn.textContent = isNearHearth ? `Deposit ${def.name} to Hearth` : `Walk to Hearth & Deposit ${def.name}`;
+    const depPrefix = isNearHearth ? 'Deposit' : 'Walk & Deposit';
+
+    const dep1Btn = document.getElementById('ctx-btn-deposit-1');
+    if (dep1Btn) dep1Btn.textContent = `${depPrefix} one`;
+
+    const depXBtn = document.getElementById('ctx-btn-deposit-x');
+    if (depXBtn) depXBtn.textContent = `${depPrefix} X...`;
+
+    const depAllBtn = document.getElementById('ctx-btn-deposit-all');
+    if (depAllBtn) {
+      depAllBtn.textContent = slot.quantity > 1 ? `${depPrefix} all ${slot.quantity}` : `${depPrefix} all`;
     }
 
-    modal.classList.remove('hidden');
+    // Position popover floating adjacent to the clicked slot
+    menu.classList.remove('hidden');
+
+    const menuWidth = 220;
+    const menuHeight = menu.offsetHeight || 190;
+    const target = e.currentTarget as HTMLElement;
+    const rect = target && target.getBoundingClientRect ? target.getBoundingClientRect() : { left: e.clientX, top: e.clientY, width: 36 };
+
+    // Prefer popping out to the left of the slot (inside the drawer/panel area)
+    let left = rect.left - menuWidth - 6;
+    if (left < 10) {
+      left = rect.left + (rect.width || 36) + 6;
+    }
+    let top = rect.top;
+    if (top + menuHeight > window.innerHeight - 10) {
+      top = window.innerHeight - menuHeight - 10;
+    }
+    if (top < 10) top = 10;
+
+    menu.style.left = `${Math.round(left)}px`;
+    menu.style.top = `${Math.round(top)}px`;
   }
+
 
 
   private updateBossBanner(boss: any) {

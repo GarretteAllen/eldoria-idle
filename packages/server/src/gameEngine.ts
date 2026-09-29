@@ -563,10 +563,13 @@ export class GameEngine {
 
     this.send(session.ws, {
       type: 'NOTIFICATION',
-      message: `Equipped ${def.name}. Move speed: ${player.moveSpeedTilesPerTick} tiles/tick.`
+      message: targetSlot === 'steed'
+        ? `Equipped ${def.name}. Mounted speed: ${player.moveSpeedTilesPerTick} tiles/tick.`
+        : `Equipped ${def.name}.`
     });
     this.send(session.ws, { type: 'PLAYER_UPDATE', player });
   }
+
 
   private handleUnequipItem(session: ConnectedSession, slotKey: EquipSlot) {
     const { player } = session;

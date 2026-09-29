@@ -796,8 +796,6 @@ export class WorldRenderer {
       const helmCoord = getSprite(equipment?.helmet?.itemId);
       if (helmCoord) {
         drawLayer(helmCoord, -1, riderY);
-      } else if (isAdmin) {
-        drawLayer(getSprite('astralite_helm'), -1, riderY);
       } else {
         drawLayer(getSprite('hair_adventurer'), -1, riderY);
       }
@@ -845,11 +843,10 @@ export class WorldRenderer {
       const helmCoord = getSprite(equipment?.helmet?.itemId);
       if (helmCoord) {
         drawLayer(helmCoord, 0, breatheBob);
-      } else if (isAdmin) {
-        drawLayer(getSprite('astralite_helm'), 0, breatheBob);
       } else {
         drawLayer(getSprite('hair_adventurer'), 0, breatheBob);
       }
+
 
       // 5. Shield / Offhand
       const shieldCoord = getSprite(equipment?.shield?.itemId);

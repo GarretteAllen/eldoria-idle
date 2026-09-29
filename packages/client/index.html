@@ -320,21 +320,23 @@
         </div>
       </div>
 
-      <!-- ITEM ACTION MODAL (Inventory Item Context Menu) -->
-      <div id="item-action-modal" class="modal-backdrop hidden">
-        <div class="modal-box dark-oak-panel" style="width: 320px;">
-          <div class="modal-header">
-            <h4 id="action-item-name">Item Name</h4>
-            <button id="item-action-close-btn" class="icon-btn-micro"></button>
-          </div>
-          <div class="modal-content" style="display:flex; flex-direction:column; gap:8px;">
-            <div id="action-item-details" style="font-size:0.75rem; color:#cbd5e0; background:rgba(0,0,0,0.3); padding:8px; border-radius:4px; border:1px solid #3d2b1f; min-height:30px;"></div>
-            <button id="btn-action-equip" class="btn-start">Equip</button>
-            <button id="btn-action-eat" class="btn-start" style="background: #276749;">Eat Provision</button>
-            <button id="btn-action-deposit" class="btn-oak">Deposit to Hearth</button>
-          </div>
+      <!-- RPG POPUP CONTEXT MENU (Compact In-Panel Menu matching contextmenu.png) -->
+      <div id="item-context-menu" class="item-context-menu hidden">
+        <div class="ctx-menu-header">
+          <button id="ctx-close-btn" class="ctx-back-btn" title="Close">‹</button>
+          <span id="ctx-item-name" class="ctx-item-title">Item Name</span>
+        </div>
+        <div id="ctx-item-stats" class="ctx-item-stats">+10 acc +5 str</div>
+        <div class="ctx-divider"></div>
+        <div id="ctx-actions-list" class="ctx-menu-list">
+          <button id="ctx-btn-deposit-1" class="ctx-menu-item">Deposit one</button>
+          <button id="ctx-btn-deposit-x" class="ctx-menu-item">Deposit X...</button>
+          <button id="ctx-btn-deposit-all" class="ctx-menu-item">Deposit all</button>
+          <button id="ctx-btn-equip" class="ctx-menu-item">Equip</button>
+          <button id="ctx-btn-eat" class="ctx-menu-item">Eat Provision</button>
         </div>
       </div>
+
 
 
       <!-- WHILE IN SLUMBER MODAL (Away Progression) -->
