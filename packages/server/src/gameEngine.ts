@@ -378,7 +378,29 @@ export class GameEngine {
         }
         if (msg.npc && msg.npc.id) {
           storage.upsertNpc(msg.npc);
+
+          // Synchronize quest assignments
+          const assignedQuestIds = new Set(msg.npc.questIds || []);
+          const allQuests = storage.getQuests();
+          let questsChanged = false;
+          for (const q of allQuests) {
+            if (assignedQuestIds.has(q.id)) {
+              if (q.npcId !== msg.npc.id) {
+                q.npcId = msg.npc.id;
+                storage.upsertQuest(q);
+                questsChanged = true;
+              }
+            } else if (q.npcId === msg.npc.id) {
+              q.npcId = '';
+              storage.upsertQuest(q);
+              questsChanged = true;
+            }
+          }
+
           this.broadcast({ type: 'NPCS_UPDATE', npcs: storage.getNpcs() });
+          if (questsChanged) {
+            this.broadcast({ type: 'QUESTS_UPDATE', quests: storage.getQuests() });
+          }
           this.send(session.ws, {
             type: 'NOTIFICATION',
             message: `NPC "${msg.npc.name}" saved at (${msg.npc.x}, ${msg.npc.y}).`
@@ -394,7 +416,22 @@ export class GameEngine {
         const deleteNpcId = msg.npcId || msg.id;
         if (deleteNpcId) {
           storage.deleteNpc(deleteNpcId);
+
+          // Detach deleted NPC from any quests
+          const allQuests = storage.getQuests();
+          let questsChanged = false;
+          for (const q of allQuests) {
+            if (q.npcId === deleteNpcId) {
+              q.npcId = '';
+              storage.upsertQuest(q);
+              questsChanged = true;
+            }
+          }
+
           this.broadcast({ type: 'NPCS_UPDATE', npcs: storage.getNpcs() });
+          if (questsChanged) {
+            this.broadcast({ type: 'QUESTS_UPDATE', quests: storage.getQuests() });
+          }
           this.send(session.ws, {
             type: 'NOTIFICATION',
             message: `NPC ${deleteNpcId} deleted.`
@@ -409,7 +446,29 @@ export class GameEngine {
         }
         if (msg.quest && msg.quest.id) {
           storage.upsertQuest(msg.quest);
+
+          // Synchronize NPC questIds
+          let npcsChanged = false;
+          const allNpcs = storage.getNpcs();
+          for (const n of allNpcs) {
+            n.questIds = n.questIds || [];
+            if (msg.quest.npcId && n.id === msg.quest.npcId) {
+              if (!n.questIds.includes(msg.quest.id)) {
+                n.questIds.push(msg.quest.id);
+                storage.upsertNpc(n);
+                npcsChanged = true;
+              }
+            } else if (n.questIds.includes(msg.quest.id) && n.id !== msg.quest.npcId) {
+              n.questIds = n.questIds.filter(id => id !== msg.quest.id);
+              storage.upsertNpc(n);
+              npcsChanged = true;
+            }
+          }
+
           this.broadcast({ type: 'QUESTS_UPDATE', quests: storage.getQuests() });
+          if (npcsChanged) {
+            this.broadcast({ type: 'NPCS_UPDATE', npcs: storage.getNpcs() });
+          }
           this.send(session.ws, {
             type: 'NOTIFICATION',
             message: `Quest "${msg.quest.title}" saved.`

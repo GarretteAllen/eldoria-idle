@@ -184,6 +184,11 @@ export class WorldRenderer {
           }
         }
       }
+
+      if (this.editorMode === 'none') {
+        const isHoveringNpc = this.npcs.some(n => n.x === this.hoverTileX && n.y === this.hoverTileY);
+        this.canvas.style.cursor = isHoveringNpc ? 'pointer' : 'default';
+      }
     });
 
     this.canvas.addEventListener('mousedown', () => {
@@ -225,8 +230,8 @@ export class WorldRenderer {
 
       this.setDestinationMarker(tileX, tileY);
 
-      // 2. Click NPC
-      const clickedNpc = this.npcs.find(n => Math.hypot(n.x - tileX, n.y - tileY) <= 1.2);
+      // 2. Click NPC (ONLY on the exact tile square of the NPC)
+      const clickedNpc = this.npcs.find(n => n.x === tileX && n.y === tileY);
       if (clickedNpc && this.onNpcClick) {
         this.onNpcClick(clickedNpc);
         return;
@@ -521,6 +526,36 @@ export class WorldRenderer {
       const py = npc.y * TILE_SIZE + TILE_SIZE / 2;
 
       ctx.save();
+      // Highlighted square outline feedback on the NPC tile when hovered
+      if (this.hoverTileX === npc.x && this.hoverTileY === npc.y) {
+        const tilePx = npc.x * TILE_SIZE;
+        const tilePy = npc.y * TILE_SIZE;
+
+        // Subtle soft highlight fill
+        ctx.fillStyle = 'rgba(56, 178, 172, 0.2)';
+        ctx.fillRect(tilePx + 1, tilePy + 1, TILE_SIZE - 2, TILE_SIZE - 2);
+
+        // Crisp cyan glowing border around the exact square
+        ctx.strokeStyle = '#38b2ac';
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(tilePx + 0.5, tilePy + 0.5, TILE_SIZE - 1, TILE_SIZE - 1);
+
+        // Corner bracket accents
+        ctx.strokeStyle = '#81e6d9';
+        ctx.lineWidth = 2;
+        const c = 5;
+        ctx.beginPath();
+        // Top-left
+        ctx.moveTo(tilePx, tilePy + c); ctx.lineTo(tilePx, tilePy); ctx.lineTo(tilePx + c, tilePy);
+        // Top-right
+        ctx.moveTo(tilePx + TILE_SIZE - c, tilePy); ctx.lineTo(tilePx + TILE_SIZE, tilePy); ctx.lineTo(tilePx + TILE_SIZE, tilePy + c);
+        // Bottom-left
+        ctx.moveTo(tilePx, tilePy + TILE_SIZE - c); ctx.lineTo(tilePx, tilePy + TILE_SIZE); ctx.lineTo(tilePx + c, tilePy + TILE_SIZE);
+        // Bottom-right
+        ctx.moveTo(tilePx + TILE_SIZE - c, tilePy + TILE_SIZE); ctx.lineTo(tilePx + TILE_SIZE, tilePy + TILE_SIZE); ctx.lineTo(tilePx + TILE_SIZE, tilePy + TILE_SIZE - c);
+        ctx.stroke();
+      }
+
       // Render ONLY the name, positioned cleanly above the NPC sprite tile
       const name = npc.name;
       ctx.font = 'bold 11px Inter, system-ui, sans-serif';

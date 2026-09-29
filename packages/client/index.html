@@ -465,10 +465,6 @@
                 <input type="text" id="npc-form-name" required placeholder="Character name" />
               </div>
               <div class="form-row">
-                <label>Title:</label>
-                <input type="text" id="npc-form-title" placeholder="e.g. Hearth Elder" />
-              </div>
-              <div class="form-row">
                 <label>Role:</label>
                 <select id="npc-form-role">
                   <option value="guide">Town Guide</option>
@@ -477,8 +473,14 @@
                 </select>
               </div>
               <div class="form-row">
-                <label>Dialogue (1 line each):</label>
-                <textarea id="npc-form-dialogue" rows="3" placeholder="Welcome traveler..."></textarea>
+                <label>Dialogue (each new line is a message):</label>
+                <textarea id="npc-form-dialogue" rows="3" placeholder="Welcome traveler...&#10;The wilderness can be perilous."></textarea>
+              </div>
+              <div class="form-row">
+                <label>Connected Quests:</label>
+                <div id="npc-form-quests-container" style="display: flex; flex-direction: column; gap: 4px; max-height: 110px; overflow-y: auto; background: #110c07; padding: 6px 8px; border: 1px solid #4a3320; border-radius: 4px;">
+                  <span style="font-size: 0.7rem; color: #a0aec0;">No quests available.</span>
+                </div>
               </div>
               <div class="form-row-2col">
                 <div>

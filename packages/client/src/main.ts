@@ -53,6 +53,9 @@ class EldoriaClient {
   private activeEditorTab: 'nodes' | 'monsters' | 'npcs' | 'quests' | 'collisions' = 'nodes';
   private collisionBrush: 'paint' | 'erase' = 'paint';
 
+  // Interaction State
+  private pendingNpcTarget: NpcDefinition | null = null;
+
   constructor() {
     const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
     this.renderer = new WorldRenderer(canvas);
@@ -129,14 +132,45 @@ class EldoriaClient {
       }
 
       this.renderer.onGroundClick = (tileX, tileY) => {
+        this.pendingNpcTarget = null;
         this.sendWs({ type: 'MOVE_TO', x: tileX, y: tileY });
       };
 
       this.renderer.onNpcClick = (npc: NpcDefinition) => {
-        this.openNpcDialogue(npc);
+        if (!this.player) return;
+        const dist = Math.hypot(this.player.x - npc.x, this.player.y - npc.y);
+        if (dist <= 1.5) {
+          // Already adjacent / at NPC: talk immediately
+          this.pendingNpcTarget = null;
+          this.openNpcDialogue(npc);
+        } else {
+          // Player MUST walk to the NPC before talking to it!
+          this.pendingNpcTarget = npc;
+          const collisions = this.renderer.getCollisions();
+          let targetX = npc.x;
+          let targetY = npc.y;
+
+          // If NPC's tile is blocked by collision, walk to the closest free neighbor tile
+          if (collisions.has(`${npc.x},${npc.y}`)) {
+            const neighbors = [
+              { x: npc.x, y: npc.y + 1 },
+              { x: npc.x, y: npc.y - 1 },
+              { x: npc.x + 1, y: npc.y },
+              { x: npc.x - 1, y: npc.y },
+            ].filter(pt => !collisions.has(`${pt.x},${pt.y}`));
+            if (neighbors.length > 0) {
+              neighbors.sort((a, b) => Math.hypot(a.x - this.player!.x, a.y - this.player!.y) - Math.hypot(b.x - this.player!.x, b.y - this.player!.y));
+              targetX = neighbors[0].x;
+              targetY = neighbors[0].y;
+            }
+          }
+          this.sendWs({ type: 'MOVE_TO', x: targetX, y: targetY });
+          this.showToast(`Walking to ${npc.name}...`);
+        }
       };
 
       this.renderer.onNodeClick = (node: WorldNodeDisplay) => {
+        this.pendingNpcTarget = null;
         if (node.recipeId) {
           const rec = RECIPES[node.recipeId];
           if (rec) {
@@ -306,6 +340,16 @@ class EldoriaClient {
         this.player = msg.player;
         this.renderer.setLocalPlayer(this.player!);
         this.updateUI();
+
+        // Check if arrived adjacent to clicked NPC
+        if (this.pendingNpcTarget && this.player) {
+          const dist = Math.hypot(this.player.x - this.pendingNpcTarget.x, this.player.y - this.pendingNpcTarget.y);
+          if (dist <= 1.5) {
+            const target = this.pendingNpcTarget;
+            this.pendingNpcTarget = null;
+            this.openNpcDialogue(target);
+          }
+        }
         break;
 
       case 'WORLD_STATE':
@@ -2068,10 +2112,10 @@ class EldoriaClient {
         npcForm.classList.remove('hidden');
         (document.getElementById('npc-form-id') as HTMLInputElement).value = '';
         (document.getElementById('npc-form-name') as HTMLInputElement).value = '';
-        (document.getElementById('npc-form-title') as HTMLInputElement).value = '';
         (document.getElementById('npc-form-dialogue') as HTMLTextAreaElement).value = '';
-        (document.getElementById('npc-form-x') as HTMLInputElement).value = '10';
-        (document.getElementById('npc-form-y') as HTMLInputElement).value = '22';
+        (document.getElementById('npc-form-x') as HTMLInputElement).value = (this.player?.x || 10).toString();
+        (document.getElementById('npc-form-y') as HTMLInputElement).value = (this.player?.y || 22).toString();
+        this.updateNpcFormQuestCheckboxes([]);
       };
     }
     if (btnCancelNpc && npcForm) {
@@ -2088,16 +2132,16 @@ class EldoriaClient {
         e.preventDefault();
         const id = (document.getElementById('npc-form-id') as HTMLInputElement).value || `npc_${Date.now()}`;
         const name = (document.getElementById('npc-form-name') as HTMLInputElement).value.trim();
-        const title = (document.getElementById('npc-form-title') as HTMLInputElement).value.trim() || undefined;
         const role = (document.getElementById('npc-form-role') as HTMLSelectElement).value as any;
         const dialogueRaw = (document.getElementById('npc-form-dialogue') as HTMLTextAreaElement).value;
         const dialogue = dialogueRaw.split('\n').map(s => s.trim()).filter(Boolean);
+        const checkedQuests = Array.from(document.querySelectorAll<HTMLInputElement>('input[name="npc-quest"]:checked')).map(cb => cb.value);
         const x = parseInt((document.getElementById('npc-form-x') as HTMLInputElement).value, 10);
         const y = parseInt((document.getElementById('npc-form-y') as HTMLInputElement).value, 10);
 
         this.sendWs({
           type: 'ADMIN_SAVE_NPC',
-          npc: { id, name, title, role, dialogue, x, y },
+          npc: { id, name, role, dialogue, questIds: checkedQuests, x, y },
         });
         npcForm.classList.add('hidden');
       };
@@ -2263,6 +2307,24 @@ class EldoriaClient {
     }
   }
 
+  private updateNpcFormQuestCheckboxes(selectedQuestIds: string[] = []) {
+    const container = document.getElementById('npc-form-quests-container');
+    if (!container) return;
+    if (this.quests.length === 0) {
+      container.innerHTML = '<span style="font-size: 0.7rem; color: #a0aec0;">No quests created yet.</span>';
+      return;
+    }
+    container.innerHTML = this.quests.map(q => {
+      const isChecked = selectedQuestIds.includes(q.id);
+      return `
+        <label style="font-size: 0.72rem; color: #f3e8dc; display: flex; align-items: center; gap: 6px; cursor: pointer;">
+          <input type="checkbox" name="npc-quest" value="${q.id}" ${isChecked ? 'checked' : ''} />
+          <span>${q.title} <span style="color: #a0aec0; font-size: 0.65rem;">(${q.id})</span></span>
+        </label>
+      `;
+    }).join('');
+  }
+
   private renderEditorNpcs() {
     const container = document.getElementById('editor-npcs-list');
     if (!container) return;
@@ -2271,10 +2333,11 @@ class EldoriaClient {
     for (const npc of this.npcs) {
       const card = document.createElement('div');
       card.className = 'editor-entity-card';
+      const questCount = (npc.questIds || []).length;
       card.innerHTML = `
         <div class="editor-entity-info">
-          <div class="editor-entity-title">${npc.name} ${npc.title ? `(${npc.title})` : ''}</div>
-          <div class="editor-entity-meta">${npc.role} · (${npc.x}, ${npc.y})</div>
+          <div class="editor-entity-title">${npc.name}</div>
+          <div class="editor-entity-meta">${npc.role} · (${npc.x}, ${npc.y}) · ${npc.dialogue?.length || 0} line(s) · ${questCount} quest(s)</div>
         </div>
         <div class="editor-entity-actions">
           <button class="btn-micro-edit" data-id="${npc.id}">Edit</button>
@@ -2287,11 +2350,11 @@ class EldoriaClient {
         form.classList.remove('hidden');
         (document.getElementById('npc-form-id') as HTMLInputElement).value = npc.id;
         (document.getElementById('npc-form-name') as HTMLInputElement).value = npc.name;
-        (document.getElementById('npc-form-title') as HTMLInputElement).value = npc.title || '';
         (document.getElementById('npc-form-role') as HTMLSelectElement).value = npc.role;
         (document.getElementById('npc-form-dialogue') as HTMLTextAreaElement).value = (npc.dialogue || []).join('\n');
         (document.getElementById('npc-form-x') as HTMLInputElement).value = npc.x.toString();
         (document.getElementById('npc-form-y') as HTMLInputElement).value = npc.y.toString();
+        this.updateNpcFormQuestCheckboxes(npc.questIds || []);
       });
 
       card.querySelector('.btn-micro-del')!.addEventListener('click', () => {
@@ -2307,7 +2370,7 @@ class EldoriaClient {
   private updateQuestNpcDropdown() {
     const select = document.getElementById('quest-form-npc') as HTMLSelectElement | null;
     if (!select) return;
-    select.innerHTML = this.npcs.map(n => `<option value="${n.id}">${n.name} (${n.title || n.role})</option>`).join('');
+    select.innerHTML = this.npcs.map(n => `<option value="${n.id}">${n.name} (${n.role})</option>`).join('');
   }
 
   private renderEditorQuests() {
@@ -2322,7 +2385,7 @@ class EldoriaClient {
       card.innerHTML = `
         <div class="editor-entity-info">
           <div class="editor-entity-title">${q.title}</div>
-          <div class="editor-entity-meta">${q.objective.type} ${q.objective.count}x ${q.objective.targetId} · Giver: ${q.npcId}</div>
+          <div class="editor-entity-meta">${q.objective.type} ${q.objective.count}x ${q.objective.targetId} · Giver: ${q.npcId || 'None'}</div>
         </div>
         <div class="editor-entity-actions">
           <button class="btn-micro-edit" data-id="${q.id}">Edit</button>
@@ -2336,7 +2399,7 @@ class EldoriaClient {
         (document.getElementById('quest-form-id') as HTMLInputElement).value = q.id;
         (document.getElementById('quest-form-title') as HTMLInputElement).value = q.title;
         (document.getElementById('quest-form-desc') as HTMLTextAreaElement).value = q.description;
-        (document.getElementById('quest-form-npc') as HTMLSelectElement).value = q.npcId;
+        (document.getElementById('quest-form-npc') as HTMLSelectElement).value = q.npcId || '';
         (document.getElementById('quest-form-obj-type') as HTMLSelectElement).value = q.objective.type;
         (document.getElementById('quest-form-obj-count') as HTMLInputElement).value = q.objective.count.toString();
         (document.getElementById('quest-form-obj-target') as HTMLInputElement).value = q.objective.targetId;
@@ -2359,20 +2422,22 @@ class EldoriaClient {
     if (!modal) return;
 
     document.getElementById('npc-modal-name')!.textContent = npc.name;
-    document.getElementById('npc-modal-title')!.textContent = npc.title || 'Town Inhabitant';
+    const titleEl = document.getElementById('npc-modal-title');
+    if (titleEl) {
+      titleEl.textContent = npc.role === 'merchant' ? 'Town Merchant' : npc.role === 'guide' ? 'Town Guide' : 'Quest Giver';
+    }
 
     const dialEl = document.getElementById('npc-modal-dialogue')!;
     if (npc.dialogue && npc.dialogue.length > 0) {
-      const line = npc.dialogue[Math.floor(Math.random() * npc.dialogue.length)];
-      dialEl.textContent = `"${line}"`;
+      dialEl.innerHTML = npc.dialogue.map(line => `<div style="margin: 4px 0; line-height: 1.45;">"${line}"</div>`).join('');
     } else {
-      dialEl.textContent = `"Greetings, traveler. Safe journey in the wilds of Eldoria."`;
+      dialEl.innerHTML = `<div style="margin: 4px 0;">"Greetings, traveler. Safe journey in the wilds of Eldoria."</div>`;
     }
 
     const questListEl = document.getElementById('npc-modal-quests')!;
     questListEl.innerHTML = '';
 
-    const npcQuests = this.quests.filter(q => q.npcId === npc.id);
+    const npcQuests = this.quests.filter(q => q.npcId === npc.id || (npc.questIds && npc.questIds.includes(q.id)));
     if (npcQuests.length > 0) {
       const heading = document.createElement('div');
       heading.style.fontSize = '0.72rem';
