@@ -487,6 +487,40 @@ class EldoriaClient {
     }
   }
 
+  private getHearthLocation(playerX?: number, playerY?: number): { x: number; y: number } {
+    const hearthNodes = this.worldNodes.filter(n =>
+      n.type === 'hearth_counter' ||
+      n.id.toLowerCase().includes('hearth') ||
+      n.id.toLowerCase().includes('bank') ||
+      (n.name && (n.name.toLowerCase().includes('hearth') || n.name.toLowerCase().includes('bank')))
+    );
+
+    if (hearthNodes.length === 0) {
+      return { x: 8, y: 22 };
+    }
+
+    if (playerX !== undefined && playerY !== undefined) {
+      let nearest = hearthNodes[0];
+      let minDist = Math.hypot(playerX - nearest.x, playerY - nearest.y);
+      for (let i = 1; i < hearthNodes.length; i++) {
+        const d = Math.hypot(playerX - hearthNodes[i].x, playerY - hearthNodes[i].y);
+        if (d < minDist) {
+          minDist = d;
+          nearest = hearthNodes[i];
+        }
+      }
+      return { x: nearest.x, y: nearest.y };
+    }
+
+    return { x: hearthNodes[0].x, y: hearthNodes[0].y };
+  }
+
+  private getFightLocation(): { x: number; y: number } {
+    const monsterNode = this.worldNodes.find(n => n.type === 'monster' || n.type === 'boss_arena');
+    if (monsterNode) return { x: monsterNode.x, y: monsterNode.y };
+    return { x: 4, y: 44 };
+  }
+
   private setupTasksCard() {
     document.getElementById('task-stop-btn')!.onclick = () => {
       this.sendWs({ type: 'STOP_TASK' });
@@ -494,7 +528,8 @@ class EldoriaClient {
 
     document.getElementById('task-home-btn')!.onclick = () => {
       this.sendWs({ type: 'STOP_TASK' });
-      this.sendWs({ type: 'MOVE_TO', x: 8, y: 22 });
+      const hearth = this.getHearthLocation(this.player?.x, this.player?.y);
+      this.sendWs({ type: 'MOVE_TO', x: hearth.x, y: hearth.y });
       this.switchDrawer('storage');
     };
   }
@@ -530,11 +565,13 @@ class EldoriaClient {
     });
 
     document.getElementById('btn-quick-fight')!.onclick = () => {
-      this.sendWs({ type: 'MOVE_TO', x: 4, y: 44 });
+      const fight = this.getFightLocation();
+      this.sendWs({ type: 'MOVE_TO', x: fight.x, y: fight.y });
     };
 
     document.getElementById('btn-quick-home')!.onclick = () => {
-      this.sendWs({ type: 'MOVE_TO', x: 8, y: 22 });
+      const hearth = this.getHearthLocation(this.player?.x, this.player?.y);
+      this.sendWs({ type: 'MOVE_TO', x: hearth.x, y: hearth.y });
       this.switchDrawer('storage');
     };
   }
@@ -845,7 +882,8 @@ class EldoriaClient {
     grid.innerHTML = '';
     document.getElementById('inv-count')!.textContent = this.player.inventory.length.toString();
 
-    const isNearHearth = Math.hypot(this.player.x - 8, this.player.y - 22) <= 1.5;
+    const hearth = this.getHearthLocation(this.player.x, this.player.y);
+    const isNearHearth = Math.hypot(this.player.x - hearth.x, this.player.y - hearth.y) <= 1.5;
     const btnDepositInv = document.getElementById('btn-inv-deposit-all');
     if (btnDepositInv) {
       btnDepositInv.textContent = isNearHearth ? 'Deposit All Spoils' : 'Deposit All Spoils (Travel to Hearth)';
@@ -916,7 +954,8 @@ class EldoriaClient {
     grid.innerHTML = '';
     document.getElementById('storage-count')!.textContent = this.player.storage.length.toString();
 
-    const isNearHearth = Math.hypot(this.player.x - 8, this.player.y - 22) <= 1.5;
+    const hearth = this.getHearthLocation(this.player.x, this.player.y);
+    const isNearHearth = Math.hypot(this.player.x - hearth.x, this.player.y - hearth.y) <= 1.5;
     const btnDepositStorage = document.getElementById('btn-deposit-all');
     if (btnDepositStorage) {
       btnDepositStorage.textContent = isNearHearth ? 'Deposit All Spoils' : 'Deposit All Spoils (Travel to Hearth)';
@@ -939,7 +978,7 @@ class EldoriaClient {
         : `Travel to Hearth to withdraw items`;
       div.onclick = () => {
         if (!isNearHearth) {
-          this.sendWs({ type: 'MOVE_TO', x: 8, y: 22 });
+          this.sendWs({ type: 'MOVE_TO', x: hearth.x, y: hearth.y });
         } else {
           this.sendWs({ type: 'WITHDRAW_ITEM', storageIndex: index });
         }
@@ -1406,7 +1445,8 @@ class EldoriaClient {
     const eatBtn = document.getElementById('btn-action-eat')!;
     eatBtn.style.display = def.category === 'cooked_food' ? 'block' : 'none';
 
-    const isNearHearth = this.player && Math.hypot(this.player.x - 8, this.player.y - 22) <= 1.5;
+    const hearth = this.getHearthLocation(this.player?.x, this.player?.y);
+    const isNearHearth = this.player && Math.hypot(this.player.x - hearth.x, this.player.y - hearth.y) <= 1.5;
     const depositBtn = document.getElementById('btn-action-deposit');
     if (depositBtn) {
       depositBtn.textContent = isNearHearth ? 'Deposit to Hearth' : 'Travel & Deposit to Hearth';

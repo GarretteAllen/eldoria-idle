@@ -147,9 +147,10 @@ export class GameEngine {
             if (hasInStorage) {
               // Path to Hearth to withdraw materials first, then go to work!
               session.pendingTask = { recipeId: msg.recipeId, targetX, targetY, quantity: msg.quantity };
-              const pathToHearth = this.findPathWithCollisions(player.x, player.y, 8, 22);
-              player.targetX = 8;
-              player.targetY = 22;
+              const hearth = this.getHearthLocation(player.x, player.y);
+              const pathToHearth = this.findPathWithCollisions(player.x, player.y, hearth.x, hearth.y);
+              player.targetX = hearth.x;
+              player.targetY = hearth.y;
               player.path = pathToHearth;
               player.isMoving = true;
               player.bankingState = 'walking_to_bank';
@@ -502,11 +503,39 @@ export class GameEngine {
     this.send(session.ws, { type: 'PLAYER_UPDATE', player });
   }
 
+  public getHearthLocation(playerX?: number, playerY?: number): { x: number; y: number } {
+    const nodes = storage.getWorldNodes();
+    const hearthNodes = nodes.filter(n =>
+      n.type === 'hearth_counter' ||
+      n.id.toLowerCase().includes('hearth') ||
+      n.id.toLowerCase().includes('bank') ||
+      (n.name && (n.name.toLowerCase().includes('hearth') || n.name.toLowerCase().includes('bank')))
+    );
+
+    if (hearthNodes.length === 0) {
+      return { x: 8, y: 22 };
+    }
+
+    if (playerX !== undefined && playerY !== undefined) {
+      let nearest = hearthNodes[0];
+      let minDist = Math.hypot(playerX - nearest.x, playerY - nearest.y);
+      for (let i = 1; i < hearthNodes.length; i++) {
+        const d = Math.hypot(playerX - hearthNodes[i].x, playerY - hearthNodes[i].y);
+        if (d < minDist) {
+          minDist = d;
+          nearest = hearthNodes[i];
+        }
+      }
+      return { x: nearest.x, y: nearest.y };
+    }
+
+    return { x: hearthNodes[0].x, y: hearthNodes[0].y };
+  }
+
   private handleDepositAll(session: ConnectedSession) {
     const { player, ws } = session;
-    const hearthX = 8;
-    const hearthY = 22;
-    const distToHearth = Math.hypot(player.x - hearthX, player.y - hearthY);
+    const hearth = this.getHearthLocation(player.x, player.y);
+    const distToHearth = Math.hypot(player.x - hearth.x, player.y - hearth.y);
 
     if (distToHearth > 1.5) {
       // Out in the field: path to Hearth counter first!
@@ -515,9 +544,9 @@ export class GameEngine {
       player.bankReturnTask = null;
       session.ticksInTask = 0;
 
-      const path = this.findPathWithCollisions(player.x, player.y, hearthX, hearthY);
-      player.targetX = hearthX;
-      player.targetY = hearthY;
+      const path = this.findPathWithCollisions(player.x, player.y, hearth.x, hearth.y);
+      player.targetX = hearth.x;
+      player.targetY = hearth.y;
       player.path = path;
       player.isMoving = path.length > 0;
       player.bankingState = 'walking_to_bank';
@@ -537,9 +566,8 @@ export class GameEngine {
 
   private handleWithdrawItem(session: ConnectedSession, storageIndex: number) {
     const { player, ws } = session;
-    const hearthX = 8;
-    const hearthY = 22;
-    const distToHearth = Math.hypot(player.x - hearthX, player.y - hearthY);
+    const hearth = this.getHearthLocation(player.x, player.y);
+    const distToHearth = Math.hypot(player.x - hearth.x, player.y - hearth.y);
 
     if (distToHearth > 1.5) {
       this.send(ws, {
@@ -811,9 +839,10 @@ export class GameEngine {
           player.bankReturnTask = { ...player.currentTask! };
           player.currentTask = null;
           player.bankingState = 'walking_to_bank';
-          const path = this.findPathWithCollisions(player.x, player.y, 8, 22);
-          player.targetX = 8;
-          player.targetY = 22;
+          const hearth = this.getHearthLocation(player.x, player.y);
+          const path = this.findPathWithCollisions(player.x, player.y, hearth.x, hearth.y);
+          player.targetX = hearth.x;
+          player.targetY = hearth.y;
           player.path = path;
           player.isMoving = path.length > 0;
           this.send(ws, {
@@ -861,9 +890,10 @@ export class GameEngine {
         player.currentTask = null;
         player.bankingState = 'walking_to_bank';
 
-        const path = this.findPathWithCollisions(player.x, player.y, 8, 22);
-        player.targetX = 8;
-        player.targetY = 22;
+        const hearth = this.getHearthLocation(player.x, player.y);
+        const path = this.findPathWithCollisions(player.x, player.y, hearth.x, hearth.y);
+        player.targetX = hearth.x;
+        player.targetY = hearth.y;
         player.path = path;
         player.isMoving = path.length > 0;
 
