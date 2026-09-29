@@ -90,6 +90,19 @@ export class GameEngine {
       player.role = 'admin';
     }
 
+    // Ensure player Hitpoints is at least Level 10 and 1,478 XP
+    if (!player.skills.hitpoints || player.skills.hitpoints.level < 10 || player.skills.hitpoints.xp < 1478) {
+      const hpXp = Math.max(1478, player.skills.hitpoints?.xp || 1478);
+      player.skills.hitpoints = {
+        xp: hpXp,
+        level: Math.max(10, getLevelFromXp(hpXp)),
+      };
+      if (!player.currentHp || player.currentHp < player.skills.hitpoints.level) {
+        player.currentHp = player.skills.hitpoints.level;
+      }
+      storage.savePlayer(player);
+    }
+
     player.lastActiveTimestamp = Date.now();
     player.moveSpeedTilesPerTick = calculatePlayerMoveSpeed(player);
     this.sessions.set(player.id, { ws, player, ticksInTask: 0, moveAccumulator: 0, pendingTask: null, pendingCombat: null, activeCombat: null });
@@ -1146,6 +1159,22 @@ export class GameEngine {
         }
         }
       }
+
+      // 3. Natural Out-of-Combat Health Regeneration
+      const maxHp = Math.max(10, player.skills.hitpoints?.level || 10);
+      if (player.currentHp < maxHp && !session.activeCombat) {
+        // Regenerate 1 HP every 10 ticks (6 seconds) out of combat
+        // Or 2 HP every 3 ticks (1.8s) if resting near the Hearth
+        const hearth = this.getHearthLocation(player.x, player.y);
+        const nearHearth = Math.hypot(player.x - hearth.x, player.y - hearth.y) <= 3.5;
+        const regenInterval = nearHearth ? 3 : 10;
+        const regenAmount = nearHearth ? 2 : 1;
+
+        if (this.tickCount % regenInterval === 0) {
+          player.currentHp = Math.min(maxHp, player.currentHp + regenAmount);
+          this.send(ws, { type: 'PLAYER_UPDATE', player });
+        }
+      }
     }
 
     // Every 5 ticks (3s) auto-save
@@ -1747,8 +1776,8 @@ export class GameEngine {
       player.skills[combatStyle].level = getLevelFromXp(player.skills[combatStyle].xp);
 
       const hpXp = Math.max(1, Math.floor(damage * 1.33));
-      player.skills.hitpoints.xp += hpXp;
-      player.skills.hitpoints.level = getLevelFromXp(player.skills.hitpoints.xp);
+      player.skills.hitpoints.xp = Math.max(1478, (player.skills.hitpoints.xp || 1478) + hpXp);
+      player.skills.hitpoints.level = Math.max(10, getLevelFromXp(player.skills.hitpoints.xp));
 
       this.send(ws, {
         type: 'COMBAT_HIT',

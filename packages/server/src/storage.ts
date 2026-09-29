@@ -3,7 +3,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import Database from 'better-sqlite3';
-import { PlayerData, SkillType, WorldNode, NpcDefinition, QuestDefinition } from '@eldoria/shared';
+import { PlayerData, SkillType, WorldNode, NpcDefinition, QuestDefinition, getLevelFromXp } from '@eldoria/shared';
 import { WORLD_NODES as DEFAULT_WORLD_NODES } from './world.js';
 
 function getProjectRoot(): string {
@@ -95,7 +95,7 @@ const INITIAL_SKILLS: Record<SkillType, { xp: number; level: number }> = {
   ranged: { xp: 0, level: 1 },
   magic: { xp: 0, level: 1 },
   defence: { xp: 0, level: 1 },
-  hitpoints: { xp: 0, level: 10 },
+  hitpoints: { xp: 1478, level: 10 },
 };
 
 const DEFAULT_NPCS: NpcDefinition[] = [
@@ -519,6 +519,17 @@ class StorageManager {
       const player = JSON.parse(row.data) as PlayerData;
       if (this.isPlayerAdmin(player)) {
         player.role = 'admin';
+      }
+      // Ensure hitpoints is never below Level 10 / 1478 XP
+      if (!player.skills.hitpoints || player.skills.hitpoints.level < 10 || player.skills.hitpoints.xp < 1478) {
+        const hpXp = Math.max(1478, player.skills.hitpoints?.xp || 1478);
+        player.skills.hitpoints = {
+          xp: hpXp,
+          level: Math.max(10, getLevelFromXp(hpXp)),
+        };
+        if (!player.currentHp || player.currentHp < player.skills.hitpoints.level) {
+          player.currentHp = player.skills.hitpoints.level;
+        }
       }
       return player;
     } catch (err) {

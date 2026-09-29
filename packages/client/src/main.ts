@@ -521,7 +521,7 @@ class EldoriaClient {
     document.getElementById('skills-total-badge')!.textContent = totalLevel.toString();
 
     // Hitpoints
-    const maxHp = (this.player.skills.hitpoints?.level || 10);
+    const maxHp = Math.max(10, this.player.skills.hitpoints?.level || 10);
     document.getElementById('hp-text')!.textContent = `${this.player.currentHp} / ${maxHp}`;
     const hpPct = Math.min(100, Math.floor((this.player.currentHp / maxHp) * 100));
     document.getElementById('hp-bar-fill')!.style.width = `${hpPct}%`;
@@ -601,7 +601,7 @@ class EldoriaClient {
     hud.classList.remove('hidden');
 
     // Player stats
-    const pMaxHp = this.player.skills.hitpoints?.level || 10;
+    const pMaxHp = Math.max(10, this.player.skills.hitpoints?.level || 10);
     const pCurHp = Math.max(0, Math.min(pMaxHp, this.player.currentHp));
     const pPct = Math.max(0, Math.min(100, Math.round((pCurHp / pMaxHp) * 100)));
 
