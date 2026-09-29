@@ -101,8 +101,6 @@ class EldoriaClient {
     document.getElementById('away-close-btn')!.innerHTML = ICONS.close;
     const editorDrawerClose = document.getElementById('editor-drawer-close-btn');
     if (editorDrawerClose) editorDrawerClose.innerHTML = ICONS.close;
-    const adminAuthClose = document.getElementById('admin-auth-close-btn');
-    if (adminAuthClose) adminAuthClose.innerHTML = ICONS.close;
     const npcModalClose = document.getElementById('npc-modal-close-btn');
     if (npcModalClose) npcModalClose.innerHTML = ICONS.close;
     const topCharIcon = document.getElementById('top-char-icon');
@@ -198,7 +196,6 @@ class EldoriaClient {
     this.setupProfileModal();
 
     const token = localStorage.getItem('eldoria_session_token');
-    const guestId = localStorage.getItem('eldoria_guest_id');
 
     if (token) {
       try {
@@ -220,25 +217,7 @@ class EldoriaClient {
       }
     }
 
-    if (guestId) {
-      try {
-        const res = await fetch('/api/auth/guest', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ guestId }),
-        });
-        if (res.ok) {
-          const data = await res.json();
-          this.player = data.player;
-          this.connectWs();
-          return;
-        }
-      } catch (err) {
-        console.warn('Guest login failed', err);
-      }
-    }
-
-    // Neither session nor valid guest found -> Show realm entry gate modal
+    // No persistent registered session -> Present realm entry / login gate modal
     this.openAuthModal('login', false);
   }
 
@@ -354,13 +333,6 @@ class EldoriaClient {
         this.updateCollisionCount();
         break;
 
-      case 'ADMIN_AUTH_SUCCESS':
-        if (this.player) this.player.role = 'admin';
-        document.getElementById('admin-auth-modal')!.classList.add('hidden');
-        this.switchDrawer('editor');
-        this.showToast('👑 Administrator access granted! In-game World Editor unlocked.');
-        break;
-
       case 'CHAT_BROADCAST':
         this.appendChatMessage(msg);
         if (msg.senderId) {
@@ -447,6 +419,18 @@ class EldoriaClient {
     if (this.isPopupOpen) {
       this.updateSkillJobPopup();
     }
+
+    // Editor button visible only to admins
+    const editorToolBtn = document.getElementById('tool-btn-editor');
+    if (editorToolBtn) {
+      editorToolBtn.style.display = this.player.role === 'admin' ? 'flex' : 'none';
+    }
+
+    // Top Logout Button Visibility
+    const topLogoutBtn = document.getElementById('btn-top-logout');
+    if (topLogoutBtn) {
+      topLogoutBtn.style.display = 'inline-flex';
+    }
   }
 
   private updateTasksCard() {
@@ -531,7 +515,7 @@ class EldoriaClient {
             btn.classList.add('active');
             this.switchDrawer('editor');
           } else {
-            document.getElementById('admin-auth-modal')!.classList.remove('hidden');
+            this.showToast('🔒 World Editor is restricted to server administrators.');
           }
           return;
         }
@@ -1038,10 +1022,12 @@ class EldoriaClient {
       document.getElementById('item-action-modal')!.classList.add('hidden');
     };
 
-    const adminAuthClose = document.getElementById('admin-auth-close-btn');
-    if (adminAuthClose) {
-      adminAuthClose.onclick = () => {
-        document.getElementById('admin-auth-modal')!.classList.add('hidden');
+    const topLogoutBtn = document.getElementById('btn-top-logout');
+    if (topLogoutBtn) {
+      topLogoutBtn.onclick = () => {
+        if (confirm('Are you sure you want to log out of Eldoria?')) {
+          this.handleLogout();
+        }
       };
     }
 
@@ -1248,16 +1234,22 @@ class EldoriaClient {
     }
 
     if (btnPlayGuest) {
+      const savedGuestId = localStorage.getItem('eldoria_guest_id');
+      if (savedGuestId) {
+        btnPlayGuest.textContent = '🎒 Continue as Guest';
+      }
+
       btnPlayGuest.onclick = async () => {
         if (this.player) {
           modal?.classList.add('hidden');
           return;
         }
+        const guestIdToUse = localStorage.getItem('eldoria_guest_id') || undefined;
         try {
           const res = await fetch('/api/auth/guest', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({}),
+            body: JSON.stringify({ guestId: guestIdToUse }),
           });
           const data = await res.json();
           this.player = data.player;
@@ -1358,22 +1350,28 @@ class EldoriaClient {
     }
 
     if (btnLogout) {
-      btnLogout.onclick = async () => {
-        const token = localStorage.getItem('eldoria_session_token');
-        if (token) {
-          try {
-            await fetch('/api/auth/logout', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ token }),
-            });
-          } catch {}
+      btnLogout.onclick = () => {
+        if (confirm('Are you sure you want to log out of Eldoria?')) {
+          this.handleLogout();
         }
-        localStorage.removeItem('eldoria_session_token');
-        localStorage.removeItem('eldoria_guest_id');
-        window.location.reload();
       };
     }
+  }
+
+  private async handleLogout() {
+    const token = localStorage.getItem('eldoria_session_token');
+    if (token) {
+      try {
+        await fetch('/api/auth/logout', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token }),
+        });
+      } catch {}
+    }
+    localStorage.removeItem('eldoria_session_token');
+    localStorage.removeItem('eldoria_guest_id');
+    window.location.reload();
   }
 
   private openItemActionModal(index: number) {
@@ -1452,20 +1450,7 @@ class EldoriaClient {
      ADMIN WORLD EDITOR METHODS
      ======================================================== */
   private setupAdminEditor() {
-    // 1. Admin Authentication Form
-    const authForm = document.getElementById('admin-auth-form') as HTMLFormElement | null;
-    const authInput = document.getElementById('admin-secret-input') as HTMLInputElement | null;
-    if (authForm && authInput) {
-      authForm.onsubmit = (e) => {
-        e.preventDefault();
-        const secret = authInput.value.trim();
-        if (!secret) return;
-        this.sendWs({ type: 'ADMIN_LOGIN', secret });
-        authInput.value = '';
-      };
-    }
-
-    // 2. Editor Tabs Navigation
+    // 1. Editor Tabs Navigation
     const tabs = document.querySelectorAll('.editor-tab');
     tabs.forEach(tab => {
       tab.addEventListener('click', () => {

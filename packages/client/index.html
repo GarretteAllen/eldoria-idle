@@ -69,6 +69,8 @@
             <span id="top-player-name">Wanderer</span>
           </div>
 
+          <button id="btn-top-logout" class="top-logout-btn" title="Log Out of Character">Log Out</button>
+
           <div class="online-indicator">
             <span class="dot"></span>
             <span id="online-count">1</span> online
@@ -128,7 +130,7 @@
         <button class="tool-btn" data-panel="inventory" id="tool-btn-inventory" title="Bag (Inventory)"></button>
         <button class="tool-btn" data-panel="equipment" id="tool-btn-equipment" title="Gear (Equipment)"></button>
         <button class="tool-btn" data-panel="storage" id="tool-btn-storage" title="Hearth Reliquary"></button>
-        <button class="tool-btn" data-panel="editor" id="tool-btn-editor" title="In-Game World Editor (Admin)"></button>
+        <button class="tool-btn" data-panel="editor" id="tool-btn-editor" title="In-Game World Editor (Admin)" style="display:none;"></button>
         <button class="tool-btn" data-panel="chat" id="tool-btn-chat" title="Toggle Chat"></button>
       </aside>
 
@@ -520,28 +522,7 @@
         </div>
       </div>
 
-      <!-- ADMIN AUTH MODAL -->
-      <div id="admin-auth-modal" class="modal-backdrop hidden">
-        <div class="modal-box dark-oak-panel" style="width: 340px;">
-          <div class="modal-header">
-            <div style="display: flex; align-items: center; gap: 6px;">
-              <span class="admin-badge"><span class="badge-icon">👑</span> ADMIN</span>
-              <h4>Admin Access</h4>
-            </div>
-            <button id="admin-auth-close-btn" class="icon-btn-micro"></button>
-          </div>
-          <form id="admin-auth-form" style="display: flex; flex-direction: column; gap: 10px;">
-            <p style="font-size: 0.75rem; color: var(--text-muted); line-height: 1.4;">
-              Admin access is account-bound via the server environment variable (<code style="color:var(--gold-bright);">ADMIN_USERNAMES=gar</code>).
-              Type <code style="color:var(--gold-bright);">/name &lt;your_name&gt;</code> in chat to claim your account, or enter the emergency passphrase below:
-            </p>
-            <input type="password" id="admin-secret-input" placeholder="Passphrase..." style="background: #140c06; border: 1px solid var(--oak-border); border-radius: 4px; padding: 6px 10px; color: var(--text-main); outline: none;" />
-            <div style="display: flex; gap: 6px;">
-              <button type="submit" class="btn-start" style="flex: 1;">Verify Access</button>
-            </div>
-          </form>
-        </div>
-      </div>
+
 
       <!-- NPC DIALOGUE & QUEST MODAL -->
       <div id="npc-dialogue-modal" class="modal-backdrop hidden">

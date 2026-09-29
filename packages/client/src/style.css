@@ -328,6 +328,27 @@ body, html {
   font-weight: 700;
   color: var(--text-cream);
 }
+.top-logout-btn {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 3px;
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 1px 7px;
+  height: 22px;
+  cursor: pointer;
+  transition: all 0.1s;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+.top-logout-btn:hover {
+  background: #3c1414;
+  border-color: #742a2a;
+  color: #feb2b2;
+}
 
 /* Online Indicator */
 .online-indicator {

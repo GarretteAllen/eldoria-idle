@@ -272,29 +272,6 @@ export class GameEngine {
             break;
           }
 
-          // Admin passphrase command (legacy or emergency fallback)
-          if (trimmed.startsWith('/admin')) {
-            const parts = trimmed.split(/\s+/);
-            const secret = parts[1] || '';
-            if (storage.isPlayerAdmin(player) || storage.verifyAdminSecret(secret)) {
-              player.role = 'admin';
-              storage.savePlayer(player);
-              this.send(session.ws, {
-                type: 'NOTIFICATION',
-                message: '🛡️ Admin status verified! In-Game World Editor unlocked.'
-              });
-              this.send(session.ws, { type: 'ADMIN_AUTH_SUCCESS' });
-              this.send(session.ws, { type: 'PLAYER_UPDATE', player });
-              this.broadcastWorldState();
-            } else {
-              this.send(session.ws, {
-                type: 'NOTIFICATION',
-                message: '❌ Invalid admin credentials. Administrator accounts are configured via ADMIN_USERNAMES.'
-              });
-            }
-            break;
-          }
-
           const chatPayload = {
             type: 'CHAT_BROADCAST',
             channel: msg.channel || 'All',
@@ -309,25 +286,6 @@ export class GameEngine {
             y: player.y,
           };
           this.broadcast(chatPayload);
-        }
-        break;
-
-      case 'ADMIN_LOGIN':
-        if (storage.isPlayerAdmin(player) || storage.verifyAdminSecret(msg.secret)) {
-          player.role = 'admin';
-          storage.savePlayer(player);
-          this.send(session.ws, {
-            type: 'NOTIFICATION',
-            message: '🛡️ Admin status verified! In-Game World Editor unlocked.'
-          });
-          this.send(session.ws, { type: 'ADMIN_AUTH_SUCCESS' });
-          this.send(session.ws, { type: 'PLAYER_UPDATE', player });
-          this.broadcastWorldState();
-        } else {
-          this.send(session.ws, {
-            type: 'NOTIFICATION',
-            message: '❌ Invalid admin credentials. Administrator accounts are configured in server environment variables (ADMIN_USERNAMES).'
-          });
         }
         break;
 
