@@ -50,7 +50,7 @@ class EldoriaClient {
   private activeStorageTab: 'storage' | 'vendor' = 'storage';
 
   // Editor State
-  private activeEditorTab: 'nodes' | 'monsters' | 'npcs' | 'quests' | 'collisions' = 'nodes';
+  private activeEditorTab: 'nodes' | 'monsters' | 'npcs' | 'quests' | 'collisions' | 'giveitems' = 'nodes';
   private collisionBrush: 'paint' | 'erase' = 'paint';
 
   // Interaction State
@@ -2503,9 +2503,9 @@ class EldoriaClient {
     }
   }
 
-  private switchEditorTab(tab: 'nodes' | 'monsters' | 'npcs' | 'quests' | 'collisions') {
+  private switchEditorTab(tab: 'nodes' | 'monsters' | 'npcs' | 'quests' | 'collisions' | 'giveitems') {
     this.activeEditorTab = tab;
-    const tabContents = ['nodes', 'monsters', 'npcs', 'quests', 'collisions'];
+    const tabContents = ['nodes', 'monsters', 'npcs', 'quests', 'collisions', 'giveitems'];
     for (const t of tabContents) {
       const el = document.getElementById(`tab-content-${t}`);
       if (el) {
