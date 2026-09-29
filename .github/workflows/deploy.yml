@@ -24,8 +24,11 @@ jobs:
             echo "🚀 Deploying latest commit to VPS..."
             cd /var/www/eldoria-idle
 
-            # Pull latest changes from main
+            # Discard any local build artifact changes on VPS before pulling main
+            git reset --hard HEAD
+            git clean -fd -e data/ -e data.sqlite*
             git pull origin main
+
 
             # Install dependencies and build shared, client, and server packages
             npm install
