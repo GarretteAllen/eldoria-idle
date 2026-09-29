@@ -2,6 +2,7 @@ import { PlayerData, RECIPES, ITEMS, MONSTERS, EquipSlot, SkillType, getXpToNext
 import { WorldRenderer, WorldNodeDisplay } from './canvas.js';
 import { loadLdtkWorld } from './ldtkLoader.js';
 import { ICONS, getItemIconSvg } from './icons.js';
+import { sound } from './sound.js';
 
 const SKILL_FLAVOR: Record<string, string> = {
   mining: 'Excavate raw veins of pyrite, galena, cold iron, quicksilver and starfall from the ancient crags.',
@@ -64,6 +65,8 @@ class EldoriaClient {
     maxHp: number;
     combatStyle: string;
   } | null = null;
+  private previousSkillLevels: Map<string, number> = new Map();
+  private previousCompletedQty: number = 0;
 
   constructor() {
     const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
@@ -77,6 +80,10 @@ class EldoriaClient {
     this.setupModals();
     this.setupStorageModal();
     this.setupAdminEditor();
+    this.setupSoundAndMinimap();
+    this.setupLevelUpCelebration();
+    this.setupBestiary();
+    this.setupItemTooltips();
     this.fetchNodesAndInit();
   }
 
@@ -326,6 +333,11 @@ class EldoriaClient {
     switch (msg.type) {
       case 'INIT':
         this.player = msg.player;
+        if (this.player) {
+          for (const [sk, data] of Object.entries(this.player.skills)) {
+            this.previousSkillLevels.set(sk, (data as any).level);
+          }
+        }
         this.renderer.setLocalPlayer(this.player!);
         this.updateUI();
 
@@ -363,6 +375,22 @@ class EldoriaClient {
       case 'PLAYER_UPDATE':
         this.player = msg.player;
         this.renderer.setLocalPlayer(this.player!);
+        if (this.player) {
+          this.checkSkillLevelUps(this.player);
+          if (this.player.currentTask) {
+            const curQty = this.player.currentTask.completedQuantity || 0;
+            if (curQty > this.previousCompletedQty) {
+              const skill = this.player.currentTask.skill;
+              if (skill === 'mining') sound.play('mine');
+              else if (skill === 'woodcutting') sound.play('woodcut');
+              else if (skill === 'smithing') sound.play('mine');
+              else if (skill === 'cooking') sound.play('eat');
+            }
+            this.previousCompletedQty = curQty;
+          } else {
+            this.previousCompletedQty = 0;
+          }
+        }
         this.updateUI();
 
         // Check if arrived adjacent to clicked NPC
@@ -451,6 +479,33 @@ class EldoriaClient {
           // Trigger attack animation strictly on hit
           this.renderer.triggerPlayerAttack(style);
 
+          // Audio: weapon swing
+          if (style === 'melee') sound.play('sword');
+          else if (style === 'ranged') sound.play('bow');
+          else if (style === 'magic') sound.play('spell');
+
+          const dmg = typeof msg.damage === 'number' ? msg.damage : (msg.hit ? 1 : 0);
+          const targetKey = msg.nodeId || msg.monsterId;
+          const targetX = typeof msg.targetX === 'number' ? msg.targetX : (this.worldNodes.find(n => n.id === targetKey)?.x ?? this.player?.x ?? 0);
+          const targetY = typeof msg.targetY === 'number' ? msg.targetY : (this.worldNodes.find(n => n.id === targetKey)?.y ?? this.player?.y ?? 0);
+
+          if (dmg > 0) {
+            sound.play('impact');
+            this.renderer.addFloatingText(targetX, targetY, `-${dmg}`, 'damage');
+            if (targetKey) this.renderer.triggerMonsterFlinch(targetKey);
+          } else {
+            sound.play('splash');
+            this.renderer.addFloatingText(targetX, targetY, '0', 'splash');
+          }
+
+          if (msg.monsterHp !== undefined && msg.monsterHp <= 0) {
+            sound.play('coin');
+            this.renderer.addDeathEffect(targetX, targetY);
+            if (msg.xp) {
+              this.renderer.addFloatingText(targetX, targetY - 0.5, `+${msg.xp} XP`, 'xp');
+            }
+          }
+
           // Update active combat HUD
           this.activeCombatMonster = {
             id: msg.monsterId,
@@ -463,10 +518,22 @@ class EldoriaClient {
           this.updateCombatHud();
         } else if (msg.target === 'player') {
           if (typeof msg.playerHp === 'number' && this.player) {
+            const dmg = typeof msg.damage === 'number' ? msg.damage : Math.max(0, this.player.currentHp - msg.playerHp);
             this.player.currentHp = msg.playerHp;
+            if (dmg > 0) {
+              sound.play('impact');
+              this.renderer.addFloatingText(this.player.x, this.player.y, `-${dmg}`, 'damage');
+            } else {
+              sound.play('splash');
+              this.renderer.addFloatingText(this.player.x, this.player.y, '0', 'splash');
+            }
           }
           this.updateCombatHud();
         }
+        break;
+
+      case 'LEVEL_UP':
+        this.showLevelUpModal(msg.skill, msg.newLevel);
         break;
 
       case 'NOTIFICATION':
@@ -530,6 +597,13 @@ class EldoriaClient {
     const speed = this.player.moveSpeedTilesPerTick || 1.0;
     const bonusPct = Math.round((speed - 1.0) * 100);
     document.getElementById('speed-text')!.textContent = `${speed.toFixed(2)} t/t ${bonusPct > 0 ? '(+' + bonusPct + '%)' : ''}`;
+
+    // Minimap coordinates
+    const coordsEl = document.getElementById('minimap-coords');
+    if (coordsEl) {
+      const vc = this.renderer.getVisualCoords();
+      coordsEl.textContent = `${vc.x}, ${vc.y}`;
+    }
 
     // 2. Tasks Card (Top-Left)
     this.updateTasksCard();
@@ -1177,6 +1251,7 @@ class EldoriaClient {
           <span class="item-qty">${slot.quantity > 1 ? slot.quantity : ''}</span>
         `;
         slotEl.title = `${name} (${slot.rarity || 'plain'})\nClick for actions`;
+        this.attachItemTooltip(slotEl, slot);
         slotEl.addEventListener('click', (e: MouseEvent) => {
           e.stopPropagation();
           this.openItemContextMenu(i, e);
@@ -1258,6 +1333,7 @@ class EldoriaClient {
           <button class="btn-oak" style="padding:2px 8px; font-size:0.68rem; height:22px;">Unequip</button>
         `;
         div.title = `${def?.name || itemSlot.itemId}\nClick to unequip into satchel`;
+        this.attachItemTooltip(div, itemSlot, slotDef.key);
         div.onclick = () => {
           this.sendWs({ type: 'UNEQUIP_ITEM', slot: slotDef.key });
         };
@@ -1331,6 +1407,7 @@ class EldoriaClient {
             <button class="btn-oak" style="padding:2px 8px; font-size:0.68rem; height:22px;">Unequip</button>
           `;
           div.title = `${def?.name || itemSlot.itemId} (${speedBonus})\nClick to unequip into satchel`;
+          this.attachItemTooltip(div, itemSlot, actualSlotKey);
           div.onclick = () => {
             this.sendWs({ type: 'UNEQUIP_ITEM', slot: actualSlotKey });
           };
@@ -1377,6 +1454,7 @@ class EldoriaClient {
       div.title = isNearHearth 
         ? `Click to withdraw ${def?.name || slot.itemId} into satchel` 
         : `Travel to Hearth to withdraw items`;
+      this.attachItemTooltip(div, slot);
       div.onclick = () => {
         if (!isNearHearth) {
           this.sendWs({ type: 'MOVE_TO', x: hearth.x, y: hearth.y });
@@ -1575,6 +1653,7 @@ class EldoriaClient {
           <span class="dv-slot-qty">${qtyFormatted}</span>
         `;
         div.title = `${def?.name || slot.itemId} (x${slot.quantity.toLocaleString()}) — Click to withdraw ${this.selectedTransferAmount === 'all' ? 'all' : this.selectedTransferAmount}`;
+        this.attachItemTooltip(div, slot);
 
         div.onclick = () => {
           if (!isNearHearth) {
@@ -1633,6 +1712,7 @@ class EldoriaClient {
             <span class="dv-slot-qty">${qtyFormatted}</span>
           `;
           div.title = `${def?.name || slot.itemId} (x${slot.quantity.toLocaleString()}) — Click to deposit ${this.selectedTransferAmount === 'all' ? 'all' : this.selectedTransferAmount}`;
+          this.attachItemTooltip(div, slot);
 
           const index = i;
           div.onclick = () => {
@@ -1683,6 +1763,7 @@ class EldoriaClient {
           <span class="dv-slot-qty">${qtyFormatted}</span>
         `;
         div.title = `${def?.name || slot.itemId} (x${slot.quantity}) — Click to sell for ${totalPrice.toLocaleString()} Gold (${pricePerUnit} each)`;
+        this.attachItemTooltip(div, slot);
 
         const index = i;
         div.onclick = () => {
@@ -1813,7 +1894,15 @@ class EldoriaClient {
     const ctxBtnEat = document.getElementById('ctx-btn-eat');
     if (ctxBtnEat && ctxMenu) {
       ctxBtnEat.onclick = () => {
-        if (this.selectedInventoryIndex !== null) {
+        if (this.selectedInventoryIndex !== null && this.player) {
+          const slot = this.player.inventory[this.selectedInventoryIndex];
+          if (slot) {
+            const def = ITEMS[slot.itemId];
+            if (def?.baseStats?.healing) {
+              sound.play('eat');
+              this.renderer.addFloatingText(this.player.x, this.player.y, `+${def.baseStats.healing}`, 'heal');
+            }
+          }
           this.sendWs({ type: 'EAT_FOOD', inventoryIndex: this.selectedInventoryIndex });
           ctxMenu.classList.add('hidden');
         }
@@ -1909,6 +1998,328 @@ class EldoriaClient {
     };
 
     this.setupProfileModal();
+  }
+
+  private setupSoundAndMinimap() {
+    const soundBtn = document.getElementById('btn-sound-toggle');
+    if (soundBtn) {
+      soundBtn.onclick = () => {
+        const enabled = sound.toggle();
+        soundBtn.textContent = enabled ? '🔊' : '🔇';
+        soundBtn.classList.toggle('muted', !enabled);
+        this.showToast(enabled ? 'Procedural Sound Enabled' : 'Sound Muted');
+      };
+    }
+
+    const minimapBtn = document.getElementById('btn-minimap-toggle');
+    const minimapCard = document.getElementById('minimap-card');
+    if (minimapBtn && minimapCard) {
+      minimapBtn.onclick = () => {
+        minimapCard.classList.toggle('hidden');
+      };
+    }
+
+    const minimapCanvas = document.getElementById('minimap-canvas') as HTMLCanvasElement;
+    if (minimapCanvas) {
+      this.renderer.setMinimapCanvas(minimapCanvas);
+      minimapCanvas.addEventListener('click', (e) => {
+        if (!this.player) return;
+        const rect = minimapCanvas.getBoundingClientRect();
+        const clickX = e.clientX - rect.left;
+        const clickY = e.clientY - rect.top;
+        const cx = minimapCanvas.width / 2;
+        const cy = minimapCanvas.height / 2;
+        const scale = minimapCanvas.width / (17 * 2); // 4px per tile
+        const dxTiles = (clickX - cx) / scale;
+        const dyTiles = (clickY - cy) / scale;
+        const targetX = Math.max(0, Math.min(60, Math.round(this.player.x + dxTiles)));
+        const targetY = Math.max(0, Math.min(60, Math.round(this.player.y + dyTiles)));
+        this.sendWs({ type: 'MOVE_TO', x: targetX, y: targetY });
+      });
+    }
+  }
+
+  private setupLevelUpCelebration() {
+    const closeBtn = document.getElementById('level-up-close-btn');
+    const modal = document.getElementById('level-up-modal');
+    if (closeBtn && modal) {
+      closeBtn.onclick = () => {
+        modal.classList.add('hidden');
+      };
+    }
+  }
+
+  private checkSkillLevelUps(player: PlayerData) {
+    if (this.previousSkillLevels.size === 0) {
+      for (const [sk, data] of Object.entries(player.skills)) {
+        this.previousSkillLevels.set(sk, (data as any).level);
+      }
+      return;
+    }
+
+    for (const [sk, data] of Object.entries(player.skills)) {
+      const prev = this.previousSkillLevels.get(sk) ?? (data as any).level;
+      if ((data as any).level > prev) {
+        this.showLevelUpModal(sk, (data as any).level);
+        this.previousSkillLevels.set(sk, (data as any).level);
+      }
+    }
+  }
+
+  private showLevelUpModal(skill: string, newLevel: number) {
+    sound.play('levelup');
+    const modal = document.getElementById('level-up-modal');
+    if (!modal) return;
+
+    const iconEl = document.getElementById('level-up-icon');
+    const skillEl = document.getElementById('level-up-skill');
+    const levelEl = document.getElementById('level-up-level');
+    const listEl = document.getElementById('level-up-unlock-list');
+
+    if (iconEl) iconEl.innerHTML = ICONS[skill] || '⭐';
+    if (skillEl) skillEl.textContent = skill.charAt(0).toUpperCase() + skill.slice(1);
+    if (levelEl) levelEl.textContent = newLevel.toString();
+
+    if (listEl) {
+      listEl.innerHTML = '';
+      const unlocks: string[] = [];
+
+      for (const rec of Object.values(RECIPES)) {
+        if (rec.skill === skill && rec.levelReq === newLevel) {
+          unlocks.push(`${rec.name} (${rec.skill.toUpperCase()})`);
+        }
+      }
+
+      for (const item of Object.values(ITEMS)) {
+        if (item.equipReq && item.equipReq.skill === skill && item.equipReq.level === newLevel) {
+          unlocks.push(`Equip: ${item.name}`);
+        }
+      }
+
+      if (skill === 'melee' || skill === 'ranged' || skill === 'magic' || skill === 'defence') {
+        for (const mob of Object.values(MONSTERS)) {
+          if (mob.level === newLevel) {
+            unlocks.push(`Challenger: ${mob.name} (${mob.zone})`);
+          }
+        }
+      }
+
+      if (unlocks.length === 0) {
+        unlocks.push(`Enhanced skill mastery, precision and speed`);
+        unlocks.push(`Higher tier efficiency in ${skill}`);
+      }
+
+      for (const u of unlocks) {
+        const row = document.createElement('div');
+        row.className = 'unlock-item-row';
+        row.innerHTML = `<span class="unlock-item-bullet">✦</span> <span>${u}</span>`;
+        listEl.appendChild(row);
+      }
+    }
+
+    modal.classList.remove('hidden');
+  }
+
+  private setupBestiary() {
+    const btnBestiary = document.getElementById('btn-quick-bestiary');
+    const bestiaryModal = document.getElementById('bestiary-modal');
+    const bestiaryClose = document.getElementById('bestiary-close-btn');
+    const searchInput = document.getElementById('bestiary-search-input') as HTMLInputElement;
+
+    if (btnBestiary && bestiaryModal) {
+      btnBestiary.onclick = () => {
+        bestiaryModal.classList.remove('hidden');
+        this.renderBestiaryList(searchInput?.value || '');
+      };
+    }
+
+    if (bestiaryClose && bestiaryModal) {
+      bestiaryClose.onclick = () => bestiaryModal.classList.add('hidden');
+    }
+
+    if (searchInput) {
+      searchInput.oninput = () => {
+        this.renderBestiaryList(searchInput.value);
+      };
+    }
+  }
+
+  private renderBestiaryList(query: string) {
+    const list = document.getElementById('bestiary-list');
+    if (!list) return;
+    list.innerHTML = '';
+    const q = query.toLowerCase().trim();
+
+    const mobs = Object.values(MONSTERS).filter(m => {
+      if (!q) return true;
+      const gItem = m.guaranteedDropItemId ? ITEMS[m.guaranteedDropItemId]?.name : '';
+      const rItem = m.rareDrop ? ITEMS[m.rareDrop.itemId]?.name : '';
+      return m.name.toLowerCase().includes(q) ||
+        m.zone.toLowerCase().includes(q) ||
+        (gItem && gItem.toLowerCase().includes(q)) ||
+        (rItem && rItem.toLowerCase().includes(q));
+    });
+
+    mobs.sort((a, b) => a.level - b.level);
+
+    for (const m of mobs) {
+      const card = document.createElement('div');
+      card.className = 'bestiary-entry';
+
+      const gDropName = m.guaranteedDropItemId && ITEMS[m.guaranteedDropItemId] ? ITEMS[m.guaranteedDropItemId].name : 'None';
+      let rareDropHtml = '';
+      if (m.rareDrop && ITEMS[m.rareDrop.itemId]) {
+        const rName = ITEMS[m.rareDrop.itemId].name;
+        const pct = (m.rareDrop.chance * 100).toFixed(2);
+        rareDropHtml = `<span class="bestiary-drop-pill" style="border-color: #805c2a; color: #ffd699;">⭐ ${rName} <span class="bestiary-drop-rate">(${pct}%)</span></span>`;
+      }
+
+      card.innerHTML = `
+        <div class="bestiary-entry-header">
+          <span class="bestiary-mob-name">${m.name}</span>
+          <span class="bestiary-mob-level">Lvl ${m.level}</span>
+        </div>
+        <div style="font-size:0.68rem; color:#a0aec0; font-style:italic;">Zone: ${m.zone}</div>
+        <div class="bestiary-mob-stats">
+          <span>HP: <b>${m.hp}</b></span>
+          <span>Max Hit: <b>${m.maxHit}</b></span>
+          <span>Coins: <b>${m.minCoins}-${m.maxCoins}</b></span>
+        </div>
+        <div class="bestiary-drops-container">
+          <span class="bestiary-drops-title">Spoils & Drops:</span>
+          <div class="bestiary-drops-pills">
+            <span class="bestiary-drop-pill">📦 ${gDropName} <span class="bestiary-drop-rate">(100%)</span></span>
+            ${rareDropHtml}
+          </div>
+        </div>
+      `;
+      list.appendChild(card);
+    }
+  }
+
+  private setupItemTooltips() {
+    window.addEventListener('blur', () => {
+      const tooltip = document.getElementById('item-hover-tooltip');
+      if (tooltip) tooltip.classList.add('hidden');
+    });
+  }
+
+  private attachItemTooltip(el: HTMLElement, slot: { itemId: string; rarity?: string; plus?: number } | null, equipSlotType?: EquipSlot) {
+    if (!slot) return;
+    const def = ITEMS[slot.itemId];
+    if (!def) return;
+
+    const tooltip = document.getElementById('item-hover-tooltip');
+    if (!tooltip) return;
+
+    el.addEventListener('mouseenter', (e: MouseEvent) => {
+      const nameEl = document.getElementById('tooltip-name');
+      const typeEl = document.getElementById('tooltip-type');
+      const statsListEl = document.getElementById('tooltip-stats');
+      const compEl = document.getElementById('tooltip-comparison');
+      const flavorEl = document.getElementById('tooltip-flavor');
+
+      const rarityColor = slot.rarity === 'legendary' ? '#f59e0b' :
+                          slot.rarity === 'epic' ? '#a855f7' :
+                          slot.rarity === 'rare' ? '#3b82f6' :
+                          slot.rarity === 'uncommon' ? '#22c55e' : '#ffd700';
+
+      if (nameEl) {
+        nameEl.textContent = `${def.name}${slot.plus ? ` +${slot.plus}` : ''}`;
+        nameEl.style.color = rarityColor;
+      }
+
+      if (typeEl) {
+        typeEl.textContent = `${slot.rarity || 'common'} ${def.category.replace('_', ' ')}`;
+      }
+
+      if (statsListEl) {
+        statsListEl.innerHTML = '';
+        if (def.baseStats) {
+          if (def.baseStats.accuracy) {
+            statsListEl.innerHTML += `<div class="tooltip-stat-row"><span>Accuracy</span><span>+${def.baseStats.accuracy}</span></div>`;
+          }
+          if (def.baseStats.strength) {
+            statsListEl.innerHTML += `<div class="tooltip-stat-row"><span>Strength</span><span>+${def.baseStats.strength}</span></div>`;
+          }
+          if (def.baseStats.defence) {
+            statsListEl.innerHTML += `<div class="tooltip-stat-row"><span>Defence</span><span>+${def.baseStats.defence}</span></div>`;
+          }
+          if (def.baseStats.healing) {
+            statsListEl.innerHTML += `<div class="tooltip-stat-row" style="color:#48bb78;"><span>Restores HP</span><span>+${def.baseStats.healing}</span></div>`;
+          }
+          if (def.baseStats.toolSpeedBonus) {
+            statsListEl.innerHTML += `<div class="tooltip-stat-row" style="color:#ecc94b;"><span>Gathering Bonus</span><span>+${Math.round(def.baseStats.toolSpeedBonus * 100)}%</span></div>`;
+          }
+        }
+        if (def.vendorFloorPrice) {
+          statsListEl.innerHTML += `<div class="tooltip-stat-row" style="color:#e2e8f0; font-size:0.68rem;"><span>Vendor Value</span><span>${def.vendorFloorPrice} Coins</span></div>`;
+        }
+      }
+
+      if (compEl) {
+        compEl.innerHTML = '';
+        const targetEquipSlot: EquipSlot | undefined = equipSlotType || def.slot;
+
+        if (targetEquipSlot && this.player && this.player.equipment) {
+          const equipped = this.player.equipment[targetEquipSlot];
+          const eqDef = equipped ? ITEMS[equipped.itemId] : null;
+
+          const myAcc = def.baseStats?.accuracy || 0;
+          const eqAcc = eqDef?.baseStats?.accuracy || 0;
+          const diffAcc = myAcc - eqAcc;
+
+          const myStr = def.baseStats?.strength || 0;
+          const eqStr = eqDef?.baseStats?.strength || 0;
+          const diffStr = myStr - eqStr;
+
+          const myDef = def.baseStats?.defence || 0;
+          const eqDefVal = eqDef?.baseStats?.defence || 0;
+          const diffDef = myDef - eqDefVal;
+
+          const diffParts: string[] = [];
+          if (diffAcc !== 0) {
+            diffParts.push(`<span class="${diffAcc > 0 ? 'stat-diff-positive' : 'stat-diff-negative'}">${diffAcc > 0 ? '+' : ''}${diffAcc} Acc</span>`);
+          }
+          if (diffStr !== 0) {
+            diffParts.push(`<span class="${diffStr > 0 ? 'stat-diff-positive' : 'stat-diff-negative'}">${diffStr > 0 ? '+' : ''}${diffStr} Str</span>`);
+          }
+          if (diffDef !== 0) {
+            diffParts.push(`<span class="${diffDef > 0 ? 'stat-diff-positive' : 'stat-diff-negative'}">${diffDef > 0 ? '+' : ''}${diffDef} Def</span>`);
+          }
+
+          if (diffParts.length > 0) {
+            compEl.innerHTML = `<div>Vs equipped: ${diffParts.join(' ')}</div>`;
+            compEl.classList.remove('hidden');
+          } else {
+            compEl.classList.add('hidden');
+          }
+        } else {
+          compEl.classList.add('hidden');
+        }
+      }
+
+      if (flavorEl) {
+        flavorEl.textContent = def.category === 'cooked_food' ? 'Nourishing provision. Click to consume and restore vitality.' : '';
+      }
+
+      tooltip.classList.remove('hidden');
+      const tx = Math.min(window.innerWidth - 240, e.clientX + 14);
+      const ty = Math.min(window.innerHeight - 180, e.clientY + 14);
+      tooltip.style.left = `${tx}px`;
+      tooltip.style.top = `${ty}px`;
+    });
+
+    el.addEventListener('mousemove', (e: MouseEvent) => {
+      const tx = Math.min(window.innerWidth - 240, e.clientX + 14);
+      const ty = Math.min(window.innerHeight - 180, e.clientY + 14);
+      tooltip.style.left = `${tx}px`;
+      tooltip.style.top = `${ty}px`;
+    });
+
+    el.addEventListener('mouseleave', () => {
+      tooltip.classList.add('hidden');
+    });
   }
 
   private openAuthModal(defaultTab: 'login' | 'register' = 'login', allowClose = true) {

@@ -37,6 +37,8 @@ export class WorldRenderer {
   private terrainCanvas: HTMLCanvasElement | null = null;
   private enemiesImage: HTMLImageElement | null = null;
   private playerEquipmentImage: HTMLImageElement | null = null;
+  private minimapCanvas: HTMLCanvasElement | null = null;
+  private minimapCtx: CanvasRenderingContext2D | null = null;
 
   // Editor states
   public editorMode: 'none' | 'place_node' | 'place_npc' | 'paint_collision' | 'erase_collision' = 'none';
@@ -96,6 +98,51 @@ export class WorldRenderer {
       duration: 380,
       style,
     };
+  }
+
+  // Floating combat texts (hitsplats, miss, heals, gold drops)
+  private floatingTexts: Array<{
+    startX: number;
+    startY: number;
+    text: string;
+    type: 'damage' | 'splash' | 'heal' | 'gold' | 'xp';
+    startTime: number;
+    duration: number;
+  }> = [];
+
+  public addFloatingText(tileX: number, tileY: number, text: string, type: 'damage' | 'splash' | 'heal' | 'gold' | 'xp' = 'damage') {
+    this.floatingTexts.push({
+      startX: tileX,
+      startY: tileY,
+      text,
+      type,
+      startTime: performance.now(),
+      duration: 1000,
+    });
+  }
+
+  // Monster hit flinch / red flash map
+  public monsterHitFlashes = new Map<string, number>();
+
+  public triggerMonsterFlinch(monsterIdOrKey: string) {
+    this.monsterHitFlashes.set(monsterIdOrKey, performance.now());
+  }
+
+  // Monster death poof particle effects
+  private deathEffects: Array<{
+    x: number;
+    y: number;
+    startTime: number;
+    duration: number;
+  }> = [];
+
+  public addDeathEffect(tileX: number, tileY: number) {
+    this.deathEffects.push({
+      x: tileX,
+      y: tileY,
+      startTime: performance.now(),
+      duration: 600,
+    });
   }
 
   constructor(canvas: HTMLCanvasElement) {
@@ -375,13 +422,26 @@ export class WorldRenderer {
     // 10. Draw Combat Projectiles & Effects
     this.drawCombatProjectiles();
 
-    // 11. Draw Overhead Chat Bubbles
+    // 11. Draw Death Poof Particle FX
+    this.drawDeathEffects();
+
+    // 12. Draw Floating Hitsplats & Damage Numbers
+    this.drawFloatingTexts();
+
+    // 13. Draw Overhead Chat Bubbles
     this.drawChatBubbles();
 
-    // 12. Draw Editor Preview Overlay
+    // 14. Draw Editor Preview Overlay
     this.drawEditorOverlay();
 
     ctx.restore();
+
+    // 15. Ambient Day/Night Lighting Overlay (Viewport space)
+    this.drawDayNightLighting();
+
+    // 16. Tactical Radar Minimap
+    this.drawMinimap();
+
     requestAnimationFrame((ts) => this.render(ts));
   }
 
@@ -435,6 +495,277 @@ export class WorldRenderer {
       }
       ctx.restore();
     }
+  }
+
+  private drawDeathEffects() {
+    const now = performance.now();
+    this.deathEffects = this.deathEffects.filter(e => now - e.startTime < e.duration);
+    if (this.deathEffects.length === 0) return;
+    const { ctx } = this;
+
+    for (const e of this.deathEffects) {
+      const progress = Math.min(1, (now - e.startTime) / e.duration);
+      const px = Math.round(e.x * TILE_SIZE + TILE_SIZE / 2);
+      const py = Math.round(e.y * TILE_SIZE + TILE_SIZE / 2);
+
+      ctx.save();
+      // Dissipating dust / smoke ring
+      const ringRadius = 6 + progress * 16;
+      ctx.strokeStyle = `rgba(210, 195, 170, ${Math.max(0, (1 - progress) * 0.75)})`;
+      ctx.lineWidth = 2 * (1 - progress);
+      ctx.beginPath();
+      ctx.arc(px, py, ringRadius, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // Golden spark particles flying outward
+      const particleCount = 6;
+      for (let i = 0; i < particleCount; i++) {
+        const angle = (i / particleCount) * Math.PI * 2;
+        const dist = progress * 18;
+        const sparkX = px + Math.cos(angle) * dist;
+        const sparkY = py + Math.sin(angle) * dist - progress * 4;
+        ctx.fillStyle = `rgba(255, 215, 0, ${Math.max(0, 1 - progress)})`;
+        ctx.fillRect(sparkX - 1, sparkY - 1, 2.5, 2.5);
+      }
+      ctx.restore();
+    }
+  }
+
+  private drawFloatingTexts() {
+    const now = performance.now();
+    this.floatingTexts = this.floatingTexts.filter(ft => now - ft.startTime < ft.duration);
+    if (this.floatingTexts.length === 0) return;
+    const { ctx } = this;
+
+    for (const ft of this.floatingTexts) {
+      const elapsed = now - ft.startTime;
+      const progress = Math.min(1, elapsed / ft.duration);
+      // Upward floating motion with smooth ease out
+      const floatY = Math.sin(progress * (Math.PI / 2)) * 26;
+      const alpha = progress < 0.65 ? 1 : 1 - (progress - 0.65) / 0.35;
+
+      const px = Math.round(ft.startX * TILE_SIZE + TILE_SIZE / 2);
+      const py = Math.round(ft.startY * TILE_SIZE - 10 - floatY);
+
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, Math.min(1, alpha));
+
+      // Pop-in scale
+      const scale = progress < 0.15 ? 0.7 + (progress / 0.15) * 0.4 : 1.0;
+      ctx.translate(px, py);
+      ctx.scale(scale, scale);
+
+      ctx.font = 'bold 11px Inter, monospace, sans-serif';
+      const textW = ctx.measureText(ft.text).width;
+      const padX = 6;
+      const badgeW = Math.max(22, textW + padX * 2);
+      const badgeH = 17;
+      const bx = -badgeW / 2;
+      const by = -badgeH / 2;
+
+      let bgColor = 'rgba(180, 25, 25, 0.92)';
+      let borderColor = '#f56565';
+      let textColor = '#ffffff';
+
+      if (ft.type === 'splash') {
+        bgColor = 'rgba(25, 55, 120, 0.9)';
+        borderColor = '#4299e1';
+        textColor = '#ebf8ff';
+      } else if (ft.type === 'heal') {
+        bgColor = 'rgba(20, 110, 50, 0.92)';
+        borderColor = '#48bb78';
+        textColor = '#f0fff4';
+      } else if (ft.type === 'gold') {
+        bgColor = 'rgba(140, 95, 20, 0.95)';
+        borderColor = '#ecc94b';
+        textColor = '#fffaf0';
+      } else if (ft.type === 'xp') {
+        bgColor = 'rgba(90, 45, 140, 0.92)';
+        borderColor = '#b794f4';
+        textColor = '#faf5ff';
+      }
+
+      // Hitsplat badge background
+      ctx.fillStyle = bgColor;
+      ctx.strokeStyle = borderColor;
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.roundRect(bx, by, badgeW, badgeH, 4);
+      ctx.fill();
+      ctx.stroke();
+
+      // Hitsplat text
+      ctx.fillStyle = textColor;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(ft.text, 0, 1);
+
+      ctx.restore();
+    }
+  }
+
+  private drawDayNightLighting() {
+    // Smooth 24-minute real-world full day/night ambient cycle
+    const now = Date.now();
+    const cyclePeriodMs = 24 * 60 * 1000;
+    const timeInCycle = (now % cyclePeriodMs) / cyclePeriodMs; // 0 to 1
+    // Darkness is highest at midnight (0.5), zero at noon (0.0)
+    const darkness = Math.max(0, Math.sin(timeInCycle * Math.PI * 2 - Math.PI / 2) * 0.42);
+    if (darkness <= 0.04) return;
+
+    const { ctx, canvas } = this;
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+
+    // Dark indigo night overlay
+    ctx.fillStyle = `rgba(5, 7, 24, ${darkness})`;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Cut out warm light radiuses using destination-out
+    ctx.globalCompositeOperation = 'destination-out';
+
+    // 1. Local Player Torch Light
+    if (this.localPlayer) {
+      const pScreenX = Math.round(this.visualX * TILE_SIZE + TILE_SIZE / 2 - this.cameraX);
+      const pScreenY = Math.round(this.visualY * TILE_SIZE + TILE_SIZE / 2 - this.cameraY);
+      const rad = 80;
+      const grad = ctx.createRadialGradient(pScreenX, pScreenY, 12, pScreenX, pScreenY, rad);
+      grad.addColorStop(0, `rgba(0, 0, 0, ${darkness * 1.8})`);
+      grad.addColorStop(0.5, `rgba(0, 0, 0, ${darkness * 0.9})`);
+      grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(pScreenX, pScreenY, rad, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // 2. Town Hearth Bonfire Light
+    const hearthScreenX = Math.round(8 * TILE_SIZE + TILE_SIZE / 2 - this.cameraX);
+    const hearthScreenY = Math.round(24 * TILE_SIZE + TILE_SIZE / 2 - this.cameraY);
+    const hRad = 140;
+    const hGrad = ctx.createRadialGradient(hearthScreenX, hearthScreenY, 20, hearthScreenX, hearthScreenY, hRad);
+    hGrad.addColorStop(0, `rgba(0, 0, 0, ${darkness * 2})`);
+    hGrad.addColorStop(0.5, `rgba(0, 0, 0, ${darkness})`);
+    hGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    ctx.fillStyle = hGrad;
+    ctx.beginPath();
+    ctx.arc(hearthScreenX, hearthScreenY, hRad, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.restore();
+  }
+
+  public setMinimapCanvas(canvas: HTMLCanvasElement | null) {
+    this.minimapCanvas = canvas;
+    this.minimapCtx = canvas ? canvas.getContext('2d') : null;
+  }
+
+  public getVisualCoords(): { x: number; y: number } {
+    return { x: Math.round(this.visualX), y: Math.round(this.visualY) };
+  }
+
+  private drawMinimap() {
+    if (!this.minimapCanvas || !this.minimapCtx) return;
+    const mCtx = this.minimapCtx;
+    const mCanvas = this.minimapCanvas;
+    const w = mCanvas.width;
+    const h = mCanvas.height;
+
+    mCtx.clearRect(0, 0, w, h);
+
+    // 1. Terrain slice
+    if (this.terrainCanvas) {
+      // 34 tiles wide (radius 17)
+      const tileRadius = 17;
+      const sX = (this.visualX - tileRadius) * TILE_SIZE;
+      const sY = (this.visualY - tileRadius) * TILE_SIZE;
+      const sDim = tileRadius * 2 * TILE_SIZE;
+
+      mCtx.imageSmoothingEnabled = false;
+      mCtx.drawImage(this.terrainCanvas, sX, sY, sDim, sDim, 0, 0, w, h);
+    } else {
+      mCtx.fillStyle = '#140d07';
+      mCtx.fillRect(0, 0, w, h);
+    }
+
+    // 2. Resource & Monster Node Pips
+    const cx = w / 2;
+    const cy = h / 2;
+    const scale = w / (17 * 2); // 4 px per tile
+
+    for (const node of this.nodes) {
+      const dx = node.x - this.visualX;
+      const dy = node.y - this.visualY;
+      if (Math.abs(dx) <= 17 && Math.abs(dy) <= 17) {
+        const px = cx + dx * scale;
+        const py = cy + dy * scale;
+        if (node.type === 'monster') {
+          mCtx.fillStyle = '#f56565'; // red
+        } else if (node.type === 'mine') {
+          mCtx.fillStyle = '#cbd5e0'; // slate silver
+        } else if (node.type === 'tree') {
+          mCtx.fillStyle = '#48bb78'; // green
+        } else if (node.type === 'water') {
+          mCtx.fillStyle = '#4299e1'; // ocean blue
+        } else if (node.type === 'hearth_counter') {
+          mCtx.fillStyle = '#ecc94b'; // gold
+        } else {
+          mCtx.fillStyle = '#ed8936'; // orange
+        }
+        mCtx.beginPath();
+        mCtx.arc(px, py, 2, 0, Math.PI * 2);
+        mCtx.fill();
+      }
+    }
+
+    // 3. NPC Pips
+    for (const npc of this.npcs) {
+      const dx = npc.x - this.visualX;
+      const dy = npc.y - this.visualY;
+      if (Math.abs(dx) <= 17 && Math.abs(dy) <= 17) {
+        const px = cx + dx * scale;
+        const py = cy + dy * scale;
+        mCtx.fillStyle = '#38bdf8'; // cyan
+        mCtx.beginPath();
+        mCtx.arc(px, py, 2.5, 0, Math.PI * 2);
+        mCtx.fill();
+      }
+    }
+
+    // 4. Other Players
+    for (const other of this.otherPlayers.values()) {
+      const dx = other.x - this.visualX;
+      const dy = other.y - this.visualY;
+      if (Math.abs(dx) <= 17 && Math.abs(dy) <= 17) {
+        const px = cx + dx * scale;
+        const py = cy + dy * scale;
+        mCtx.fillStyle = '#ffffff';
+        mCtx.beginPath();
+        mCtx.arc(px, py, 2, 0, Math.PI * 2);
+        mCtx.fill();
+      }
+    }
+
+    // 5. Local Player (Center)
+    mCtx.fillStyle = '#ffd700';
+    mCtx.beginPath();
+    mCtx.arc(cx, cy, 3, 0, Math.PI * 2);
+    mCtx.fill();
+
+    // Pulse ring
+    const pulse = (performance.now() % 1500) / 1500;
+    mCtx.strokeStyle = `rgba(255, 215, 0, ${1 - pulse})`;
+    mCtx.lineWidth = 1.5;
+    mCtx.beginPath();
+    mCtx.arc(cx, cy, 3 + pulse * 5, 0, Math.PI * 2);
+    mCtx.stroke();
+
+    // Dark vignette border inside canvas
+    const grad = mCtx.createRadialGradient(cx, cy, 50, cx, cy, 68);
+    grad.addColorStop(0, 'rgba(0,0,0,0)');
+    grad.addColorStop(1, 'rgba(0,0,0,0.5)');
+    mCtx.fillStyle = grad;
+    mCtx.fillRect(0, 0, w, h);
   }
 
   private drawTerrain() {
@@ -607,20 +938,31 @@ export class WorldRenderer {
         ctx.ellipse(px + TILE_SIZE / 2, py + TILE_SIZE - 2, 9, 4, 0, 0, Math.PI * 2);
         ctx.fill();
 
+        // Check if monster was recently struck (flinch recoil & red flash)
+        const lastHit = this.monsterHitFlashes.get(node.id) || this.monsterHitFlashes.get(mobId) || 0;
+        const flinchElapsed = performance.now() - lastHit;
+        const isFlinching = flinchElapsed < 160;
+        const flinchX = isFlinching ? Math.sin(flinchElapsed * 0.12) * 3 : 0;
+
         // Render the 2D pixel-art sprite matching the tileset
         if (this.enemiesImage && this.enemiesImage.complete) {
+          ctx.save();
           ctx.imageSmoothingEnabled = false;
+          if (isFlinching) {
+            ctx.filter = 'brightness(1.5) sepia(1) hue-rotate(-50deg) saturate(3)';
+          }
           ctx.drawImage(
             this.enemiesImage,
             spriteCoord.col * 16,
             spriteCoord.row * 16,
             16,
             16,
-            px,
+            px + flinchX,
             py + idleBob,
             TILE_SIZE,
             TILE_SIZE
           );
+          ctx.restore();
         }
 
         // Stylized Enemy nameplate badge overhead

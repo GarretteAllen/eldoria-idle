@@ -1812,8 +1812,16 @@ export class GameEngine {
           });
         }
 
+        const oldLevel = player.skills[combatStyle].level;
         player.skills[combatStyle].xp += monsterDef.xp;
         player.skills[combatStyle].level = getLevelFromXp(player.skills[combatStyle].xp);
+        if (player.skills[combatStyle].level > oldLevel) {
+          this.send(ws, {
+            type: 'LEVEL_UP',
+            skill: combatStyle,
+            newLevel: player.skills[combatStyle].level,
+          });
+        }
 
         this.progressKillQuests(player, monsterDef.id);
 
