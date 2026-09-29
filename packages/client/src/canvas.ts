@@ -521,53 +521,32 @@ export class WorldRenderer {
       const py = npc.y * TILE_SIZE + TILE_SIZE / 2;
 
       ctx.save();
-      // Shadow
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
-      ctx.beginPath();
-      ctx.ellipse(px, py + 12, 10, 5, 0, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Robe / Body
-      ctx.fillStyle = '#234e52';
-      ctx.beginPath();
-      ctx.arc(px, py + 2, 9, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = '#38b2ac';
-      ctx.lineWidth = 1;
-      ctx.stroke();
-
-      // Head
-      ctx.fillStyle = '#fbd38d';
-      ctx.beginPath();
-      ctx.arc(px, py - 6, 6, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Render ONLY the name, moved up cleanly above the NPC head
+      // Render ONLY the name, positioned cleanly above the NPC sprite tile
       const name = npc.name;
       ctx.font = 'bold 11px Inter, system-ui, sans-serif';
       ctx.textAlign = 'center';
 
-      // Crisp dark text shadow for high contrast on any background
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
-      ctx.fillText(name, px + 1, py - 19);
-      ctx.fillText(name, px - 1, py - 19);
-      ctx.fillText(name, px, py - 18);
-      ctx.fillText(name, px, py - 20);
+      // Crisp dark text shadow for high contrast on any terrain
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.9)';
+      ctx.fillText(name, px + 1, py - 22);
+      ctx.fillText(name, px - 1, py - 22);
+      ctx.fillText(name, px, py - 21);
+      ctx.fillText(name, px, py - 23);
 
-      // Clean bright NPC name
+      // Clean bright NPC nameplate
       ctx.fillStyle = '#81e6d9';
-      ctx.fillText(name, px, py - 19);
+      ctx.fillText(name, px, py - 22);
 
       // Floating Quest Exclamation Mark (if NPC has active quests)
       if (npc.questIds && npc.questIds.length > 0) {
         const bob = Math.sin(this.animTick * 0.005) * 2;
         ctx.fillStyle = '#ecc94b';
         ctx.beginPath();
-        ctx.arc(px, py - 32 + bob, 5, 0, Math.PI * 2);
+        ctx.arc(px, py - 35 + bob, 5, 0, Math.PI * 2);
         ctx.fill();
         ctx.fillStyle = '#1a202c';
         ctx.font = 'bold 9px Inter, sans-serif';
-        ctx.fillText('!', px, py - 29 + bob);
+        ctx.fillText('!', px, py - 32 + bob);
       }
 
       ctx.restore();
