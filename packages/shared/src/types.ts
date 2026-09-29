@@ -28,6 +28,7 @@ export type EquipSlot =
   | 'weapon'
   | 'shield'
   | 'helmet'
+  | 'hair'
   | 'body'
   | 'legs'
   | 'ring'

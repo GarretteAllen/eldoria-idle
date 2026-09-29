@@ -174,12 +174,38 @@ export const ITEMS: Record<string, ItemDefinition> = {
   voidweave_grimoire: { id: 'voidweave_grimoire', name: 'Voidweave Grimoire', category: 'armour', tier: 5, slot: 'shield', equipReq: { skill: 'magic', level: 75 }, baseStats: { accuracy: 14, strength: 11 }, vendorFloorPrice: 950 },
 
   // --- Heavy Plate Armours (Body) ---
+  tunic_cloth: { id: 'tunic_cloth', name: 'Adventurer Tunic', category: 'armour', tier: 1, slot: 'body', baseStats: { defence: 2 }, vendorFloorPrice: 5 },
+  pelt_jerkin: { id: 'pelt_jerkin', name: 'Pelt Jerkin', category: 'armour', tier: 1, slot: 'body', baseStats: { defence: 4 }, vendorFloorPrice: 20 },
   dawnburn_plate: { id: 'dawnburn_plate', name: 'Dawnburn Plate', category: 'armour', tier: 1, slot: 'body', equipReq: { skill: 'melee', level: 1 }, baseStats: { accuracy: 2, defence: 6 }, vendorFloorPrice: 30 },
   cold_iron_plate: { id: 'cold_iron_plate', name: 'Cold Iron Plate', category: 'armour', tier: 2, slot: 'body', equipReq: { skill: 'melee', level: 15 }, baseStats: { accuracy: 5, defence: 14 }, vendorFloorPrice: 90 },
   steel_plate: { id: 'steel_plate', name: 'Steel Plate', category: 'armour', tier: 3, slot: 'body', equipReq: { skill: 'melee', level: 30 }, baseStats: { accuracy: 8, defence: 24 }, vendorFloorPrice: 300 },
   azurite_plate: { id: 'azurite_plate', name: 'Azurite Plate', category: 'armour', tier: 5, slot: 'body', equipReq: { skill: 'melee', level: 60 }, baseStats: { accuracy: 13, defence: 38 }, vendorFloorPrice: 1100 },
   astralite_plate: { id: 'astralite_plate', name: 'Astralite Plate', category: 'armour', tier: 6, slot: 'body', equipReq: { skill: 'melee', level: 85 }, baseStats: { accuracy: 20, defence: 56 }, vendorFloorPrice: 3500 },
   primordial_plate: { id: 'primordial_plate', name: 'Primordial Plate', category: 'armour', tier: 6, slot: 'body', equipReq: { skill: 'melee', level: 99 }, baseStats: { accuracy: 24, defence: 70 }, vendorFloorPrice: 11000 },
+
+  // --- Leg Armours (Legs) ---
+  tunic_pants: { id: 'tunic_pants', name: 'Adventurer Trousers', category: 'armour', tier: 1, slot: 'legs', baseStats: { defence: 2 }, vendorFloorPrice: 5 },
+  leather_chaps: { id: 'leather_chaps', name: 'Leather Chaps', category: 'armour', tier: 1, slot: 'legs', baseStats: { defence: 3 }, vendorFloorPrice: 15 },
+  dawnburn_legs: { id: 'dawnburn_legs', name: 'Dawnburn Greaves', category: 'armour', tier: 1, slot: 'legs', equipReq: { skill: 'melee', level: 1 }, baseStats: { defence: 4 }, vendorFloorPrice: 20 },
+  cold_iron_legs: { id: 'cold_iron_legs', name: 'Cold Iron Greaves', category: 'armour', tier: 2, slot: 'legs', equipReq: { skill: 'melee', level: 15 }, baseStats: { defence: 10 }, vendorFloorPrice: 60 },
+  steel_legs: { id: 'steel_legs', name: 'Steel Greaves', category: 'armour', tier: 3, slot: 'legs', equipReq: { skill: 'melee', level: 30 }, baseStats: { defence: 18 }, vendorFloorPrice: 200 },
+  azurite_legs: { id: 'azurite_legs', name: 'Azurite Greaves', category: 'armour', tier: 5, slot: 'legs', equipReq: { skill: 'melee', level: 60 }, baseStats: { defence: 30 }, vendorFloorPrice: 800 },
+  astralite_legs: { id: 'astralite_legs', name: 'Astralite Greaves', category: 'armour', tier: 6, slot: 'legs', equipReq: { skill: 'melee', level: 85 }, baseStats: { defence: 44 }, vendorFloorPrice: 2600 },
+  primordial_legs: { id: 'primordial_legs', name: 'Primordial Greaves', category: 'armour', tier: 6, slot: 'legs', equipReq: { skill: 'melee', level: 99 }, baseStats: { defence: 56 }, vendorFloorPrice: 8500 },
+
+  // --- Helmets & Headgear (Helmet) ---
+  wizard_hat: { id: 'wizard_hat', name: 'Apprentice Wizard Hat', category: 'armour', tier: 1, slot: 'helmet', equipReq: { skill: 'magic', level: 1 }, baseStats: { accuracy: 3 }, vendorFloorPrice: 25 },
+  ranger_hood: { id: 'ranger_hood', name: 'Ranger Cowl', category: 'armour', tier: 1, slot: 'helmet', equipReq: { skill: 'ranged', level: 1 }, baseStats: { accuracy: 3 }, vendorFloorPrice: 25 },
+  dawnburn_helm: { id: 'dawnburn_helm', name: 'Dawnburn Open Helm', category: 'armour', tier: 1, slot: 'helmet', equipReq: { skill: 'melee', level: 1 }, baseStats: { defence: 3 }, vendorFloorPrice: 20 },
+  steel_helm: { id: 'steel_helm', name: 'Steel Full Helm', category: 'armour', tier: 3, slot: 'helmet', equipReq: { skill: 'melee', level: 30 }, baseStats: { defence: 12 }, vendorFloorPrice: 220 },
+  azurite_helm: { id: 'azurite_helm', name: 'Azurite Visor Helm', category: 'armour', tier: 5, slot: 'helmet', equipReq: { skill: 'melee', level: 60 }, baseStats: { defence: 22 }, vendorFloorPrice: 750 },
+  astralite_helm: { id: 'astralite_helm', name: 'Astralite Crown', category: 'armour', tier: 6, slot: 'helmet', equipReq: { skill: 'melee', level: 85 }, baseStats: { defence: 32 }, vendorFloorPrice: 2500 },
+  primordial_helm: { id: 'primordial_helm', name: 'Primordial Horned Mask', category: 'armour', tier: 6, slot: 'helmet', equipReq: { skill: 'melee', level: 99 }, baseStats: { defence: 40 }, vendorFloorPrice: 7500 },
+
+  // --- Cosmetic Hair (Hair) ---
+  hair_adventurer: { id: 'hair_adventurer', name: 'Adventurer Hair', category: 'misc', tier: 1, slot: 'hair', vendorFloorPrice: 10, description: 'Classic styled adventurer crop' },
+  hair_maiden: { id: 'hair_maiden', name: 'Maiden Locks', category: 'misc', tier: 1, slot: 'hair', vendorFloorPrice: 10, description: 'Flowing auburn tresses' },
+  hair_elder: { id: 'hair_elder', name: 'Sage Beard & Mane', category: 'misc', tier: 1, slot: 'hair', vendorFloorPrice: 10, description: 'Wispy silver hair and majestic beard' },
 
   // --- Tools (Equippable to Skilling Toolbelt) ---
   rune_pickaxe_dawnburn: { id: 'rune_pickaxe_dawnburn', name: 'Dawnburn Rune Pickaxe', category: 'tool', tier: 1, slot: 'tool_pickaxe', baseStats: { toolSpeedBonus: 0.08 }, vendorFloorPrice: 15 },

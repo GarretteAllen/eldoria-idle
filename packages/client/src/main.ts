@@ -1022,6 +1022,7 @@ class EldoriaClient {
       { key: 'weapon', label: 'Main Weapon', icon: '⚔️' },
       { key: 'shield', label: 'Shield / Off-Hand', icon: '🛡️' },
       { key: 'helmet', label: 'Headgear', icon: '🪖' },
+      { key: 'hair', label: 'Cosmetic Hair', icon: '💇' },
       { key: 'body', label: 'Body Armour', icon: '🥋' },
       { key: 'legs', label: 'Leg Greaves', icon: '👖' },
       { key: 'steed', label: 'Mount / Steed', icon: '🐎' },

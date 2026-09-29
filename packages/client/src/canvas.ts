@@ -22,13 +22,6 @@ export interface ChatBubble {
 
 export type WorldNodeDisplay = WorldNode;
 
-interface DustParticle {
-  x: number;
-  y: number;
-  size: number;
-  alpha: number;
-}
-
 const TILE_SIZE = 32;
 
 export class WorldRenderer {
@@ -60,7 +53,6 @@ export class WorldRenderer {
 
   // Visual effects
   private destinationMarker: { x: number; y: number; time: number } | null = null;
-  private dustParticles: DustParticle[] = [];
 
   // Interaction callbacks
   public onNodeClick?: (node: WorldNodeDisplay) => void;
@@ -276,15 +268,6 @@ export class WorldRenderer {
       this.visualX += dx * 0.25;
       this.visualY += dy * 0.25;
 
-      // Spawn dust puff when moving fast
-      if (Math.hypot(dx, dy) > 0.05 && Math.random() < 0.3) {
-        this.dustParticles.push({
-          x: this.visualX * TILE_SIZE + TILE_SIZE / 2,
-          y: this.visualY * TILE_SIZE + TILE_SIZE / 2 + 10,
-          size: 3 + Math.random() * 4,
-          alpha: 0.6,
-        });
-      }
 
       // Camera smoothly tracks interpolated position
       const targetCamX = this.visualX * TILE_SIZE - canvas.width / 2;
@@ -317,10 +300,7 @@ export class WorldRenderer {
     // 6. Draw NPCs
     this.drawNpcs();
 
-    // 7. Draw Dust Particles
-    this.drawDustParticles();
-
-    // 8. Draw Other Players
+    // 7. Draw Other Players
     for (const remote of this.otherPlayers.values()) {
       this.drawPlayer(
         remote.x,
@@ -676,28 +656,6 @@ export class WorldRenderer {
     }
   }
 
-  private drawDustParticles() {
-    const { ctx } = this;
-    ctx.save();
-    for (let i = this.dustParticles.length - 1; i >= 0; i--) {
-      const p = this.dustParticles[i];
-      p.alpha -= 0.03;
-      p.size += 0.2;
-      p.y -= 0.3;
-
-      if (p.alpha <= 0) {
-        this.dustParticles.splice(i, 1);
-        continue;
-      }
-
-      ctx.fillStyle = `rgba(160, 140, 110, ${p.alpha})`;
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    ctx.restore();
-  }
-
   private drawPlayer(
     x: number,
     y: number,
@@ -732,8 +690,10 @@ export class WorldRenderer {
       if (!coord || !this.playerEquipmentImage || !this.playerEquipmentImage.complete) return;
       ctx.save();
       ctx.imageSmoothingEnabled = false;
+      const drawX = Math.round(px - TILE_SIZE / 2 + offX);
+      const drawY = Math.round(py - TILE_SIZE / 2 + offY);
       if (rotation !== undefined && rotation !== 0) {
-        ctx.translate(px + offX, py + offY);
+        ctx.translate(Math.round(px + offX), Math.round(py + offY));
         ctx.rotate(rotation);
         ctx.drawImage(
           this.playerEquipmentImage,
@@ -753,8 +713,8 @@ export class WorldRenderer {
           coord.row * 16,
           16,
           16,
-          px - TILE_SIZE / 2 + offX,
-          py - TILE_SIZE / 2 + offY,
+          drawX,
+          drawY,
           TILE_SIZE,
           TILE_SIZE
         );
@@ -766,7 +726,7 @@ export class WorldRenderer {
 
     if (isMounted) {
       // === MOUNTED GALLOPING ON STEED ===
-      const gallopBob = isMoving ? Math.sin(this.animTick * 0.02) * 2 : 0;
+      const gallopBob = Math.round(isMoving ? Math.sin(this.animTick * 0.02) * 2 : 0);
 
       // Ground shadow under steed
       ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
@@ -781,23 +741,24 @@ export class WorldRenderer {
       // Rider seated in the saddle
       const riderY = -3 + gallopBob;
 
-      // 2. Base Body
+      // 2. Base Body (bald, unclothed mannequin)
       drawLayer(getSprite('base_male'), -1, riderY);
 
-      // 3. Leg Armor
-      const legCoord = getSprite(equipment?.legs?.itemId) || getSprite('tunic_pants');
-      drawLayer(legCoord, -1, riderY);
+      // 3. Leg Armor (only if equipped)
+      const legCoord = getSprite(equipment?.legs?.itemId);
+      if (legCoord) drawLayer(legCoord, -1, riderY);
 
-      // 4. Body Armor
-      const bodyCoord = getSprite(equipment?.body?.itemId) || getSprite('tunic_cloth');
-      drawLayer(bodyCoord, -1, riderY);
+      // 4. Body Armor (only if equipped)
+      const bodyCoord = getSprite(equipment?.body?.itemId);
+      if (bodyCoord) drawLayer(bodyCoord, -1, riderY);
 
       // 5. Helmet / Hair
       const helmCoord = getSprite(equipment?.helmet?.itemId);
       if (helmCoord) {
         drawLayer(helmCoord, -1, riderY);
       } else {
-        drawLayer(getSprite('hair_adventurer'), -1, riderY);
+        const hairCoord = getSprite(equipment?.hair?.itemId);
+        if (hairCoord) drawLayer(hairCoord, -1, riderY);
       }
 
       // 6. Shield / Offhand
@@ -820,7 +781,8 @@ export class WorldRenderer {
     } else {
       // === DISMOUNTED / WALKING ON FOOT / WORKING / IDLE ===
       // Natural walking step bob when moving on foot, gentle breathing bob when standing
-      const breatheBob = isMoving ? Math.sin(this.animTick * 0.015) * 1.5 : Math.sin(this.animTick * 0.003) * 1.5;
+      const rawBob = isMoving ? Math.sin(this.animTick * 0.015) * 1.5 : Math.sin(this.animTick * 0.003) * 1.5;
+      const breatheBob = Math.round(rawBob);
 
       // Ground shadow under player
       ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
@@ -828,23 +790,24 @@ export class WorldRenderer {
       ctx.ellipse(px, py + 12, 10, 5, 0, 0, Math.PI * 2);
       ctx.fill();
 
-      // 1. Base Body
+      // 1. Base Body (bald, unclothed mannequin)
       drawLayer(getSprite('base_male'), 0, breatheBob);
 
-      // 2. Leg Armor
-      const legCoord = getSprite(equipment?.legs?.itemId) || getSprite('tunic_pants');
-      drawLayer(legCoord, 0, breatheBob);
+      // 2. Leg Armor (only if equipped)
+      const legCoord = getSprite(equipment?.legs?.itemId);
+      if (legCoord) drawLayer(legCoord, 0, breatheBob);
 
-      // 3. Body Armor
-      const bodyCoord = getSprite(equipment?.body?.itemId) || getSprite('tunic_cloth');
-      drawLayer(bodyCoord, 0, breatheBob);
+      // 3. Body Armor (only if equipped)
+      const bodyCoord = getSprite(equipment?.body?.itemId);
+      if (bodyCoord) drawLayer(bodyCoord, 0, breatheBob);
 
       // 4. Helmet / Hair
       const helmCoord = getSprite(equipment?.helmet?.itemId);
       if (helmCoord) {
         drawLayer(helmCoord, 0, breatheBob);
       } else {
-        drawLayer(getSprite('hair_adventurer'), 0, breatheBob);
+        const hairCoord = getSprite(equipment?.hair?.itemId);
+        if (hairCoord) drawLayer(hairCoord, 0, breatheBob);
       }
 
 
