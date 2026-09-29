@@ -258,10 +258,34 @@ export class GameEngine {
         this.handleDepositAll(session);
         break;
 
+      case 'DEPOSIT_ITEM':
+        if (typeof msg.inventoryIndex === 'number') {
+          this.handleDepositItem(session, msg.inventoryIndex, msg.quantity);
+        }
+        break;
+
       case 'WITHDRAW_ITEM':
         if (typeof msg.storageIndex === 'number') {
-          this.handleWithdrawItem(session, msg.storageIndex);
+          this.handleWithdrawItem(session, msg.storageIndex, msg.quantity);
         }
+        break;
+
+      case 'BUY_STORAGE_SLOT':
+        this.handleBuyStorageSlot(session);
+        break;
+
+      case 'SORT_STORAGE':
+        this.handleSortStorage(session);
+        break;
+
+      case 'SELL_ITEM':
+        if (typeof msg.inventoryIndex === 'number') {
+          this.handleSellItem(session, msg.inventoryIndex, msg.quantity);
+        }
+        break;
+
+      case 'SELL_ALL_JUNK':
+        this.handleSellAllJunk(session);
         break;
 
       case 'CHAT':
@@ -604,7 +628,7 @@ export class GameEngine {
     this.handleAutoDepositAtHearth(session);
   }
 
-  private handleWithdrawItem(session: ConnectedSession, storageIndex: number) {
+  private handleWithdrawItem(session: ConnectedSession, storageIndex: number, requestedQty?: number) {
     const { player, ws } = session;
     const hearth = this.getHearthLocation(player.x, player.y);
     const distToHearth = Math.hypot(player.x - hearth.x, player.y - hearth.y);
@@ -633,8 +657,14 @@ export class GameEngine {
       return;
     }
 
-    const qtyToTake = slot.quantity;
-    player.storage.splice(storageIndex, 1);
+    const qtyToTake = (typeof requestedQty === 'number' && requestedQty > 0)
+      ? Math.min(slot.quantity, requestedQty)
+      : slot.quantity;
+
+    slot.quantity -= qtyToTake;
+    if (slot.quantity <= 0) {
+      player.storage.splice(storageIndex, 1);
+    }
 
     if (existingInv) {
       existingInv.quantity += qtyToTake;
@@ -647,11 +677,183 @@ export class GameEngine {
       });
     }
 
+    storage.savePlayer(player);
+    storage.checkpoint();
     this.send(ws, {
       type: 'NOTIFICATION',
-      message: `Withdrew ${qtyToTake}x ${def?.name || slot.itemId} from the Reliquary.`
+      message: `Withdrew ${qtyToTake}x ${def?.name || slot.itemId} from the vault.`
     });
+    this.send(ws, { type: 'PLAYER_UPDATE', player });
+  }
+
+  private handleDepositItem(session: ConnectedSession, inventoryIndex: number, requestedQty?: number) {
+    const { player, ws } = session;
+    const hearth = this.getHearthLocation(player.x, player.y);
+    const distToHearth = Math.hypot(player.x - hearth.x, player.y - hearth.y);
+
+    if (distToHearth > 1.5) {
+      this.send(ws, {
+        type: 'NOTIFICATION',
+        message: 'Must be at the Hearth Storage Counter to deposit items.'
+      });
+      return;
+    }
+
+    const slot = player.inventory[inventoryIndex];
+    if (!slot) return;
+    const def = ITEMS[slot.itemId];
+
+    const maxSlots = player.storageSlotsMax || 75;
+    const existingStorage = player.storage.find(
+      s => s.itemId === slot.itemId && s.rarity === slot.rarity && s.plus === slot.plus
+    );
+    if (!existingStorage && player.storage.length >= maxSlots) {
+      this.send(ws, {
+        type: 'NOTIFICATION',
+        message: 'Hearth Vault full! Purchase additional slots or withdraw items.'
+      });
+      return;
+    }
+
+    const qtyToTake = (typeof requestedQty === 'number' && requestedQty > 0)
+      ? Math.min(slot.quantity, requestedQty)
+      : slot.quantity;
+
+    slot.quantity -= qtyToTake;
+    if (slot.quantity <= 0) {
+      player.inventory.splice(inventoryIndex, 1);
+    }
+
+    if (existingStorage) {
+      existingStorage.quantity += qtyToTake;
+    } else {
+      player.storage.push({
+        itemId: slot.itemId,
+        quantity: qtyToTake,
+        rarity: slot.rarity,
+        plus: slot.plus,
+      });
+    }
+
     storage.savePlayer(player);
+    storage.checkpoint();
+    this.send(ws, {
+      type: 'NOTIFICATION',
+      message: `Deposited ${qtyToTake}x ${def?.name || slot.itemId} into the vault.`
+    });
+    this.send(ws, { type: 'PLAYER_UPDATE', player });
+  }
+
+  private handleBuyStorageSlot(session: ConnectedSession) {
+    const { player, ws } = session;
+    const cost = 1000;
+    if ((player.gold || 0) < cost) {
+      this.send(ws, {
+        type: 'NOTIFICATION',
+        message: `Insufficient gold. Expanding vault requires ${cost.toLocaleString()} gold.`
+      });
+      return;
+    }
+
+    player.gold -= cost;
+    player.storageSlotsMax = (player.storageSlotsMax || 75) + 5;
+    storage.savePlayer(player);
+    storage.checkpoint();
+    this.send(ws, {
+      type: 'NOTIFICATION',
+      message: `Vault expanded to ${player.storageSlotsMax} slots (+5)!`
+    });
+    this.send(ws, { type: 'PLAYER_UPDATE', player });
+  }
+
+  private handleSortStorage(session: ConnectedSession) {
+    const { player, ws } = session;
+    const categoryOrder: Record<string, number> = {
+      tool: 1, weapon: 2, shield: 3, armor: 4, bar: 5, ore: 6,
+      log: 7, cooked_food: 8, raw_food: 9, crop: 10, seed: 11,
+      herb: 12, potion: 13, relic: 14, trophy: 15
+    };
+
+    player.storage.sort((a, b) => {
+      const defA = ITEMS[a.itemId];
+      const defB = ITEMS[b.itemId];
+      const catA = categoryOrder[defA?.category || ''] || 99;
+      const catB = categoryOrder[defB?.category || ''] || 99;
+      if (catA !== catB) return catA - catB;
+      const tierA = defA?.tier || 0;
+      const tierB = defB?.tier || 0;
+      if (tierA !== tierB) return tierB - tierA;
+      return (defA?.name || a.itemId).localeCompare(defB?.name || b.itemId);
+    });
+
+    storage.savePlayer(player);
+    this.send(ws, {
+      type: 'NOTIFICATION',
+      message: 'Vault sorted by category and tier.'
+    });
+    this.send(ws, { type: 'PLAYER_UPDATE', player });
+  }
+
+  private handleSellItem(session: ConnectedSession, inventoryIndex: number, requestedQty?: number) {
+    const { player, ws } = session;
+    const slot = player.inventory[inventoryIndex];
+    if (!slot) return;
+    const def = ITEMS[slot.itemId];
+    const unitPrice = def?.vendorFloorPrice || 1;
+
+    const qtyToSell = (typeof requestedQty === 'number' && requestedQty > 0)
+      ? Math.min(slot.quantity, requestedQty)
+      : slot.quantity;
+
+    slot.quantity -= qtyToSell;
+    if (slot.quantity <= 0) {
+      player.inventory.splice(inventoryIndex, 1);
+    }
+
+    const totalGold = unitPrice * qtyToSell;
+    player.gold = (player.gold || 0) + totalGold;
+
+    storage.savePlayer(player);
+    storage.checkpoint();
+    this.send(ws, {
+      type: 'NOTIFICATION',
+      message: `Sold ${qtyToSell}x ${def?.name || slot.itemId} for ${totalGold.toLocaleString()} gold.`
+    });
+    this.send(ws, { type: 'PLAYER_UPDATE', player });
+  }
+
+  private handleSellAllJunk(session: ConnectedSession) {
+    const { player, ws } = session;
+    let totalGold = 0;
+    let soldCount = 0;
+    const keep: typeof player.inventory = [];
+
+    for (const slot of player.inventory) {
+      const def = ITEMS[slot.itemId];
+      if (def?.category === 'tool' || def?.category === 'steed' || def?.category === 'weapon' || def?.slot) {
+        keep.push(slot);
+        continue;
+      }
+
+      const unitPrice = def?.vendorFloorPrice || 1;
+      totalGold += unitPrice * slot.quantity;
+      soldCount += slot.quantity;
+    }
+
+    if (soldCount === 0) {
+      this.send(ws, { type: 'NOTIFICATION', message: 'No sellable common spoils in satchel.' });
+      return;
+    }
+
+    player.inventory = keep;
+    player.gold = (player.gold || 0) + totalGold;
+
+    storage.savePlayer(player);
+    storage.checkpoint();
+    this.send(ws, {
+      type: 'NOTIFICATION',
+      message: `Sold ${soldCount} items to merchant for ${totalGold.toLocaleString()} gold.`
+    });
     this.send(ws, { type: 'PLAYER_UPDATE', player });
   }
 

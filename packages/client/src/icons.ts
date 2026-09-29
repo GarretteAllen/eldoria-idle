@@ -358,3 +358,99 @@ export function getIconSvg(name: string, extraClass: string = ''): string {
   const icon = ICONS[name] || ICONS['skills'];
   return `<span class="rpg-icon-wrap rpg-icon-${name} ${extraClass}">${icon.trim()}</span>`;
 }
+
+/**
+ * Returns crisp, stylized medieval fantasy SVG icon markup for any item by category or ID.
+ */
+export function getItemIconSvg(itemId: string, category?: string): string {
+  const id = itemId.toLowerCase();
+  const cat = (category || '').toLowerCase();
+
+  // Ores & Raw Minerals
+  if (cat === 'ore' || id.includes('ore') || id.includes('shard')) {
+    const isGold = id.includes('solar') || id.includes('pyrite');
+    const isBlue = id.includes('azurite') || id.includes('starfall');
+    const isDark = id.includes('nether') || id.includes('galena');
+    const c1 = isGold ? '#fcd34d' : isBlue ? '#60a5fa' : isDark ? '#6b7280' : '#9ca3af';
+    const c2 = isGold ? '#d97706' : isBlue ? '#2563eb' : isDark ? '#1f2937' : '#4b5563';
+    return `<svg viewBox="0 0 24 24" fill="none" class="dv-slot-svg"><polygon points="6,9 12,4 18,7 21,14 16,20 8,19 3,14" fill="${c2}" stroke="${c1}" stroke-width="1.2"/><polygon points="6,9 12,4 13,11 8,13" fill="${c1}" opacity="0.6"/><polygon points="12,4 18,7 15,12 13,11" fill="${c1}" opacity="0.3"/><polygon points="13,11 15,12 21,14 16,20" fill="${c2}" opacity="0.8"/></svg>`;
+  }
+
+  // Refined Ingots
+  if (cat === 'bar' || id.includes('ingot')) {
+    const isGold = id.includes('dawn') || id.includes('aurum');
+    const isBlue = id.includes('azurite') || id.includes('astralite');
+    const c1 = isGold ? '#fde047' : isBlue ? '#93c5fd' : '#e2e8f0';
+    const c2 = isGold ? '#b45309' : isBlue ? '#1d4ed8' : '#64748b';
+    return `<svg viewBox="0 0 24 24" fill="none" class="dv-slot-svg"><polygon points="3,14 7,8 20,8 16,14" fill="${c1}" stroke="#1e293b" stroke-width="0.8"/><polygon points="3,14 16,14 14,19 1,19" fill="${c2}" stroke="#1e293b" stroke-width="0.8"/><polygon points="16,14 20,8 18,13 14,19" fill="${c2}" opacity="0.85" stroke="#1e293b" stroke-width="0.8"/></svg>`;
+  }
+
+  // Timbers & Logs
+  if (cat === 'log' || id.includes('timber') || id.includes('wood') || id.includes('oak') || id.includes('willow')) {
+    const isMagic = id.includes('ghost') || id.includes('starlight');
+    const c1 = isMagic ? '#c084fc' : '#b45309';
+    const c2 = isMagic ? '#581c87' : '#78350f';
+    return `<svg viewBox="0 0 24 24" fill="none" class="dv-slot-svg"><rect x="3" y="8" width="14" height="8" rx="2" fill="${c1}" stroke="${c2}" stroke-width="1"/><ellipse cx="17" cy="12" rx="3.5" ry="4" fill="${c2}" stroke="${c1}" stroke-width="0.8"/><circle cx="17" cy="12" r="1.5" fill="${c1}" opacity="0.7"/></svg>`;
+  }
+
+  // Raw Fish & Crustaceans
+  if (cat === 'raw_food' || id.includes('prawn') || id.includes('minnow') || id.includes('trout') || id.includes('salmon') || id.includes('albacore') || id.includes('crustacean') || id.includes('sovereign') || id.includes('mawshark')) {
+    return `<svg viewBox="0 0 24 24" fill="none" class="dv-slot-svg"><path d="M2 12c4-5 12-5 16 0-4 5-12 5-16 0z" fill="#38bdf8" stroke="#0284c7" stroke-width="1"/><polygon points="18,12 22,8 22,16" fill="#0284c7"/><circle cx="6" cy="11" r="1" fill="#0f172a"/><path d="M9 10c1 1 1 3 0 4M12 10c1 1 1 3 0 4" stroke="#0284c7" stroke-width="0.8"/></svg>`;
+  }
+
+  // Cooked Provisions & Feasts
+  if (cat === 'cooked_food' || id.includes('smoked') || id.includes('crisped') || id.includes('seared') || id.includes('poached') || id.includes('glazed') || id.includes('broiled') || id.includes('roast') || id.includes('feast')) {
+    return `<svg viewBox="0 0 24 24" fill="none" class="dv-slot-svg"><ellipse cx="12" cy="15" rx="9" ry="4" fill="#78350f" stroke="#d97706" stroke-width="1"/><ellipse cx="12" cy="12" rx="6" ry="3.5" fill="#f59e0b"/><path d="M9 7c0-2 1-3 1-3M12 6c0-2 1-3 1-3M15 7c0-2 1-3 1-3" stroke="#fbbf24" stroke-width="1" stroke-linecap="round" opacity="0.8"/></svg>`;
+  }
+
+  // Crops & Mushrooms
+  if (cat === 'crop' || id.includes('tuber') || id.includes('shroom') || id.includes('radish') || id.includes('mandrake') || id.includes('gourd') || id.includes('pepper')) {
+    return `<svg viewBox="0 0 24 24" fill="none" class="dv-slot-svg"><circle cx="12" cy="14" r="6" fill="#ea580c" stroke="#9a3412" stroke-width="1"/><path d="M12 8V4M10 6l2-2 2 2" stroke="#22c55e" stroke-width="1.5" stroke-linecap="round"/></svg>`;
+  }
+
+  // Seeds & Spores
+  if (cat === 'seed' || id.includes('seed') || id.includes('spore') || id.includes('pod')) {
+    return `<svg viewBox="0 0 24 24" fill="none" class="dv-slot-svg"><path d="M5 8h14v10a3 3 0 0 1-3 3H8a3 3 0 0 1-3-3V8z" fill="#78350f" stroke="#b45309" stroke-width="1"/><path d="M12 11v5M10 13l2-2 2 2" stroke="#4ade80" stroke-width="1.2" stroke-linecap="round"/></svg>`;
+  }
+
+  // Herbs & Reagents
+  if (cat === 'herb' || id.includes('leaf') || id.includes('bell') || id.includes('frond')) {
+    return `<svg viewBox="0 0 24 24" fill="none" class="dv-slot-svg"><path d="M12 21V9M12 9c-3 0-6-3-6-6 3 0 6 3 6 6zM12 13c3 0 6-3 6-6-3 0-6 3-6 6z" fill="#4ade80" stroke="#16a34a" stroke-width="1"/></svg>`;
+  }
+
+  // Potions & Elixirs
+  if (cat === 'potion' || id.includes('draught') || id.includes('phial') || id.includes('elixir') || id.includes('flask')) {
+    return `<svg viewBox="0 0 24 24" fill="none" class="dv-slot-svg"><rect x="10" y="3" width="4" height="3" fill="#d4af37"/><path d="M10 6h4v3l4 6a3 3 0 0 1-2.5 4.5h-7A3 3 0 0 1 6 15l4-6V6z" fill="#9333ea" stroke="#c084fc" stroke-width="1"/><ellipse cx="12" cy="15" rx="3.5" ry="1.5" fill="#f3e8ff" opacity="0.6"/></svg>`;
+  }
+
+  // Tools
+  if (cat === 'tool' || id.includes('pickaxe') || id.includes('axe') || id.includes('hatchet')) {
+    return `<svg viewBox="0 0 24 24" fill="none" class="dv-slot-svg"><path d="M4 20l11-11M14 8l1-1M16 10l1-1" stroke="#a16207" stroke-width="2" stroke-linecap="round"/><path d="M12 4c4-1 7 1 8 3-2 1-3 4-3 4l-4-4s3-1 4-3z" fill="#38bdf8" stroke="#0284c7" stroke-width="1"/></svg>`;
+  }
+
+  // Weapons & Bows
+  if (cat === 'weapon' || id.includes('bow') || id.includes('sword') || id.includes('blade')) {
+    if (id.includes('bow')) {
+      return `<svg viewBox="0 0 24 24" fill="none" class="dv-slot-svg"><path d="M6 3c8 3 8 15 0 18" stroke="#92400e" stroke-width="2" fill="none"/><line x1="6" y1="3" x2="6" y2="21" stroke="#cbd5e1" stroke-width="0.8"/><line x1="4" y1="12" x2="16" y2="12" stroke="#d97706" stroke-width="1.5"/><polygon points="16,12 13,10 13,14" fill="#d97706"/></svg>`;
+    }
+    return `<svg viewBox="0 0 24 24" fill="none" class="dv-slot-svg"><path d="M18 3l3 3-10 10-2-1-1-2 10-10z" fill="#e2e8f0" stroke="#64748b" stroke-width="1"/><path d="M6 17l-3 3M7 15l2 2M4 19l1 1" stroke="#94a3b8" stroke-width="1.5" stroke-linecap="round"/></svg>`;
+  }
+
+  // Shields & Gear
+  if (cat === 'shield' || id.includes('shield')) {
+    return `<svg viewBox="0 0 24 24" fill="none" class="dv-slot-svg"><path d="M12 3l7 3v6c0 5-3.5 8-7 10-3.5-2-7-5-7-10V6l7-3z" fill="#1e3a8a" stroke="#60a5fa" stroke-width="1.2"/><path d="M12 6v12M8 10h8" stroke="#93c5fd" stroke-width="1"/></svg>`;
+  }
+
+  // Relics & Gems
+  if (cat === 'relic' || id.includes('gem') || id.includes('anima') || id.includes('scroll') || id.includes('core') || id.includes('scale') || id.includes('ember')) {
+    return `<svg viewBox="0 0 24 24" fill="none" class="dv-slot-svg"><polygon points="12,2 19,8 16,19 8,19 5,8" fill="#ec4899" stroke="#f472b6" stroke-width="1.2"/><polygon points="12,2 19,8 12,13 5,8" fill="#fbcfe8" opacity="0.6"/></svg>`;
+  }
+
+  // Monster Trophies & Hides
+  if (cat === 'trophy' || id.includes('pelt') || id.includes('hide') || id.includes('talisman') || id.includes('carapace')) {
+    return `<svg viewBox="0 0 24 24" fill="none" class="dv-slot-svg"><path d="M4 6c4-3 12-3 16 0-1 6-4 13-8 15-4-2-7-9-8-15z" fill="#78350f" stroke="#b45309" stroke-width="1"/><circle cx="9" cy="11" r="1.5" fill="#fef08a"/><circle cx="15" cy="11" r="1.5" fill="#fef08a"/></svg>`;
+  }
+
+  // Default Pouch
+  return `<svg viewBox="0 0 24 24" fill="none" class="dv-slot-svg"><path d="M6 9a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v1a5 5 0 0 1-5 5H11a5 5 0 0 1-5-5V9z" fill="#92400e" stroke="#b45309" stroke-width="1"/><path d="M9 5v4M15 5v4" stroke="#fbbf24" stroke-width="1"/></svg>`;
+}

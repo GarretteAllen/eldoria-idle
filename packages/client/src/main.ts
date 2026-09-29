@@ -1,7 +1,7 @@
 import { PlayerData, RECIPES, ITEMS, EquipSlot, SkillType, getXpToNextLevel, NpcDefinition, QuestDefinition } from '@eldoria/shared';
 import { WorldRenderer, WorldNodeDisplay } from './canvas.js';
 import { loadLdtkWorld } from './ldtkLoader.js';
-import { ICONS } from './icons.js';
+import { ICONS, getItemIconSvg } from './icons.js';
 
 const SKILL_FLAVOR: Record<string, string> = {
   mining: 'Excavate raw veins of pyrite, galena, cold iron, quicksilver and starfall from the ancient crags.',
@@ -44,6 +44,11 @@ class EldoriaClient {
   private isPopupOpen: boolean = false;
   private chatCollapsed: boolean = false;
 
+  // Storage Modal State
+  private selectedTransferAmount: number | 'all' = 1;
+  private storageFilterQuery: string = '';
+  private activeStorageTab: 'storage' | 'vendor' = 'storage';
+
   // Editor State
   private activeEditorTab: 'nodes' | 'monsters' | 'npcs' | 'quests' | 'collisions' = 'nodes';
   private collisionBrush: 'paint' | 'erase' = 'paint';
@@ -58,6 +63,7 @@ class EldoriaClient {
     this.setupChat();
     this.setupSkillJobPopup();
     this.setupModals();
+    this.setupStorageModal();
     this.setupAdminEditor();
     this.fetchNodesAndInit();
   }
@@ -146,7 +152,7 @@ class EldoriaClient {
           });
         } else if (node.type === 'hearth_counter') {
           this.sendWs({ type: 'MOVE_TO', x: node.x, y: node.y });
-          this.switchDrawer('storage');
+          this.openStorageModal();
         } else {
           this.sendWs({ type: 'MOVE_TO', x: node.x, y: node.y });
         }
@@ -414,6 +420,7 @@ class EldoriaClient {
     this.renderInventoryDrawer();
     this.renderEquipmentDrawer();
     this.renderStorageDrawer();
+    this.renderStorageModal();
     if (this.activeDrawer === 'editor') {
       this.renderEditorNodes();
       this.renderEditorMonsters();
@@ -534,7 +541,7 @@ class EldoriaClient {
       this.sendWs({ type: 'STOP_TASK' });
       const hearth = this.getHearthLocation(this.player?.x, this.player?.y);
       this.sendWs({ type: 'MOVE_TO', x: hearth.x, y: hearth.y });
-      this.switchDrawer('storage');
+      this.openStorageModal();
     };
   }
 
@@ -559,10 +566,15 @@ class EldoriaClient {
           return;
         }
 
+        if (panel === 'storage') {
+          this.openStorageModal();
+          return;
+        }
+
         buttons.forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
 
-        if (panel === 'skills' || panel === 'inventory' || panel === 'equipment' || panel === 'storage') {
+        if (panel === 'skills' || panel === 'inventory' || panel === 'equipment') {
           this.switchDrawer(panel);
         }
       });
@@ -576,11 +588,16 @@ class EldoriaClient {
     document.getElementById('btn-quick-home')!.onclick = () => {
       const hearth = this.getHearthLocation(this.player?.x, this.player?.y);
       this.sendWs({ type: 'MOVE_TO', x: hearth.x, y: hearth.y });
-      this.switchDrawer('storage');
+      this.openStorageModal();
     };
   }
 
   private switchDrawer(drawer: 'skills' | 'inventory' | 'equipment' | 'storage' | 'editor') {
+    if (drawer === 'storage') {
+      this.openStorageModal();
+      return;
+    }
+
     this.activeDrawer = drawer;
 
     const drawers = [
@@ -623,7 +640,6 @@ class EldoriaClient {
       if (drawer === 'skills') this.renderSkillsDrawer();
       else if (drawer === 'inventory') this.renderInventoryDrawer();
       else if (drawer === 'equipment') this.renderEquipmentDrawer();
-      else if (drawer === 'storage') this.renderStorageDrawer();
     }
   }
 
@@ -998,6 +1014,317 @@ class EldoriaClient {
     }
   }
 
+  private setupStorageModal() {
+    const modal = document.getElementById('deepvein-storage-modal');
+    if (!modal) return;
+
+    // Close button
+    const closeBtn = document.getElementById('dv-storage-close-btn');
+    if (closeBtn) {
+      closeBtn.onclick = () => this.closeStorageModal();
+    }
+
+    // Backdrop click outside to close
+    modal.onclick = (e) => {
+      if (e.target === modal) {
+        this.closeStorageModal();
+      }
+    };
+
+    // Escape key closes modal
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && !modal.classList.contains('hidden')) {
+        this.closeStorageModal();
+      }
+    });
+
+    // Tab buttons
+    const tabStorage = document.getElementById('dv-tab-storage');
+    const tabVendor = document.getElementById('dv-tab-vendor');
+    const viewStorage = document.getElementById('dv-storage-tab-view');
+    const viewVendor = document.getElementById('dv-vendor-tab-view');
+
+    if (tabStorage && tabVendor && viewStorage && viewVendor) {
+      tabStorage.onclick = () => {
+        this.activeStorageTab = 'storage';
+        tabStorage.classList.add('active');
+        tabVendor.classList.remove('active');
+        viewStorage.classList.remove('hidden');
+        viewVendor.classList.add('hidden');
+        this.renderStorageModal();
+      };
+
+      tabVendor.onclick = () => {
+        this.activeStorageTab = 'vendor';
+        tabVendor.classList.add('active');
+        tabStorage.classList.remove('active');
+        viewVendor.classList.remove('hidden');
+        viewStorage.classList.add('hidden');
+        this.renderVendorView();
+      };
+    }
+
+    // Filter input
+    const filterInput = document.getElementById('dv-filter-input') as HTMLInputElement | null;
+    if (filterInput) {
+      filterInput.oninput = () => {
+        this.storageFilterQuery = (filterInput.value || '').trim().toLowerCase();
+        this.renderStorageModal();
+      };
+    }
+
+    // Buy slot
+    const btnBuy = document.getElementById('dv-btn-buy-slot');
+    if (btnBuy) {
+      btnBuy.onclick = () => {
+        this.sendWs({ type: 'BUY_STORAGE_SLOT' });
+      };
+    }
+
+    // Auto arrange
+    const btnArrange = document.getElementById('dv-btn-auto-arrange');
+    if (btnArrange) {
+      btnArrange.onclick = () => {
+        this.sendWs({ type: 'SORT_STORAGE' });
+      };
+    }
+
+    // Home depot / Deposit all buttons
+    const btnHomeDepot = document.getElementById('dv-btn-home-depot');
+    if (btnHomeDepot) {
+      btnHomeDepot.onclick = () => {
+        this.sendWs({ type: 'DEPOSIT_ALL_RESOURCES' });
+      };
+    }
+
+    const btnDepositAll = document.getElementById('dv-btn-deposit-all');
+    if (btnDepositAll) {
+      btnDepositAll.onclick = () => {
+        this.sendWs({ type: 'DEPOSIT_ALL_RESOURCES' });
+      };
+    }
+
+    // Transfer amount pills
+    const pills = document.querySelectorAll('.dv-pill-btn');
+    pills.forEach(pill => {
+      pill.addEventListener('click', () => {
+        pills.forEach(p => p.classList.remove('active'));
+        pill.classList.add('active');
+        const amt = pill.getAttribute('data-amount');
+        if (amt === 'all') {
+          this.selectedTransferAmount = 'all';
+        } else {
+          this.selectedTransferAmount = parseInt(amt || '1', 10) || 1;
+        }
+        this.renderStorageModal();
+      });
+    });
+
+    // Vendor: Sell all spoils
+    const btnSellAll = document.getElementById('dv-btn-sell-all-junk');
+    if (btnSellAll) {
+      btnSellAll.onclick = () => {
+        this.sendWs({ type: 'SELL_ALL_JUNK' });
+      };
+    }
+  }
+
+  private openStorageModal() {
+    const modal = document.getElementById('deepvein-storage-modal');
+    if (!modal) return;
+    modal.classList.remove('hidden');
+    this.renderStorageModal();
+  }
+
+  private closeStorageModal() {
+    const modal = document.getElementById('deepvein-storage-modal');
+    if (!modal) return;
+    modal.classList.add('hidden');
+  }
+
+  private renderStorageModal() {
+    if (!this.player) return;
+    const modal = document.getElementById('deepvein-storage-modal');
+    if (!modal || modal.classList.contains('hidden')) return;
+
+    if (this.activeStorageTab === 'vendor') {
+      this.renderVendorView();
+      return;
+    }
+
+    const maxSlots = this.player.storageSlotsMax || 75;
+    const counterEl = document.getElementById('dv-slots-counter');
+    if (counterEl) {
+      counterEl.textContent = `${this.player.storage.length} / ${maxSlots} slots`;
+    }
+
+    // Buy slot affordability styling
+    const btnBuy = document.getElementById('dv-btn-buy-slot');
+    if (btnBuy) {
+      const canAfford = (this.player.gold || 0) >= 1000;
+      btnBuy.style.opacity = canAfford ? '1' : '0.6';
+    }
+
+    const storageGrid = document.getElementById('dv-storage-grid');
+    if (storageGrid) {
+      storageGrid.innerHTML = '';
+
+      // Check distance to Hearth
+      const hearth = this.getHearthLocation(this.player.x, this.player.y);
+      const isNearHearth = Math.hypot(this.player.x - hearth.x, this.player.y - hearth.y) <= 1.5;
+
+      // Filtered items
+      const query = this.storageFilterQuery;
+      let itemsToRender = this.player.storage.map((slot, index) => ({ slot, originalIndex: index }));
+      if (query) {
+        itemsToRender = itemsToRender.filter(item => {
+          const def = ITEMS[item.slot.itemId];
+          const name = (def ? def.name : item.slot.itemId).toLowerCase();
+          return name.includes(query);
+        });
+      }
+
+      for (const item of itemsToRender) {
+        const slot = item.slot;
+        const def = ITEMS[slot.itemId];
+        const div = document.createElement('div');
+        div.className = 'dv-slot';
+        if (slot.rarity && slot.rarity !== 'plain') {
+          div.classList.add(`rarity-${slot.rarity}`);
+        }
+
+        const iconSvg = getItemIconSvg(slot.itemId, def?.category);
+        const qtyFormatted = slot.quantity >= 1000 ? `${(slot.quantity / 1000).toFixed(1)}K` : slot.quantity.toString();
+
+        div.innerHTML = `
+          ${iconSvg}
+          <span class="dv-slot-qty">${qtyFormatted}</span>
+        `;
+        div.title = `${def?.name || slot.itemId} (x${slot.quantity.toLocaleString()}) — Click to withdraw ${this.selectedTransferAmount === 'all' ? 'all' : this.selectedTransferAmount}`;
+
+        div.onclick = () => {
+          if (!isNearHearth) {
+            this.sendWs({ type: 'MOVE_TO', x: hearth.x, y: hearth.y });
+            this.showToast('Riding to Hearth Storage Counter...');
+          } else {
+            const requestedQty = this.selectedTransferAmount === 'all' ? slot.quantity : this.selectedTransferAmount;
+            this.sendWs({
+              type: 'WITHDRAW_ITEM',
+              storageIndex: item.originalIndex,
+              quantity: requestedQty,
+            });
+          }
+        };
+
+        storageGrid.appendChild(div);
+      }
+
+      // Fill remaining visible slots up to maxSlots (minimum 70 for 7 full rows)
+      const targetSlotCount = Math.max(maxSlots, 70);
+      const emptySlotsCount = Math.max(0, targetSlotCount - itemsToRender.length);
+      for (let i = 0; i < emptySlotsCount; i++) {
+        const div = document.createElement('div');
+        div.className = 'dv-slot dv-slot-empty';
+        storageGrid.appendChild(div);
+      }
+    }
+
+    // Render Carrying Section (14 columns x 2 rows = 28 satchel slots)
+    const carryingCounter = document.getElementById('dv-carrying-counter');
+    if (carryingCounter) {
+      carryingCounter.textContent = `${this.player.inventory.length} / 28`;
+    }
+
+    const carryingGrid = document.getElementById('dv-carrying-grid');
+    if (carryingGrid) {
+      carryingGrid.innerHTML = '';
+      const hearth = this.getHearthLocation(this.player.x, this.player.y);
+      const isNearHearth = Math.hypot(this.player.x - hearth.x, this.player.y - hearth.y) <= 1.5;
+
+      for (let i = 0; i < 28; i++) {
+        const slot = this.player.inventory[i];
+        const div = document.createElement('div');
+        div.className = 'dv-slot';
+
+        if (slot) {
+          const def = ITEMS[slot.itemId];
+          if (slot.rarity && slot.rarity !== 'plain') {
+            div.classList.add(`rarity-${slot.rarity}`);
+          }
+          const iconSvg = getItemIconSvg(slot.itemId, def?.category);
+          const qtyFormatted = slot.quantity >= 1000 ? `${(slot.quantity / 1000).toFixed(1)}K` : slot.quantity.toString();
+
+          div.innerHTML = `
+            ${iconSvg}
+            <span class="dv-slot-qty">${qtyFormatted}</span>
+          `;
+          div.title = `${def?.name || slot.itemId} (x${slot.quantity.toLocaleString()}) — Click to deposit ${this.selectedTransferAmount === 'all' ? 'all' : this.selectedTransferAmount}`;
+
+          const index = i;
+          div.onclick = () => {
+            if (!isNearHearth) {
+              this.sendWs({ type: 'MOVE_TO', x: hearth.x, y: hearth.y });
+              this.showToast('Riding to Hearth Storage Counter...');
+            } else {
+              const requestedQty = this.selectedTransferAmount === 'all' ? slot.quantity : this.selectedTransferAmount;
+              this.sendWs({
+                type: 'DEPOSIT_ITEM',
+                inventoryIndex: index,
+                quantity: requestedQty,
+              });
+            }
+          };
+        } else {
+          div.classList.add('dv-slot-empty');
+        }
+
+        carryingGrid.appendChild(div);
+      }
+    }
+  }
+
+  private renderVendorView() {
+    if (!this.player) return;
+    const vendorGrid = document.getElementById('dv-vendor-carrying-grid');
+    if (!vendorGrid) return;
+    vendorGrid.innerHTML = '';
+
+    for (let i = 0; i < 28; i++) {
+      const slot = this.player.inventory[i];
+      const div = document.createElement('div');
+      div.className = 'dv-slot';
+
+      if (slot) {
+        const def = ITEMS[slot.itemId];
+        if (slot.rarity && slot.rarity !== 'plain') {
+          div.classList.add(`rarity-${slot.rarity}`);
+        }
+        const iconSvg = getItemIconSvg(slot.itemId, def?.category);
+        const qtyFormatted = slot.quantity >= 1000 ? `${(slot.quantity / 1000).toFixed(1)}K` : slot.quantity.toString();
+        const pricePerUnit = Math.max(1, Math.floor((def?.vendorFloorPrice || 2)));
+        const totalPrice = pricePerUnit * slot.quantity;
+
+        div.innerHTML = `
+          ${iconSvg}
+          <span class="dv-slot-qty">${qtyFormatted}</span>
+        `;
+        div.title = `${def?.name || slot.itemId} (x${slot.quantity}) — Click to sell for ${totalPrice.toLocaleString()} Gold (${pricePerUnit} each)`;
+
+        const index = i;
+        div.onclick = () => {
+          this.sendWs({
+            type: 'SELL_ITEM',
+            inventoryIndex: index,
+          });
+        };
+      } else {
+        div.classList.add('dv-slot-empty');
+      }
+
+      vendorGrid.appendChild(div);
+    }
+  }
+
   private setupChat() {
     const collapseBtn = document.getElementById('chat-collapse-btn')!;
     const chatCard = document.getElementById('chat-card')!;
@@ -1131,7 +1458,7 @@ class EldoriaClient {
     }
 
     document.getElementById('btn-drawer-open-hearth')!.onclick = () => {
-      this.switchDrawer('storage');
+      this.openStorageModal();
     };
 
     this.setupProfileModal();

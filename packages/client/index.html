@@ -248,6 +248,70 @@
         </div>
       </div>
 
+      <!-- DEEP VEIN REPLICATED STORAGE MODAL -->
+      <div id="deepvein-storage-modal" class="modal-backdrop hidden">
+        <div class="dv-storage-container">
+          <!-- Top Header Bar -->
+          <div class="dv-storage-header">
+            <div class="dv-storage-tabs">
+              <button id="dv-tab-storage" class="dv-tab-btn active">Storage</button>
+              <button id="dv-tab-vendor" class="dv-tab-btn">Vendor</button>
+            </div>
+            <div id="dv-slots-counter" class="dv-slots-label">0 / 75 slots</div>
+            <button id="dv-storage-close-btn" class="dv-close-circle-btn" title="Close storage">✕</button>
+          </div>
+
+          <!-- Sub-Header Actions Row -->
+          <div class="dv-storage-subbar">
+            <input type="text" id="dv-filter-input" class="dv-filter-box" placeholder="Filter by name" />
+            <div class="dv-subbar-actions">
+              <button id="dv-btn-buy-slot" class="dv-sub-btn dv-btn-buy" title="Expand vault capacity by 5 slots">Buy a slot • 1,000</button>
+              <button id="dv-btn-auto-arrange" class="dv-sub-btn" title="Auto arrange vault contents">Auto arrange</button>
+              <button id="dv-btn-home-depot" class="dv-sub-btn dv-btn-check" title="Quick deposit all spoils">Home depot ✓</button>
+            </div>
+          </div>
+
+          <!-- Main Storage Content Area -->
+          <div id="dv-storage-tab-view">
+            <!-- 10-Column Storage Grid -->
+            <div id="dv-storage-grid" class="dv-item-grid dv-storage-grid"></div>
+
+            <!-- Transfer Amount Controls Bar -->
+            <div class="dv-amount-bar">
+              <div class="dv-amount-selector">
+                <span class="dv-amount-label">AMOUNT</span>
+                <div class="dv-amount-pills">
+                  <button class="dv-pill-btn active" data-amount="1">1</button>
+                  <button class="dv-pill-btn" data-amount="10">10</button>
+                  <button class="dv-pill-btn" data-amount="all">All</button>
+                </div>
+              </div>
+              <button id="dv-btn-deposit-all" class="dv-btn-deposit-primary">Deposit all</button>
+            </div>
+
+            <!-- Carrying Section (14 columns x 2 rows = 28 slots) -->
+            <div class="dv-carrying-section">
+              <div class="dv-carrying-header">
+                <span class="dv-carrying-title">Carrying</span>
+                <span id="dv-carrying-counter" class="dv-carrying-count">0 / 28</span>
+              </div>
+              <div id="dv-carrying-grid" class="dv-item-grid dv-carrying-grid"></div>
+            </div>
+          </div>
+
+          <!-- Vendor Tab Content Area -->
+          <div id="dv-vendor-tab-view" class="hidden">
+            <div class="dv-vendor-info">
+              <p style="margin: 6px 0; font-size: 0.8rem; color: #d8c8b8;">Click any item in your satchel below to sell it for merchant gold.</p>
+            </div>
+            <div id="dv-vendor-carrying-grid" class="dv-item-grid dv-carrying-grid" style="margin-top: 10px;"></div>
+            <div class="dv-vendor-footer" style="margin-top: 14px;">
+              <button id="dv-btn-sell-all-junk" class="dv-btn-deposit-primary" style="width: 100%;">Sell All Common Spoils</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- ITEM ACTION MODAL -->
       <div id="item-action-modal" class="modal-backdrop hidden">
         <div class="modal-box dark-oak-panel" style="width: 300px;">
