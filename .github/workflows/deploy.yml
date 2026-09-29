@@ -1,0 +1,37 @@
+name: Deploy to VPS
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to VPS via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT || '22' }}
+          script: |
+            # Ensure Node, npm, and PM2 are in PATH
+            source ~/.bashrc 2>/dev/null || true
+            export PATH=$PATH:/usr/bin:/usr/local/bin:~/.nvm/versions/node/$(ls ~/.nvm/versions/node 2>/dev/null | tail -n 1)/bin
+
+            echo "🚀 Deploying latest commit to VPS..."
+            cd /var/www/eldoria-idle
+
+            # Pull latest changes from main
+            git pull origin main
+
+            # Install dependencies and build shared, client, and server packages
+            npm install
+            npm run build
+
+            # Zero-downtime reload with PM2 (or start if not already running)
+            pm2 reload eldoria || pm2 start packages/server/dist/index.js --name "eldoria" --env DATA_DIR=/var/data/eldoria
+            pm2 save
+
+            echo "✅ Deployment completed successfully!"
