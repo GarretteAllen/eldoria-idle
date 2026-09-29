@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import Database from 'better-sqlite3';
 import { PlayerData, SkillType, WorldNode, NpcDefinition, QuestDefinition } from '@eldoria/shared';
 import { WORLD_NODES as DEFAULT_WORLD_NODES } from './world.js';
 
@@ -21,13 +22,7 @@ function resolveDataDir(): string {
 }
 
 const DATA_DIR = resolveDataDir();
-const PLAYERS_FILE = path.join(DATA_DIR, 'players.json');
-const ACCOUNTS_FILE = path.join(DATA_DIR, 'accounts.json');
-const SESSIONS_FILE = path.join(DATA_DIR, 'sessions.json');
-const NODES_FILE = path.join(DATA_DIR, 'world_nodes.json');
-const NPCS_FILE = path.join(DATA_DIR, 'npcs.json');
-const QUESTS_FILE = path.join(DATA_DIR, 'quests.json');
-const COLLISIONS_FILE = path.join(DATA_DIR, 'collisions.json');
+const DB_FILE = path.join(DATA_DIR, 'eldoria.db');
 
 export interface AccountRecord {
   id: string;
@@ -149,151 +144,342 @@ const DEFAULT_QUESTS: QuestDefinition[] = [
   }
 ];
 
-// Default water edge / wall obstacles for level_0 Hearth town boundaries
 const DEFAULT_COLLISIONS: string[] = [
-  // Deep river tiles south boundary
   '0,37', '1,37', '2,37', '3,37',
   '14,37', '15,37', '16,37', '17,37',
-  // Stone masonry walls in town
   '7,21', '8,21', '10,21',
   '5,23', '7,23', '9,23', '11,23',
 ];
 
 class StorageManager {
-  private players = new Map<string, PlayerData>();
-  private accounts = new Map<string, AccountRecord>();
-  private sessions = new Map<string, SessionRecord>();
-  private nodes: WorldNode[] = [];
-  private npcs: NpcDefinition[] = [];
-  private quests: QuestDefinition[] = [];
-  private collisions = new Set<string>();
+  private db: Database.Database;
+
+  // Cached world data for nanosecond reads
+  private nodesCache: WorldNode[] = [];
+  private npcsCache: NpcDefinition[] = [];
+  private questsCache: QuestDefinition[] = [];
+  private collisionsCache = new Set<string>();
+
+  // Prepared Statements
+  private stmtGetPlayer: Database.Statement;
+  private stmtSavePlayer: Database.Statement;
+  private stmtGetAccountByUsername: Database.Statement;
+  private stmtGetAccountById: Database.Statement;
+  private stmtInsertAccount: Database.Statement;
+  private stmtGetSession: Database.Statement;
+  private stmtInsertSession: Database.Statement;
+  private stmtDeleteSession: Database.Statement;
+  private stmtGetWorldNodes: Database.Statement;
+  private stmtUpsertWorldNode: Database.Statement;
+  private stmtDeleteWorldNode: Database.Statement;
+  private stmtGetNpcs: Database.Statement;
+  private stmtUpsertNpc: Database.Statement;
+  private stmtDeleteNpc: Database.Statement;
+  private stmtGetQuests: Database.Statement;
+  private stmtUpsertQuest: Database.Statement;
+  private stmtDeleteQuest: Database.Statement;
+  private stmtGetCollisions: Database.Statement;
+  private stmtInsertCollision: Database.Statement;
+  private stmtDeleteAllCollisions: Database.Statement;
 
   constructor() {
-    this.init();
-  }
-
-  private init() {
     if (!fs.existsSync(DATA_DIR)) {
       fs.mkdirSync(DATA_DIR, { recursive: true });
     }
 
-    // 1. Players
-    if (fs.existsSync(PLAYERS_FILE)) {
-      try {
-        const raw = fs.readFileSync(PLAYERS_FILE, 'utf-8');
-        const data = JSON.parse(raw);
-        for (const [id, player] of Object.entries(data)) {
-          this.players.set(id, player as PlayerData);
-        }
-      } catch (err) {
-        console.error('Failed to parse players.json, starting fresh', err);
-      }
-    }
+    this.db = new Database(DB_FILE);
 
-    // 1b. Accounts
-    if (fs.existsSync(ACCOUNTS_FILE)) {
-      try {
-        const raw = fs.readFileSync(ACCOUNTS_FILE, 'utf-8');
-        const data = JSON.parse(raw);
-        for (const [key, acc] of Object.entries(data)) {
-          this.accounts.set(key.toLowerCase(), acc as AccountRecord);
-        }
-      } catch (err) {
-        console.error('Failed to parse accounts.json, starting fresh', err);
-      }
-    }
+    // High performance SQLite tuning: WAL mode + normal sync + foreign keys
+    this.db.pragma('journal_mode = WAL');
+    this.db.pragma('synchronous = NORMAL');
+    this.db.pragma('foreign_keys = ON');
 
-    // 1c. Sessions
-    if (fs.existsSync(SESSIONS_FILE)) {
-      try {
-        const raw = fs.readFileSync(SESSIONS_FILE, 'utf-8');
-        const data = JSON.parse(raw);
-        for (const [token, sess] of Object.entries(data)) {
-          this.sessions.set(token, sess as SessionRecord);
-        }
-      } catch (err) {
-        console.error('Failed to parse sessions.json, starting fresh', err);
-      }
-    }
+    this.initSchema();
 
-    // 2. World Nodes
-    if (fs.existsSync(NODES_FILE)) {
-      try {
-        const raw = fs.readFileSync(NODES_FILE, 'utf-8');
-        this.nodes = JSON.parse(raw);
-      } catch (err) {
-        console.error('Failed to parse world_nodes.json, using defaults', err);
-        this.nodes = [...DEFAULT_WORLD_NODES];
-      }
-    } else {
-      this.nodes = [...DEFAULT_WORLD_NODES];
-      this.saveWorldNodes(this.nodes);
-    }
+    // Prepare cached SQL statements
+    this.stmtGetPlayer = this.db.prepare('SELECT data FROM players WHERE id = ?');
+    this.stmtSavePlayer = this.db.prepare(
+      `INSERT INTO players (id, username, role, is_guest, data, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET
+         username = excluded.username,
+         role = excluded.role,
+         is_guest = excluded.is_guest,
+         data = excluded.data,
+         updated_at = excluded.updated_at`
+    );
 
-    // 3. NPCs
-    if (fs.existsSync(NPCS_FILE)) {
-      try {
-        const raw = fs.readFileSync(NPCS_FILE, 'utf-8');
-        this.npcs = JSON.parse(raw);
-      } catch (err) {
-        console.error('Failed to parse npcs.json, using defaults', err);
-        this.npcs = [...DEFAULT_NPCS];
-      }
-    } else {
-      this.npcs = [...DEFAULT_NPCS];
-      this.saveNpcs(this.npcs);
-    }
+    this.stmtGetAccountByUsername = this.db.prepare('SELECT * FROM accounts WHERE normalized_username = ?');
+    this.stmtGetAccountById = this.db.prepare('SELECT * FROM accounts WHERE id = ?');
+    this.stmtInsertAccount = this.db.prepare(
+      `INSERT INTO accounts (id, username, normalized_username, password_hash, salt, player_id, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`
+    );
 
-    // 4. Quests
-    if (fs.existsSync(QUESTS_FILE)) {
-      try {
-        const raw = fs.readFileSync(QUESTS_FILE, 'utf-8');
-        this.quests = JSON.parse(raw);
-      } catch (err) {
-        console.error('Failed to parse quests.json, using defaults', err);
-        this.quests = [...DEFAULT_QUESTS];
-      }
-    } else {
-      this.quests = [...DEFAULT_QUESTS];
-      this.saveQuests(this.quests);
-    }
+    this.stmtGetSession = this.db.prepare('SELECT * FROM sessions WHERE token = ?');
+    this.stmtInsertSession = this.db.prepare(
+      'INSERT INTO sessions (token, account_id, player_id, created_at) VALUES (?, ?, ?, ?)'
+    );
+    this.stmtDeleteSession = this.db.prepare('DELETE FROM sessions WHERE token = ?');
 
-    // 5. Collisions
-    if (fs.existsSync(COLLISIONS_FILE)) {
-      try {
-        const raw = fs.readFileSync(COLLISIONS_FILE, 'utf-8');
-        const arr = JSON.parse(raw);
-        this.collisions = new Set<string>(arr);
-      } catch (err) {
-        console.error('Failed to parse collisions.json, using defaults', err);
-        this.collisions = new Set<string>(DEFAULT_COLLISIONS);
-      }
-    } else {
-      this.collisions = new Set<string>(DEFAULT_COLLISIONS);
-      this.saveCollisions(DEFAULT_COLLISIONS);
-    }
+    this.stmtGetWorldNodes = this.db.prepare('SELECT data FROM world_nodes');
+    this.stmtUpsertWorldNode = this.db.prepare(
+      `INSERT INTO world_nodes (id, type, data) VALUES (?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET type = excluded.type, data = excluded.data`
+    );
+    this.stmtDeleteWorldNode = this.db.prepare('DELETE FROM world_nodes WHERE id = ?');
 
-    // Graceful process exit auto-save
+    this.stmtGetNpcs = this.db.prepare('SELECT data FROM npcs');
+    this.stmtUpsertNpc = this.db.prepare(
+      `INSERT INTO npcs (id, data) VALUES (?, ?)
+       ON CONFLICT(id) DO UPDATE SET data = excluded.data`
+    );
+    this.stmtDeleteNpc = this.db.prepare('DELETE FROM npcs WHERE id = ?');
+
+    this.stmtGetQuests = this.db.prepare('SELECT data FROM quests');
+    this.stmtUpsertQuest = this.db.prepare(
+      `INSERT INTO quests (id, data) VALUES (?, ?)
+       ON CONFLICT(id) DO UPDATE SET data = excluded.data`
+    );
+    this.stmtDeleteQuest = this.db.prepare('DELETE FROM quests WHERE id = ?');
+
+    this.stmtGetCollisions = this.db.prepare('SELECT coord FROM collisions');
+    this.stmtInsertCollision = this.db.prepare('INSERT OR IGNORE INTO collisions (coord) VALUES (?)');
+    this.stmtDeleteAllCollisions = this.db.prepare('DELETE FROM collisions');
+
+    // Run automatic migration from legacy json files if upgrading
+    this.migrateLegacyJson();
+
+    // Load active caches
+    this.loadCaches();
+
+    // Graceful process exit
     process.on('SIGINT', () => {
-      this.saveAll();
+      this.close();
       process.exit(0);
     });
     process.on('SIGTERM', () => {
-      this.saveAll();
+      this.close();
       process.exit(0);
     });
   }
 
-  // --- Players ---
-  public savePlayers() {
-    try {
-      const obj: Record<string, PlayerData> = {};
-      for (const [id, player] of this.players.entries()) {
-        obj[id] = player;
+  private initSchema() {
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS accounts (
+        id TEXT PRIMARY KEY,
+        username TEXT NOT NULL,
+        normalized_username TEXT UNIQUE NOT NULL,
+        password_hash TEXT NOT NULL,
+        salt TEXT NOT NULL,
+        player_id TEXT NOT NULL,
+        created_at INTEGER NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS sessions (
+        token TEXT PRIMARY KEY,
+        account_id TEXT NOT NULL,
+        player_id TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        FOREIGN KEY (account_id) REFERENCES accounts(id) ON DELETE CASCADE
+      );
+
+      CREATE TABLE IF NOT EXISTS players (
+        id TEXT PRIMARY KEY,
+        username TEXT NOT NULL,
+        role TEXT NOT NULL DEFAULT 'player',
+        is_guest INTEGER NOT NULL DEFAULT 1,
+        data TEXT NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS world_nodes (
+        id TEXT PRIMARY KEY,
+        type TEXT NOT NULL,
+        data TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS npcs (
+        id TEXT PRIMARY KEY,
+        data TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS quests (
+        id TEXT PRIMARY KEY,
+        data TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS collisions (
+        coord TEXT PRIMARY KEY
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_accounts_norm_user ON accounts(normalized_username);
+      CREATE INDEX IF NOT EXISTS idx_sessions_account ON sessions(account_id);
+    `);
+  }
+
+  private migrateLegacyJson() {
+    const playersJson = path.join(DATA_DIR, 'players.json');
+    const accountsJson = path.join(DATA_DIR, 'accounts.json');
+    const nodesJson = path.join(DATA_DIR, 'world_nodes.json');
+    const npcsJson = path.join(DATA_DIR, 'npcs.json');
+    const questsJson = path.join(DATA_DIR, 'quests.json');
+    const collisionsJson = path.join(DATA_DIR, 'collisions.json');
+
+    // Players migration
+    const playerCount = (this.db.prepare('SELECT COUNT(*) as count FROM players').get() as { count: number }).count;
+    if (playerCount === 0 && fs.existsSync(playersJson)) {
+      try {
+        const raw = fs.readFileSync(playersJson, 'utf-8');
+        const players = JSON.parse(raw);
+        const insert = this.db.prepare(
+          'INSERT OR IGNORE INTO players (id, username, role, is_guest, data, updated_at) VALUES (?, ?, ?, ?, ?, ?)'
+        );
+        const tx = this.db.transaction(() => {
+          for (const [id, p] of Object.entries(players as Record<string, PlayerData>)) {
+            insert.run(id, p.username, p.role || 'player', p.isGuest ? 1 : 0, JSON.stringify(p), Date.now());
+          }
+        });
+        tx();
+        console.log(`📦 SQLite: Migrated legacy players from players.json`);
+      } catch (err) {
+        console.error('Failed to migrate players.json', err);
       }
-      fs.writeFileSync(PLAYERS_FILE, JSON.stringify(obj, null, 2), 'utf-8');
+    }
+
+    // Accounts migration
+    const accountCount = (this.db.prepare('SELECT COUNT(*) as count FROM accounts').get() as { count: number }).count;
+    if (accountCount === 0 && fs.existsSync(accountsJson)) {
+      try {
+        const raw = fs.readFileSync(accountsJson, 'utf-8');
+        const accounts = JSON.parse(raw);
+        const insert = this.db.prepare(
+          'INSERT OR IGNORE INTO accounts (id, username, normalized_username, password_hash, salt, player_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
+        );
+        const tx = this.db.transaction(() => {
+          for (const acc of Object.values(accounts as Record<string, AccountRecord>)) {
+            insert.run(
+              acc.id,
+              acc.username,
+              acc.normalizedUsername || acc.username.toLowerCase(),
+              acc.passwordHash,
+              acc.salt,
+              acc.playerId,
+              acc.createdAt
+            );
+          }
+        });
+        tx();
+        console.log(`📦 SQLite: Migrated legacy accounts from accounts.json`);
+      } catch (err) {
+        console.error('Failed to migrate accounts.json', err);
+      }
+    }
+
+    // World Nodes
+    const nodeCount = (this.db.prepare('SELECT COUNT(*) as count FROM world_nodes').get() as { count: number }).count;
+    if (nodeCount === 0) {
+      let nodes = DEFAULT_WORLD_NODES;
+      if (fs.existsSync(nodesJson)) {
+        try {
+          nodes = JSON.parse(fs.readFileSync(nodesJson, 'utf-8'));
+        } catch {}
+      }
+      this.saveWorldNodes(nodes);
+    }
+
+    // NPCs
+    const npcCount = (this.db.prepare('SELECT COUNT(*) as count FROM npcs').get() as { count: number }).count;
+    if (npcCount === 0) {
+      let npcs = DEFAULT_NPCS;
+      if (fs.existsSync(npcsJson)) {
+        try {
+          npcs = JSON.parse(fs.readFileSync(npcsJson, 'utf-8'));
+        } catch {}
+      }
+      this.saveNpcs(npcs);
+    }
+
+    // Quests
+    const questCount = (this.db.prepare('SELECT COUNT(*) as count FROM quests').get() as { count: number }).count;
+    if (questCount === 0) {
+      let quests = DEFAULT_QUESTS;
+      if (fs.existsSync(questsJson)) {
+        try {
+          quests = JSON.parse(fs.readFileSync(questsJson, 'utf-8'));
+        } catch {}
+      }
+      this.saveQuests(quests);
+    }
+
+    // Collisions
+    const collCount = (this.db.prepare('SELECT COUNT(*) as count FROM collisions').get() as { count: number }).count;
+    if (collCount === 0) {
+      let cols = DEFAULT_COLLISIONS;
+      if (fs.existsSync(collisionsJson)) {
+        try {
+          cols = JSON.parse(fs.readFileSync(collisionsJson, 'utf-8'));
+        } catch {}
+      }
+      this.saveCollisions(cols);
+    }
+  }
+
+  private loadCaches() {
+    // World nodes
+    const nodeRows = this.stmtGetWorldNodes.all() as Array<{ data: string }>;
+    this.nodesCache = nodeRows.map(r => JSON.parse(r.data));
+
+    // NPCs
+    const npcRows = this.stmtGetNpcs.all() as Array<{ data: string }>;
+    this.npcsCache = npcRows.map(r => JSON.parse(r.data));
+
+    // Quests
+    const questRows = this.stmtGetQuests.all() as Array<{ data: string }>;
+    this.questsCache = questRows.map(r => JSON.parse(r.data));
+
+    // Collisions
+    const collRows = this.stmtGetCollisions.all() as Array<{ coord: string }>;
+    this.collisionsCache = new Set<string>(collRows.map(r => r.coord));
+  }
+
+  public close() {
+    try {
+      this.db.close();
+    } catch {}
+  }
+
+  // --- Players ---
+  public getPlayer(id: string): PlayerData | undefined {
+    try {
+      const row = this.stmtGetPlayer.get(id) as { data: string } | undefined;
+      if (!row) return undefined;
+      const player = JSON.parse(row.data) as PlayerData;
+      if (this.isPlayerAdmin(player)) {
+        player.role = 'admin';
+      }
+      return player;
     } catch (err) {
-      console.error('Failed to save players to disk', err);
+      console.error('SQLite getPlayer error', err);
+      return undefined;
+    }
+  }
+
+  public savePlayer(player: PlayerData) {
+    if (this.isPlayerAdmin(player)) {
+      player.role = 'admin';
+    }
+    try {
+      this.stmtSavePlayer.run(
+        player.id,
+        player.username,
+        player.role || 'player',
+        player.isGuest ? 1 : 0,
+        JSON.stringify(player),
+        Date.now()
+      );
+    } catch (err) {
+      console.error('SQLite savePlayer error', err);
     }
   }
 
@@ -308,24 +494,6 @@ class StorageManager {
     return ADMIN_USERNAMES;
   }
 
-  public getPlayer(id: string): PlayerData | undefined {
-    const p = this.players.get(id);
-    if (p) {
-      if (this.isPlayerAdmin(p)) {
-        p.role = 'admin';
-      }
-    }
-    return p;
-  }
-
-  public savePlayer(player: PlayerData) {
-    if (this.isPlayerAdmin(player)) {
-      player.role = 'admin';
-    }
-    this.players.set(player.id, player);
-    this.savePlayers();
-  }
-
   public createGuestPlayer(desiredUsername?: string): PlayerData {
     const id = 'guest_' + crypto.randomBytes(6).toString('hex');
     const randomSuffix = Math.floor(1000 + Math.random() * 9000);
@@ -334,9 +502,9 @@ class StorageManager {
     const newPlayer: PlayerData = {
       id,
       username,
-      role: 'player', // Guests are never admin unless ADMIN_USER_IDS explicitly includes guest ID
+      role: 'player',
       isGuest: true,
-      x: 8, // Hearth Town Square (Level_0)
+      x: 8,
       y: 24,
       gold: 50,
       gems: 0,
@@ -418,30 +586,6 @@ class StorageManager {
   }
 
   // --- Accounts & Authentication ---
-  public saveAccounts() {
-    try {
-      const obj: Record<string, AccountRecord> = {};
-      for (const [key, acc] of this.accounts.entries()) {
-        obj[key] = acc;
-      }
-      fs.writeFileSync(ACCOUNTS_FILE, JSON.stringify(obj, null, 2), 'utf-8');
-    } catch (err) {
-      console.error('Failed to save accounts to disk', err);
-    }
-  }
-
-  public saveSessions() {
-    try {
-      const obj: Record<string, SessionRecord> = {};
-      for (const [token, sess] of this.sessions.entries()) {
-        obj[token] = sess;
-      }
-      fs.writeFileSync(SESSIONS_FILE, JSON.stringify(obj, null, 2), 'utf-8');
-    } catch (err) {
-      console.error('Failed to save sessions to disk', err);
-    }
-  }
-
   public hashPassword(password: string, salt?: string): { hash: string; salt: string } {
     const s = salt || crypto.randomBytes(16).toString('hex');
     const hash = crypto.scryptSync(password, s, 64).toString('hex');
@@ -462,40 +606,59 @@ class StorageManager {
   }
 
   public isUsernameTaken(username: string): boolean {
-    return this.accounts.has(username.trim().toLowerCase());
+    const norm = username.trim().toLowerCase();
+    const row = this.stmtGetAccountByUsername.get(norm);
+    return !!row;
   }
 
   public getAccountByUsername(username: string): AccountRecord | undefined {
-    return this.accounts.get(username.trim().toLowerCase());
+    const norm = username.trim().toLowerCase();
+    const row = this.stmtGetAccountByUsername.get(norm) as any;
+    if (!row) return undefined;
+    return {
+      id: row.id,
+      username: row.username,
+      normalizedUsername: row.normalized_username,
+      passwordHash: row.password_hash,
+      salt: row.salt,
+      playerId: row.player_id,
+      createdAt: row.created_at,
+    };
   }
 
   public getAccountById(id: string): AccountRecord | undefined {
-    for (const acc of this.accounts.values()) {
-      if (acc.id === id) return acc;
-    }
-    return undefined;
+    const row = this.stmtGetAccountById.get(id) as any;
+    if (!row) return undefined;
+    return {
+      id: row.id,
+      username: row.username,
+      normalizedUsername: row.normalized_username,
+      passwordHash: row.password_hash,
+      salt: row.salt,
+      playerId: row.player_id,
+      createdAt: row.created_at,
+    };
   }
 
   public createSession(accountId: string, playerId: string): string {
     const token = 'sess_' + crypto.randomBytes(24).toString('hex');
-    const session: SessionRecord = {
-      token,
-      accountId,
-      playerId,
-      createdAt: Date.now(),
-    };
-    this.sessions.set(token, session);
-    this.saveSessions();
+    this.stmtInsertSession.run(token, accountId, playerId, Date.now());
     return token;
   }
 
   public getSession(token: string): SessionRecord | undefined {
-    return this.sessions.get(token);
+    const row = this.stmtGetSession.get(token) as any;
+    if (!row) return undefined;
+    return {
+      token: row.token,
+      accountId: row.account_id,
+      playerId: row.player_id,
+      createdAt: row.created_at,
+    };
   }
 
   public deleteSession(token: string) {
-    this.sessions.delete(token);
-    this.saveSessions();
+    this.stmtDeleteSession.run(token);
   }
 
   public registerAccount(
@@ -511,7 +674,7 @@ class StorageManager {
       return { success: false, error: 'Username may only contain letters, numbers, and underscores.' };
     }
     const norm = username.toLowerCase();
-    if (this.accounts.has(norm)) {
+    if (this.isUsernameTaken(norm)) {
       return { success: false, error: 'That username is already registered. Please choose another or log in.' };
     }
     if (!rawPassword || rawPassword.length < 4) {
@@ -521,15 +684,19 @@ class StorageManager {
     const { hash, salt } = this.hashPassword(rawPassword);
     const accountId = 'acc_' + crypto.randomBytes(8).toString('hex');
 
-    let player: PlayerData;
-    if (guestId && this.players.has(guestId)) {
-      player = this.players.get(guestId)!;
-      player.username = username;
-      player.isGuest = false;
-      if (this.isAdminUsername(username)) {
-        player.role = 'admin';
+    let player: PlayerData | undefined;
+    if (guestId) {
+      player = this.getPlayer(guestId);
+      if (player) {
+        player.username = username;
+        player.isGuest = false;
+        if (this.isAdminUsername(username)) {
+          player.role = 'admin';
+        }
       }
-    } else {
+    }
+
+    if (!player) {
       player = this.createPersistentPlayer(username);
     }
 
@@ -545,8 +712,15 @@ class StorageManager {
       createdAt: Date.now(),
     };
 
-    this.accounts.set(norm, account);
-    this.saveAccounts();
+    this.stmtInsertAccount.run(
+      account.id,
+      account.username,
+      account.normalizedUsername,
+      account.passwordHash,
+      account.salt,
+      account.playerId,
+      account.createdAt
+    );
 
     const token = this.createSession(account.id, player.id);
     return { success: true, account, player, token };
@@ -557,8 +731,7 @@ class StorageManager {
     rawPassword: string
   ): { success: true; account: AccountRecord; player: PlayerData; token: string } | { success: false; error: string } {
     const username = (rawUsername || '').trim();
-    const norm = username.toLowerCase();
-    const account = this.accounts.get(norm);
+    const account = this.getAccountByUsername(username);
     if (!account) {
       return { success: false, error: 'Invalid username or password.' };
     }
@@ -572,7 +745,7 @@ class StorageManager {
     if (!player) {
       player = this.createPersistentPlayer(account.username);
       account.playerId = player.id;
-      this.saveAccounts();
+      this.db.prepare('UPDATE accounts SET player_id = ? WHERE id = ?').run(player.id, account.id);
     }
 
     if (this.isAdminUsername(account.username)) {
@@ -586,108 +759,116 @@ class StorageManager {
 
   // --- World Nodes ---
   public getWorldNodes(): WorldNode[] {
-    return this.nodes;
+    return this.nodesCache;
   }
 
   public saveWorldNodes(nodes: WorldNode[]) {
-    this.nodes = nodes;
-    try {
-      fs.writeFileSync(NODES_FILE, JSON.stringify(nodes, null, 2), 'utf-8');
-    } catch (err) {
-      console.error('Failed to save world nodes to disk', err);
-    }
+    this.nodesCache = nodes;
+    const tx = this.db.transaction(() => {
+      this.db.prepare('DELETE FROM world_nodes').run();
+      for (const n of nodes) {
+        this.stmtUpsertWorldNode.run(n.id, n.type, JSON.stringify(n));
+      }
+    });
+    tx();
   }
 
   public upsertWorldNode(node: WorldNode) {
-    const idx = this.nodes.findIndex(n => n.id === node.id);
+    const idx = this.nodesCache.findIndex(n => n.id === node.id);
     if (idx >= 0) {
-      this.nodes[idx] = node;
+      this.nodesCache[idx] = node;
     } else {
-      this.nodes.push(node);
+      this.nodesCache.push(node);
     }
-    this.saveWorldNodes(this.nodes);
+    this.stmtUpsertWorldNode.run(node.id, node.type, JSON.stringify(node));
   }
 
   public deleteWorldNode(nodeId: string) {
-    this.nodes = this.nodes.filter(n => n.id !== nodeId);
-    this.saveWorldNodes(this.nodes);
+    this.nodesCache = this.nodesCache.filter(n => n.id !== nodeId);
+    this.stmtDeleteWorldNode.run(nodeId);
   }
 
   // --- NPCs ---
   public getNpcs(): NpcDefinition[] {
-    return this.npcs;
+    return this.npcsCache;
   }
 
   public saveNpcs(npcs: NpcDefinition[]) {
-    this.npcs = npcs;
-    try {
-      fs.writeFileSync(NPCS_FILE, JSON.stringify(npcs, null, 2), 'utf-8');
-    } catch (err) {
-      console.error('Failed to save NPCs to disk', err);
-    }
+    this.npcsCache = npcs;
+    const tx = this.db.transaction(() => {
+      this.db.prepare('DELETE FROM npcs').run();
+      for (const n of npcs) {
+        this.stmtUpsertNpc.run(n.id, JSON.stringify(n));
+      }
+    });
+    tx();
   }
 
   public upsertNpc(npc: NpcDefinition) {
-    const idx = this.npcs.findIndex(n => n.id === npc.id);
+    const idx = this.npcsCache.findIndex(n => n.id === npc.id);
     if (idx >= 0) {
-      this.npcs[idx] = npc;
+      this.npcsCache[idx] = npc;
     } else {
-      this.npcs.push(npc);
+      this.npcsCache.push(npc);
     }
-    this.saveNpcs(this.npcs);
+    this.stmtUpsertNpc.run(npc.id, JSON.stringify(npc));
   }
 
   public deleteNpc(npcId: string) {
-    this.npcs = this.npcs.filter(n => n.id !== npcId);
-    this.saveNpcs(this.npcs);
+    this.npcsCache = this.npcsCache.filter(n => n.id !== npcId);
+    this.stmtDeleteNpc.run(npcId);
   }
 
   // --- Quests ---
   public getQuests(): QuestDefinition[] {
-    return this.quests;
+    return this.questsCache;
   }
 
   public saveQuests(quests: QuestDefinition[]) {
-    this.quests = quests;
-    try {
-      fs.writeFileSync(QUESTS_FILE, JSON.stringify(quests, null, 2), 'utf-8');
-    } catch (err) {
-      console.error('Failed to save quests to disk', err);
-    }
+    this.questsCache = quests;
+    const tx = this.db.transaction(() => {
+      this.db.prepare('DELETE FROM quests').run();
+      for (const q of quests) {
+        this.stmtUpsertQuest.run(q.id, JSON.stringify(q));
+      }
+    });
+    tx();
   }
 
   public upsertQuest(quest: QuestDefinition) {
-    const idx = this.quests.findIndex(q => q.id === quest.id);
+    const idx = this.questsCache.findIndex(q => q.id === quest.id);
     if (idx >= 0) {
-      this.quests[idx] = quest;
+      this.questsCache[idx] = quest;
     } else {
-      this.quests.push(quest);
+      this.questsCache.push(quest);
     }
-    this.saveQuests(this.quests);
+    this.stmtUpsertQuest.run(quest.id, JSON.stringify(quest));
   }
 
   public deleteQuest(questId: string) {
-    this.quests = this.quests.filter(q => q.id !== questId);
-    this.saveQuests(this.quests);
+    this.questsCache = this.questsCache.filter(q => q.id !== questId);
+    this.stmtDeleteQuest.run(questId);
   }
 
   // --- Collisions ---
   public getCollisions(): Set<string> {
-    return this.collisions;
+    return this.collisionsCache;
   }
 
   public isCollidable(x: number, y: number): boolean {
-    return this.collisions.has(`${x},${y}`);
+    return this.collisionsCache.has(`${x},${y}`);
   }
 
   public saveCollisions(cols: string[] | Set<string>) {
     const arr = Array.from(cols);
-    this.collisions = new Set<string>(arr);
-    try {
-      fs.writeFileSync(COLLISIONS_FILE, JSON.stringify(arr, null, 2), 'utf-8');
-    } catch (err) {
-      console.error('Failed to save collisions to disk', err);
-    }
+    this.collisionsCache = new Set<string>(arr);
+    const tx = this.db.transaction(() => {
+      this.stmtDeleteAllCollisions.run();
+      for (const coord of arr) {
+        this.stmtInsertCollision.run(coord);
+      }
+    });
+    tx();
   }
 
   // --- Admin Verification ---
@@ -696,16 +877,11 @@ class StorageManager {
     return secret.trim() === ADMIN_SECRET;
   }
 
-  // --- Save All ---
-  public saveAll() {
-    this.savePlayers();
-    this.saveAccounts();
-    this.saveSessions();
-    this.saveWorldNodes(this.nodes);
-    this.saveNpcs(this.npcs);
-    this.saveQuests(this.quests);
-    this.saveCollisions(this.collisions);
-  }
+  // Legacy no-op compatibility helpers
+  public savePlayers() {}
+  public saveAccounts() {}
+  public saveSessions() {}
+  public saveAll() {}
 }
 
 export const storage = new StorageManager();

@@ -10,10 +10,12 @@
   },
   "dependencies": {
     "@eldoria/shared": "*",
+    "better-sqlite3": "^13.0.3",
     "express": "^4.21.2",
     "ws": "^8.18.0"
   },
   "devDependencies": {
+    "@types/better-sqlite3": "^9.6.0",
     "@types/express": "^5.0.0",
     "@types/node": "^22.10.1",
     "@types/ws": "^8.5.13",
