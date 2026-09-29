@@ -107,10 +107,14 @@ class EldoriaClient {
     if (npcModalClose) npcModalClose.innerHTML = ICONS.close;
     const topCharIcon = document.getElementById('top-char-icon');
     if (topCharIcon) topCharIcon.innerHTML = ICONS.character;
-    const accountCrestIcon = document.getElementById('account-crest-icon');
-    if (accountCrestIcon) accountCrestIcon.innerHTML = ICONS.logo;
-    const accountClose = document.getElementById('account-close-btn');
-    if (accountClose) accountClose.innerHTML = ICONS.close;
+    const authCrestIcon = document.getElementById('auth-crest-icon');
+    if (authCrestIcon) authCrestIcon.innerHTML = ICONS.logo;
+    const profileCrestIcon = document.getElementById('profile-crest-icon');
+    if (profileCrestIcon) profileCrestIcon.innerHTML = ICONS.logo;
+    const authClose = document.getElementById('auth-close-btn');
+    if (authClose) authClose.innerHTML = ICONS.close;
+    const profileClose = document.getElementById('profile-close-btn');
+    if (profileClose) profileClose.innerHTML = ICONS.close;
   }
 
   private async fetchNodesAndInit() {
@@ -190,22 +194,58 @@ class EldoriaClient {
   }
 
   private async initAuth() {
-    let guestId = localStorage.getItem('eldoria_guest_id');
-    const res = await fetch('/api/auth/guest', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ guestId }),
-    });
-    const data = await res.json();
-    this.player = data.player;
-    localStorage.setItem('eldoria_guest_id', this.player!.id);
+    this.setupAuthModal();
+    this.setupProfileModal();
 
-    this.connectWs();
+    const token = localStorage.getItem('eldoria_session_token');
+    const guestId = localStorage.getItem('eldoria_guest_id');
+
+    if (token) {
+      try {
+        const res = await fetch('/api/auth/session', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          this.player = data.player;
+          this.connectWs();
+          return;
+        } else {
+          localStorage.removeItem('eldoria_session_token');
+        }
+      } catch (err) {
+        console.warn('Session verification failed, falling back', err);
+      }
+    }
+
+    if (guestId) {
+      try {
+        const res = await fetch('/api/auth/guest', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ guestId }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          this.player = data.player;
+          this.connectWs();
+          return;
+        }
+      } catch (err) {
+        console.warn('Guest login failed', err);
+      }
+    }
+
+    // Neither session nor valid guest found -> Show realm entry gate modal
+    this.openAuthModal('login', false);
   }
 
   private connectWs() {
+    if (!this.player) return;
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.host}/ws?playerId=${this.player!.id}`;
+    const wsUrl = `${protocol}//${window.location.host}/ws?playerId=${this.player.id}`;
 
     this.ws = new WebSocket(wsUrl);
 
@@ -224,8 +264,19 @@ class EldoriaClient {
 
     this.ws.onclose = () => {
       console.log('Disconnected. Retrying in 3s...');
-      setTimeout(() => this.connectWs(), 3000);
+      setTimeout(() => {
+        if (this.player) this.connectWs();
+      }, 3000);
     };
+  }
+
+  private reconnectWs() {
+    if (this.ws) {
+      try {
+        this.ws.close();
+      } catch {}
+    }
+    this.connectWs();
   }
 
   private handleServerMessage(msg: any) {
@@ -345,10 +396,19 @@ class EldoriaClient {
 
     // 1. Currencies & Core Stats
     const nameEl = document.getElementById('top-player-name');
+    const charPill = document.getElementById('top-character-pill');
     if (nameEl) {
-      nameEl.textContent = this.player.role === 'admin' 
-        ? `👑 ${this.player.username || 'Admin'}` 
-        : (this.player.username || 'Wanderer');
+      if (this.player.isGuest) {
+        nameEl.textContent = `${this.player.username} (Guest)`;
+        if (charPill) charPill.title = 'Guest Adventurer — Click to register permanent account';
+      } else {
+        nameEl.textContent = this.player.role === 'admin' 
+          ? `👑 ${this.player.username || 'Admin'}` 
+          : (this.player.username || 'Adventurer');
+        if (charPill) charPill.title = this.player.role === 'admin'
+          ? 'Administrator Account — Click for profile'
+          : 'Registered Adventurer — Click for profile';
+      }
     }
 
     document.getElementById('val-gold')!.textContent = this.player.gold.toLocaleString();
@@ -1035,52 +1095,283 @@ class EldoriaClient {
       this.switchDrawer('storage');
     };
 
-    // Account / Character Identity Modal
-    const charPill = document.getElementById('top-character-pill');
-    const accountModal = document.getElementById('account-modal');
-    const accountCloseBtn = document.getElementById('account-close-btn');
-    const accountForm = document.getElementById('account-form') as HTMLFormElement | null;
-    const accountUserInput = document.getElementById('account-username-input') as HTMLInputElement | null;
-    const accountIdDisplay = document.getElementById('account-id-display');
-    const btnAccountNew = document.getElementById('btn-account-new');
+    this.setupProfileModal();
+  }
 
-    if (charPill && accountModal) {
-      charPill.onclick = () => {
-        if (accountUserInput && this.player) {
-          accountUserInput.value = this.player.username || '';
-        }
-        if (accountIdDisplay && this.player) {
-          accountIdDisplay.textContent = this.player.id || '';
-        }
-        accountModal.classList.remove('hidden');
-        if (accountUserInput) accountUserInput.focus();
-      };
+  private openAuthModal(defaultTab: 'login' | 'register' = 'login', allowClose = true) {
+    const modal = document.getElementById('auth-modal');
+    if (!modal) return;
+
+    const closeBtn = document.getElementById('auth-close-btn');
+    if (closeBtn) {
+      closeBtn.style.display = allowClose ? 'block' : 'none';
     }
 
-    if (accountCloseBtn && accountModal) {
-      accountCloseBtn.onclick = () => {
-        accountModal.classList.add('hidden');
-      };
+    const errBanner = document.getElementById('auth-error-banner');
+    if (errBanner) {
+      errBanner.style.display = 'none';
+      errBanner.textContent = '';
     }
 
-    if (accountForm) {
-      accountForm.onsubmit = (e) => {
+    const guestHint = document.getElementById('register-guest-hint');
+    const regUserInput = document.getElementById('register-username') as HTMLInputElement | null;
+    if (this.player && this.player.isGuest) {
+      if (guestHint) guestHint.style.display = 'block';
+      if (regUserInput && !regUserInput.value) {
+        regUserInput.value = this.player.username.startsWith('Wanderer_') ? '' : this.player.username;
+      }
+    } else {
+      if (guestHint) guestHint.style.display = 'none';
+    }
+
+    this.switchAuthTab(defaultTab);
+    modal.classList.remove('hidden');
+  }
+
+  private switchAuthTab(tab: 'login' | 'register') {
+    const tabLogin = document.getElementById('tab-btn-login');
+    const tabRegister = document.getElementById('tab-btn-register');
+    const formLogin = document.getElementById('form-auth-login');
+    const formRegister = document.getElementById('form-auth-register');
+    const errBanner = document.getElementById('auth-error-banner');
+
+    if (errBanner) errBanner.style.display = 'none';
+
+    if (tab === 'login') {
+      tabLogin?.classList.add('active');
+      tabRegister?.classList.remove('active');
+      formLogin?.classList.remove('hidden');
+      formRegister?.classList.add('hidden');
+      (document.getElementById('login-username') as HTMLInputElement | null)?.focus();
+    } else {
+      tabLogin?.classList.remove('active');
+      tabRegister?.classList.add('active');
+      formLogin?.classList.add('hidden');
+      formRegister?.classList.remove('hidden');
+      (document.getElementById('register-username') as HTMLInputElement | null)?.focus();
+    }
+  }
+
+  private setupAuthModal() {
+    const modal = document.getElementById('auth-modal');
+    const closeBtn = document.getElementById('auth-close-btn');
+    const tabLogin = document.getElementById('tab-btn-login');
+    const tabRegister = document.getElementById('tab-btn-register');
+    const formLogin = document.getElementById('form-auth-login') as HTMLFormElement | null;
+    const formRegister = document.getElementById('form-auth-register') as HTMLFormElement | null;
+    const btnPlayGuest = document.getElementById('btn-play-guest');
+    const errBanner = document.getElementById('auth-error-banner');
+
+    if (tabLogin) tabLogin.onclick = () => this.switchAuthTab('login');
+    if (tabRegister) tabRegister.onclick = () => this.switchAuthTab('register');
+
+    if (closeBtn && modal) {
+      closeBtn.onclick = () => modal.classList.add('hidden');
+    }
+
+    const showError = (msg: string) => {
+      if (errBanner) {
+        errBanner.textContent = msg;
+        errBanner.style.display = 'block';
+      }
+    };
+
+    if (formLogin) {
+      formLogin.onsubmit = async (e) => {
         e.preventDefault();
-        if (accountUserInput && accountUserInput.value.trim()) {
-          const newName = accountUserInput.value.trim();
-          this.sendWs({ type: 'CHAT_MESSAGE', text: `/name ${newName}` });
-          if (accountModal) accountModal.classList.add('hidden');
-          this.showToast(`Updated adventurer name to "${newName}"`);
+        const username = (document.getElementById('login-username') as HTMLInputElement).value;
+        const password = (document.getElementById('login-password') as HTMLInputElement).value;
+
+        try {
+          const res = await fetch('/api/auth/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, password }),
+          });
+          const data = await res.json();
+          if (!res.ok) {
+            showError(data.error || 'Failed to log in.');
+            return;
+          }
+
+          localStorage.setItem('eldoria_session_token', data.token);
+          localStorage.removeItem('eldoria_guest_id');
+          this.player = data.player;
+
+          modal?.classList.add('hidden');
+          this.reconnectWs();
+          this.updateUI();
+          this.showToast(`⚔️ Welcome back, ${data.player.username}!`);
+        } catch (err) {
+          showError('Network error while logging in.');
         }
       };
     }
 
-    if (btnAccountNew) {
-      btnAccountNew.onclick = () => {
-        if (confirm('Create a new character? Your current character guest ID will be reset.')) {
+    if (formRegister) {
+      formRegister.onsubmit = async (e) => {
+        e.preventDefault();
+        const username = (document.getElementById('register-username') as HTMLInputElement).value;
+        const password = (document.getElementById('register-password') as HTMLInputElement).value;
+        const confirmPass = (document.getElementById('register-password-confirm') as HTMLInputElement).value;
+
+        if (password !== confirmPass) {
+          showError('Passwords do not match.');
+          return;
+        }
+
+        try {
+          const guestId = (this.player && this.player.isGuest) ? this.player.id : undefined;
+          const res = await fetch('/api/auth/register', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, password, guestId }),
+          });
+          const data = await res.json();
+          if (!res.ok) {
+            showError(data.error || 'Failed to register account.');
+            return;
+          }
+
+          localStorage.setItem('eldoria_session_token', data.token);
           localStorage.removeItem('eldoria_guest_id');
+          this.player = data.player;
+
+          modal?.classList.add('hidden');
+          this.reconnectWs();
+          this.updateUI();
+          this.showToast(`🛡️ Account created! Welcome to Eldoria, ${data.player.username}!`);
+        } catch (err) {
+          showError('Network error while creating account.');
+        }
+      };
+    }
+
+    if (btnPlayGuest) {
+      btnPlayGuest.onclick = async () => {
+        if (this.player) {
+          modal?.classList.add('hidden');
+          return;
+        }
+        try {
+          const res = await fetch('/api/auth/guest', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({}),
+          });
+          const data = await res.json();
+          this.player = data.player;
+          if (this.player) {
+            localStorage.setItem('eldoria_guest_id', this.player.id);
+            modal?.classList.add('hidden');
+            this.connectWs();
+            this.updateUI();
+            this.showToast(`🎒 Welcome, ${this.player.username}! You are playing as a guest.`);
+          }
+        } catch (err) {
+          showError('Failed to enter as guest. Please try again.');
+        }
+      };
+    }
+  }
+
+  private setupProfileModal() {
+    const modal = document.getElementById('account-profile-modal');
+    const closeBtn = document.getElementById('profile-close-btn');
+    const charPill = document.getElementById('top-character-pill');
+
+    const btnRegisterNow = document.getElementById('btn-profile-register-now');
+    const btnLoginExisting = document.getElementById('btn-profile-login-existing');
+    const btnNewGuest = document.getElementById('btn-profile-new-guest');
+    const btnLogout = document.getElementById('btn-account-logout');
+
+    if (charPill) {
+      charPill.onclick = () => {
+        if (!this.player) {
+          this.openAuthModal('login', true);
+          return;
+        }
+
+        const usernameEl = document.getElementById('profile-username');
+        const roleBadge = document.getElementById('profile-role-badge');
+        const statusEl = document.getElementById('profile-account-status');
+        const idCode = document.getElementById('profile-id-code');
+        const guestBox = document.getElementById('profile-guest-box');
+        const accountBox = document.getElementById('profile-account-box');
+
+        if (usernameEl) usernameEl.textContent = this.player.username;
+        if (idCode) idCode.textContent = this.player.id;
+
+        if (this.player.isGuest) {
+          if (roleBadge) {
+            roleBadge.textContent = 'GUEST';
+            roleBadge.className = 'status-tag idle';
+          }
+          if (statusEl) statusEl.textContent = 'Temporary Guest Character';
+          if (guestBox) guestBox.style.display = 'flex';
+          if (accountBox) accountBox.style.display = 'none';
+        } else {
+          if (roleBadge) {
+            if (this.player.role === 'admin') {
+              roleBadge.textContent = '👑 ADMIN';
+              roleBadge.className = 'status-tag';
+            } else {
+              roleBadge.textContent = 'ADVENTURER';
+              roleBadge.className = 'status-tag';
+            }
+          }
+          if (statusEl) statusEl.textContent = 'Persistent Registered Account';
+          if (guestBox) guestBox.style.display = 'none';
+          if (accountBox) accountBox.style.display = 'flex';
+        }
+
+        modal?.classList.remove('hidden');
+      };
+    }
+
+    if (closeBtn && modal) {
+      closeBtn.onclick = () => modal.classList.add('hidden');
+    }
+
+    if (btnRegisterNow) {
+      btnRegisterNow.onclick = () => {
+        modal?.classList.add('hidden');
+        this.openAuthModal('register', true);
+      };
+    }
+
+    if (btnLoginExisting) {
+      btnLoginExisting.onclick = () => {
+        modal?.classList.add('hidden');
+        this.openAuthModal('login', true);
+      };
+    }
+
+    if (btnNewGuest) {
+      btnNewGuest.onclick = () => {
+        if (confirm('Create a new guest character? Current guest progress will be reset.')) {
+          localStorage.removeItem('eldoria_guest_id');
+          localStorage.removeItem('eldoria_session_token');
           window.location.reload();
         }
+      };
+    }
+
+    if (btnLogout) {
+      btnLogout.onclick = async () => {
+        const token = localStorage.getItem('eldoria_session_token');
+        if (token) {
+          try {
+            await fetch('/api/auth/logout', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ token }),
+            });
+          } catch {}
+        }
+        localStorage.removeItem('eldoria_session_token');
+        localStorage.removeItem('eldoria_guest_id');
+        window.location.reload();
       };
     }
   }

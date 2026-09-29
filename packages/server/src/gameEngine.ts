@@ -244,22 +244,28 @@ export class GameEngine {
           // Set name command: /name <username> or /nick <username>
           if (trimmed.startsWith('/name ') || trimmed.startsWith('/nick ') || trimmed.startsWith('/setname ')) {
             const newName = trimmed.replace(/^\/(name|nick|setname)\s+/, '').trim().slice(0, 16);
+            if (!player.isGuest) {
+              this.send(session.ws, {
+                type: 'NOTIFICATION',
+                message: `🔒 Your adventurer name is bound to your registered account (${player.username}).`,
+              });
+              break;
+            }
             if (newName) {
-              player.username = newName;
-              if (storage.isPlayerAdmin(player)) {
-                player.role = 'admin';
+              if (storage.isUsernameTaken(newName) || storage.isAdminUsername(newName)) {
                 this.send(session.ws, {
                   type: 'NOTIFICATION',
-                  message: `👑 Name changed to "${newName}". Recognized as Server Administrator!`,
+                  message: `❌ "${newName}" is a registered or reserved account name. Please log in or register with a password to claim it.`,
                 });
-              } else {
-                player.role = 'player';
-                this.send(session.ws, {
-                  type: 'NOTIFICATION',
-                  message: `Name changed to "${newName}".`,
-                });
+                break;
               }
+              player.username = newName;
+              player.role = 'player';
               storage.savePlayer(player);
+              this.send(session.ws, {
+                type: 'NOTIFICATION',
+                message: `Guest name changed to "${newName}". Create an account with a password to save it permanently!`,
+              });
               this.send(session.ws, { type: 'PLAYER_UPDATE', player });
               this.broadcastWorldState();
             }

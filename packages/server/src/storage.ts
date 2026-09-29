@@ -22,10 +22,29 @@ function resolveDataDir(): string {
 
 const DATA_DIR = resolveDataDir();
 const PLAYERS_FILE = path.join(DATA_DIR, 'players.json');
+const ACCOUNTS_FILE = path.join(DATA_DIR, 'accounts.json');
+const SESSIONS_FILE = path.join(DATA_DIR, 'sessions.json');
 const NODES_FILE = path.join(DATA_DIR, 'world_nodes.json');
 const NPCS_FILE = path.join(DATA_DIR, 'npcs.json');
 const QUESTS_FILE = path.join(DATA_DIR, 'quests.json');
 const COLLISIONS_FILE = path.join(DATA_DIR, 'collisions.json');
+
+export interface AccountRecord {
+  id: string;
+  username: string;
+  normalizedUsername: string;
+  passwordHash: string;
+  salt: string;
+  playerId: string;
+  createdAt: number;
+}
+
+export interface SessionRecord {
+  token: string;
+  accountId: string;
+  playerId: string;
+  createdAt: number;
+}
 
 const ADMIN_SECRET = process.env.ADMIN_SECRET || 'eldoria_admin_2026';
 const ADMIN_USERNAMES = (process.env.ADMIN_USERNAMES || 'gar,admin')
@@ -142,6 +161,8 @@ const DEFAULT_COLLISIONS: string[] = [
 
 class StorageManager {
   private players = new Map<string, PlayerData>();
+  private accounts = new Map<string, AccountRecord>();
+  private sessions = new Map<string, SessionRecord>();
   private nodes: WorldNode[] = [];
   private npcs: NpcDefinition[] = [];
   private quests: QuestDefinition[] = [];
@@ -166,6 +187,32 @@ class StorageManager {
         }
       } catch (err) {
         console.error('Failed to parse players.json, starting fresh', err);
+      }
+    }
+
+    // 1b. Accounts
+    if (fs.existsSync(ACCOUNTS_FILE)) {
+      try {
+        const raw = fs.readFileSync(ACCOUNTS_FILE, 'utf-8');
+        const data = JSON.parse(raw);
+        for (const [key, acc] of Object.entries(data)) {
+          this.accounts.set(key.toLowerCase(), acc as AccountRecord);
+        }
+      } catch (err) {
+        console.error('Failed to parse accounts.json, starting fresh', err);
+      }
+    }
+
+    // 1c. Sessions
+    if (fs.existsSync(SESSIONS_FILE)) {
+      try {
+        const raw = fs.readFileSync(SESSIONS_FILE, 'utf-8');
+        const data = JSON.parse(raw);
+        for (const [token, sess] of Object.entries(data)) {
+          this.sessions.set(token, sess as SessionRecord);
+        }
+      } catch (err) {
+        console.error('Failed to parse sessions.json, starting fresh', err);
       }
     }
 
@@ -253,7 +300,7 @@ class StorageManager {
   public isPlayerAdmin(player: PlayerData): boolean {
     if (!player) return false;
     if (player.id && ADMIN_USER_IDS.includes(player.id.toLowerCase())) return true;
-    if (player.username && ADMIN_USERNAMES.includes(player.username.toLowerCase())) return true;
+    if (!player.isGuest && player.username && ADMIN_USERNAMES.includes(player.username.toLowerCase())) return true;
     return player.role === 'admin';
   }
 
@@ -283,12 +330,11 @@ class StorageManager {
     const id = 'guest_' + crypto.randomBytes(6).toString('hex');
     const randomSuffix = Math.floor(1000 + Math.random() * 9000);
     const username = desiredUsername ? desiredUsername.trim().slice(0, 16) : `Wanderer_${randomSuffix}`;
-    const isAdmin = ADMIN_USERNAMES.includes(username.toLowerCase()) || ADMIN_USER_IDS.includes(id.toLowerCase());
 
     const newPlayer: PlayerData = {
       id,
       username,
-      role: isAdmin ? 'admin' : 'player',
+      role: 'player', // Guests are never admin unless ADMIN_USER_IDS explicitly includes guest ID
       isGuest: true,
       x: 8, // Hearth Town Square (Level_0)
       y: 24,
@@ -324,6 +370,218 @@ class StorageManager {
 
     this.savePlayer(newPlayer);
     return newPlayer;
+  }
+
+  public createPersistentPlayer(username: string): PlayerData {
+    const id = 'player_' + crypto.randomBytes(6).toString('hex');
+    const isAdmin = this.isAdminUsername(username);
+
+    const newPlayer: PlayerData = {
+      id,
+      username,
+      role: isAdmin ? 'admin' : 'player',
+      isGuest: false,
+      x: 8,
+      y: 24,
+      gold: 50,
+      gems: 0,
+      anima: 0,
+      activeTitle: 'Novice of Eldoria',
+      skills: JSON.parse(JSON.stringify(INITIAL_SKILLS)),
+      inventory: [
+        { itemId: 'rune_pickaxe_dawnburn', quantity: 1, rarity: 'plain', plus: 0 },
+        { itemId: 'smoked_prawn', quantity: 10, rarity: 'plain', plus: 0 },
+      ],
+      storage: [],
+      storageSlotsMax: 75,
+      overflowTray: [],
+      equipment: {
+        tool: { itemId: 'rune_pickaxe_dawnburn', quantity: 1, rarity: 'plain', plus: 0 },
+      },
+      currentTask: {
+        recipeId: 'mine_pyrite',
+        skill: 'mining',
+        startedAtTick: 0,
+        targetQuantity: Infinity,
+        completedQuantity: 0,
+        targetNodeX: 6,
+        targetNodeY: 5,
+      },
+      taskQueue: [],
+      eatsAtHpPercent: 50,
+      currentHp: 10,
+      lastActiveTimestamp: Date.now(),
+    };
+
+    this.savePlayer(newPlayer);
+    return newPlayer;
+  }
+
+  // --- Accounts & Authentication ---
+  public saveAccounts() {
+    try {
+      const obj: Record<string, AccountRecord> = {};
+      for (const [key, acc] of this.accounts.entries()) {
+        obj[key] = acc;
+      }
+      fs.writeFileSync(ACCOUNTS_FILE, JSON.stringify(obj, null, 2), 'utf-8');
+    } catch (err) {
+      console.error('Failed to save accounts to disk', err);
+    }
+  }
+
+  public saveSessions() {
+    try {
+      const obj: Record<string, SessionRecord> = {};
+      for (const [token, sess] of this.sessions.entries()) {
+        obj[token] = sess;
+      }
+      fs.writeFileSync(SESSIONS_FILE, JSON.stringify(obj, null, 2), 'utf-8');
+    } catch (err) {
+      console.error('Failed to save sessions to disk', err);
+    }
+  }
+
+  public hashPassword(password: string, salt?: string): { hash: string; salt: string } {
+    const s = salt || crypto.randomBytes(16).toString('hex');
+    const hash = crypto.scryptSync(password, s, 64).toString('hex');
+    return { hash, salt: s };
+  }
+
+  public verifyPassword(password: string, hash: string, salt: string): boolean {
+    try {
+      const testHash = crypto.scryptSync(password, salt, 64).toString('hex');
+      return crypto.timingSafeEqual(Buffer.from(testHash, 'hex'), Buffer.from(hash, 'hex'));
+    } catch {
+      return false;
+    }
+  }
+
+  public isAdminUsername(username: string): boolean {
+    return ADMIN_USERNAMES.includes(username.trim().toLowerCase());
+  }
+
+  public isUsernameTaken(username: string): boolean {
+    return this.accounts.has(username.trim().toLowerCase());
+  }
+
+  public getAccountByUsername(username: string): AccountRecord | undefined {
+    return this.accounts.get(username.trim().toLowerCase());
+  }
+
+  public getAccountById(id: string): AccountRecord | undefined {
+    for (const acc of this.accounts.values()) {
+      if (acc.id === id) return acc;
+    }
+    return undefined;
+  }
+
+  public createSession(accountId: string, playerId: string): string {
+    const token = 'sess_' + crypto.randomBytes(24).toString('hex');
+    const session: SessionRecord = {
+      token,
+      accountId,
+      playerId,
+      createdAt: Date.now(),
+    };
+    this.sessions.set(token, session);
+    this.saveSessions();
+    return token;
+  }
+
+  public getSession(token: string): SessionRecord | undefined {
+    return this.sessions.get(token);
+  }
+
+  public deleteSession(token: string) {
+    this.sessions.delete(token);
+    this.saveSessions();
+  }
+
+  public registerAccount(
+    rawUsername: string,
+    rawPassword: string,
+    guestId?: string
+  ): { success: true; account: AccountRecord; player: PlayerData; token: string } | { success: false; error: string } {
+    const username = (rawUsername || '').trim();
+    if (username.length < 3 || username.length > 20) {
+      return { success: false, error: 'Username must be between 3 and 20 characters.' };
+    }
+    if (!/^[a-zA-Z0-9_]+$/.test(username)) {
+      return { success: false, error: 'Username may only contain letters, numbers, and underscores.' };
+    }
+    const norm = username.toLowerCase();
+    if (this.accounts.has(norm)) {
+      return { success: false, error: 'That username is already registered. Please choose another or log in.' };
+    }
+    if (!rawPassword || rawPassword.length < 4) {
+      return { success: false, error: 'Password must be at least 4 characters.' };
+    }
+
+    const { hash, salt } = this.hashPassword(rawPassword);
+    const accountId = 'acc_' + crypto.randomBytes(8).toString('hex');
+
+    let player: PlayerData;
+    if (guestId && this.players.has(guestId)) {
+      player = this.players.get(guestId)!;
+      player.username = username;
+      player.isGuest = false;
+      if (this.isAdminUsername(username)) {
+        player.role = 'admin';
+      }
+    } else {
+      player = this.createPersistentPlayer(username);
+    }
+
+    this.savePlayer(player);
+
+    const account: AccountRecord = {
+      id: accountId,
+      username,
+      normalizedUsername: norm,
+      passwordHash: hash,
+      salt,
+      playerId: player.id,
+      createdAt: Date.now(),
+    };
+
+    this.accounts.set(norm, account);
+    this.saveAccounts();
+
+    const token = this.createSession(account.id, player.id);
+    return { success: true, account, player, token };
+  }
+
+  public loginAccount(
+    rawUsername: string,
+    rawPassword: string
+  ): { success: true; account: AccountRecord; player: PlayerData; token: string } | { success: false; error: string } {
+    const username = (rawUsername || '').trim();
+    const norm = username.toLowerCase();
+    const account = this.accounts.get(norm);
+    if (!account) {
+      return { success: false, error: 'Invalid username or password.' };
+    }
+
+    const isValid = this.verifyPassword(rawPassword, account.passwordHash, account.salt);
+    if (!isValid) {
+      return { success: false, error: 'Invalid username or password.' };
+    }
+
+    let player = this.getPlayer(account.playerId);
+    if (!player) {
+      player = this.createPersistentPlayer(account.username);
+      account.playerId = player.id;
+      this.saveAccounts();
+    }
+
+    if (this.isAdminUsername(account.username)) {
+      player.role = 'admin';
+    }
+    this.savePlayer(player);
+
+    const token = this.createSession(account.id, player.id);
+    return { success: true, account, player, token };
   }
 
   // --- World Nodes ---
@@ -441,6 +699,8 @@ class StorageManager {
   // --- Save All ---
   public saveAll() {
     this.savePlayers();
+    this.saveAccounts();
+    this.saveSessions();
     this.saveWorldNodes(this.nodes);
     this.saveNpcs(this.npcs);
     this.saveQuests(this.quests);

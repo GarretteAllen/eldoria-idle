@@ -28,6 +28,80 @@ app.post('/api/auth/guest', (req, res) => {
   res.json({ player });
 });
 
+app.post('/api/auth/register', (req, res) => {
+  const { username, password, guestId } = req.body || {};
+  const result = storage.registerAccount(username, password, guestId);
+  if (!result.success) {
+    res.status(400).json({ error: result.error });
+    return;
+  }
+  res.json({
+    token: result.token,
+    player: result.player,
+    account: {
+      id: result.account.id,
+      username: result.account.username,
+      isGuest: false,
+      role: result.player.role,
+    },
+  });
+});
+
+app.post('/api/auth/login', (req, res) => {
+  const { username, password } = req.body || {};
+  const result = storage.loginAccount(username, password);
+  if (!result.success) {
+    res.status(400).json({ error: result.error });
+    return;
+  }
+  res.json({
+    token: result.token,
+    player: result.player,
+    account: {
+      id: result.account.id,
+      username: result.account.username,
+      isGuest: false,
+      role: result.player.role,
+    },
+  });
+});
+
+app.post('/api/auth/session', (req, res) => {
+  const { token } = req.body || {};
+  if (!token) {
+    res.status(400).json({ error: 'Missing token' });
+    return;
+  }
+  const session = storage.getSession(token);
+  if (!session) {
+    res.status(401).json({ error: 'Invalid or expired session' });
+    return;
+  }
+  const account = storage.getAccountById(session.accountId);
+  const player = storage.getPlayer(session.playerId);
+  if (!account || !player) {
+    res.status(401).json({ error: 'Account or adventurer data not found' });
+    return;
+  }
+  res.json({
+    player,
+    account: {
+      id: account.id,
+      username: account.username,
+      isGuest: false,
+      role: player.role,
+    },
+  });
+});
+
+app.post('/api/auth/logout', (req, res) => {
+  const { token } = req.body || {};
+  if (token) {
+    storage.deleteSession(token);
+  }
+  res.json({ success: true });
+});
+
 app.get('/api/world/nodes', (req, res) => {
   res.json({ nodes: storage.getWorldNodes() });
 });
