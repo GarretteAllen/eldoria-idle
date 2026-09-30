@@ -1716,12 +1716,10 @@ export class WorldRenderer {
       if (!coord || !this.playerEquipmentImage || !this.playerEquipmentImage.complete) return;
       ctx.save();
       ctx.imageSmoothingEnabled = false;
-      const wUnits = coord.w || scaleW || 1;
-      const hUnits = coord.h || scaleH || 1;
-      const srcW = wUnits * 16;
-      const srcH = hUnits * 16;
-      const dstW = wUnits * TILE_SIZE;
-      const dstH = hUnits * TILE_SIZE;
+      const srcW = coord.pixelW || (coord.w ? coord.w * 16 : scaleW * 16);
+      const srcH = coord.pixelH || (coord.h ? coord.h * 16 : scaleH * 16);
+      const dstW = (srcW / 16) * TILE_SIZE;
+      const dstH = (srcH / 16) * TILE_SIZE;
 
       const drawX = Math.round(px - TILE_SIZE / 2 + offX);
       const drawY = Math.round(py - TILE_SIZE / 2 + offY);
@@ -1764,29 +1762,22 @@ export class WorldRenderer {
       // Ground shadow under steed
       ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
       ctx.beginPath();
-      ctx.ellipse(px + 4, py + 14, 18, 7, 0, 0, Math.PI * 2);
+      ctx.ellipse(px, py + 13, 16, 6, 0, 0, Math.PI * 2);
       ctx.fill();
 
-      // 1. Draw Steed Body (Cols 6 & 7, 32x16 sprite scaled to 64x32)
-      // Steed saddle is at pixel 12 of 32 (screen offset -8 px from rider center)
-      const steedCoord = getSprite(equipment?.steed?.itemId || 'steed_courser');
-      drawLayer(steedCoord, -8, gallopBob);
+      // Rider seated in the saddle (elevated -14px + gallop bob so torso emerges cleanly from saddle)
+      const riderY = -14 + gallopBob;
 
-      // Rider seated in the saddle (elevated -8px + gallop bob)
-      const riderY = -8 + gallopBob;
-
-      // 2. Base Body (bald, unclothed mannequin)
+      // 1. Base Body (bald, unclothed mannequin) - drawn BEHIND the horse!
       drawLayer(getSprite('base_male'), 0, riderY);
 
-      // 3. Leg Armor (only if equipped)
-      const legCoord = getSprite(equipment?.legs?.itemId);
-      if (legCoord) drawLayer(legCoord, 0, riderY);
+      // (Note: leg armor is intentionally omitted when mounted; the horse's body and saddle sits in front so character legs are not visible!)
 
-      // 4. Body Armor (only if equipped)
+      // 2. Body Armor (only if equipped) - drawn BEHIND the horse!
       const bodyCoord = getSprite(equipment?.body?.itemId);
       if (bodyCoord) drawLayer(bodyCoord, 0, riderY);
 
-      // 5. Helmet / Hair
+      // 3. Helmet / Hair - drawn BEHIND the horse!
       const helmCoord = getSprite(equipment?.helmet?.itemId);
       if (helmCoord) {
         drawLayer(helmCoord, 0, riderY);
@@ -1795,20 +1786,19 @@ export class WorldRenderer {
         if (hairCoord) drawLayer(hairCoord, 0, riderY);
       }
 
-      // 6. Shield / Offhand
+      // 4. Steed Courser (IN FRONT of character's body & legs to completely cover them!)
+      // Pixel width is 22, screen width is 44 (offset -6 centers it perfectly at px)
+      const steedCoord = getSprite(equipment?.steed?.itemId || 'steed_courser');
+      drawLayer(steedCoord, -6, 2 + gallopBob);
+
+      // 5. Shield / Offhand (in front of horse)
       const shieldCoord = getSprite(equipment?.shield?.itemId);
       if (shieldCoord) drawLayer(shieldCoord, 0, riderY);
 
-      // 7. Weapon (Mounted: show weapon if equipped)
+      // 6. Weapon (in front of horse)
       const weaponCoord = getSprite(equipment?.weapon?.itemId);
       if (weaponCoord) {
         drawLayer(weaponCoord, 0, riderY);
-      }
-
-      // 8. Steed Stirrup & Reins Overlay (drawn atop rider in foreground)
-      const reinsCoord = getSprite('steed_courser_reins');
-      if (reinsCoord) {
-        drawLayer(reinsCoord, -8, gallopBob);
       }
 
       // Speed Tag
@@ -1816,7 +1806,7 @@ export class WorldRenderer {
         ctx.font = '8px Inter, sans-serif';
         ctx.fillStyle = '#48bb78';
         ctx.textAlign = 'center';
-        ctx.fillText(`${moveSpeed.toFixed(1)} t/t`, px, py + 25);
+        ctx.fillText(`${moveSpeed.toFixed(1)} t/t`, px, py + 23);
       }
     } else {
       // === DISMOUNTED / WALKING ON FOOT / WORKING / IDLE ===
