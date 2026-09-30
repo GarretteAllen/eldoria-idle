@@ -1050,6 +1050,7 @@ body, html {
   top: 38px;
   right: 288px;
   width: 340px;
+  max-width: calc(100vw - 320px);
   max-height: calc(100vh - 52px);
   background: var(--bg-panel);
   border: 1px solid var(--border-oak);
@@ -1059,6 +1060,7 @@ body, html {
   flex-direction: column;
   z-index: 85;
   overflow: hidden;
+  transition: right 0.15s ease-out, max-width 0.15s ease-out;
 }
 .popup-panel.hidden {
   display: none !important;

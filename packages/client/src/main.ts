@@ -1134,9 +1134,7 @@ class EldoriaClient {
       else if (b.getAttribute('data-panel') !== 'chat') b.classList.remove('active');
     });
 
-    if (drawer !== 'skills') {
-      this.closeSkillJobPopup();
-    }
+    this.updatePopupPosition();
 
     if (drawer !== 'editor') {
       this.renderer.editorMode = 'none';
@@ -1277,6 +1275,12 @@ class EldoriaClient {
       this.pendingMonsterTarget = null;
       this.sendWs({ type: 'STOP_TASK' });
     };
+
+    window.addEventListener('resize', () => this.updatePopupPosition());
+    const drawerObserver = new MutationObserver(() => this.updatePopupPosition());
+    document.querySelectorAll('.drawer-panel').forEach(panel => {
+      drawerObserver.observe(panel, { attributes: true, attributeFilter: ['class', 'style'] });
+    });
   }
 
   private openSkillJobPopup(skillKey: SkillType, selectRecipeId?: string) {
@@ -1290,6 +1294,7 @@ class EldoriaClient {
 
     const popup = document.getElementById('skill-job-popup')!;
     popup.classList.remove('hidden');
+    this.updatePopupPosition();
 
     if (selectRecipeId) {
       this.selectedRecipeId = selectRecipeId;
@@ -1311,6 +1316,7 @@ class EldoriaClient {
 
     const popup = document.getElementById('skill-job-popup')!;
     popup.classList.remove('hidden');
+    this.updatePopupPosition();
 
     this.updateCombatDirectory(focusedSkill);
     this.renderSkillsDrawer();
@@ -1318,6 +1324,7 @@ class EldoriaClient {
 
   private updateCombatDirectory(focusedSkill: SkillType = 'melee') {
     if (!this.player) return;
+    this.updatePopupPosition();
     const cleanName = focusedSkill.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
     const record = this.player.skills[focusedSkill] || { level: 1, xp: 0 };
     const { percent } = getXpToNextLevel(record.level, record.xp);
@@ -1466,8 +1473,39 @@ class EldoriaClient {
     this.renderSkillsDrawer();
   }
 
+  private updatePopupPosition() {
+    const popup = document.getElementById('skill-job-popup');
+    if (!popup || popup.classList.contains('hidden')) return;
+
+    if (window.innerWidth <= 768) {
+      popup.style.right = '';
+      popup.style.maxWidth = '';
+      return;
+    }
+
+    // Find the currently active visible drawer panel
+    const visibleDrawer = document.querySelector('.drawer-panel:not(.hidden)') as HTMLElement | null;
+    if (visibleDrawer) {
+      const rect = visibleDrawer.getBoundingClientRect();
+      const rightOffset = Math.round(window.innerWidth - rect.left + 12);
+      popup.style.right = `${rightOffset}px`;
+      popup.style.maxWidth = `${Math.max(260, Math.min(360, rect.left - 20))}px`;
+    } else {
+      const toolbar = document.getElementById('right-toolbar');
+      if (toolbar) {
+        const rect = toolbar.getBoundingClientRect();
+        const rightOffset = Math.round(window.innerWidth - rect.left + 12);
+        popup.style.right = `${rightOffset}px`;
+      } else {
+        popup.style.right = '48px';
+      }
+      popup.style.maxWidth = '360px';
+    }
+  }
+
   private updateSkillJobPopup() {
     if (!this.player) return;
+    this.updatePopupPosition();
     const skillKey = this.selectedSkillKey;
     if (COMBAT_SKILLS.includes(skillKey)) {
       this.updateCombatDirectory(skillKey);
@@ -2692,9 +2730,12 @@ class EldoriaClient {
       }
     } catch (_) {}
 
-    // Default pin the first intro quest if none accepted
+    // Default pin the first available quest only if not completed or repeatable
     if (this.acceptedQuests.size === 0 && this.quests.length > 0) {
-      this.acceptedQuests.add(this.quests[0].id);
+      const firstAvailable = this.quests.find(q => !this.completedQuests.has(q.id) || q.repeatable);
+      if (firstAvailable) {
+        this.acceptedQuests.add(firstAvailable.id);
+      }
     }
 
     const toggleBtn = document.getElementById('quest-tracker-toggle-btn');
@@ -2789,6 +2830,8 @@ class EldoriaClient {
     this.acceptedQuests.delete(quest.id);
     this.completedQuests.add(quest.id);
     this.saveQuestState();
+
+    this.sendWs({ type: 'CLAIM_QUEST_REWARD', questId: quest.id });
 
     sound.play('coin');
     if (this.player) {
@@ -4019,6 +4062,8 @@ class EldoriaClient {
         (document.getElementById('quest-form-title') as HTMLInputElement).value = '';
         (document.getElementById('quest-form-desc') as HTMLTextAreaElement).value = '';
         (document.getElementById('quest-form-obj-target') as HTMLInputElement).value = '';
+        const repChk = document.getElementById('quest-form-repeatable') as HTMLInputElement | null;
+        if (repChk) repChk.checked = false;
       };
     }
     if (btnCancelQuest && questForm) {
@@ -4036,6 +4081,7 @@ class EldoriaClient {
         const targetId = (document.getElementById('quest-form-obj-target') as HTMLInputElement).value.trim();
         const gold = parseInt((document.getElementById('quest-form-reward-gold') as HTMLInputElement).value, 10) || 0;
         const xp = parseInt((document.getElementById('quest-form-reward-xp') as HTMLInputElement).value, 10) || 0;
+        const repeatable = (document.getElementById('quest-form-repeatable') as HTMLInputElement | null)?.checked || false;
 
         this.sendWs({
           type: 'ADMIN_SAVE_QUEST',
@@ -4046,6 +4092,7 @@ class EldoriaClient {
             npcId,
             objective: { type: objType, targetId, count },
             reward: { gold, xp },
+            repeatable,
           },
         });
         questForm.classList.add('hidden');
@@ -4281,7 +4328,7 @@ class EldoriaClient {
       card.innerHTML = `
         <div class="editor-entity-info">
           <div class="editor-entity-title">${q.title}</div>
-          <div class="editor-entity-meta">${q.objective.type} ${q.objective.count}x ${q.objective.targetId} · Giver: ${q.npcId || 'None'}</div>
+          <div class="editor-entity-meta">${q.objective.type} ${q.objective.count}x ${q.objective.targetId} · Giver: ${q.npcId || 'None'} · ${q.repeatable ? '<span style="color:#68d391; font-weight:700;">Repeatable</span>' : '<span style="color:#a0aec0;">One-time</span>'}</div>
         </div>
         <div class="editor-entity-actions">
           <button class="btn-micro-edit" data-id="${q.id}">Edit</button>
@@ -4301,6 +4348,8 @@ class EldoriaClient {
         (document.getElementById('quest-form-obj-target') as HTMLInputElement).value = q.objective.targetId;
         (document.getElementById('quest-form-reward-gold') as HTMLInputElement).value = (q.reward.gold || 0).toString();
         (document.getElementById('quest-form-reward-xp') as HTMLInputElement).value = xpVal.toString();
+        const repChk = document.getElementById('quest-form-repeatable') as HTMLInputElement | null;
+        if (repChk) repChk.checked = Boolean(q.repeatable);
       });
 
       card.querySelector('.btn-micro-del')!.addEventListener('click', () => {
@@ -4345,25 +4394,52 @@ class EldoriaClient {
 
       for (const q of npcQuests) {
         const xpVal = typeof q.reward.xp === 'number' ? q.reward.xp : (q.reward.xp?.amount || 0);
+        const isAccepted = this.acceptedQuests.has(q.id);
+        const isCompleted = this.completedQuests.has(q.id);
+        const isRepeatable = Boolean(q.repeatable);
+
+        let badgeHtml = '';
+        if (isAccepted) {
+          badgeHtml = `<span style="font-size:0.65rem; color:#63b3ed; background:rgba(66,153,225,0.15); border:1px solid #3182ce; padding:1px 5px; border-radius:3px; font-weight:700;">In Progress</span>`;
+        } else if (isCompleted && !isRepeatable) {
+          badgeHtml = `<span style="font-size:0.65rem; color:#68d391; background:rgba(72,187,120,0.15); border:1px solid #38a169; padding:1px 5px; border-radius:3px; font-weight:700;">Completed ✓</span>`;
+        } else if (isRepeatable) {
+          badgeHtml = `<span style="font-size:0.65rem; color:#ecc94b; background:rgba(214,158,46,0.15); border:1px solid #d69e2e; padding:1px 5px; border-radius:3px; font-weight:700;">Repeatable</span>`;
+        }
+
+        let buttonHtml = '';
+        if (isAccepted) {
+          buttonHtml = `<button class="btn-stop" disabled style="font-size:0.72rem; padding:3px 8px; margin-top:4px; opacity:0.6; cursor:not-allowed;">In Progress</button>`;
+        } else if (isCompleted && !isRepeatable) {
+          buttonHtml = `<button class="btn-start" disabled style="font-size:0.72rem; padding:3px 8px; margin-top:4px; opacity:0.45; background:#2d3748; border-color:#4a5568; cursor:not-allowed;">Completed</button>`;
+        } else {
+          buttonHtml = `<button class="btn-start btn-accept-quest" data-qid="${q.id}" style="font-size:0.72rem; padding:3px 8px; margin-top:4px;">${isCompleted ? 'Accept Again' : 'Accept Quest'}</button>`;
+        }
+
         const card = document.createElement('div');
         card.className = 'npc-quest-card';
         card.innerHTML = `
-          <div class="npc-quest-title">${q.title}</div>
+          <div class="npc-quest-title" style="display:flex; align-items:center; justify-content:space-between; gap:6px;">
+            <span>${q.title}</span>
+            ${badgeHtml}
+          </div>
           <div class="npc-quest-desc">${q.description}</div>
           <div class="npc-quest-rewards">
             Goal: ${q.objective.type} ${q.objective.count}x ${q.objective.targetId} • 
             Rewards: ${q.reward.gold || 0} Gold, ${xpVal} XP
           </div>
-          <button class="btn-start" style="font-size:0.72rem; padding:3px 8px; margin-top:4px;">Accept Quest</button>
+          ${buttonHtml}
         `;
-        const btnAccept = card.querySelector('button')!;
-        btnAccept.onclick = () => {
-          this.acceptedQuests.add(q.id);
-          this.saveQuestState();
-          this.updateQuestTracker();
-          this.showToast(`Accepted quest "${q.title}"! Pinned to Quest Log.`);
-          modal.classList.add('hidden');
-        };
+        const btnAccept = card.querySelector('.btn-accept-quest') as HTMLButtonElement | null;
+        if (btnAccept) {
+          btnAccept.onclick = () => {
+            this.acceptedQuests.add(q.id);
+            this.saveQuestState();
+            this.updateQuestTracker();
+            this.showToast(`Accepted quest "${q.title}"! Pinned to Quest Log.`);
+            modal.classList.add('hidden');
+          };
+        }
         questListEl.appendChild(card);
       }
     }

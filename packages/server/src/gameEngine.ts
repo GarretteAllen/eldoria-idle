@@ -836,6 +836,45 @@ export class GameEngine {
         break;
       }
 
+      case 'CLAIM_QUEST_REWARD': {
+        const { questId } = msg;
+        const quests = storage.getQuests();
+        const quest = quests.find(q => q.id === questId);
+        if (!quest) break;
+
+        const goldReward = quest.reward.gold || 0;
+        if (goldReward > 0) {
+          player.gold = (player.gold || 0) + goldReward;
+        }
+
+        if (quest.reward.xp) {
+          const xpAmt = typeof quest.reward.xp === 'number' ? quest.reward.xp : (quest.reward.xp.amount || 0);
+          const skillKey = (typeof quest.reward.xp === 'object' && quest.reward.xp.skill) ? quest.reward.xp.skill : 'melee';
+          if (xpAmt > 0 && player.skills[skillKey]) {
+            const oldLevel = player.skills[skillKey].level;
+            player.skills[skillKey].xp += xpAmt;
+            const newLevel = getLevelFromXp(player.skills[skillKey].xp);
+            player.skills[skillKey].level = newLevel;
+            if (newLevel > oldLevel) {
+              this.send(session.ws, {
+                type: 'NOTIFICATION',
+                message: `🌟 Level Up! Your ${skillKey} advanced to Level ${newLevel}!`
+              });
+            }
+          }
+        }
+
+        if (quest.reward.items && quest.reward.items.length > 0) {
+          for (const it of quest.reward.items) {
+            this.addItemToPlayer(session, it.itemId, it.quantity);
+          }
+        }
+
+        storage.savePlayer(player);
+        this.send(session.ws, { type: 'PLAYER_UPDATE', player });
+        break;
+      }
+
       case 'ATTACK_BOSS':
         this.handleBossAttack(session);
         break;

@@ -225,6 +225,7 @@ export interface QuestDefinition {
   objective: QuestObjective;
   reward: QuestReward;
   levelReq?: number;
+  repeatable?: boolean;
 }
 
 export interface FarmPlotState {
