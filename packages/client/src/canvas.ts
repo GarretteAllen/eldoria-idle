@@ -577,10 +577,7 @@ export class WorldRenderer {
 
     ctx.restore();
 
-    // 15. Ambient Day/Night Lighting Overlay (Viewport space)
-    this.drawDayNightLighting();
-
-    // 16. Tactical Radar Minimap
+    // 15. Tactical Radar Minimap
     this.drawMinimap();
 
     requestAnimationFrame((ts) => this.render(ts));
@@ -865,57 +862,6 @@ export class WorldRenderer {
 
       ctx.restore();
     }
-  }
-
-  private drawDayNightLighting() {
-    // Smooth 24-minute real-world full day/night ambient cycle
-    const now = Date.now();
-    const cyclePeriodMs = 24 * 60 * 1000;
-    const timeInCycle = (now % cyclePeriodMs) / cyclePeriodMs; // 0 to 1
-    // Darkness is highest at midnight (0.5), zero at noon (0.0)
-    const darkness = Math.max(0, Math.sin(timeInCycle * Math.PI * 2 - Math.PI / 2) * 0.42);
-    if (darkness <= 0.04) return;
-
-    const { ctx, canvas } = this;
-    ctx.save();
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-
-    // Dark indigo night overlay
-    ctx.fillStyle = `rgba(5, 7, 24, ${darkness})`;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    // Cut out warm light radiuses using destination-out
-    ctx.globalCompositeOperation = 'destination-out';
-
-    // 1. Local Player Torch Light
-    if (this.localPlayer) {
-      const pScreenX = Math.round(this.visualX * TILE_SIZE + TILE_SIZE / 2 - this.cameraX);
-      const pScreenY = Math.round(this.visualY * TILE_SIZE + TILE_SIZE / 2 - this.cameraY);
-      const rad = 80;
-      const grad = ctx.createRadialGradient(pScreenX, pScreenY, 12, pScreenX, pScreenY, rad);
-      grad.addColorStop(0, `rgba(0, 0, 0, ${darkness * 1.8})`);
-      grad.addColorStop(0.5, `rgba(0, 0, 0, ${darkness * 0.9})`);
-      grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
-      ctx.fillStyle = grad;
-      ctx.beginPath();
-      ctx.arc(pScreenX, pScreenY, rad, 0, Math.PI * 2);
-      ctx.fill();
-    }
-
-    // 2. Town Hearth Bonfire Light
-    const hearthScreenX = Math.round(8 * TILE_SIZE + TILE_SIZE / 2 - this.cameraX);
-    const hearthScreenY = Math.round(24 * TILE_SIZE + TILE_SIZE / 2 - this.cameraY);
-    const hRad = 140;
-    const hGrad = ctx.createRadialGradient(hearthScreenX, hearthScreenY, 20, hearthScreenX, hearthScreenY, hRad);
-    hGrad.addColorStop(0, `rgba(0, 0, 0, ${darkness * 2})`);
-    hGrad.addColorStop(0.5, `rgba(0, 0, 0, ${darkness})`);
-    hGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
-    ctx.fillStyle = hGrad;
-    ctx.beginPath();
-    ctx.arc(hearthScreenX, hearthScreenY, hRad, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.restore();
   }
 
   public setMinimapCanvas(canvas: HTMLCanvasElement | null) {
@@ -1765,8 +1711,8 @@ export class WorldRenderer {
       ctx.ellipse(px + 4, py + 14, 18, 7, 0, 0, Math.PI * 2);
       ctx.fill();
 
-      // Rider seated in the saddle (elevated -14px + gallop bob so torso emerges cleanly from saddle)
-      const riderY = -14 + gallopBob;
+      // Rider seated proudly in the saddle (elevated -21px + gallop bob so chest, arms, and armor emerge above saddle)
+      const riderY = -21 + gallopBob;
 
       // 1. Base Body (bald, unclothed mannequin) - drawn BEHIND the horse!
       drawLayer(getSprite('base_male'), 0, riderY);
@@ -1975,7 +1921,7 @@ export class WorldRenderer {
 
     // Overhead Name & Title & Badges Positioning
     // Shifted upwards cleanly so names never obscure player heads, tall helmets, or mounts!
-    const nameBaseY = isMounted ? py - 38 : py - 24;
+    const nameBaseY = isMounted ? py - 45 : py - 24;
     const titleY = nameBaseY - 11;
     const adminY = title ? titleY - 11 : nameBaseY - 11;
     const bankingY = (isAdmin ? adminY : (title ? titleY : nameBaseY)) - 12;
