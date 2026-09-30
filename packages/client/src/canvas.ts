@@ -1704,11 +1704,25 @@ export class WorldRenderer {
       return undefined;
     };
 
-    // Helper to draw a 16x16 layer from player_equipment.png scaled to 32x32
-    const drawLayer = (coord?: EquipmentSpriteCoord, offX: number = 0, offY: number = 0, rotation?: number) => {
+    // Helper to draw a layer from player_equipment.png scaled to 32x32 (or multi-tile)
+    const drawLayer = (
+      coord?: EquipmentSpriteCoord,
+      offX: number = 0,
+      offY: number = 0,
+      rotation?: number,
+      scaleW: number = 1,
+      scaleH: number = 1
+    ) => {
       if (!coord || !this.playerEquipmentImage || !this.playerEquipmentImage.complete) return;
       ctx.save();
       ctx.imageSmoothingEnabled = false;
+      const wUnits = coord.w || scaleW || 1;
+      const hUnits = coord.h || scaleH || 1;
+      const srcW = wUnits * 16;
+      const srcH = hUnits * 16;
+      const dstW = wUnits * TILE_SIZE;
+      const dstH = hUnits * TILE_SIZE;
+
       const drawX = Math.round(px - TILE_SIZE / 2 + offX);
       const drawY = Math.round(py - TILE_SIZE / 2 + offY);
       if (rotation !== undefined && rotation !== 0) {
@@ -1718,24 +1732,24 @@ export class WorldRenderer {
           this.playerEquipmentImage,
           coord.col * 16,
           coord.row * 16,
-          16,
-          16,
-          -TILE_SIZE / 2,
-          -TILE_SIZE / 2,
-          TILE_SIZE,
-          TILE_SIZE
+          srcW,
+          srcH,
+          -dstW / 2,
+          -dstH / 2,
+          dstW,
+          dstH
         );
       } else {
         ctx.drawImage(
           this.playerEquipmentImage,
           coord.col * 16,
           coord.row * 16,
-          16,
-          16,
+          srcW,
+          srcH,
           drawX,
           drawY,
-          TILE_SIZE,
-          TILE_SIZE
+          dstW,
+          dstH
         );
       }
       ctx.restore();
@@ -1750,44 +1764,51 @@ export class WorldRenderer {
       // Ground shadow under steed
       ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
       ctx.beginPath();
-      ctx.ellipse(px, py + 12, 14, 6, 0, 0, Math.PI * 2);
+      ctx.ellipse(px + 4, py + 14, 18, 7, 0, 0, Math.PI * 2);
       ctx.fill();
 
-      // 1. Draw Steed
+      // 1. Draw Steed Body (Cols 6 & 7, 32x16 sprite scaled to 64x32)
+      // Steed saddle is at pixel 12 of 32 (screen offset -8 px from rider center)
       const steedCoord = getSprite(equipment?.steed?.itemId || 'steed_courser');
-      drawLayer(steedCoord, 0, gallopBob);
+      drawLayer(steedCoord, -8, gallopBob);
 
-      // Rider seated in the saddle
-      const riderY = -3 + gallopBob;
+      // Rider seated in the saddle (elevated -8px + gallop bob)
+      const riderY = -8 + gallopBob;
 
       // 2. Base Body (bald, unclothed mannequin)
-      drawLayer(getSprite('base_male'), -1, riderY);
+      drawLayer(getSprite('base_male'), 0, riderY);
 
       // 3. Leg Armor (only if equipped)
       const legCoord = getSprite(equipment?.legs?.itemId);
-      if (legCoord) drawLayer(legCoord, -1, riderY);
+      if (legCoord) drawLayer(legCoord, 0, riderY);
 
       // 4. Body Armor (only if equipped)
       const bodyCoord = getSprite(equipment?.body?.itemId);
-      if (bodyCoord) drawLayer(bodyCoord, -1, riderY);
+      if (bodyCoord) drawLayer(bodyCoord, 0, riderY);
 
       // 5. Helmet / Hair
       const helmCoord = getSprite(equipment?.helmet?.itemId);
       if (helmCoord) {
-        drawLayer(helmCoord, -1, riderY);
+        drawLayer(helmCoord, 0, riderY);
       } else {
         const hairCoord = getSprite(equipment?.hair?.itemId);
-        if (hairCoord) drawLayer(hairCoord, -1, riderY);
+        if (hairCoord) drawLayer(hairCoord, 0, riderY);
       }
 
       // 6. Shield / Offhand
       const shieldCoord = getSprite(equipment?.shield?.itemId);
-      if (shieldCoord) drawLayer(shieldCoord, -1, riderY);
+      if (shieldCoord) drawLayer(shieldCoord, 0, riderY);
 
       // 7. Weapon (Mounted: show weapon if equipped)
       const weaponCoord = getSprite(equipment?.weapon?.itemId);
       if (weaponCoord) {
-        drawLayer(weaponCoord, -1, riderY);
+        drawLayer(weaponCoord, 0, riderY);
+      }
+
+      // 8. Steed Stirrup & Reins Overlay (drawn atop rider in foreground)
+      const reinsCoord = getSprite('steed_courser_reins');
+      if (reinsCoord) {
+        drawLayer(reinsCoord, -8, gallopBob);
       }
 
       // Speed Tag
@@ -1795,7 +1816,7 @@ export class WorldRenderer {
         ctx.font = '8px Inter, sans-serif';
         ctx.fillStyle = '#48bb78';
         ctx.textAlign = 'center';
-        ctx.fillText(`${moveSpeed.toFixed(1)} t/t`, px, py + 22);
+        ctx.fillText(`${moveSpeed.toFixed(1)} t/t`, px, py + 25);
       }
     } else {
       // === DISMOUNTED / WALKING ON FOOT / WORKING / IDLE ===
@@ -1964,7 +1985,7 @@ export class WorldRenderer {
 
     // Overhead Name & Title & Badges Positioning
     // Shifted upwards cleanly so names never obscure player heads, tall helmets, or mounts!
-    const nameBaseY = isMounted ? py - 30 : py - 24;
+    const nameBaseY = isMounted ? py - 34 : py - 24;
     const titleY = nameBaseY - 11;
     const adminY = title ? titleY - 11 : nameBaseY - 11;
     const bankingY = (isAdmin ? adminY : (title ? titleY : nameBaseY)) - 12;

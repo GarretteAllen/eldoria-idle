@@ -2,6 +2,8 @@ export interface EquipmentSpriteCoord {
   col: number;
   row: number;
   slot: 'base' | 'hair' | 'body' | 'legs' | 'helmet' | 'weapon' | 'shield' | 'steed' | 'tool';
+  w?: number;
+  h?: number;
 }
 
 export const PLAYER_EQUIPMENT_SPRITES: Record<string, EquipmentSpriteCoord> = {
@@ -12,7 +14,8 @@ export const PLAYER_EQUIPMENT_SPRITES: Record<string, EquipmentSpriteCoord> = {
   hair_adventurer: { col: 3, row: 0, slot: 'hair' },
   hair_maiden: { col: 4, row: 0, slot: 'hair' },
   hair_elder: { col: 5, row: 0, slot: 'hair' },
-  steed_courser: { col: 6, row: 0, slot: 'steed' },
+  steed_courser: { col: 6, row: 0, slot: 'steed', w: 2, h: 1 },
+  steed_courser_reins: { col: 8, row: 0, slot: 'steed', w: 2, h: 1 },
 
   // Body Armor (Row 1)
   tunic_cloth: { col: 0, row: 1, slot: 'body' },
