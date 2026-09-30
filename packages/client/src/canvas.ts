@@ -858,46 +858,179 @@ export class WorldRenderer {
   private drawPathTrail() {
     if (!this.localPlayer || !this.localPlayer.path || this.localPlayer.path.length === 0) return;
     const { ctx } = this;
+    const path = this.localPlayer.path;
+    const startX = this.visualX * TILE_SIZE + TILE_SIZE / 2;
+    const startY = this.visualY * TILE_SIZE + TILE_SIZE / 2;
+
     ctx.save();
-    ctx.strokeStyle = 'rgba(229, 179, 56, 0.5)';
-    ctx.lineWidth = 2;
-    ctx.setLineDash([4, 4]);
 
+    // 1. Wide semi-transparent golden aura glow
     ctx.beginPath();
-    ctx.moveTo(this.visualX * TILE_SIZE + TILE_SIZE / 2, this.visualY * TILE_SIZE + TILE_SIZE / 2);
-
-    for (const step of this.localPlayer.path) {
+    ctx.moveTo(startX, startY);
+    for (const step of path) {
       ctx.lineTo(step.x * TILE_SIZE + TILE_SIZE / 2, step.y * TILE_SIZE + TILE_SIZE / 2);
     }
+    ctx.strokeStyle = 'rgba(255, 204, 0, 0.25)';
+    ctx.lineWidth = 7;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
     ctx.stroke();
+
+    // 2. High-contrast dark shadow outline for visibility against any terrain
+    ctx.beginPath();
+    ctx.moveTo(startX, startY);
+    for (const step of path) {
+      ctx.lineTo(step.x * TILE_SIZE + TILE_SIZE / 2, step.y * TILE_SIZE + TILE_SIZE / 2);
+    }
+    ctx.strokeStyle = 'rgba(10, 8, 5, 0.85)';
+    ctx.lineWidth = 4;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.stroke();
+
+    // 3. Vibrant animated golden marching line
+    ctx.beginPath();
+    ctx.moveTo(startX, startY);
+    for (const step of path) {
+      ctx.lineTo(step.x * TILE_SIZE + TILE_SIZE / 2, step.y * TILE_SIZE + TILE_SIZE / 2);
+    }
+    ctx.strokeStyle = '#ffd700';
+    ctx.lineWidth = 2.5;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.setLineDash([7, 5]);
+    ctx.lineDashOffset = -this.animTick * 0.035; // Directional marching movement
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // 4. Glowing waypoint nodes along turns & steps
+    for (let i = 0; i < path.length; i++) {
+      const step = path[i];
+      const px = step.x * TILE_SIZE + TILE_SIZE / 2;
+      const py = step.y * TILE_SIZE + TILE_SIZE / 2;
+
+      // Dark contrast ring
+      ctx.fillStyle = 'rgba(12, 10, 6, 0.85)';
+      ctx.beginPath();
+      ctx.arc(px, py, 3.5, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Bright inner core
+      ctx.fillStyle = i === path.length - 1 ? '#ffffff' : '#ffe066';
+      ctx.beginPath();
+      ctx.arc(px, py, 2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
     ctx.restore();
   }
 
   private drawDestinationMarker() {
-    if (!this.destinationMarker) return;
-    const { ctx } = this;
-    const age = Date.now() - this.destinationMarker.time;
-    if (age > 2000) {
-      this.destinationMarker = null;
-      return;
+    const hasPath = !!(this.localPlayer?.path && this.localPlayer.path.length > 0);
+    let destX: number | null = null;
+    let destY: number | null = null;
+
+    if (this.destinationMarker) {
+      const age = Date.now() - this.destinationMarker.time;
+      if (age > 4000 && !hasPath) {
+        this.destinationMarker = null;
+      } else {
+        destX = this.destinationMarker.x;
+        destY = this.destinationMarker.y;
+      }
     }
 
-    const px = this.destinationMarker.x * TILE_SIZE + TILE_SIZE / 2;
-    const py = this.destinationMarker.y * TILE_SIZE + TILE_SIZE / 2;
-    const pulse = 6 + Math.sin(age * 0.01) * 3;
-    const alpha = Math.max(0, 1 - age / 2000);
+    if (destX === null && hasPath && this.localPlayer?.path) {
+      const last = this.localPlayer.path[this.localPlayer.path.length - 1];
+      destX = last.x;
+      destY = last.y;
+    }
+
+    if (destX === null || destY === null) return;
+
+    const { ctx } = this;
+    const tilePx = destX * TILE_SIZE;
+    const tilePy = destY * TILE_SIZE;
+    const centerX = tilePx + TILE_SIZE / 2;
+    const centerY = tilePy + TILE_SIZE / 2;
 
     ctx.save();
-    ctx.strokeStyle = `rgba(229, 179, 56, ${alpha})`;
-    ctx.lineWidth = 2;
+
+    // 1. Destination Tile Background Tint & Glow
+    const pulseAlpha = 0.15 + Math.sin(this.animTick * 0.006) * 0.08;
+    ctx.fillStyle = `rgba(255, 215, 0, ${pulseAlpha})`;
+    ctx.fillRect(tilePx + 1, tilePy + 1, TILE_SIZE - 2, TILE_SIZE - 2);
+
+    // 2. High-contrast Destination Tile Corner Reticle
+    const c = 7;
+    // Dark shadow backing for corner brackets
+    ctx.strokeStyle = 'rgba(0, 0, 0, 0.85)';
+    ctx.lineWidth = 3.5;
     ctx.beginPath();
-    ctx.arc(px, py, pulse, 0, Math.PI * 2);
+    ctx.moveTo(tilePx, tilePy + c); ctx.lineTo(tilePx, tilePy); ctx.lineTo(tilePx + c, tilePy);
+    ctx.moveTo(tilePx + TILE_SIZE - c, tilePy); ctx.lineTo(tilePx + TILE_SIZE, tilePy); ctx.lineTo(tilePx + TILE_SIZE, tilePy + c);
+    ctx.moveTo(tilePx, tilePy + TILE_SIZE - c); ctx.lineTo(tilePx, tilePy + TILE_SIZE); ctx.lineTo(tilePx + c, tilePy + TILE_SIZE);
+    ctx.moveTo(tilePx + TILE_SIZE - c, tilePy + TILE_SIZE); ctx.lineTo(tilePx + TILE_SIZE, tilePy + TILE_SIZE); ctx.lineTo(tilePx + TILE_SIZE, tilePy + TILE_SIZE - c);
     ctx.stroke();
 
-    ctx.fillStyle = `rgba(229, 179, 56, ${alpha * 0.4})`;
+    // Bright golden corner brackets
+    ctx.strokeStyle = '#ffd700';
+    ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.arc(px, py, 3, 0, Math.PI * 2);
+    ctx.moveTo(tilePx, tilePy + c); ctx.lineTo(tilePx, tilePy); ctx.lineTo(tilePx + c, tilePy);
+    ctx.moveTo(tilePx + TILE_SIZE - c, tilePy); ctx.lineTo(tilePx + TILE_SIZE, tilePy); ctx.lineTo(tilePx + TILE_SIZE, tilePy + c);
+    ctx.moveTo(tilePx, tilePy + TILE_SIZE - c); ctx.lineTo(tilePx, tilePy + TILE_SIZE); ctx.lineTo(tilePx + c, tilePy + TILE_SIZE);
+    ctx.moveTo(tilePx + TILE_SIZE - c, tilePy + TILE_SIZE); ctx.lineTo(tilePx + TILE_SIZE, tilePy + TILE_SIZE); ctx.lineTo(tilePx + TILE_SIZE, tilePy + TILE_SIZE - c);
+    ctx.stroke();
+
+    // 3. Central Pulsing Target Ring
+    const ringRadius = 8 + Math.sin(this.animTick * 0.008) * 2;
+    // Shadow
+    ctx.strokeStyle = 'rgba(0, 0, 0, 0.7)';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, ringRadius, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Gold ring
+    ctx.strokeStyle = '#ffe066';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, ringRadius, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Crosshair tick marks (N, S, E, W)
+    ctx.strokeStyle = '#ffd700';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(centerX, centerY - ringRadius - 3); ctx.lineTo(centerX, centerY - ringRadius + 2);
+    ctx.moveTo(centerX, centerY + ringRadius - 2); ctx.lineTo(centerX, centerY + ringRadius + 3);
+    ctx.moveTo(centerX - ringRadius - 3, centerY); ctx.lineTo(centerX - ringRadius + 2, centerY);
+    ctx.moveTo(centerX + ringRadius - 2, centerY); ctx.lineTo(centerX + ringRadius + 3, centerY);
+    ctx.stroke();
+
+    // Center bright bullseye dot
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, 2.5, 0, Math.PI * 2);
     ctx.fill();
+
+    // 4. Click Expansion Ripple (active when freshly clicked)
+    if (this.destinationMarker) {
+      const clickAge = Date.now() - this.destinationMarker.time;
+      if (clickAge < 800) {
+        const rippleProgress = clickAge / 800;
+        const rippleRadius = 4 + rippleProgress * 18;
+        const rippleAlpha = (1 - rippleProgress) * 0.85;
+
+        ctx.strokeStyle = `rgba(255, 235, 120, ${rippleAlpha})`;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, rippleRadius, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+    }
+
     ctx.restore();
   }
 
