@@ -1762,11 +1762,11 @@ export class WorldRenderer {
       // Ground shadow under steed
       ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
       ctx.beginPath();
-      ctx.ellipse(px, py + 13, 16, 6, 0, 0, Math.PI * 2);
+      ctx.ellipse(px + 4, py + 14, 18, 7, 0, 0, Math.PI * 2);
       ctx.fill();
 
-      // Rider seated in the saddle (elevated -14px + gallop bob so torso emerges cleanly from saddle)
-      const riderY = -14 + gallopBob;
+      // Rider seated in the saddle (elevated -17px + gallop bob so torso emerges cleanly from saddle)
+      const riderY = -17 + gallopBob;
 
       // 1. Base Body (bald, unclothed mannequin) - drawn BEHIND the horse!
       drawLayer(getSprite('base_male'), 0, riderY);
@@ -1787,9 +1787,9 @@ export class WorldRenderer {
       }
 
       // 4. Steed Courser (IN FRONT of character's body & legs to completely cover them!)
-      // Pixel width is 22, screen width is 44 (offset -6 centers it perfectly at px)
+      // Pixel width is 28, screen width is 56 (offset -6 centers saddle at px)
       const steedCoord = getSprite(equipment?.steed?.itemId || 'steed_courser');
-      drawLayer(steedCoord, -6, 2 + gallopBob);
+      drawLayer(steedCoord, -6, -9 + gallopBob);
 
       // 5. Shield / Offhand (in front of horse)
       const shieldCoord = getSprite(equipment?.shield?.itemId);
@@ -1806,7 +1806,7 @@ export class WorldRenderer {
         ctx.font = '8px Inter, sans-serif';
         ctx.fillStyle = '#48bb78';
         ctx.textAlign = 'center';
-        ctx.fillText(`${moveSpeed.toFixed(1)} t/t`, px, py + 23);
+        ctx.fillText(`${moveSpeed.toFixed(1)} t/t`, px, py + 24);
       }
     } else {
       // === DISMOUNTED / WALKING ON FOOT / WORKING / IDLE ===
@@ -1975,7 +1975,7 @@ export class WorldRenderer {
 
     // Overhead Name & Title & Badges Positioning
     // Shifted upwards cleanly so names never obscure player heads, tall helmets, or mounts!
-    const nameBaseY = isMounted ? py - 34 : py - 24;
+    const nameBaseY = isMounted ? py - 38 : py - 24;
     const titleY = nameBaseY - 11;
     const adminY = title ? titleY - 11 : nameBaseY - 11;
     const bankingY = (isAdmin ? adminY : (title ? titleY : nameBaseY)) - 12;
