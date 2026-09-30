@@ -13,8 +13,6 @@ export const WORLD_NODES: WorldNode[] = [
   { id: 'hearth_bank', name: 'The Hearth Storage Counter', type: 'hearth_counter', x: 8, y: 22 },
   { id: 'hearth_forge', name: 'Ancestral Runeforge', type: 'forge', x: 6, y: 24 },
   { id: 'hearth_fire', name: 'Hearth Firepit', type: 'fire', x: 10, y: 24 },
-  { id: 'farm_plot_1', name: 'Verdant Allotment (Plot I)', type: 'farm', x: 13, y: 22 },
-  { id: 'farm_plot_2', name: 'Verdant Allotment (Plot II)', type: 'farm', x: 14, y: 24 },
 
   // --- Quarry (North - Level_3) ---
   { id: 'quarry_pyrite', name: 'Pyrite Deposit', type: 'mine', x: 6, y: 5, recipeId: 'mine_pyrite' },

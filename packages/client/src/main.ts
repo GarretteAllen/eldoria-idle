@@ -3932,12 +3932,17 @@ class EldoriaClient {
         (document.getElementById('node-form-name') as HTMLInputElement).value = '';
         const curType = (document.getElementById('node-form-type') as HTMLSelectElement).value || 'mine';
         this.updateNodeRecipesForType(curType);
-        (document.getElementById('node-form-x') as HTMLInputElement).value = '25';
-        (document.getElementById('node-form-y') as HTMLInputElement).value = '25';
+        const px = this.player ? Math.round(this.player.x) : 25;
+        const py = this.player ? Math.round(this.player.y) : 25;
+        (document.getElementById('node-form-x') as HTMLInputElement).value = px.toString();
+        (document.getElementById('node-form-y') as HTMLInputElement).value = py.toString();
       };
     }
     if (btnCancelNode && nodeForm) {
-      btnCancelNode.onclick = () => nodeForm.classList.add('hidden');
+      btnCancelNode.onclick = () => {
+        nodeForm.classList.add('hidden');
+        this.renderer.editorMode = 'none';
+      };
     }
     if (btnPickNode) {
       btnPickNode.onclick = () => {
