@@ -229,9 +229,20 @@ export const ITEMS: Record<string, ItemDefinition> = {
   steed_courser: { id: 'steed_courser', name: 'Eldorian Courser', category: 'steed', tier: 2, slot: 'steed', vendorFloorPrice: 20000, description: 'Grants walking speed haste on the road' }
 };
 
-export function isItemStackable(item?: ItemDefinition): boolean {
+export type StackingLocation = 'inventory' | 'bank' | 'storage';
+
+export function isItemStackable(item?: ItemDefinition, location: StackingLocation = 'inventory'): boolean {
   if (!item) return false;
+  const isBank = location === 'bank' || location === 'storage';
+
+  if (isBank) {
+    if (item.stackableInBank !== undefined) return item.stackableInBank;
+  } else {
+    if (item.stackableInInventory !== undefined) return item.stackableInInventory;
+  }
+
   if (item.stackable !== undefined) return item.stackable;
+
   // Non-stackable by default: weapon, armour, tool, steed
   if (['weapon', 'armour', 'tool', 'steed'].includes(item.category)) {
     return false;
@@ -239,10 +250,19 @@ export function isItemStackable(item?: ItemDefinition): boolean {
   return true;
 }
 
-export function getItemMaxStack(item?: ItemDefinition): number {
+export function getItemMaxStack(item?: ItemDefinition, location: StackingLocation = 'inventory'): number {
   if (!item) return 1;
-  if (!isItemStackable(item)) return 1;
-  return item.maxStack && item.maxStack > 0 ? item.maxStack : 999999;
+  if (!isItemStackable(item, location)) return 1;
+  const isBank = location === 'bank' || location === 'storage';
+
+  if (isBank) {
+    if (item.maxStackBank && item.maxStackBank > 0) return item.maxStackBank;
+  } else {
+    if (item.maxStackInventory && item.maxStackInventory > 0) return item.maxStackInventory;
+  }
+
+  if (item.maxStack && item.maxStack > 0) return item.maxStack;
+  return 999999;
 }
 
 export function addItemToSlots(
@@ -252,11 +272,12 @@ export function addItemToSlots(
   quantity: number,
   rarity: Rarity = 'plain',
   plus: number = 0,
-  itemDef?: ItemDefinition
+  itemDef?: ItemDefinition,
+  location: StackingLocation = 'inventory'
 ): { added: number; remainder: number } {
   if (quantity <= 0) return { added: 0, remainder: 0 };
-  const stackable = isItemStackable(itemDef);
-  const maxStack = getItemMaxStack(itemDef);
+  const stackable = isItemStackable(itemDef, location);
+  const maxStack = getItemMaxStack(itemDef, location);
 
   let remaining = quantity;
 

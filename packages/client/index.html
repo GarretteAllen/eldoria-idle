@@ -781,19 +781,39 @@
               </div>
 
               <!-- Stacking Behavior Box -->
-              <div style="background: rgba(0, 0, 0, 0.35); border: 1px solid #4a3622; border-radius: 6px; padding: 8px; margin: 6px 0;">
-                <div style="font-size: 0.72rem; font-weight: 700; color: #ffd699; margin-bottom: 6px;">📦 Stacking Behavior</div>
-                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
-                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 0.75rem; color: #e2e8f0; font-weight: 600;">
-                    <input type="checkbox" id="item-form-stackable" checked />
-                    Can stack in inventory & bank
-                  </label>
+              <div style="background: rgba(0, 0, 0, 0.35); border: 1px solid #4a3622; border-radius: 6px; padding: 10px; margin: 8px 0; display: flex; flex-direction: column; gap: 8px;">
+                <div style="font-size: 0.75rem; font-weight: 700; color: #ffd699; display: flex; align-items: center; justify-content: space-between;">
+                  <span>📦 Stacking Behavior</span>
+                  <span style="font-size: 0.65rem; color: #a0aec0; font-weight: normal;">Configure Satchel & Bank independently</span>
                 </div>
-                <div class="form-row" id="item-form-max-stack-row">
-                  <label>Max Stack Size:</label>
-                  <input type="number" id="item-form-max-stack" min="1" max="999999" value="999999" placeholder="999999 (or 10, 28, 99, 1000)" />
-                  <div style="font-size: 0.65rem; color: #a0aec0; margin-top: 2px;">
-                    When satchel slot reaches this limit, excess opens a new slot. Uncheck to make 1-per-slot.
+
+                <!-- 1. Inventory Stacking -->
+                <div style="background: rgba(20, 20, 26, 0.6); border: 1px solid #3d3429; border-radius: 4px; padding: 8px;">
+                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 0.75rem; color: #e2e8f0; font-weight: 600;">
+                    <input type="checkbox" id="item-form-stackable-inv" checked />
+                    🎒 Stack in Satchel (Inventory)
+                  </label>
+                  <div class="form-row" id="item-form-max-stack-inv-row" style="margin-top: 6px;">
+                    <label style="font-size: 0.7rem;">Satchel Max Stack:</label>
+                    <input type="number" id="item-form-max-stack-inv" min="1" max="999999" value="999999" placeholder="999999 (or 10, 28, 99)" />
+                    <div style="font-size: 0.65rem; color: #a0aec0; margin-top: 2px;">
+                      Unchecked = 1 item per satchel slot. Excess above max stack spills into next slot.
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 2. Bank Stacking -->
+                <div style="background: rgba(20, 20, 26, 0.6); border: 1px solid #3d3429; border-radius: 4px; padding: 8px;">
+                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 0.75rem; color: #e2e8f0; font-weight: 600;">
+                    <input type="checkbox" id="item-form-stackable-bank" checked />
+                    🏦 Stack in Hearth Vault (Bank)
+                  </label>
+                  <div class="form-row" id="item-form-max-stack-bank-row" style="margin-top: 6px;">
+                    <label style="font-size: 0.7rem;">Vault Max Stack:</label>
+                    <input type="number" id="item-form-max-stack-bank" min="1" max="999999" value="999999" placeholder="999999 (or 100, 1000)" />
+                    <div style="font-size: 0.65rem; color: #a0aec0; margin-top: 2px;">
+                      Unchecked = 1 item per vault slot. Excess above max stack spills into next slot.
+                    </div>
                   </div>
                 </div>
               </div>

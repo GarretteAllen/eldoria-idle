@@ -4330,22 +4330,43 @@ class EldoriaClient {
     const btnAddItem = document.getElementById('btn-add-item');
     const btnCancelItem = document.getElementById('btn-cancel-item');
     const btnDeleteItem = document.getElementById('btn-delete-item');
-    const chkStackable = document.getElementById('item-form-stackable') as HTMLInputElement | null;
-    const stackRow = document.getElementById('item-form-max-stack-row');
-    const stackInput = document.getElementById('item-form-max-stack') as HTMLInputElement | null;
 
-    if (chkStackable && stackRow && stackInput) {
-      chkStackable.addEventListener('change', () => {
-        if (chkStackable.checked) {
-          stackRow.style.opacity = '1';
-          stackInput.disabled = false;
-          if (parseInt(stackInput.value, 10) <= 1) {
-            stackInput.value = '999999';
+    const chkStackableInv = document.getElementById('item-form-stackable-inv') as HTMLInputElement | null;
+    const stackRowInv = document.getElementById('item-form-max-stack-inv-row');
+    const stackInputInv = document.getElementById('item-form-max-stack-inv') as HTMLInputElement | null;
+
+    const chkStackableBank = document.getElementById('item-form-stackable-bank') as HTMLInputElement | null;
+    const stackRowBank = document.getElementById('item-form-max-stack-bank-row');
+    const stackInputBank = document.getElementById('item-form-max-stack-bank') as HTMLInputElement | null;
+
+    if (chkStackableInv && stackRowInv && stackInputInv) {
+      chkStackableInv.addEventListener('change', () => {
+        if (chkStackableInv.checked) {
+          stackRowInv.style.opacity = '1';
+          stackInputInv.disabled = false;
+          if (parseInt(stackInputInv.value, 10) <= 1) {
+            stackInputInv.value = '999999';
           }
         } else {
-          stackRow.style.opacity = '0.5';
-          stackInput.disabled = true;
-          stackInput.value = '1';
+          stackRowInv.style.opacity = '0.5';
+          stackInputInv.disabled = true;
+          stackInputInv.value = '1';
+        }
+      });
+    }
+
+    if (chkStackableBank && stackRowBank && stackInputBank) {
+      chkStackableBank.addEventListener('change', () => {
+        if (chkStackableBank.checked) {
+          stackRowBank.style.opacity = '1';
+          stackInputBank.disabled = false;
+          if (parseInt(stackInputBank.value, 10) <= 1) {
+            stackInputBank.value = '999999';
+          }
+        } else {
+          stackRowBank.style.opacity = '0.5';
+          stackInputBank.disabled = true;
+          stackInputBank.value = '1';
         }
       });
     }
@@ -4383,10 +4404,17 @@ class EldoriaClient {
         const name = (document.getElementById('item-form-name') as HTMLInputElement).value.trim();
         const category = (document.getElementById('item-form-category') as HTMLSelectElement).value as any;
         const tier = parseInt((document.getElementById('item-form-tier') as HTMLInputElement).value, 10) || 1;
-        const stackable = chkStackable ? chkStackable.checked : true;
-        const maxStack = stackable
-          ? (parseInt(stackInput?.value || '999999', 10) || 999999)
+
+        const stackableInInventory = chkStackableInv ? chkStackableInv.checked : true;
+        const maxStackInventory = stackableInInventory
+          ? (parseInt(stackInputInv?.value || '999999', 10) || 999999)
           : 1;
+
+        const stackableInBank = chkStackableBank ? chkStackableBank.checked : true;
+        const maxStackBank = stackableInBank
+          ? (parseInt(stackInputBank?.value || '999999', 10) || 999999)
+          : 1;
+
         const vendorFloorPrice = parseInt((document.getElementById('item-form-price') as HTMLInputElement).value, 10) || 0;
         const description = (document.getElementById('item-form-desc') as HTMLTextAreaElement).value.trim();
         const slotVal = (document.getElementById('item-form-slot') as HTMLSelectElement).value;
@@ -4419,8 +4447,12 @@ class EldoriaClient {
           name,
           category,
           tier,
-          stackable,
-          maxStack,
+          stackable: stackableInInventory && stackableInBank,
+          stackableInInventory,
+          stackableInBank,
+          maxStack: maxStackInventory,
+          maxStackInventory,
+          maxStackBank,
           vendorFloorPrice,
           description: description || undefined,
           slot,
@@ -4454,18 +4486,31 @@ class EldoriaClient {
     (document.getElementById('item-form-category') as HTMLSelectElement).value = def ? def.category : 'ore';
     (document.getElementById('item-form-tier') as HTMLInputElement).value = (def ? def.tier : 1).toString();
 
-    const isStack = isItemStackable(def || undefined);
-    const maxStack = getItemMaxStack(def || undefined);
+    const isStackInv = isItemStackable(def || undefined, 'inventory');
+    const maxStackInv = getItemMaxStack(def || undefined, 'inventory');
 
-    const chkStackable = document.getElementById('item-form-stackable') as HTMLInputElement;
-    chkStackable.checked = isStack;
+    const isStackBank = isItemStackable(def || undefined, 'bank');
+    const maxStackBank = getItemMaxStack(def || undefined, 'bank');
 
-    const stackInput = document.getElementById('item-form-max-stack') as HTMLInputElement;
-    stackInput.value = maxStack.toString();
-    stackInput.disabled = !isStack;
+    const chkStackableInv = document.getElementById('item-form-stackable-inv') as HTMLInputElement | null;
+    const stackInputInv = document.getElementById('item-form-max-stack-inv') as HTMLInputElement | null;
+    const stackRowInv = document.getElementById('item-form-max-stack-inv-row');
+    if (chkStackableInv && stackInputInv && stackRowInv) {
+      chkStackableInv.checked = isStackInv;
+      stackInputInv.value = maxStackInv.toString();
+      stackInputInv.disabled = !isStackInv;
+      stackRowInv.style.opacity = isStackInv ? '1' : '0.5';
+    }
 
-    const stackRow = document.getElementById('item-form-max-stack-row');
-    if (stackRow) stackRow.style.opacity = isStack ? '1' : '0.5';
+    const chkStackableBank = document.getElementById('item-form-stackable-bank') as HTMLInputElement | null;
+    const stackInputBank = document.getElementById('item-form-max-stack-bank') as HTMLInputElement | null;
+    const stackRowBank = document.getElementById('item-form-max-stack-bank-row');
+    if (chkStackableBank && stackInputBank && stackRowBank) {
+      chkStackableBank.checked = isStackBank;
+      stackInputBank.value = maxStackBank.toString();
+      stackInputBank.disabled = !isStackBank;
+      stackRowBank.style.opacity = isStackBank ? '1' : '0.5';
+    }
 
     (document.getElementById('item-form-price') as HTMLInputElement).value = (def ? def.vendorFloorPrice : 5).toString();
     (document.getElementById('item-form-desc') as HTMLTextAreaElement).value = def?.description || '';
@@ -4500,15 +4545,29 @@ class EldoriaClient {
     }
 
     for (const item of allItems) {
-      const isStack = isItemStackable(item);
-      const maxStack = getItemMaxStack(item);
-      const stackBadge = isStack
-        ? (maxStack >= 999999 ? 'Stack: ∞' : `Max: ${maxStack}`)
-        : 'Non-stackable';
+      const isStackInv = isItemStackable(item, 'inventory');
+      const maxInv = getItemMaxStack(item, 'inventory');
+      const isStackBank = isItemStackable(item, 'bank');
+      const maxBank = getItemMaxStack(item, 'bank');
 
-      const stackBg = isStack
-        ? (maxStack >= 999999 ? '#2b6cb0' : '#2f855a')
-        : '#742a2a';
+      let stackBadge = '';
+      let stackBg = '#2f855a';
+
+      if (isStackInv && isStackBank) {
+        stackBadge = maxInv >= 999999 && maxBank >= 999999
+          ? 'Stack: All'
+          : `Inv: ${maxInv >= 999999 ? '∞' : maxInv} | Bank: ${maxBank >= 999999 ? '∞' : maxBank}`;
+        stackBg = '#2b6cb0';
+      } else if (isStackInv && !isStackBank) {
+        stackBadge = `Inv: ${maxInv >= 999999 ? '∞' : maxInv} | Bank: 1`;
+        stackBg = '#b7791f';
+      } else if (!isStackInv && isStackBank) {
+        stackBadge = `Inv: 1 | Bank: ${maxBank >= 999999 ? '∞' : maxBank}`;
+        stackBg = '#2c7a7b';
+      } else {
+        stackBadge = 'Non-stackable';
+        stackBg = '#742a2a';
+      }
 
       const card = document.createElement('div');
       card.className = 'editor-entity-card';

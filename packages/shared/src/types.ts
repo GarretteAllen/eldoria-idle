@@ -80,7 +80,11 @@ export interface ItemDefinition {
   vendorFloorPrice: number;
   description?: string;
   stackable?: boolean;
+  stackableInInventory?: boolean;
+  stackableInBank?: boolean;
   maxStack?: number;
+  maxStackInventory?: number;
+  maxStackBank?: number;
 }
 
 export interface InventorySlot {
