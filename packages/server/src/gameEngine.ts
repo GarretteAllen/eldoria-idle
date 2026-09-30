@@ -1535,7 +1535,7 @@ export class GameEngine {
               plotsChanged = true;
               this.send(ws, {
                 type: 'NOTIFICATION',
-                message: `🌱 ${plot.cropName} in ${plot.plotId} is fully grown and ready to harvest!`
+                message: `🌱 ${plot.cropName} is fully grown and ready to harvest!`
               });
             }
           }
@@ -1967,9 +1967,10 @@ export class GameEngine {
 
           task.completedQuantity++;
           const targetStr = task.targetQuantity === Infinity ? '' : ` (${task.completedQuantity}/${task.targetQuantity})`;
+          const plotDisplayName = (emptyPlotNode.name && !emptyPlotNode.name.startsWith('node_')) ? emptyPlotNode.name : 'Verdant Plot';
           this.send(ws, {
             type: 'NOTIFICATION',
-            message: `🌱 Sowed ${cropName} in ${emptyPlotNode.name || 'allotment'}.${targetStr}`
+            message: `🌱 Sowed ${cropName} in ${plotDisplayName}.${targetStr}`
           });
 
           if (task.completedQuantity >= task.targetQuantity) {

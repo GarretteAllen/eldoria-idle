@@ -1567,7 +1567,9 @@ export class WorldRenderer {
       ctx.fill();
 
       // Stylized nameplate badge
-      let text = node.name;
+      const defaultName = node.type === 'farm' ? 'Verdant Plot' : (node.type === 'fire' ? 'Campfire' : (node.type === 'forge' ? 'Forge' : 'Work Station'));
+      const friendlyName = (node.name && !node.name.startsWith('node_')) ? node.name : defaultName;
+      let text = friendlyName;
       const farmPlot = node.type === 'farm' ? this.localPlayer?.farmPlots?.[node.id] : null;
       if (farmPlot) {
         if (farmPlot.status === 'ready') {
@@ -1577,9 +1579,9 @@ export class WorldRenderer {
           text = `🌱 ${farmPlot.cropName} (${pct}%)`;
         }
       } else if (node.type === 'fire') {
-        text = `🔥 ${node.name}`;
+        text = `🔥 ${friendlyName}`;
       } else if (node.type === 'forge') {
-        text = `⚒️ ${node.name}`;
+        text = `⚒️ ${friendlyName}`;
       }
 
       ctx.font = isHearth ? '700 11px Inter, sans-serif' : '600 10px Inter, sans-serif';

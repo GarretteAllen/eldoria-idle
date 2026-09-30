@@ -3900,8 +3900,10 @@ class EldoriaClient {
       nodeForm.onsubmit = (e) => {
         e.preventDefault();
         const id = (document.getElementById('node-form-id') as HTMLInputElement).value || `node_${Date.now()}`;
-        const name = (document.getElementById('node-form-name') as HTMLInputElement).value.trim();
         const type = (document.getElementById('node-form-type') as HTMLSelectElement).value as any;
+        const rawName = (document.getElementById('node-form-name') as HTMLInputElement).value.trim();
+        const defaultName = type === 'farm' ? 'Verdant Plot' : (type === 'fire' ? 'Campfire' : (type === 'forge' ? 'Forge' : 'Work Station'));
+        const name = (!rawName || rawName.startsWith('node_')) ? defaultName : rawName;
         const recipeId = (document.getElementById('node-form-recipe') as HTMLSelectElement).value || undefined;
         const x = parseInt((document.getElementById('node-form-x') as HTMLInputElement).value, 10);
         const y = parseInt((document.getElementById('node-form-y') as HTMLInputElement).value, 10);
