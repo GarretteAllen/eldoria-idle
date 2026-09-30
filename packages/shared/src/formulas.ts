@@ -226,7 +226,26 @@ export function simulateOfflineCatchUp(
 
   const currentLevel = player.skills[recipe.skill]?.level || 1;
   const speedMult = getJobSpeedMultiplier(currentLevel, recipe.levelReq);
-  const effectiveInterval = Math.max(0.6, recipe.intervalSeconds / speedMult);
+
+  let toolBonus = 0;
+  if (recipe.skill === 'mining') {
+    const toolItem = player.equipment?.tool_pickaxe || player.equipment?.tool;
+    if (toolItem && ITEMS[toolItem.itemId]?.baseStats?.toolSpeedBonus) {
+      toolBonus = ITEMS[toolItem.itemId].baseStats!.toolSpeedBonus!;
+    }
+  } else if (recipe.skill === 'woodcutting') {
+    const toolItem = player.equipment?.tool_axe || player.equipment?.tool;
+    if (toolItem && ITEMS[toolItem.itemId]?.baseStats?.toolSpeedBonus) {
+      toolBonus = ITEMS[toolItem.itemId].baseStats!.toolSpeedBonus!;
+    }
+  } else if (recipe.skill === 'fishing') {
+    const toolItem = player.equipment?.tool_rod || player.equipment?.tool;
+    if (toolItem && ITEMS[toolItem.itemId]?.baseStats?.toolSpeedBonus) {
+      toolBonus = ITEMS[toolItem.itemId].baseStats!.toolSpeedBonus!;
+    }
+  }
+
+  const effectiveInterval = Math.max(0.6, recipe.intervalSeconds / (speedMult * (1 + toolBonus)));
 
   const potentialCycles = Math.floor(cappedElapsed / effectiveInterval);
   const remainingTarget = player.currentTask.targetQuantity - player.currentTask.completedQuantity;
