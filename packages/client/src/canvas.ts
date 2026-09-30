@@ -1,4 +1,4 @@
-import { PlayerData, NpcDefinition, WorldNode, ITEMS, MONSTERS, MONSTER_SPRITES, PLAYER_EQUIPMENT_SPRITES, EquipmentSpriteCoord, EquipSlot, InventorySlot } from '@eldoria/shared';
+import { PlayerData, NpcDefinition, WorldNode, ITEMS, MONSTERS, MONSTER_SPRITES, PLAYER_EQUIPMENT_SPRITES, EquipmentSpriteCoord, EquipSlot, InventorySlot, isTileInAnyLevel } from '@eldoria/shared';
 import { StitchedWorld } from './ldtkLoader.js';
 
 export interface RemotePlayer {
@@ -425,6 +425,9 @@ export class WorldRenderer {
 
       // 4. Ground click movement
       if (this.onGroundClick) {
+        if (this.stitchedWorld && !isTileInAnyLevel(tileX, tileY, this.stitchedWorld.levels)) {
+          return; // The Void is impassable!
+        }
         this.onGroundClick(tileX, tileY);
       }
     });

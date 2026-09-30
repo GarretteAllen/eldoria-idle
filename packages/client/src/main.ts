@@ -11,6 +11,7 @@ import {
   ItemDefinition,
   isItemStackable,
   getItemMaxStack,
+  isTileInAnyLevel,
 } from '@eldoria/shared';
 import { WorldRenderer, WorldNodeDisplay, TILE_SIZE } from './canvas.js';
 import { loadLdtkWorld } from './ldtkLoader.js';
@@ -177,6 +178,10 @@ class EldoriaClient {
       }
 
       this.renderer.onGroundClick = (tileX, tileY) => {
+        const world = this.renderer.getStitchedWorld();
+        if (world && !isTileInAnyLevel(tileX, tileY, world.levels)) {
+          return; // The Void is impassable!
+        }
         this.pendingNpcTarget = null;
         this.pendingMonsterTarget = null;
         this.pendingHearthTarget = null;
@@ -2862,7 +2867,9 @@ class EldoriaClient {
         if (this.player) {
           const targetX = this.player.x + dx;
           const targetY = this.player.y + dy;
-          if (!this.renderer.getCollisions().has(`${targetX},${targetY}`)) {
+          const world = this.renderer.getStitchedWorld();
+          const inVoid = world && !isTileInAnyLevel(targetX, targetY, world.levels);
+          if (!inVoid && !this.renderer.getCollisions().has(`${targetX},${targetY}`)) {
             this.pendingNpcTarget = null;
             this.pendingMonsterTarget = null;
             this.pendingHearthTarget = null;

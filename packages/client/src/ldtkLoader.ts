@@ -23,8 +23,8 @@ export interface StitchedWorld {
   overworldCanvas: HTMLCanvasElement;
 }
 
-export const ANCHOR_WORLD_X = 0;
-export const ANCHOR_WORLD_Y = -256;
+import { ANCHOR_WORLD_X, ANCHOR_WORLD_Y } from '@eldoria/shared';
+export { ANCHOR_WORLD_X, ANCHOR_WORLD_Y };
 
 export async function loadLdtkWorld(): Promise<StitchedWorld | null> {
   try {

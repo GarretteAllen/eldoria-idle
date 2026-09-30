@@ -8,3 +8,4 @@ export * from './monsterSprites.js';
 export * from './playerEquipmentSprites.js';
 export * from './formulas.js';
 export * from './farming.js';
+export * from './mapBounds.js';

@@ -3,7 +3,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import Database from 'better-sqlite3';
-import { PlayerData, SkillType, WorldNode, NpcDefinition, QuestDefinition, getLevelFromXp, ItemDefinition, ITEMS } from '@eldoria/shared';
+import { PlayerData, SkillType, WorldNode, NpcDefinition, QuestDefinition, getLevelFromXp, ItemDefinition, ITEMS, LevelBounds, parseLdtkLevelBounds, isTileInAnyLevel } from '@eldoria/shared';
 import { WORLD_NODES as DEFAULT_WORLD_NODES } from './world.js';
 
 function getProjectRoot(): string {
@@ -187,6 +187,7 @@ class StorageManager {
   private npcsCache: NpcDefinition[] = [];
   private questsCache: QuestDefinition[] = [];
   private collisionsCache = new Set<string>();
+  private levelBounds: LevelBounds[] = [];
 
   // Prepared Statements
   private stmtGetPlayer: Database.Statement;
@@ -299,6 +300,7 @@ class StorageManager {
 
     // Load active caches
     this.loadCaches();
+    this.loadLdtkMapBounds();
   }
 
   private initSchema() {
@@ -1018,7 +1020,34 @@ class StorageManager {
     return this.collisionsCache;
   }
 
+  public loadLdtkMapBounds() {
+    try {
+      const candidates = [
+        path.join(PROJECT_ROOT, 'packages', 'client', 'public', 'maps', 'world.ldtk'),
+        path.join(PROJECT_ROOT, 'client', 'public', 'maps', 'world.ldtk'),
+        path.join(process.cwd(), 'packages', 'client', 'public', 'maps', 'world.ldtk'),
+      ];
+      for (const p of candidates) {
+        if (fs.existsSync(p)) {
+          const raw = JSON.parse(fs.readFileSync(p, 'utf-8'));
+          this.levelBounds = parseLdtkLevelBounds(raw.levels);
+          console.log(`🗺️ Loaded ${this.levelBounds.length} LDtk map boundaries for void collision blocking.`);
+          break;
+        }
+      }
+    } catch (err) {
+      console.warn('Could not load LDtk map bounds for server void collisions', err);
+    }
+  }
+
+  public getLevelBounds(): LevelBounds[] {
+    return this.levelBounds;
+  }
+
   public isCollidable(x: number, y: number): boolean {
+    if (this.levelBounds.length > 0 && !isTileInAnyLevel(x, y, this.levelBounds)) {
+      return true; // The Void is impassable!
+    }
     return this.collisionsCache.has(`${x},${y}`);
   }
 
