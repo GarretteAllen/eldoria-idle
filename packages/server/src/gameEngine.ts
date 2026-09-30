@@ -265,6 +265,22 @@ export class GameEngine {
               nodeX = forgeNode.x;
               nodeY = forgeNode.y;
             }
+          } else if (rec.skill === 'farming') {
+            // Farming takes place at a Farm Plot
+            const farmNode = storage.getWorldNodes().find(n => n.type === 'farm');
+            if (farmNode) {
+              const adj = this.getAdjacentWalkableTile(player.x, player.y, farmNode.x, farmNode.y);
+              targetX = adj.x;
+              targetY = adj.y;
+              nodeX = farmNode.x;
+              nodeY = farmNode.y;
+            } else {
+              this.send(session.ws, {
+                type: 'NOTIFICATION',
+                message: 'No farm plot exists in the world. Place one via Admin Panel.'
+              });
+              break;
+            }
           } else if (storage.isCollidable(targetX, targetY)) {
             // If destination tile is collidable (e.g. water or obstacle), resolve adjacent walkable tile
             const adj = this.getAdjacentWalkableTile(player.x, player.y, targetX, targetY);
@@ -1387,6 +1403,25 @@ export class GameEngine {
                   message: `Returned to work on ${RECIPES[player.currentTask.recipeId]?.name || player.currentTask.skill}.`
                 });
               }
+            } else if (session.pendingTask) {
+              const rec = RECIPES[session.pendingTask.recipeId];
+              if (rec) {
+                player.currentTask = {
+                  recipeId: session.pendingTask.recipeId,
+                  skill: rec.skill,
+                  startedAtTick: this.tickCount,
+                  targetQuantity: session.pendingTask.quantity || Infinity,
+                  completedQuantity: 0,
+                  targetNodeX: session.pendingTask.nodeX ?? session.pendingTask.targetX,
+                  targetNodeY: session.pendingTask.nodeY ?? session.pendingTask.targetY,
+                };
+                session.ticksInTask = 0;
+                this.send(ws, {
+                  type: 'NOTIFICATION',
+                  message: `Arrived at ${rec.name}. Began work.`
+                });
+              }
+              session.pendingTask = null;
             }
           } else if (session.pendingCombat) {
             // Arrived adjacent to target monster!
@@ -1732,6 +1767,49 @@ export class GameEngine {
           newLevel: skillRecord.level,
         });
         storage.savePlayer(player);
+      }
+    }
+
+    // Check rare finds (bonus seed returns, celestial gems, etc.)
+    if (recipe.rareFinds) {
+      for (const rf of recipe.rareFinds) {
+        if (Math.random() < rf.chance) {
+          const rfItem = ITEMS[rf.itemId];
+          const existingSlot = player.inventory.find(s => s.itemId === rf.itemId && s.rarity === 'plain' && s.plus === 0);
+          if (existingSlot) {
+            existingSlot.quantity += 1;
+          } else if (player.inventory.length < 28) {
+            player.inventory.push({ itemId: rf.itemId, quantity: 1, rarity: 'plain', plus: 0 });
+          }
+          this.send(ws, {
+            type: 'NOTIFICATION',
+            message: `Bonus yield! Discovered ${rfItem?.name || rf.itemId}!`
+          });
+        }
+      }
+    }
+
+    // If farming, keep visual farm allotment state active
+    if (recipe.skill === 'farming') {
+      const farmNode = (task.targetNodeX !== undefined && task.targetNodeY !== undefined)
+        ? (storage.getWorldNodes().find(n => n.type === 'farm' && n.x === task.targetNodeX && n.y === task.targetNodeY) || storage.getWorldNodes().find(n => n.type === 'farm'))
+        : storage.getWorldNodes().find(n => n.type === 'farm');
+      if (farmNode) {
+        player.farmPlots = player.farmPlots || {};
+        player.farmPlots[farmNode.id] = {
+          plotId: farmNode.id,
+          seedId: recipe.inputs[0]?.itemId || 'earthtuber_seed',
+          cropId: recipe.outputItemId,
+          cropName: recipe.name.replace('Cultivate ', ''),
+          plantedAt: Date.now(),
+          baseDurationSeconds: 10,
+          effectiveProgressSeconds: 10,
+          lastUpdated: Date.now(),
+          status: 'ready',
+          minYield: recipe.outputQuantity,
+          maxYield: recipe.outputQuantity,
+          xp: recipe.xp,
+        };
       }
     }
 

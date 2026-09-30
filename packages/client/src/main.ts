@@ -1237,6 +1237,12 @@ class EldoriaClient {
         matchingNode = this.worldNodes.find(n => n.type === 'fire');
       } else if (rec.skill === 'smithing') {
         matchingNode = this.worldNodes.find(n => n.type === 'forge');
+      } else if (rec.skill === 'farming') {
+        matchingNode = this.worldNodes.find(n => n.type === 'farm');
+        if (!matchingNode) {
+          this.showToast('No farm plot found in the realm. Place one via Admin Editor.');
+          return;
+        }
       } else {
         matchingNode = this.worldNodes.find(n => n.recipeId === rec.id);
       }
@@ -1566,67 +1572,6 @@ class EldoriaClient {
     const jobsContainer = document.getElementById('popup-jobs-list')!;
     jobsContainer.innerHTML = '';
 
-    if (skillKey === 'farming') {
-      const jobsContainer = document.getElementById('popup-jobs-list')!;
-      jobsContainer.innerHTML = '';
-      
-      const howManyRow = document.querySelector('.how-many-row') as HTMLElement | null;
-      if (howManyRow) howManyRow.style.display = 'none';
-      const btnStart = document.getElementById('btn-job-start') as HTMLElement | null;
-      if (btnStart) btnStart.style.display = 'none';
-      const btnStop = document.getElementById('btn-job-stop') as HTMLElement | null;
-      if (btnStop) btnStop.style.display = 'none';
-      const popupNote = document.querySelector('.popup-note') as HTMLElement | null;
-      if (popupNote) {
-        popupNote.textContent = 'Plant seeds in farm plots. Crops grow while offline (1x) and faster while online (2x)!';
-      }
-      const jobsHeading = document.getElementById('popup-jobs-heading')!;
-      if (jobsHeading) jobsHeading.textContent = 'Crops & Flora';
-
-      const farmNode = this.worldNodes.find(n => n.type === 'farm');
-      
-      const cropsList = Object.values(FARMING_CROPS).sort((a, b) => a.levelReq - b.levelReq);
-      for (const crop of cropsList) {
-        const isUnlocked = record.level >= crop.levelReq;
-        const produceItem = ITEMS[crop.cropId];
-        const seedQty = this.player.inventory.find(s => s.itemId === crop.seedId)?.quantity || 0;
-        const durMin = Math.round(crop.baseDurationSeconds / 60);
-
-        const itemEl = document.createElement('div');
-        itemEl.className = `popup-job-item ${isUnlocked ? '' : 'locked'}`;
-        itemEl.innerHTML = `
-          <div class="job-item-icon-box">
-            ${ICONS.farming || '🌾'}
-          </div>
-          <div class="job-item-body">
-            <div class="job-name-wrap">
-              <span>${crop.name}</span>
-              ${crop.isHighXpMethod ? '<span class="farm-badge-high-xp" style="margin-left:6px; font-size:0.65rem; background:#742a2a; color:#feb2b2; padding:1px 5px; border-radius:3px;">High XP</span>' : ''}
-              ${farmNode ? `<button class="btn-job-where" type="button" title="Walk to Farm Plot">Go to Plot</button>` : ''}
-            </div>
-            <div class="job-details">
-              Produces ${produceItem?.name || crop.cropId} · Growth: ${durMin}m (offline) / ${Math.round(durMin / ONLINE_GROWTH_MULTIPLIER)}m (online) · Seeds: ${seedQty}
-            </div>
-          </div>
-          <div class="job-item-side">
-            <span class="job-rate">${isUnlocked ? `+${crop.xp} XP` : `<span style="color:#e53e3e;">Lv ${crop.levelReq}</span>`}</span>
-          </div>
-        `;
-
-        const whereBtn = itemEl.querySelector('.btn-job-where');
-        if (whereBtn && farmNode) {
-          whereBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            this.sendWs({ type: 'MOVE_TO', x: farmNode.x, y: farmNode.y });
-            this.showToast(`Traveling to Farm Allotment (${farmNode.x}, ${farmNode.y})`);
-            this.closeSkillJobPopup();
-          });
-        }
-        jobsContainer.appendChild(itemEl);
-      }
-      return;
-    }
-
     const skillRecipes = Object.values(RECIPES)
       .filter(r => r.skill === skillKey)
       .sort((a, b) => a.levelReq - b.levelReq);
@@ -1686,6 +1631,8 @@ class EldoriaClient {
         matchingNode = this.worldNodes.find(n => n.type === 'fire');
       } else if (recipe.skill === 'smithing') {
         matchingNode = this.worldNodes.find(n => n.type === 'forge');
+      } else if (recipe.skill === 'farming') {
+        matchingNode = this.worldNodes.find(n => n.type === 'farm');
       } else {
         matchingNode = this.worldNodes.find(n => n.recipeId === recipe.id);
         if (!matchingNode && recipe.inputs && recipe.inputs.length > 0) {
