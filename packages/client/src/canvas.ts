@@ -1711,19 +1711,17 @@ export class WorldRenderer {
       ctx.ellipse(px + 4, py + 14, 18, 7, 0, 0, Math.PI * 2);
       ctx.fill();
 
-      // Rider seated proudly in the saddle (elevated -21px + gallop bob so chest, arms, and armor emerge above saddle)
-      const riderY = -21 + gallopBob;
+      // Rider seated proudly in the saddle (elevated -19px + gallop bob so chest, arms, and armor connect seamlessly to mounted legs)
+      const riderY = -19 + gallopBob;
 
-      // 1. Base Body (bald, unclothed mannequin) - drawn BEHIND the horse!
+      // 1. Base Body (bald, unclothed mannequin) - seated in saddle
       drawLayer(getSprite('base_male'), 0, riderY);
 
-      // (Note: leg armor is intentionally omitted when mounted; the horse's body and saddle sits in front so character legs are not visible!)
-
-      // 2. Body Armor (only if equipped) - drawn BEHIND the horse!
+      // 2. Body Armor (only if equipped) - seated in saddle
       const bodyCoord = getSprite(equipment?.body?.itemId);
       if (bodyCoord) drawLayer(bodyCoord, 0, riderY);
 
-      // 3. Helmet / Hair - drawn BEHIND the horse!
+      // 3. Helmet / Hair - seated in saddle
       const helmCoord = getSprite(equipment?.helmet?.itemId);
       if (helmCoord) {
         drawLayer(helmCoord, 0, riderY);
@@ -1732,16 +1730,24 @@ export class WorldRenderer {
         if (hairCoord) drawLayer(hairCoord, 0, riderY);
       }
 
-      // 4. Steed Courser (IN FRONT of character's body & legs to completely cover them!)
+      // 4. Steed Courser (horse body, rump, legs, neck, head)
       // Pixel width is 27, screen width is 54 (offset -6 centers saddle at px, -12 grounds hooves)
       const steedCoord = getSprite(equipment?.steed?.itemId || 'steed_courser');
       drawLayer(steedCoord, -6, -12 + gallopBob);
 
-      // 5. Shield / Offhand (in front of horse)
+      // 5. Mounted Riding Leg (draped across horse flank: bent knee, greave/pants, boot resting in stirrup!)
+      const equippedLegId = equipment?.legs?.itemId;
+      const mountedLegKey = equippedLegId ? `mounted_${equippedLegId}` : 'mounted_bare_legs';
+      const mountedLegCoord = getSprite(mountedLegKey) || getSprite('mounted_tunic_pants');
+      if (mountedLegCoord) {
+        drawLayer(mountedLegCoord, -6, -12 + gallopBob);
+      }
+
+      // 6. Shield / Offhand (in front of horse and leg)
       const shieldCoord = getSprite(equipment?.shield?.itemId);
       if (shieldCoord) drawLayer(shieldCoord, 0, riderY);
 
-      // 6. Weapon (in front of horse)
+      // 7. Weapon (in front of horse and leg)
       const weaponCoord = getSprite(equipment?.weapon?.itemId);
       if (weaponCoord) {
         drawLayer(weaponCoord, 0, riderY);
@@ -1921,7 +1927,7 @@ export class WorldRenderer {
 
     // Overhead Name & Title & Badges Positioning
     // Shifted upwards cleanly so names never obscure player heads, tall helmets, or mounts!
-    const nameBaseY = isMounted ? py - 45 : py - 24;
+    const nameBaseY = isMounted ? py - 43 : py - 24;
     const titleY = nameBaseY - 11;
     const adminY = title ? titleY - 11 : nameBaseY - 11;
     const bankingY = (isAdmin ? adminY : (title ? titleY : nameBaseY)) - 12;

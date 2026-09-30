@@ -107,4 +107,15 @@ export const PLAYER_EQUIPMENT_SPRITES: Record<string, EquipmentSpriteCoord> = {
   silk_grimoire: { col: 8, row: 7, slot: 'shield' },
   gilded_grimoire: { col: 9, row: 7, slot: 'shield' },
   voidweave_grimoire: { col: 10, row: 7, slot: 'shield' },
+
+  // Mounted Riding Legs (draped across horse flank, knee bent, boot in stirrup)
+  mounted_tunic_pants: { col: 0, row: 8, slot: 'legs', pixelW: 27, pixelH: 23 },
+  mounted_leather_chaps: { col: 2, row: 8, slot: 'legs', pixelW: 27, pixelH: 23 },
+  mounted_dawnburn_legs: { col: 4, row: 8, slot: 'legs', pixelW: 27, pixelH: 23 },
+  mounted_cold_iron_legs: { col: 6, row: 8, slot: 'legs', pixelW: 27, pixelH: 23 },
+  mounted_steel_legs: { col: 8, row: 8, slot: 'legs', pixelW: 27, pixelH: 23 },
+  mounted_azurite_legs: { col: 10, row: 8, slot: 'legs', pixelW: 27, pixelH: 23 },
+  mounted_astralite_legs: { col: 12, row: 8, slot: 'legs', pixelW: 27, pixelH: 23 },
+  mounted_primordial_legs: { col: 14, row: 8, slot: 'legs', pixelW: 27, pixelH: 23 },
+  mounted_bare_legs: { col: 0, row: 10, slot: 'legs', pixelW: 27, pixelH: 23 },
 };
