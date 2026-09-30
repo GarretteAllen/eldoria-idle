@@ -1816,6 +1816,37 @@ export class WorldRenderer {
           const rod = equipment?.tool_rod || equipment?.tool;
           const toolCoord = getSprite(rod?.itemId) || getSprite('fishing_rod_willow');
           drawLayer(toolCoord, 0, breatheBob, rodTug);
+
+          // Subtle animated bobber & ripple in the water in front of player
+          const bobberBob = Math.sin(this.animTick * 0.007 + 1.2) * 2;
+          const bobberX = Math.round(px + 16);
+          const bobberY = Math.round(py + 16 + bobberBob);
+
+          // Expanding water ripple rings
+          const ripplePhase = (this.animTick * 0.002) % 1;
+          const rippleR = 2 + ripplePhase * 6;
+          const rippleAlpha = Math.max(0, (1 - ripplePhase) * 0.45);
+          ctx.strokeStyle = `rgba(180, 230, 255, ${rippleAlpha})`;
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.ellipse(bobberX, bobberY + 2, rippleR, rippleR * 0.4, 0, 0, Math.PI * 2);
+          ctx.stroke();
+
+          // Red & white fishing bobber float
+          ctx.fillStyle = '#e53e3e';
+          ctx.fillRect(bobberX - 2, bobberY - 2, 4, 2);
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(bobberX - 2, bobberY, 4, 2);
+
+          // Fine monofilament line from rod tip down into bobber
+          ctx.strokeStyle = 'rgba(255, 255, 255, 0.45)';
+          ctx.lineWidth = 0.75;
+          ctx.beginPath();
+          const tipX = px + 12 - Math.sin(rodTug) * 10;
+          const tipY = py - 8 + breatheBob + Math.cos(rodTug) * 4;
+          ctx.moveTo(tipX, tipY);
+          ctx.quadraticCurveTo((tipX + bobberX) / 2 + 1, (tipY + bobberY) / 2 + 3, bobberX, bobberY - 2);
+          ctx.stroke();
         } else if (taskSkill === 'melee' || taskSkill === 'ranged' || taskSkill === 'magic') {
           const weapon = equipment?.weapon;
           const weaponId = weapon?.itemId || '';

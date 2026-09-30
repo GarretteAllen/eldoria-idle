@@ -235,17 +235,21 @@ class EldoriaClient {
 
         if (node.recipeId) {
           const rec = RECIPES[node.recipeId];
-          if (rec) {
-            this.selectedSkillKey = rec.skill;
-            this.selectedRecipeId = rec.id;
-            this.openSkillJobPopup(rec.skill, rec.id);
-          }
+          const dist = this.player ? Math.hypot(this.player.x - node.x, this.player.y - node.y) : 999;
+          // Stop 1 tile outside the spot on walkable ground (or remain in place if already adjacent)
+          const target = (dist <= 1.5 && this.player)
+            ? { x: Math.round(this.player.x), y: Math.round(this.player.y) }
+            : this.getAdjacentWalkableTile(node.x, node.y);
+
           this.sendWs({
             type: 'START_TASK',
             recipeId: node.recipeId,
-            targetX: node.x,
-            targetY: node.y,
+            targetX: target.x,
+            targetY: target.y,
+            nodeX: node.x,
+            nodeY: node.y,
           });
+          this.showToast(rec ? `Gathering ${rec.name}...` : `Working at ${node.name}...`);
         } else {
           this.sendWs({ type: 'MOVE_TO', x: node.x, y: node.y });
         }
@@ -1130,8 +1134,21 @@ class EldoriaClient {
       if (!rec) return;
 
       const matchingNode = this.worldNodes.find(n => n.recipeId === rec.id);
-      const targetX = matchingNode ? matchingNode.x : this.player!.x;
-      const targetY = matchingNode ? matchingNode.y : this.player!.y;
+      let targetX = this.player!.x;
+      let targetY = this.player!.y;
+      let nodeX = targetX;
+      let nodeY = targetY;
+
+      if (matchingNode) {
+        nodeX = matchingNode.x;
+        nodeY = matchingNode.y;
+        const dist = Math.hypot(this.player!.x - matchingNode.x, this.player!.y - matchingNode.y);
+        const walkable = dist <= 1.5
+          ? { x: Math.round(this.player!.x), y: Math.round(this.player!.y) }
+          : this.getAdjacentWalkableTile(matchingNode.x, matchingNode.y);
+        targetX = walkable.x;
+        targetY = walkable.y;
+      }
 
       this.sendWs({
         type: 'START_TASK',
@@ -1139,6 +1156,8 @@ class EldoriaClient {
         quantity: this.selectedJobQuantity,
         targetX,
         targetY,
+        nodeX,
+        nodeY,
       });
 
       this.closeSkillJobPopup();

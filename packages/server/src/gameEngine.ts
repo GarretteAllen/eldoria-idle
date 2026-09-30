@@ -26,7 +26,7 @@ interface ConnectedSession {
   player: PlayerData;
   ticksInTask: number;
   moveAccumulator: number;
-  pendingTask: { recipeId: string; targetX: number; targetY: number; quantity?: number } | null;
+  pendingTask: { recipeId: string; targetX: number; targetY: number; quantity?: number; nodeX?: number; nodeY?: number } | null;
   pendingDeposit?: { itemId: string; rarity?: string; plus?: number; quantity?: number } | null;
   pendingCombat?: { monsterId: string; targetX: number; targetY: number; nodeId?: string } | null;
   activeCombat?: {
@@ -184,8 +184,17 @@ export class GameEngine {
       case 'START_TASK':
         if (msg.recipeId && RECIPES[msg.recipeId]) {
           const rec = RECIPES[msg.recipeId];
-          const targetX = typeof msg.targetX === 'number' ? msg.targetX : player.x;
-          const targetY = typeof msg.targetY === 'number' ? msg.targetY : player.y;
+          let targetX = typeof msg.targetX === 'number' ? msg.targetX : player.x;
+          let targetY = typeof msg.targetY === 'number' ? msg.targetY : player.y;
+          const nodeX = typeof msg.nodeX === 'number' ? msg.nodeX : targetX;
+          const nodeY = typeof msg.nodeY === 'number' ? msg.nodeY : targetY;
+
+          // If destination tile is collidable (e.g. water or obstacle), resolve adjacent walkable tile
+          if (storage.isCollidable(targetX, targetY)) {
+            const adj = this.getAdjacentWalkableTile(player.x, player.y, targetX, targetY);
+            targetX = adj.x;
+            targetY = adj.y;
+          }
 
           // Check if crafting recipe needs inputs not in bag
           const hasInputsInBag = !rec.inputs || rec.inputs.length === 0 || rec.inputs.every(inp => {
@@ -200,7 +209,7 @@ export class GameEngine {
 
             if (hasInStorage) {
               // Path to Hearth to withdraw materials first, then go to work!
-              session.pendingTask = { recipeId: msg.recipeId, targetX, targetY, quantity: msg.quantity };
+              session.pendingTask = { recipeId: msg.recipeId, targetX, targetY, quantity: msg.quantity, nodeX, nodeY };
               const hearth = this.getHearthLocation(player.x, player.y);
               const pathToHearth = this.findPathWithCollisions(player.x, player.y, hearth.x, hearth.y);
               player.targetX = hearth.x;
@@ -225,38 +234,44 @@ export class GameEngine {
           }
 
           // If not adjacent to or on the node, walk there first!
-          const dist = Math.hypot(player.x - targetX, player.y - targetY);
-          if (dist > 1.5) {
-            session.pendingTask = { recipeId: msg.recipeId, targetX, targetY, quantity: msg.quantity };
+          const distToDest = Math.hypot(player.x - targetX, player.y - targetY);
+          const distToNode = Math.hypot(player.x - nodeX, player.y - nodeY);
+          const isAdjacent = distToDest <= 1.5 || distToNode <= 1.5;
+
+          if (!isAdjacent) {
             const path = this.findPathWithCollisions(player.x, player.y, targetX, targetY);
-            player.targetX = targetX;
-            player.targetY = targetY;
-            player.path = path;
-            player.isMoving = true;
-            this.send(session.ws, {
-              type: 'NOTIFICATION',
-              message: `Traveling to ${RECIPES[msg.recipeId].name}... (${path.length} steps)`
-            });
-            this.send(session.ws, { type: 'PLAYER_UPDATE', player });
-            this.broadcastWorldState();
-          } else {
-            // Already there -> start immediately
-            player.currentTask = {
-              recipeId: msg.recipeId,
-              skill: rec.skill,
-              startedAtTick: this.tickCount,
-              targetQuantity: msg.quantity || Infinity,
-              completedQuantity: 0,
-              targetNodeX: targetX,
-              targetNodeY: targetY,
-            };
-            session.ticksInTask = 0;
-            session.pendingTask = null;
-            player.isMoving = false;
-            player.path = [];
-            this.send(session.ws, { type: 'PLAYER_UPDATE', player });
-            this.broadcastWorldState();
+            if (path.length > 0) {
+              session.pendingTask = { recipeId: msg.recipeId, targetX, targetY, quantity: msg.quantity, nodeX, nodeY };
+              player.targetX = targetX;
+              player.targetY = targetY;
+              player.path = path;
+              player.isMoving = true;
+              this.send(session.ws, {
+                type: 'NOTIFICATION',
+                message: `Traveling to ${RECIPES[msg.recipeId].name}... (${path.length} steps)`
+              });
+              this.send(session.ws, { type: 'PLAYER_UPDATE', player });
+              this.broadcastWorldState();
+              break;
+            }
           }
+
+          // Already adjacent / arrived -> start immediately
+          player.currentTask = {
+            recipeId: msg.recipeId,
+            skill: rec.skill,
+            startedAtTick: this.tickCount,
+            targetQuantity: msg.quantity || Infinity,
+            completedQuantity: 0,
+            targetNodeX: nodeX,
+            targetNodeY: nodeY,
+          };
+          session.ticksInTask = 0;
+          session.pendingTask = null;
+          player.isMoving = false;
+          player.path = [];
+          this.send(session.ws, { type: 'PLAYER_UPDATE', player });
+          this.broadcastWorldState();
         }
         break;
 
@@ -1101,10 +1116,10 @@ export class GameEngine {
                 recipeId: session.pendingTask.recipeId,
                 skill: rec.skill,
                 startedAtTick: this.tickCount,
-                targetQuantity: Infinity,
+                targetQuantity: session.pendingTask.quantity || Infinity,
                 completedQuantity: 0,
-                targetNodeX: session.pendingTask.targetX,
-                targetNodeY: session.pendingTask.targetY,
+                targetNodeX: session.pendingTask.nodeX ?? session.pendingTask.targetX,
+                targetNodeY: session.pendingTask.nodeY ?? session.pendingTask.targetY,
               };
               session.ticksInTask = 0;
               this.send(ws, {
@@ -1266,10 +1281,15 @@ export class GameEngine {
     }
 
     // Walk back to previous task node or pending target node!
-    const destX = player.bankReturnTask ? player.bankReturnTask.targetNodeX : (session.pendingTask ? session.pendingTask.targetX : undefined);
-    const destY = player.bankReturnTask ? player.bankReturnTask.targetNodeY : (session.pendingTask ? session.pendingTask.targetY : undefined);
+    let destX = player.bankReturnTask ? player.bankReturnTask.targetNodeX : (session.pendingTask ? session.pendingTask.targetX : undefined);
+    let destY = player.bankReturnTask ? player.bankReturnTask.targetNodeY : (session.pendingTask ? session.pendingTask.targetY : undefined);
 
     if (typeof destX === 'number' && typeof destY === 'number') {
+      if (storage.isCollidable(destX, destY)) {
+        const adj = this.getAdjacentWalkableTile(player.x, player.y, destX, destY);
+        destX = adj.x;
+        destY = adj.y;
+      }
       player.bankingState = 'returning_to_work';
       const path = this.findPathWithCollisions(player.x, player.y, destX, destY);
       player.path = path;
