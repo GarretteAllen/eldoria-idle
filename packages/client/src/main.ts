@@ -8,8 +8,6 @@ import {
   getXpToNextLevel,
   NpcDefinition,
   QuestDefinition,
-  FARMING_CROPS,
-  ONLINE_GROWTH_MULTIPLIER,
   ItemDefinition,
   isItemStackable,
   getItemMaxStack,
@@ -74,9 +72,8 @@ class EldoriaClient {
   private pendingNpcTarget: NpcDefinition | null = null;
   private pendingMonsterTarget: WorldNodeDisplay | null = null;
   private pendingHearthTarget: WorldNodeDisplay | null = null;
-  private pendingStationTarget: { type: 'fire' | 'forge'; node: WorldNodeDisplay } | null = null;
-  private pendingFarmTarget: WorldNodeDisplay | null = null;
-  private currentSelectedFarmNode: WorldNodeDisplay | null = null;
+  private pendingStationTarget: { type: 'fire' | 'forge' | 'farm'; node: WorldNodeDisplay } | null = null;
+  private selectedStationNode: WorldNodeDisplay | null = null;
   private activeCombatMonster: {
     id: string;
     name: string;
@@ -184,7 +181,6 @@ class EldoriaClient {
         this.pendingMonsterTarget = null;
         this.pendingHearthTarget = null;
         this.pendingStationTarget = null;
-        this.pendingFarmTarget = null;
         this.sendWs({ type: 'MOVE_TO', x: tileX, y: tileY });
       };
 
@@ -193,7 +189,6 @@ class EldoriaClient {
         this.pendingMonsterTarget = null;
         this.pendingHearthTarget = null;
         this.pendingStationTarget = null;
-        this.pendingFarmTarget = null;
         const dist = Math.hypot(this.player.x - npc.x, this.player.y - npc.y);
         if (dist <= 1.5) {
           // Already adjacent / at NPC: talk immediately
@@ -212,7 +207,6 @@ class EldoriaClient {
         this.pendingNpcTarget = null;
         this.pendingHearthTarget = null;
         this.pendingStationTarget = null;
-        this.pendingFarmTarget = null;
 
         // MONSTER / ENEMY: Stop one tile before the enemy, and then attack it!
         if (node.type === 'monster') {
@@ -264,9 +258,11 @@ class EldoriaClient {
           const dist = Math.hypot(this.player.x - node.x, this.player.y - node.y);
           if (dist <= 1.5) {
             this.pendingStationTarget = null;
+            this.selectedStationNode = node;
             this.openSkillJobPopup('cooking');
           } else {
             this.pendingStationTarget = { type: 'fire', node };
+            this.selectedStationNode = node;
             const target = this.getAdjacentWalkableTile(node.x, node.y);
             this.sendWs({ type: 'MOVE_TO', x: target.x, y: target.y });
             this.showToast(`Walking to ${node.name}...`);
@@ -280,9 +276,11 @@ class EldoriaClient {
           const dist = Math.hypot(this.player.x - node.x, this.player.y - node.y);
           if (dist <= 1.5) {
             this.pendingStationTarget = null;
+            this.selectedStationNode = node;
             this.openSkillJobPopup('smithing');
           } else {
             this.pendingStationTarget = { type: 'forge', node };
+            this.selectedStationNode = node;
             const target = this.getAdjacentWalkableTile(node.x, node.y);
             this.sendWs({ type: 'MOVE_TO', x: target.x, y: target.y });
             this.showToast(`Walking to ${node.name}...`);
@@ -290,15 +288,17 @@ class EldoriaClient {
           return;
         }
 
-        // UNIVERSAL FARM PLOT: Walk adjacent to farm plot, then open Farm Allotment Modal!
+        // UNIVERSAL FARM PLOT: Walk adjacent to farm plot, then open Farming Skill Job Directory!
         if (node.type === 'farm') {
           if (!this.player) return;
           const dist = Math.hypot(this.player.x - node.x, this.player.y - node.y);
           if (dist <= 1.5) {
-            this.pendingFarmTarget = null;
-            this.openFarmPlotModal(node);
+            this.pendingStationTarget = null;
+            this.selectedStationNode = node;
+            this.openSkillJobPopup('farming');
           } else {
-            this.pendingFarmTarget = node;
+            this.pendingStationTarget = { type: 'farm', node };
+            this.selectedStationNode = node;
             const target = this.getAdjacentWalkableTile(node.x, node.y);
             this.sendWs({ type: 'MOVE_TO', x: target.x, y: target.y });
             this.showToast(`Walking to ${node.name}...`);
@@ -554,29 +554,15 @@ class EldoriaClient {
           }
         }
 
-        // Check if arrived adjacent to clicked Firepit or Forge
+        // Check if arrived adjacent to clicked Firepit, Forge, or Farm Plot
         if (this.pendingStationTarget && this.player) {
           const dist = Math.hypot(this.player.x - this.pendingStationTarget.node.x, this.player.y - this.pendingStationTarget.node.y);
           if (dist <= 1.5) {
             const st = this.pendingStationTarget;
             this.pendingStationTarget = null;
-            this.openSkillJobPopup(st.type === 'fire' ? 'cooking' : 'smithing');
+            this.selectedStationNode = st.node;
+            this.openSkillJobPopup(st.type === 'fire' ? 'cooking' : (st.type === 'forge' ? 'smithing' : 'farming'));
           }
-        }
-
-        // Check if arrived adjacent to clicked Farm Plot
-        if (this.pendingFarmTarget && this.player) {
-          const dist = Math.hypot(this.player.x - this.pendingFarmTarget.x, this.player.y - this.pendingFarmTarget.y);
-          if (dist <= 1.5) {
-            const farmNode = this.pendingFarmTarget;
-            this.pendingFarmTarget = null;
-            this.openFarmPlotModal(farmNode);
-          }
-        }
-
-        // Real-time update open farm plot modal
-        if (this.currentSelectedFarmNode) {
-          this.updateFarmPlotModal();
         }
         break;
 
@@ -1257,10 +1243,16 @@ class EldoriaClient {
       } else if (rec.skill === 'smithing') {
         matchingNode = this.worldNodes.find(n => n.type === 'forge');
       } else if (rec.skill === 'farming') {
-        matchingNode = this.worldNodes.find(n => n.type === 'farm');
-        if (!matchingNode) {
+        const farmNodes = this.worldNodes.filter(n => n.type === 'farm');
+        if (farmNodes.length === 0) {
           this.showToast('No farm plot found in the realm. Place one via Admin Editor.');
           return;
+        }
+        if (this.selectedStationNode && this.selectedStationNode.type === 'farm') {
+          matchingNode = this.selectedStationNode;
+        } else {
+          farmNodes.sort((a, b) => Math.hypot(this.player!.x - a.x, this.player!.y - a.y) - Math.hypot(this.player!.x - b.x, this.player!.y - b.y));
+          matchingNode = farmNodes[0];
         }
       } else {
         matchingNode = this.worldNodes.find(n => n.recipeId === rec.id);
@@ -2485,21 +2477,6 @@ class EldoriaClient {
       };
     }
 
-    const farmPlotClose = document.getElementById('farm-plot-close-btn');
-    if (farmPlotClose) {
-      farmPlotClose.onclick = () => {
-        this.closeFarmPlotModal();
-      };
-    }
-
-    const farmPlotModal = document.getElementById('farm-plot-modal');
-    if (farmPlotModal) {
-      farmPlotModal.addEventListener('click', (e) => {
-        if (e.target === farmPlotModal) {
-          this.closeFarmPlotModal();
-        }
-      });
-    }
 
     const btnActionDeposit = document.getElementById('btn-action-deposit');
     if (btnActionDeposit) {
@@ -4642,195 +4619,6 @@ class EldoriaClient {
     }
 
     modal.classList.remove('hidden');
-  }
-
-  private openFarmPlotModal(node: WorldNodeDisplay) {
-    this.currentSelectedFarmNode = node;
-    const modal = document.getElementById('farm-plot-modal');
-    if (!modal) return;
-    modal.classList.remove('hidden');
-    this.updateFarmPlotModal();
-  }
-
-  private closeFarmPlotModal() {
-    this.currentSelectedFarmNode = null;
-    const modal = document.getElementById('farm-plot-modal');
-    if (modal) {
-      modal.classList.add('hidden');
-    }
-  }
-
-  private updateFarmPlotModal() {
-    if (!this.player || !this.currentSelectedFarmNode) return;
-    const node = this.currentSelectedFarmNode;
-    const plotTitle = document.getElementById('farm-plot-title');
-    if (plotTitle) plotTitle.textContent = node.name || 'Verdant Allotment';
-
-    const farmSkill = this.player.skills.farming || { level: 1, xp: 0 };
-    const { percent } = getXpToNextLevel(farmSkill.level, farmSkill.xp);
-    const plotLvl = document.getElementById('farm-plot-level');
-    if (plotLvl) {
-      plotLvl.textContent = `Farming Level ${farmSkill.level} • ${farmSkill.xp} XP (${percent.toFixed(1)}% to Lv ${farmSkill.level + 1})`;
-    }
-
-    const container = document.getElementById('farm-plot-content');
-    if (!container) return;
-
-    const plot = this.player.farmPlots?.[node.id];
-
-    if (plot) {
-      if (plot.status === 'ready') {
-        container.innerHTML = `
-          <div class="farm-state-box" style="border-color: #d69e2e; background: rgba(183, 121, 31, 0.15); text-align: center; padding: 20px;">
-            <div style="font-size: 2.2rem; margin-bottom: 6px;">🌾</div>
-            <div style="font-size: 1.15rem; font-weight: 700; color: var(--gold-bright);">
-              Harvest Ready: ${plot.cropName}
-            </div>
-            <div style="color: #cbd5e0; font-size: 0.85rem; margin-top: 4px;">
-              Yields: <b>${plot.minYield} - ${plot.maxYield}</b> crops • <span style="color: #68d391; font-weight: 600;">+${plot.xp} Farming XP</span>
-            </div>
-            <div style="margin-top: 16px;">
-              <button class="btn-harvest-big" id="btn-farm-harvest" style="padding: 10px 24px; font-size: 1rem; font-weight: 700; background: #38a169; border-radius: 6px; cursor: pointer; color: #fff; border: 1px solid #48bb78; box-shadow: 0 4px 12px rgba(56, 161, 105, 0.4);">
-                🌾 Harvest Crop
-              </button>
-            </div>
-          </div>
-        `;
-        const btnHarvest = container.querySelector('#btn-farm-harvest') as HTMLButtonElement | null;
-        if (btnHarvest) {
-          btnHarvest.onclick = () => {
-            this.sendWs({ type: 'HARVEST_PLOT', plotId: plot.plotId });
-            sound.play('eat');
-            this.renderer.spawnParticles(this.player!.x, this.player!.y, 10, 'wood');
-          };
-        }
-        return;
-      }
-
-      if (plot.status === 'growing') {
-        const pct = Math.min(100, Math.round((plot.effectiveProgressSeconds / Math.max(1, plot.baseDurationSeconds)) * 100));
-        const remSeconds = Math.max(0, Math.round((plot.baseDurationSeconds - plot.effectiveProgressSeconds) / ONLINE_GROWTH_MULTIPLIER));
-        const remMin = Math.floor(remSeconds / 60);
-        const remSec = remSeconds % 60;
-
-        container.innerHTML = `
-          <div class="farm-state-box" style="border-color: #2b6cb0; background: rgba(43, 108, 176, 0.12); padding: 18px;">
-            <div style="display: flex; align-items: center; justify-content: space-between;">
-              <div style="display: flex; align-items: center; gap: 8px;">
-                <span style="font-size: 1.6rem;">🌱</span>
-                <div>
-                  <div style="font-weight: 700; color: #63b3ed; font-size: 1rem;">${plot.cropName}</div>
-                  <div style="font-size: 0.76rem; color: #a0aec0;">Growing actively in allotment</div>
-                </div>
-              </div>
-              <div style="text-align: right;">
-                <span style="font-size: 1.1rem; font-weight: 700; color: #48bb78;">${pct}%</span>
-              </div>
-            </div>
-
-            <div class="farm-growth-bar-wrap" style="height: 10px; background: #1a202c; border-radius: 5px; overflow: hidden; margin: 12px 0; border: 1px solid #2d3748;">
-              <div class="farm-growth-bar-fill" style="width: ${pct}%; height: 100%; background: linear-gradient(90deg, #38a169, #48bb78); transition: width 0.3s ease;"></div>
-            </div>
-
-            <div style="display: flex; justify-content: space-between; font-size: 0.75rem; color: #cbd5e0;">
-              <span>Time remaining: ~<b>${remMin}m ${remSec}s</b></span>
-              <span style="color: #ecc94b; font-weight: 600;">⚡ 2x Online Speed Active</span>
-            </div>
-
-            <div style="margin-top: 10px; font-size: 0.72rem; color: #718096; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 8px;">
-              ℹ️ Growth continues offline at 1x real-time speed. Playing online accelerates growth to 2x speed!
-            </div>
-          </div>
-        `;
-        return;
-      }
-    }
-
-    // Plot is empty -> allow planting seeds
-    const totalSeeds = Object.values(FARMING_CROPS).reduce((sum, crop) => {
-      return sum + (this.player!.inventory.find(s => s.itemId === crop.seedId)?.quantity || 0);
-    }, 0);
-
-    let html = `
-      <div style="margin-bottom: 12px; font-size: 0.8rem; color: #a0aec0;">
-        Soil is tilled and enriched. Select seeds from your supplies to sow into this plot:
-      </div>
-    `;
-
-    if (totalSeeds === 0) {
-      html += `
-        <div style="background: rgba(43, 108, 176, 0.2); border: 1px solid #2b6cb0; border-radius: 6px; padding: 10px 14px; margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between;">
-          <span style="font-size: 0.78rem; color: #bee3f8;">Need seeds to get started? Claim 5 free Earthtuber seeds:</span>
-          <button id="btn-claim-seeds" class="btn-start" style="font-size: 0.74rem; padding: 4px 10px; white-space: nowrap;">🌿 Claim Starter Seeds</button>
-        </div>
-      `;
-    }
-
-    html += `<div class="farm-seed-grid" style="display: flex; flex-direction: column; gap: 8px; max-height: 340px; overflow-y: auto; padding-right: 4px;">`;
-
-    const cropList = Object.values(FARMING_CROPS).sort((a, b) => a.levelReq - b.levelReq);
-    for (const crop of cropList) {
-      const isUnlocked = farmSkill.level >= crop.levelReq;
-      const seedItem = ITEMS[crop.seedId];
-      const produceItem = ITEMS[crop.cropId];
-      const seedQty = this.player.inventory.find(s => s.itemId === crop.seedId)?.quantity || 0;
-      const durMinOffline = Math.round(crop.baseDurationSeconds / 60);
-      const durMinOnline = Math.round(durMinOffline / ONLINE_GROWTH_MULTIPLIER);
-
-      html += `
-        <div class="farm-seed-row ${!isUnlocked ? 'locked' : ''}" style="background: rgba(20, 20, 26, 0.75); border: 1px solid #3d3429; border-radius: 6px; padding: 8px 12px; display: flex; align-items: center; justify-content: space-between; gap: 8px;">
-          <div style="display: flex; align-items: center; gap: 10px;">
-            <div style="font-size: 1.4rem;">🌾</div>
-            <div>
-              <div style="display: flex; align-items: center; gap: 6px;">
-                <span style="font-weight: 700; color: #ffd699; font-size: 0.88rem;">${crop.name}</span>
-                ${crop.isHighXpMethod ? `<span style="font-size: 0.65rem; background: #742a2a; color: #feb2b2; padding: 1px 5px; border-radius: 3px; font-weight: 600;">High XP</span>` : ''}
-              </div>
-              <div style="font-size: 0.72rem; color: #a0aec0; margin-top: 2px;">
-                Yield: ${crop.minYield}-${crop.maxYield} ${produceItem?.name || crop.cropId} • Growth: ${durMinOffline}m (offline) / ${durMinOnline}m (online)
-              </div>
-              <div style="font-size: 0.7rem; color: #718096; margin-top: 1px;">
-                In pouch: <b style="color: ${seedQty > 0 ? '#68d391' : '#e53e3e'};">${seedQty}x</b> ${seedItem?.name || crop.seedId}
-              </div>
-            </div>
-          </div>
-          <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 4px;">
-            <span style="font-size: 0.75rem; color: #68d391; font-weight: 600;">+${crop.xp} XP</span>
-            ${!isUnlocked 
-              ? `<span style="font-size: 0.72rem; color: #e53e3e; font-weight: 700;">Lv ${crop.levelReq}</span>`
-              : seedQty > 0
-                ? `<button class="btn-start btn-plant-seed" data-seed="${crop.seedId}" style="padding: 3px 12px; font-size: 0.75rem;">🌱 Sow</button>`
-                : `<span style="font-size: 0.7rem; color: #718096;">No seeds</span>`
-            }
-          </div>
-        </div>
-      `;
-    }
-
-    html += `</div>`;
-    container.innerHTML = html;
-
-    const btnClaim = container.querySelector('#btn-claim-seeds') as HTMLButtonElement | null;
-    if (btnClaim) {
-      btnClaim.onclick = () => {
-        this.sendWs({ type: 'CLAIM_STARTER_SEEDS' });
-      };
-    }
-
-    const plantBtns = container.querySelectorAll('.btn-plant-seed');
-    plantBtns.forEach(btn => {
-      btn.addEventListener('click', () => {
-        const seedId = btn.getAttribute('data-seed');
-        if (seedId && this.currentSelectedFarmNode) {
-          this.sendWs({
-            type: 'PLANT_PLOT',
-            plotId: this.currentSelectedFarmNode.id,
-            seedId,
-          });
-          sound.play('woodcut');
-        }
-      });
-    });
   }
 }
 

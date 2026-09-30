@@ -265,20 +265,24 @@ export class GameEngine {
             }
           } else if (rec.skill === 'farming') {
             // Farming takes place at a Farm Plot
-            const farmNode = storage.getWorldNodes().find(n => n.type === 'farm');
-            if (farmNode) {
-              const adj = this.getAdjacentWalkableTile(player.x, player.y, farmNode.x, farmNode.y);
-              targetX = adj.x;
-              targetY = adj.y;
-              nodeX = farmNode.x;
-              nodeY = farmNode.y;
-            } else {
+            const farmNodes = storage.getWorldNodes().filter(n => n.type === 'farm');
+            if (farmNodes.length === 0) {
               this.send(session.ws, {
                 type: 'NOTIFICATION',
                 message: 'No farm plot exists in the world. Place one via Admin Panel.'
               });
               break;
             }
+            let farmNode = farmNodes.find(n => Math.hypot(n.x - nodeX, n.y - nodeY) < 1.0);
+            if (!farmNode) {
+              farmNodes.sort((a, b) => Math.hypot(player.x - a.x, player.y - a.y) - Math.hypot(player.x - b.x, player.y - b.y));
+              farmNode = farmNodes[0];
+            }
+            const adj = this.getAdjacentWalkableTile(player.x, player.y, farmNode.x, farmNode.y);
+            targetX = adj.x;
+            targetY = adj.y;
+            nodeX = farmNode.x;
+            nodeY = farmNode.y;
           } else if (storage.isCollidable(targetX, targetY)) {
             // If destination tile is collidable (e.g. water or obstacle), resolve adjacent walkable tile
             const adj = this.getAdjacentWalkableTile(player.x, player.y, targetX, targetY);
@@ -287,7 +291,10 @@ export class GameEngine {
           }
 
           // Check if crafting recipe needs inputs not in bag
-          const hasInputsInBag = !rec.inputs || rec.inputs.length === 0 || rec.inputs.every(inp => {
+          const hasReadyPlots = rec.skill === 'farming' && player.farmPlots &&
+            Object.values(player.farmPlots).some(p => p.status === 'ready');
+
+          const hasInputsInBag = hasReadyPlots || !rec.inputs || rec.inputs.length === 0 || rec.inputs.every(inp => {
             const slot = player.inventory.find(s => s.itemId === inp.itemId && s.quantity >= inp.quantity);
             return !!slot;
           });
@@ -360,6 +367,9 @@ export class GameEngine {
           session.pendingTask = null;
           player.isMoving = false;
           player.path = [];
+          if (rec.skill === 'farming') {
+            this.executeFarmingTaskCycle(session, rec);
+          }
           this.send(session.ws, { type: 'PLAYER_UPDATE', player });
           this.broadcastWorldState();
         }
@@ -1402,6 +1412,10 @@ export class GameEngine {
                   type: 'NOTIFICATION',
                   message: `Returned to work on ${RECIPES[player.currentTask.recipeId]?.name || player.currentTask.skill}.`
                 });
+                if (player.currentTask.skill === 'farming') {
+                  const rec = RECIPES[player.currentTask.recipeId];
+                  if (rec) this.executeFarmingTaskCycle(session, rec);
+                }
               }
             } else if (session.pendingTask) {
               const rec = RECIPES[session.pendingTask.recipeId];
@@ -1420,6 +1434,9 @@ export class GameEngine {
                   type: 'NOTIFICATION',
                   message: `Arrived at ${rec.name}. Began work.`
                 });
+                if (rec.skill === 'farming') {
+                  this.executeFarmingTaskCycle(session, rec);
+                }
               }
               session.pendingTask = null;
             }
@@ -1446,6 +1463,9 @@ export class GameEngine {
                 type: 'NOTIFICATION',
                 message: `Arrived at ${rec.name}. Began work.`
               });
+              if (rec.skill === 'farming') {
+                this.executeFarmingTaskCycle(session, rec);
+              }
             }
             session.pendingTask = null;
           }
@@ -1661,6 +1681,11 @@ export class GameEngine {
   }
 
   private executeTaskCycle(session: ConnectedSession, recipe: RecipeDefinition) {
+    if (recipe.skill === 'farming') {
+      this.executeFarmingTaskCycle(session, recipe);
+      return;
+    }
+
     const { player, ws } = session;
     const task = player.currentTask!;
 
@@ -1777,30 +1802,6 @@ export class GameEngine {
       }
     }
 
-    // If farming, keep visual farm allotment state active
-    if (recipe.skill === 'farming') {
-      const farmNode = (task.targetNodeX !== undefined && task.targetNodeY !== undefined)
-        ? (storage.getWorldNodes().find(n => n.type === 'farm' && n.x === task.targetNodeX && n.y === task.targetNodeY) || storage.getWorldNodes().find(n => n.type === 'farm'))
-        : storage.getWorldNodes().find(n => n.type === 'farm');
-      if (farmNode) {
-        player.farmPlots = player.farmPlots || {};
-        player.farmPlots[farmNode.id] = {
-          plotId: farmNode.id,
-          seedId: recipe.inputs[0]?.itemId || 'earthtuber_seed',
-          cropId: recipe.outputItemId,
-          cropName: recipe.name.replace('Cultivate ', ''),
-          plantedAt: Date.now(),
-          baseDurationSeconds: 10,
-          effectiveProgressSeconds: 10,
-          lastUpdated: Date.now(),
-          status: 'ready',
-          minYield: recipe.outputQuantity,
-          maxYield: recipe.outputQuantity,
-          xp: recipe.xp,
-        };
-      }
-    }
-
     task.completedQuantity++;
     if (task.completedQuantity >= task.targetQuantity) {
       // Complete or pull next from queue
@@ -1820,6 +1821,219 @@ export class GameEngine {
 
     storage.savePlayer(player);
     this.send(ws, { type: 'PLAYER_UPDATE', player });
+  }
+
+  private executeFarmingTaskCycle(session: ConnectedSession, recipe: RecipeDefinition) {
+    const { player, ws } = session;
+    const task = player.currentTask;
+    if (!task) return;
+
+    player.farmPlots = player.farmPlots || {};
+
+    // 1. Identify all farm plots in the cluster around targetNode (or player position)
+    const targetX = task.targetNodeX ?? player.x;
+    const targetY = task.targetNodeY ?? player.y;
+    const allPlots = storage.getWorldNodes().filter(n => n.type === 'farm');
+
+    if (allPlots.length === 0) {
+      player.currentTask = null;
+      this.send(ws, { type: 'NOTIFICATION', message: 'No farm plot exists in the world.' });
+      this.send(ws, { type: 'PLAYER_UPDATE', player });
+      return;
+    }
+
+    // Plots belonging to this allotment cluster (within 6.0 tiles of initial plot or player)
+    let clusterPlots = allPlots.filter(n => Math.hypot(n.x - targetX, n.y - targetY) <= 6.0 || Math.hypot(n.x - player.x, n.y - player.y) <= 6.0);
+    if (clusterPlots.length === 0) {
+      allPlots.sort((a, b) => Math.hypot(player.x - a.x, player.y - a.y) - Math.hypot(player.x - b.x, player.y - b.y));
+      clusterPlots = [allPlots[0]];
+    }
+
+    const seedId = recipe.inputs[0]?.itemId || 'earthtuber_seed';
+    const cropDef = FARMING_CROPS[seedId];
+
+    // 2. HARVEST all ready plots in cluster first! (XP granted on harvest only!)
+    for (const plotNode of clusterPlots) {
+      const plot = player.farmPlots[plotNode.id];
+      if (plot && plot.status === 'ready') {
+        const minYield = plot.minYield || cropDef?.minYield || 3;
+        const maxYield = plot.maxYield || cropDef?.maxYield || 5;
+        const yieldQty = Math.floor(Math.random() * (maxYield - minYield + 1)) + minYield;
+        const seedReturn = Math.random() < (cropDef?.seedReturnChance || 0.4);
+
+        const produceItemId = plot.cropId || recipe.outputItemId;
+        const produceDef = storage.getItem(produceItemId) || ITEMS[produceItemId];
+        const rarity = rollRarity(1.0);
+
+        const addRes = addItemToSlots(player.inventory, 28, produceItemId, yieldQty, rarity, 0, produceDef);
+        if (addRes.remainder > 0) {
+          if (player.dropWhenFull) {
+            this.send(ws, { type: 'NOTIFICATION', message: `Satchel full! Discarded excess harvest.` });
+          } else {
+            // Autonomous banking run to Hearth
+            player.bankReturnTask = { ...player.currentTask! };
+            player.currentTask = null;
+            player.bankingState = 'walking_to_bank';
+            const hearth = this.getHearthLocation(player.x, player.y);
+            const path = this.findPathWithCollisions(player.x, player.y, hearth.x, hearth.y);
+            player.targetX = hearth.x;
+            player.targetY = hearth.y;
+            player.path = path;
+            player.isMoving = path.length > 0;
+            this.send(ws, {
+              type: 'NOTIFICATION',
+              message: `Satchel full during harvest! Riding to the Hearth to bank crops... (${path.length} tiles)`
+            });
+            this.send(ws, { type: 'PLAYER_UPDATE', player });
+            this.broadcastWorldState();
+            return;
+          }
+        }
+
+        if (seedReturn) {
+          const seedItemDef = storage.getItem(plot.seedId) || ITEMS[plot.seedId];
+          addItemToSlots(player.inventory, 28, plot.seedId, 1, 'plain', 0, seedItemDef);
+        }
+
+        if (recipe.rareFinds) {
+          for (const rf of recipe.rareFinds) {
+            if (Math.random() < rf.chance) {
+              const rfItem = storage.getItem(rf.itemId) || ITEMS[rf.itemId];
+              addItemToSlots(player.inventory, 28, rf.itemId, 1, 'plain', 0, rfItem);
+              this.send(ws, {
+                type: 'NOTIFICATION',
+                message: `Bonus yield! Discovered ${rfItem?.name || rf.itemId}!`
+              });
+            }
+          }
+        }
+
+        // Award Farming XP ONLY on harvest!
+        const xpEarned = plot.xp || cropDef?.xp || recipe.xp || 45;
+        const farmingSkill = player.skills.farming || { xp: 0, level: 1 };
+        const oldLevel = farmingSkill.level;
+        farmingSkill.xp += xpEarned;
+        farmingSkill.level = getLevelFromXp(farmingSkill.xp);
+        player.skills.farming = farmingSkill;
+
+        if (farmingSkill.level > oldLevel) {
+          this.send(ws, {
+            type: 'LEVEL_UP',
+            skill: 'farming',
+            newLevel: farmingSkill.level,
+          });
+          this.send(ws, {
+            type: 'NOTIFICATION',
+            message: `🌟 Congratulations! Your Farming skill advanced to Level ${farmingSkill.level}!`
+          });
+        }
+
+        delete player.farmPlots[plotNode.id];
+
+        const cropName = produceDef?.name || plot.cropName;
+        this.send(ws, {
+          type: 'NOTIFICATION',
+          message: `🌾 Harvested ${yieldQty}x ${cropName}${seedReturn ? ' + 1 bonus seed' : ''}! (+${xpEarned} Farming XP)`
+        });
+      }
+    }
+
+    // 3. PLANT all empty plots in cluster!
+    for (const plotNode of clusterPlots) {
+      if (task.completedQuantity >= task.targetQuantity) {
+        break;
+      }
+      if (!player.farmPlots[plotNode.id]) {
+        const seedSlot = player.inventory.find(s => s.itemId === seedId && s.quantity > 0);
+        if (seedSlot) {
+          seedSlot.quantity--;
+          player.inventory = player.inventory.filter(s => s.quantity > 0);
+
+          const baseDur = cropDef?.baseDurationSeconds || 300;
+          const xp = cropDef?.xp || recipe.xp || 45;
+          const cropName = cropDef?.name || recipe.name.replace('Cultivate ', '');
+          const cropId = cropDef?.cropId || recipe.outputItemId;
+          const minYield = cropDef?.minYield || 3;
+          const maxYield = cropDef?.maxYield || 5;
+
+          player.farmPlots[plotNode.id] = {
+            plotId: plotNode.id,
+            seedId,
+            cropId,
+            cropName,
+            plantedAt: Date.now(),
+            baseDurationSeconds: baseDur,
+            effectiveProgressSeconds: 0,
+            lastUpdated: Date.now(),
+            status: 'growing',
+            minYield,
+            maxYield,
+            xp,
+          };
+
+          task.completedQuantity++;
+          // NO XP ON PLANT
+          this.send(ws, {
+            type: 'NOTIFICATION',
+            message: `🌱 Sowed ${cropName} in ${plotNode.name || 'allotment'}.`
+          });
+        } else {
+          // No seeds in inventory! Check if seeds exist in storage to bank & fetch
+          const hasInStorage = player.storage.some(s => s.itemId === seedId && s.quantity > 0);
+          if (hasInStorage) {
+            player.bankReturnTask = { ...player.currentTask! };
+            player.currentTask = null;
+            player.bankingState = 'walking_to_bank';
+            const hearth = this.getHearthLocation(player.x, player.y);
+            const path = this.findPathWithCollisions(player.x, player.y, hearth.x, hearth.y);
+            player.targetX = hearth.x;
+            player.targetY = hearth.y;
+            player.path = path;
+            player.isMoving = path.length > 0;
+            this.send(ws, {
+              type: 'NOTIFICATION',
+              message: `Seeds depleted. Riding to Hearth to bank and withdraw more seeds... (${path.length} tiles)`
+            });
+            this.send(ws, { type: 'PLAYER_UPDATE', player });
+            this.broadcastWorldState();
+            return;
+          } else {
+            // Out of seeds everywhere!
+            const anyGrowing = clusterPlots.some(p => player.farmPlots![p.id]?.status === 'growing' || player.farmPlots![p.id]?.status === 'ready');
+            if (!anyGrowing) {
+              player.currentTask = null;
+              this.send(ws, { type: 'NOTIFICATION', message: `Seeds depleted for ${recipe.name}.` });
+              this.send(ws, { type: 'PLAYER_UPDATE', player });
+              return;
+            }
+          }
+          break;
+        }
+      }
+    }
+
+    // 4. Task completion check
+    if (task.completedQuantity >= task.targetQuantity) {
+      const anyGrowing = clusterPlots.some(p => player.farmPlots![p.id]?.status === 'growing' || player.farmPlots![p.id]?.status === 'ready');
+      if (!anyGrowing) {
+        if (player.taskQueue.length > 0) {
+          const next = player.taskQueue.shift()!;
+          player.currentTask = {
+            recipeId: next.recipeId,
+            skill: next.skill,
+            startedAtTick: this.tickCount,
+            targetQuantity: next.targetQuantity,
+            completedQuantity: 0,
+          };
+        } else {
+          player.currentTask = null;
+        }
+      }
+    }
+
+    storage.savePlayer(player);
+    this.send(ws, { type: 'PLAYER_UPDATE', player });
+    this.broadcastWorldState();
   }
 
   private handleBossAttack(session: ConnectedSession) {
