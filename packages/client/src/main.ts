@@ -995,7 +995,7 @@ class EldoriaClient {
       { x: targetX - 1, y: targetY + 1 },
       { x: targetX + 1, y: targetY - 1 },
       { x: targetX - 1, y: targetY - 1 },
-    ].filter(pt => pt.x >= 0 && pt.x < 60 && pt.y >= 0 && pt.y < 60 && !collisions.has(`${pt.x},${pt.y}`));
+    ].filter(pt => !collisions.has(`${pt.x},${pt.y}`));
 
     if (candidates.length > 0 && this.player) {
       candidates.sort((a, b) =>
@@ -2539,8 +2539,8 @@ class EldoriaClient {
         const scale = minimapCanvas.width / (17 * 2); // 4px per tile
         const dxTiles = (clickX - cx) / scale;
         const dyTiles = (clickY - cy) / scale;
-        const targetX = Math.max(0, Math.min(60, Math.round(this.player.x + dxTiles)));
-        const targetY = Math.max(0, Math.min(60, Math.round(this.player.y + dyTiles)));
+        const targetX = Math.round(this.player.x + dxTiles);
+        const targetY = Math.round(this.player.y + dyTiles);
         this.sendWs({ type: 'MOVE_TO', x: targetX, y: targetY });
       });
     }
@@ -2569,14 +2569,17 @@ class EldoriaClient {
         const clickX = e.clientX - rect.left;
         const clickY = e.clientY - rect.top;
 
-        const scaleX = (stitched.widthTiles * TILE_SIZE) / canvas.width;
-        const scaleY = (stitched.heightTiles * TILE_SIZE) / canvas.height;
+        const worldWidthPx = (stitched.maxTileX - stitched.minTileX) * TILE_SIZE;
+        const worldHeightPx = (stitched.maxTileY - stitched.minTileY) * TILE_SIZE;
+
+        const scaleX = worldWidthPx / canvas.width;
+        const scaleY = worldHeightPx / canvas.height;
 
         const worldPxX = clickX * scaleX;
         const worldPxY = clickY * scaleY;
 
-        const tileX = Math.max(0, Math.min(stitched.widthTiles - 1, Math.floor(worldPxX / TILE_SIZE)));
-        const tileY = Math.max(0, Math.min(stitched.heightTiles - 1, Math.floor(worldPxY / TILE_SIZE)));
+        const tileX = stitched.minTileX + Math.floor(worldPxX / TILE_SIZE);
+        const tileY = stitched.minTileY + Math.floor(worldPxY / TILE_SIZE);
 
         this.sendWs({ type: 'MOVE_TO', x: tileX, y: tileY });
         this.renderer.setDestinationMarker(tileX, tileY);
@@ -2611,13 +2614,16 @@ class EldoriaClient {
     ctx.imageSmoothingEnabled = false;
     ctx.drawImage(terrain, 0, 0, canvas.width, canvas.height);
 
-    const scaleX = canvas.width / (stitched.widthTiles * TILE_SIZE);
-    const scaleY = canvas.height / (stitched.heightTiles * TILE_SIZE);
+    const worldWidthPx = (stitched.maxTileX - stitched.minTileX) * TILE_SIZE;
+    const worldHeightPx = (stitched.maxTileY - stitched.minTileY) * TILE_SIZE;
+    const scaleX = canvas.width / worldWidthPx;
+    const scaleY = canvas.height / worldHeightPx;
 
     // Draw Nodes
     for (const node of this.worldNodes) {
-      const nx = (node.x * TILE_SIZE + TILE_SIZE / 2) * scaleX;
-      const ny = (node.y * TILE_SIZE + TILE_SIZE / 2) * scaleY;
+      if (node.x < stitched.minTileX || node.x > stitched.maxTileX || node.y < stitched.minTileY || node.y > stitched.maxTileY) continue;
+      const nx = ((node.x - stitched.minTileX) * TILE_SIZE + TILE_SIZE / 2) * scaleX;
+      const ny = ((node.y - stitched.minTileY) * TILE_SIZE + TILE_SIZE / 2) * scaleY;
 
       let color = '#ffd700';
       if (node.type === 'monster') color = '#e53e3e';
@@ -2634,8 +2640,9 @@ class EldoriaClient {
 
     // Draw NPCs
     for (const npc of this.npcs) {
-      const nx = (npc.x * TILE_SIZE + TILE_SIZE / 2) * scaleX;
-      const ny = (npc.y * TILE_SIZE + TILE_SIZE / 2) * scaleY;
+      if (npc.x < stitched.minTileX || npc.x > stitched.maxTileX || npc.y < stitched.minTileY || npc.y > stitched.maxTileY) continue;
+      const nx = ((npc.x - stitched.minTileX) * TILE_SIZE + TILE_SIZE / 2) * scaleX;
+      const ny = ((npc.y - stitched.minTileY) * TILE_SIZE + TILE_SIZE / 2) * scaleY;
       ctx.fillStyle = '#81e6d9';
       ctx.beginPath();
       ctx.arc(nx, ny, 4, 0, Math.PI * 2);
@@ -2644,20 +2651,22 @@ class EldoriaClient {
 
     // Draw Local Player
     if (this.player) {
-      const px = (this.player.x * TILE_SIZE + TILE_SIZE / 2) * scaleX;
-      const py = (this.player.y * TILE_SIZE + TILE_SIZE / 2) * scaleY;
+      if (this.player.x >= stitched.minTileX && this.player.x <= stitched.maxTileX && this.player.y >= stitched.minTileY && this.player.y <= stitched.maxTileY) {
+        const px = ((this.player.x - stitched.minTileX) * TILE_SIZE + TILE_SIZE / 2) * scaleX;
+        const py = ((this.player.y - stitched.minTileY) * TILE_SIZE + TILE_SIZE / 2) * scaleY;
 
-      // Pulsing ring
-      ctx.strokeStyle = '#ffffff';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.arc(px, py, 7, 0, Math.PI * 2);
-      ctx.stroke();
+        // Pulsing ring
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(px, py, 7, 0, Math.PI * 2);
+        ctx.stroke();
 
-      ctx.fillStyle = '#ecc94b';
-      ctx.beginPath();
-      ctx.arc(px, py, 4.5, 0, Math.PI * 2);
-      ctx.fill();
+        ctx.fillStyle = '#ecc94b';
+        ctx.beginPath();
+        ctx.arc(px, py, 4.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
     }
   }
 

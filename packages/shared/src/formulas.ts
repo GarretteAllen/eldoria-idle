@@ -33,19 +33,21 @@ export function calculatePlayerMoveSpeed(player: PlayerData): number {
 
 /**
 /**
- * Grid BFS Pathfinding (8-directional with collision avoidance, bounds 0..60).
+ * Grid BFS Pathfinding (8-directional with collision avoidance, unbounded / dynamic map bounds).
  */
 export function findPath(
   startX: number,
   startY: number,
   targetX: number,
   targetY: number,
-  maxX: number = 60,
-  maxY: number = 60,
+  minX: number = -10000,
+  minY: number = -10000,
+  maxX: number = 10000,
+  maxY: number = 10000,
   isBlocked?: (x: number, y: number) => boolean
 ): Array<{ x: number; y: number }> {
-  const clampX = (v: number) => Math.max(0, Math.min(maxX, v));
-  const clampY = (v: number) => Math.max(0, Math.min(maxY, v));
+  const clampX = (v: number) => Math.max(minX, Math.min(maxX, v));
+  const clampY = (v: number) => Math.max(minY, Math.min(maxY, v));
 
   const sx = clampX(Math.round(startX));
   const sy = clampY(Math.round(startY));
@@ -65,7 +67,7 @@ export function findPath(
       { x: tx + 1, y: ty - 1 },
       { x: tx - 1, y: ty + 1 },
       { x: tx + 1, y: ty + 1 },
-    ].filter(c => c.x >= 0 && c.x <= maxX && c.y >= 0 && c.y <= maxY && !isBlocked(c.x, c.y));
+    ].filter(c => c.x >= minX && c.x <= maxX && c.y >= minY && c.y <= maxY && !isBlocked(c.x, c.y));
 
     if (adjCandidates.length > 0) {
       adjCandidates.sort((a, b) => Math.hypot(a.x - sx, a.y - sy) - Math.hypot(b.x - sx, b.y - sy));
@@ -75,13 +77,13 @@ export function findPath(
     }
   }
 
-  // Standard BFS queue
+  // 32-bit integer encoding supporting coords from -20,000 to +40,000
+  const encode = (x: number, y: number) => (((x + 20000) & 0xffff) << 16) | ((y + 20000) & 0xffff);
+  const decode = (code: number) => ({ x: ((code >>> 16) & 0xffff) - 20000, y: (code & 0xffff) - 20000 });
+
   const queue: Array<{ x: number; y: number }> = [{ x: sx, y: sy }];
   const cameFrom = new Map<number, number>();
   const visited = new Set<number>();
-
-  const encode = (x: number, y: number) => y * (maxX + 1) + x;
-  const decode = (code: number) => ({ x: code % (maxX + 1), y: Math.floor(code / (maxX + 1)) });
 
   const startCode = encode(sx, sy);
   const targetCode = encode(tx, ty);
@@ -99,8 +101,10 @@ export function findPath(
   ];
 
   let found = false;
+  let steps = 0;
+  const MAX_STEPS = 8000;
 
-  while (queue.length > 0) {
+  while (queue.length > 0 && steps++ < MAX_STEPS) {
     const curr = queue.shift()!;
     const currCode = encode(curr.x, curr.y);
 

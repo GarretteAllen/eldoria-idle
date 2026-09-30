@@ -294,36 +294,7 @@ export class WorldRenderer {
 
   public setStitchedWorld(world: StitchedWorld) {
     this.stitchedWorld = world;
-    this.bakeTerrain();
-  }
-
-  private bakeTerrain() {
-    if (!this.stitchedWorld) return;
-    const offscreen = document.createElement('canvas');
-    offscreen.width = this.stitchedWorld.widthTiles * TILE_SIZE;
-    offscreen.height = this.stitchedWorld.heightTiles * TILE_SIZE;
-    const octx = offscreen.getContext('2d')!;
-    octx.imageSmoothingEnabled = false;
-
-    // Base background under-layer
-    octx.fillStyle = '#1e3020';
-    octx.fillRect(0, 0, offscreen.width, offscreen.height);
-
-    for (const t of this.stitchedWorld.tiles) {
-      octx.drawImage(
-        this.stitchedWorld.tilesetImage,
-        t.srcX,
-        t.srcY,
-        t.width,
-        t.height,
-        t.tileX * TILE_SIZE,
-        t.tileY * TILE_SIZE,
-        TILE_SIZE + 0.5,
-        TILE_SIZE + 0.5
-      );
-    }
-
-    this.terrainCanvas = offscreen;
+    this.terrainCanvas = world.overworldCanvas;
   }
 
   public getTerrainCanvas(): HTMLCanvasElement | null {
@@ -883,15 +854,30 @@ export class WorldRenderer {
     mCtx.clearRect(0, 0, w, h);
 
     // 1. Terrain slice
-    if (this.terrainCanvas) {
-      // 34 tiles wide (radius 17)
+    if (this.stitchedWorld) {
       const tileRadius = 17;
-      const sX = (this.visualX - tileRadius) * TILE_SIZE;
-      const sY = (this.visualY - tileRadius) * TILE_SIZE;
+      const minPxX = (this.visualX - tileRadius) * TILE_SIZE;
+      const minPxY = (this.visualY - tileRadius) * TILE_SIZE;
       const sDim = tileRadius * 2 * TILE_SIZE;
 
+      mCtx.save();
       mCtx.imageSmoothingEnabled = false;
-      mCtx.drawImage(this.terrainCanvas, sX, sY, sDim, sDim, 0, 0, w, h);
+      mCtx.scale(w / sDim, h / sDim);
+      mCtx.translate(-minPxX, -minPxY);
+
+      for (const lvl of this.stitchedWorld.levels) {
+        const px = lvl.tileX * TILE_SIZE;
+        const py = lvl.tileY * TILE_SIZE;
+        const pw = lvl.widthTiles * TILE_SIZE;
+        const ph = lvl.heightTiles * TILE_SIZE;
+
+        if (px + pw < minPxX || px > minPxX + sDim || py + ph < minPxY || py > minPxY + sDim) {
+          continue;
+        }
+
+        mCtx.drawImage(lvl.canvas, px, py);
+      }
+      mCtx.restore();
     } else {
       mCtx.fillStyle = '#140d07';
       mCtx.fillRect(0, 0, w, h);
@@ -980,22 +966,40 @@ export class WorldRenderer {
   private drawTerrain() {
     const { ctx } = this;
 
-    if (this.terrainCanvas) {
-      ctx.imageSmoothingEnabled = false;
-      ctx.drawImage(this.terrainCanvas, 0, 0);
+    if (!this.stitchedWorld) {
+      const startTileX = Math.floor(this.cameraX / TILE_SIZE) - 1;
+      const endTileX = Math.ceil((this.cameraX + this.canvas.width) / TILE_SIZE) + 1;
+      const startTileY = Math.floor(this.cameraY / TILE_SIZE) - 1;
+      const endTileY = Math.ceil((this.cameraY + this.canvas.height) / TILE_SIZE) + 1;
+
+      for (let x = startTileX; x <= endTileX; x++) {
+        for (let y = startTileY; y <= endTileY; y++) {
+          ctx.fillStyle = (x + y) % 2 === 0 ? '#1b211c' : '#202621';
+          ctx.fillRect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+        }
+      }
       return;
     }
 
-    const startTileX = Math.max(0, Math.floor(this.cameraX / TILE_SIZE) - 1);
-    const endTileX = Math.min(60, Math.ceil((this.cameraX + this.canvas.width) / TILE_SIZE) + 1);
-    const startTileY = Math.max(0, Math.floor(this.cameraY / TILE_SIZE) - 1);
-    const endTileY = Math.min(60, Math.ceil((this.cameraY + this.canvas.height) / TILE_SIZE) + 1);
+    ctx.imageSmoothingEnabled = false;
 
-    for (let x = startTileX; x <= endTileX; x++) {
-      for (let y = startTileY; y <= endTileY; y++) {
-        ctx.fillStyle = (x + y) % 2 === 0 ? '#1b211c' : '#202621';
-        ctx.fillRect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+    // Viewport frustum culling (with 64px safety padding)
+    const viewLeft = this.cameraX - 64;
+    const viewTop = this.cameraY - 64;
+    const viewRight = this.cameraX + this.canvas.width + 64;
+    const viewBottom = this.cameraY + this.canvas.height + 64;
+
+    for (const lvl of this.stitchedWorld.levels) {
+      const px = lvl.tileX * TILE_SIZE;
+      const py = lvl.tileY * TILE_SIZE;
+      const pw = lvl.widthTiles * TILE_SIZE;
+      const ph = lvl.heightTiles * TILE_SIZE;
+
+      if (px + pw < viewLeft || px > viewRight || py + ph < viewTop || py > viewBottom) {
+        continue;
       }
+
+      ctx.drawImage(lvl.canvas, px, py);
     }
   }
 

@@ -156,7 +156,7 @@ export class GameEngine {
   }
 
   private findPathWithCollisions(startX: number, startY: number, targetX: number, targetY: number) {
-    return findPath(startX, startY, targetX, targetY, 60, 60, (x, y) => storage.isCollidable(x, y));
+    return findPath(startX, startY, targetX, targetY, -10000, -10000, 10000, 10000, (x, y) => storage.isCollidable(x, y));
   }
 
   private catchUpFarmPlots(player: PlayerData) {
@@ -489,6 +489,55 @@ export class GameEngine {
               this.send(session.ws, { type: 'NOTIFICATION', message: `Unknown item ID: "${parts[0]}". Check item ID or use the Admin panel.` });
             }
             break;
+          }
+
+          // Admin teleport command: /tp <x> <y> or /tp castle or /tp town
+          if (trimmed.startsWith('/tp ') || trimmed.startsWith('/teleport ')) {
+            if (player.role !== 'admin') {
+              this.send(session.ws, { type: 'NOTIFICATION', message: 'Admin privileges required.' });
+              break;
+            }
+            const parts = trimmed.split(/\s+/).slice(1);
+            if (parts.length >= 2 && !isNaN(Number(parts[0])) && !isNaN(Number(parts[1]))) {
+              const tx = Math.round(Number(parts[0]));
+              const ty = Math.round(Number(parts[1]));
+              player.x = tx;
+              player.y = ty;
+              player.targetX = tx;
+              player.targetY = ty;
+              player.path = [];
+              player.isMoving = false;
+              this.send(session.ws, { type: 'NOTIFICATION', message: `✨ Teleported to (${tx}, ${ty}).` });
+              this.send(session.ws, { type: 'PLAYER_UPDATE', player });
+              this.broadcastWorldState();
+              break;
+            } else if (parts.length === 1 && (parts[0].toLowerCase() === 'castle' || parts[0].toLowerCase().includes('eldoria'))) {
+              player.x = -301;
+              player.y = -15;
+              player.targetX = -301;
+              player.targetY = -15;
+              player.path = [];
+              player.isMoving = false;
+              this.send(session.ws, { type: 'NOTIFICATION', message: `✨ Teleported to Eldoria Castle (-301, -15).` });
+              this.send(session.ws, { type: 'PLAYER_UPDATE', player });
+              this.broadcastWorldState();
+              break;
+            } else if (parts.length === 1 && parts[0].toLowerCase() === 'town') {
+              const hearth = this.getHearthLocation(player.x, player.y);
+              player.x = hearth.x;
+              player.y = hearth.y;
+              player.targetX = hearth.x;
+              player.targetY = hearth.y;
+              player.path = [];
+              player.isMoving = false;
+              this.send(session.ws, { type: 'NOTIFICATION', message: `✨ Teleported to Hearth Town (${hearth.x}, ${hearth.y}).` });
+              this.send(session.ws, { type: 'PLAYER_UPDATE', player });
+              this.broadcastWorldState();
+              break;
+            } else {
+              this.send(session.ws, { type: 'NOTIFICATION', message: 'Usage: /tp <x> <y> OR /tp castle OR /tp town' });
+              break;
+            }
           }
 
           const chatPayload = {
@@ -2294,7 +2343,7 @@ export class GameEngine {
       { x: targetX - 1, y: targetY + 1 },
       { x: targetX + 1, y: targetY - 1 },
       { x: targetX - 1, y: targetY - 1 },
-    ].filter(pt => pt.x >= 0 && pt.x < 60 && pt.y >= 0 && pt.y < 60 && !collisions.has(`${pt.x},${pt.y}`));
+    ].filter(pt => !collisions.has(`${pt.x},${pt.y}`));
 
     if (candidates.length > 0) {
       candidates.sort((a, b) =>

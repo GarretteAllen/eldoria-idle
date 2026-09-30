@@ -1,20 +1,30 @@
-export interface StitchedTile {
-  tileX: number; // 0..31
-  tileY: number; // 0..47
-  srcX: number;
-  srcY: number;
-  width: number;
-  height: number;
-  flip: number;
+export interface BakedLevel {
+  identifier: string;
+  worldX: number;
+  worldY: number;
+  tileX: number;
+  tileY: number;
+  widthTiles: number;
+  heightTiles: number;
+  canvas: HTMLCanvasElement;
+  isFarOff: boolean;
 }
 
 export interface StitchedWorld {
+  tileSize: number;
+  levels: BakedLevel[];
+  tilesetImage: HTMLImageElement;
+  minTileX: number;
+  maxTileX: number;
+  minTileY: number;
+  maxTileY: number;
   widthTiles: number;
   heightTiles: number;
-  tileSize: number;
-  tiles: StitchedTile[];
-  tilesetImage: HTMLImageElement;
+  overworldCanvas: HTMLCanvasElement;
 }
+
+export const ANCHOR_WORLD_X = 0;
+export const ANCHOR_WORLD_Y = -256;
 
 export async function loadLdtkWorld(): Promise<StitchedWorld | null> {
   try {
@@ -33,50 +43,115 @@ export async function loadLdtkWorld(): Promise<StitchedWorld | null> {
       tilesetImg.onerror = reject;
     });
 
-    const tiles: StitchedTile[] = [];
-    const minWorldX = 0;
-    const minWorldY = -256; // Level_3 starts at worldY: -256
+    const bakedLevels: BakedLevel[] = [];
 
     for (const level of ldtkData.levels || []) {
-      for (const layer of level.layerInstances || []) {
-        if (layer.__identifier === 'Outside_Town' || layer.gridTiles?.length > 0) {
-          const gridSize = layer.__gridSize || 16;
-          for (const tile of layer.gridTiles || []) {
-            const worldPxX = level.worldX + tile.px[0] - minWorldX;
-            const worldPxY = level.worldY + tile.px[1] - minWorldY;
+      const tileX = Math.floor((level.worldX - ANCHOR_WORLD_X) / 16);
+      const tileY = Math.floor((level.worldY - ANCHOR_WORLD_Y) / 16);
+      const widthTiles = Math.floor((level.pxWid || 256) / 16);
+      const heightTiles = Math.floor((level.pxHei || 256) / 16);
+      const isFarOff = Math.abs(tileX) > 100 || Math.abs(tileY) > 100;
 
-            const tileX = Math.floor(worldPxX / gridSize);
-            const tileY = Math.floor(worldPxY / gridSize);
+      const lvlCanvas = document.createElement('canvas');
+      lvlCanvas.width = widthTiles * 32;
+      lvlCanvas.height = heightTiles * 32;
+      const lctx = lvlCanvas.getContext('2d')!;
+      lctx.imageSmoothingEnabled = false;
 
-            tiles.push({
-              tileX,
-              tileY,
-              srcX: tile.src[0],
-              srcY: tile.src[1],
-              width: gridSize,
-              height: gridSize,
-              flip: tile.f || 0,
-            });
+      // Base background under-layer
+      lctx.fillStyle = '#1e3020';
+      lctx.fillRect(0, 0, lvlCanvas.width, lvlCanvas.height);
+
+      // Render layers from bottom to top
+      const layers = (level.layerInstances || []).slice().reverse();
+      for (const layer of layers) {
+        if (!layer.gridTiles || layer.gridTiles.length === 0) continue;
+        const gridSize = layer.__gridSize || 16;
+        for (const tile of layer.gridTiles) {
+          const localTileX = Math.floor(tile.px[0] / gridSize);
+          const localTileY = Math.floor(tile.px[1] / gridSize);
+          const destPx = localTileX * 32;
+          const destPy = localTileY * 32;
+
+          if (tile.f) {
+            lctx.save();
+            lctx.translate(destPx + 16, destPy + 16);
+            lctx.scale((tile.f & 1) ? -1 : 1, (tile.f & 2) ? -1 : 1);
+            lctx.drawImage(
+              tilesetImg,
+              tile.src[0], tile.src[1], gridSize, gridSize,
+              -16, -16, 32 + 0.5, 32 + 0.5
+            );
+            lctx.restore();
+          } else {
+            lctx.drawImage(
+              tilesetImg,
+              tile.src[0], tile.src[1], gridSize, gridSize,
+              destPx, destPy, 32 + 0.5, 32 + 0.5
+            );
           }
         }
       }
+
+      bakedLevels.push({
+        identifier: level.identifier,
+        worldX: level.worldX,
+        worldY: level.worldY,
+        tileX,
+        tileY,
+        widthTiles,
+        heightTiles,
+        canvas: lvlCanvas,
+        isFarOff,
+      });
     }
 
-    let maxTileX = 32;
-    let maxTileY = 48;
-    for (const t of tiles) {
-      if (t.tileX + 1 > maxTileX) maxTileX = t.tileX + 1;
-      if (t.tileY + 1 > maxTileY) maxTileY = t.tileY + 1;
+    // Determine contiguous overworld cluster bounds
+    const overworldLevels = bakedLevels.filter(l => !l.isFarOff);
+    const pool = overworldLevels.length > 0 ? overworldLevels : bakedLevels;
+
+    let minTileX = Infinity;
+    let maxTileX = -Infinity;
+    let minTileY = Infinity;
+    let maxTileY = -Infinity;
+
+    for (const l of pool) {
+      if (l.tileX < minTileX) minTileX = l.tileX;
+      if (l.tileX + l.widthTiles > maxTileX) maxTileX = l.tileX + l.widthTiles;
+      if (l.tileY < minTileY) minTileY = l.tileY;
+      if (l.tileY + l.heightTiles > maxTileY) maxTileY = l.tileY + l.heightTiles;
     }
 
-    console.log(`🗺️ Stitched LDtk World loaded! Total tiles: ${tiles.length} (${maxTileX}x${maxTileY}) from 4 levels.`);
+    if (minTileX === Infinity) {
+      minTileX = 0; maxTileX = 32; minTileY = 0; maxTileY = 48;
+    }
+
+    // Create stitched overworld preview canvas for the world map modal
+    const overworldCanvas = document.createElement('canvas');
+    overworldCanvas.width = Math.max(32, (maxTileX - minTileX) * 32);
+    overworldCanvas.height = Math.max(32, (maxTileY - minTileY) * 32);
+    const octx = overworldCanvas.getContext('2d')!;
+    octx.imageSmoothingEnabled = false;
+    octx.fillStyle = '#1e3020';
+    octx.fillRect(0, 0, overworldCanvas.width, overworldCanvas.height);
+
+    for (const lvl of pool) {
+      octx.drawImage(lvl.canvas, (lvl.tileX - minTileX) * 32, (lvl.tileY - minTileY) * 32);
+    }
+
+    console.log(`🗺️ Dynamic LDtk World loaded! ${bakedLevels.length} levels baked. Overworld bounds: (${minTileX}, ${minTileY}) to (${maxTileX}, ${maxTileY}) [${maxTileX - minTileX}x${maxTileY - minTileY} tiles].`);
 
     return {
-      widthTiles: maxTileX,
-      heightTiles: maxTileY,
-      tileSize: 32, // Display size (scaled 2x from 16 for clean pixel art)
-      tiles,
+      tileSize: 32,
+      levels: bakedLevels,
       tilesetImage: tilesetImg,
+      minTileX,
+      maxTileX,
+      minTileY,
+      maxTileY,
+      widthTiles: maxTileX - minTileX,
+      heightTiles: maxTileY - minTileY,
+      overworldCanvas,
     };
   } catch (err) {
     console.error('Failed to load LDtk world', err);
