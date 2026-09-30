@@ -1765,8 +1765,8 @@ export class WorldRenderer {
       ctx.ellipse(px + 4, py + 14, 18, 7, 0, 0, Math.PI * 2);
       ctx.fill();
 
-      // Rider seated in the saddle (elevated -17px + gallop bob so torso emerges cleanly from saddle)
-      const riderY = -17 + gallopBob;
+      // Rider seated in the saddle (elevated -14px + gallop bob so torso emerges cleanly from saddle)
+      const riderY = -14 + gallopBob;
 
       // 1. Base Body (bald, unclothed mannequin) - drawn BEHIND the horse!
       drawLayer(getSprite('base_male'), 0, riderY);
@@ -1787,9 +1787,9 @@ export class WorldRenderer {
       }
 
       // 4. Steed Courser (IN FRONT of character's body & legs to completely cover them!)
-      // Pixel width is 28, screen width is 56 (offset -6 centers saddle at px)
+      // Pixel width is 27, screen width is 54 (offset -6 centers saddle at px, -12 grounds hooves)
       const steedCoord = getSprite(equipment?.steed?.itemId || 'steed_courser');
-      drawLayer(steedCoord, -6, -9 + gallopBob);
+      drawLayer(steedCoord, -6, -12 + gallopBob);
 
       // 5. Shield / Offhand (in front of horse)
       const shieldCoord = getSprite(equipment?.shield?.itemId);

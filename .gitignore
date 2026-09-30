@@ -5,4 +5,5 @@ data/
 .DS_Store
 .env
 dontpush/
+scratch/
 *.tsbuildinfo
