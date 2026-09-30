@@ -1699,7 +1699,8 @@ export class WorldRenderer {
       ctx.restore();
     };
 
-    const isMounted = Boolean(equipment && equipment.steed);
+    // Mount is only active and visible while moving; dismount when idle, talking, working, or in combat
+    const isMounted = Boolean(equipment && equipment.steed && isMoving && !taskSkill);
 
     if (isMounted) {
       // === MOUNTED GALLOPING ON STEED ===

@@ -3643,13 +3643,26 @@ class EldoriaClient {
     }
 
     // 5. Node Form Setup
-
+    const typeSelect = document.getElementById('node-form-type') as HTMLSelectElement | null;
     const recSelect = document.getElementById('node-form-recipe') as HTMLSelectElement | null;
+
+    if (typeSelect) {
+      this.updateNodeRecipesForType(typeSelect.value || 'mine');
+      typeSelect.addEventListener('change', () => {
+        this.updateNodeRecipesForType(typeSelect.value);
+      });
+    }
+
     if (recSelect) {
-      recSelect.innerHTML = `<option value="">None (Heuristics / Bank)</option>` +
-        Object.values(RECIPES)
-          .map(r => `<option value="${r.id}">${r.name} (${r.skill} Lv ${r.levelReq})</option>`)
-          .join('');
+      recSelect.addEventListener('change', () => {
+        const nameInput = document.getElementById('node-form-name') as HTMLInputElement | null;
+        if (nameInput && (!nameInput.value || nameInput.value === 'New Node')) {
+          const rec = RECIPES[recSelect.value];
+          if (rec) {
+            nameInput.value = rec.name;
+          }
+        }
+      });
     }
 
     const nodeForm = document.getElementById('editor-node-form') as HTMLFormElement | null;
@@ -3662,6 +3675,8 @@ class EldoriaClient {
         nodeForm.classList.remove('hidden');
         (document.getElementById('node-form-id') as HTMLInputElement).value = '';
         (document.getElementById('node-form-name') as HTMLInputElement).value = '';
+        const curType = (document.getElementById('node-form-type') as HTMLSelectElement).value || 'mine';
+        this.updateNodeRecipesForType(curType);
         (document.getElementById('node-form-x') as HTMLInputElement).value = '25';
         (document.getElementById('node-form-y') as HTMLInputElement).value = '25';
       };
@@ -3859,6 +3874,42 @@ class EldoriaClient {
     }
   }
 
+  private updateNodeRecipesForType(selectedType: string, selectedRecipeId?: string) {
+    const recSelect = document.getElementById('node-form-recipe') as HTMLSelectElement | null;
+    if (!recSelect) return;
+
+    // Filter recipes strictly by node category/skill
+    const typeToSkillMap: Record<string, string[]> = {
+      tree: ['woodcutting'],
+      mine: ['mining'],
+      water: ['fishing'],
+      forge: ['smithing'],
+      fire: ['cooking'],
+      farm: ['farming'],
+      hearth_counter: [],
+    };
+
+    const targetSkills = typeToSkillMap[selectedType];
+    let filteredRecipes = Object.values(RECIPES);
+
+    if (targetSkills && targetSkills.length > 0) {
+      filteredRecipes = filteredRecipes.filter(r => targetSkills.includes(r.skill));
+    } else if (selectedType === 'hearth_counter' || selectedType === 'farm') {
+      filteredRecipes = [];
+    }
+
+    recSelect.innerHTML = `<option value="">None (Heuristics / Bank)</option>` +
+      filteredRecipes
+        .map(r => `<option value="${r.id}">${r.name} (${r.skill} Lv ${r.levelReq})</option>`)
+        .join('');
+
+    if (selectedRecipeId && filteredRecipes.some(r => r.id === selectedRecipeId)) {
+      recSelect.value = selectedRecipeId;
+    } else {
+      recSelect.value = '';
+    }
+  }
+
   private renderEditorNodes() {
     const container = document.getElementById('editor-nodes-list');
     if (!container) return;
@@ -3885,7 +3936,7 @@ class EldoriaClient {
         (document.getElementById('node-form-id') as HTMLInputElement).value = n.id;
         (document.getElementById('node-form-name') as HTMLInputElement).value = n.name;
         (document.getElementById('node-form-type') as HTMLSelectElement).value = n.type;
-        (document.getElementById('node-form-recipe') as HTMLSelectElement).value = n.recipeId || '';
+        this.updateNodeRecipesForType(n.type, n.recipeId);
         (document.getElementById('node-form-x') as HTMLInputElement).value = n.x.toString();
         (document.getElementById('node-form-y') as HTMLInputElement).value = n.y.toString();
       });
