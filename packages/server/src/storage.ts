@@ -3,7 +3,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import Database from 'better-sqlite3';
-import { PlayerData, SkillType, WorldNode, NpcDefinition, QuestDefinition, getLevelFromXp } from '@eldoria/shared';
+import { PlayerData, SkillType, WorldNode, NpcDefinition, QuestDefinition, getLevelFromXp, ItemDefinition, ITEMS } from '@eldoria/shared';
 import { WORLD_NODES as DEFAULT_WORLD_NODES } from './world.js';
 
 function getProjectRoot(): string {
@@ -211,6 +211,10 @@ class StorageManager {
   private stmtDeleteAllCollisions: Database.Statement;
   private stmtGetMeta: Database.Statement;
   private stmtSetMeta: Database.Statement;
+  private stmtGetItems: Database.Statement;
+  private stmtUpsertItem: Database.Statement;
+  private stmtDeleteItem: Database.Statement;
+  private itemsCache: Record<string, ItemDefinition> = {};
 
   constructor() {
     if (!fs.existsSync(DATA_DIR)) {
@@ -283,6 +287,13 @@ class StorageManager {
        ON CONFLICT(key) DO UPDATE SET val = excluded.val`
     );
 
+    this.stmtGetItems = this.db.prepare('SELECT id, data FROM items');
+    this.stmtUpsertItem = this.db.prepare(
+      `INSERT INTO items (id, data) VALUES (?, ?)
+       ON CONFLICT(id) DO UPDATE SET data = excluded.data`
+    );
+    this.stmtDeleteItem = this.db.prepare('DELETE FROM items WHERE id = ?');
+
     // Run automatic migration from legacy json files if upgrading
     this.migrateLegacyJson();
 
@@ -341,6 +352,11 @@ class StorageManager {
 
       CREATE TABLE IF NOT EXISTS collisions (
         coord TEXT PRIMARY KEY
+      );
+
+      CREATE TABLE IF NOT EXISTS items (
+        id TEXT PRIMARY KEY,
+        data TEXT NOT NULL
       );
 
       CREATE INDEX IF NOT EXISTS idx_accounts_norm_user ON accounts(normalized_username);
@@ -493,6 +509,18 @@ class StorageManager {
     // Collisions
     const collRows = this.stmtGetCollisions.all() as Array<{ coord: string }>;
     this.collisionsCache = new Set<string>(collRows.map(r => r.coord));
+
+    // Items
+    this.itemsCache = { ...ITEMS };
+    const itemRows = this.stmtGetItems.all() as Array<{ id: string; data: string }>;
+    for (const row of itemRows) {
+      try {
+        const item = JSON.parse(row.data) as ItemDefinition;
+        this.itemsCache[item.id] = item;
+      } catch (e) {
+        console.error(`Failed to parse item ${row.id}`, e);
+      }
+    }
   }
 
   public checkpoint() {
@@ -1020,6 +1048,33 @@ class StorageManager {
     this.db.prepare('DELETE FROM collisions WHERE coord = ?').run(coord);
     this.checkpoint();
     this.syncJsonFile('collisions.json', Array.from(this.collisionsCache));
+  }
+
+  // --- Items ---
+  public getItems(): Record<string, ItemDefinition> {
+    return this.itemsCache;
+  }
+
+  public getItem(id: string): ItemDefinition | undefined {
+    return this.itemsCache[id] || ITEMS[id];
+  }
+
+  public saveItem(item: ItemDefinition) {
+    this.itemsCache[item.id] = item;
+    this.stmtUpsertItem.run(item.id, JSON.stringify(item));
+    this.checkpoint();
+    this.syncJsonFile('items.json', Object.values(this.itemsCache));
+  }
+
+  public deleteItem(id: string) {
+    this.stmtDeleteItem.run(id);
+    if (ITEMS[id]) {
+      this.itemsCache[id] = { ...ITEMS[id] };
+    } else {
+      delete this.itemsCache[id];
+    }
+    this.checkpoint();
+    this.syncJsonFile('items.json', Object.values(this.itemsCache));
   }
 
   // --- Admin Verification ---

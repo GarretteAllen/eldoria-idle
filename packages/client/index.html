@@ -433,6 +433,7 @@
           <button class="editor-tab" data-tab="quests">Quests</button>
           <button class="editor-tab" data-tab="collisions">Collision</button>
           <button class="editor-tab" data-tab="giveitems">Give Items</button>
+          <button class="editor-tab" data-tab="items">Items</button>
         </div>
 
         <div class="drawer-body" style="padding: 8px;">
@@ -724,6 +725,174 @@
               </div>
               <button type="submit" class="btn-start" style="width: 100%;">Give Item</button>
             </form>
+          </div>
+
+          <!-- TAB 7: ITEMS -->
+          <div id="tab-content-items" class="editor-tab-content hidden">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+              <span style="font-size: 0.75rem; color: var(--gold-main); font-weight: 700;">Items & Stacking Registry</span>
+              <button id="btn-add-item" class="btn-oak" style="font-size: 0.7rem; padding: 2px 6px;">+ Create Item</button>
+            </div>
+
+            <!-- Item Search & Filter -->
+            <div style="margin-bottom: 8px;">
+              <input type="text" id="editor-item-search" placeholder="Search items by name, ID, or category..." autocomplete="off" style="width: 100%; font-size: 0.75rem; padding: 4px 8px; background: rgba(0,0,0,0.4); border: 1px solid #4a3622; border-radius: 4px; color: #fff;" />
+            </div>
+
+            <!-- Item Edit Form (hidden until clicked or + Create) -->
+            <form id="editor-item-form" class="editor-form-box hidden" style="margin-bottom: 10px; max-height: 480px; overflow-y: auto; padding-right: 4px;">
+              <div style="font-weight: 700; color: var(--gold-bright); font-size: 0.8rem; margin-bottom: 6px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 4px;" id="item-form-heading">
+                Edit Item
+              </div>
+              <div class="form-row">
+                <label>Item ID:</label>
+                <input type="text" id="item-form-id" required placeholder="e.g. copper_ore, steel_blade" pattern="[a-z0-9_]+" title="Lowercase letters, numbers, and underscores only" />
+              </div>
+              <div class="form-row">
+                <label>Display Name:</label>
+                <input type="text" id="item-form-name" required placeholder="e.g. Copper Ore" />
+              </div>
+              <div class="form-row-2col">
+                <div>
+                  <label>Category:</label>
+                  <select id="item-form-category">
+                    <option value="ore">Ore / Mineral</option>
+                    <option value="bar">Bar / Ingot</option>
+                    <option value="log">Log / Timber</option>
+                    <option value="raw_food">Raw Food</option>
+                    <option value="cooked_food">Cooked Food</option>
+                    <option value="crop">Crop</option>
+                    <option value="seed">Seed</option>
+                    <option value="herb">Herb / Reagent</option>
+                    <option value="potion">Potion / Elixir</option>
+                    <option value="weapon">Weapon</option>
+                    <option value="armour">Armour</option>
+                    <option value="tool">Tool</option>
+                    <option value="steed">Steed / Mount</option>
+                    <option value="trophy">Trophy</option>
+                    <option value="relic">Relic</option>
+                    <option value="misc">Misc</option>
+                  </select>
+                </div>
+                <div>
+                  <label>Tier (1-6):</label>
+                  <input type="number" id="item-form-tier" min="1" max="6" value="1" required />
+                </div>
+              </div>
+
+              <!-- Stacking Behavior Box -->
+              <div style="background: rgba(0, 0, 0, 0.35); border: 1px solid #4a3622; border-radius: 6px; padding: 8px; margin: 6px 0;">
+                <div style="font-size: 0.72rem; font-weight: 700; color: #ffd699; margin-bottom: 6px;">📦 Stacking Behavior</div>
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
+                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 0.75rem; color: #e2e8f0; font-weight: 600;">
+                    <input type="checkbox" id="item-form-stackable" checked />
+                    Can stack in inventory & bank
+                  </label>
+                </div>
+                <div class="form-row" id="item-form-max-stack-row">
+                  <label>Max Stack Size:</label>
+                  <input type="number" id="item-form-max-stack" min="1" max="999999" value="999999" placeholder="999999 (or 10, 28, 99, 1000)" />
+                  <div style="font-size: 0.65rem; color: #a0aec0; margin-top: 2px;">
+                    When satchel slot reaches this limit, excess opens a new slot. Uncheck to make 1-per-slot.
+                  </div>
+                </div>
+              </div>
+
+              <div class="form-row-2col">
+                <div>
+                  <label>Vendor Value (coins):</label>
+                  <input type="number" id="item-form-price" min="0" value="5" />
+                </div>
+                <div>
+                  <label>Equip Slot (optional):</label>
+                  <select id="item-form-slot">
+                    <option value="">(None - Not Equippable)</option>
+                    <option value="weapon">Weapon</option>
+                    <option value="shield">Shield</option>
+                    <option value="helmet">Helmet</option>
+                    <option value="hair">Hair Style</option>
+                    <option value="body">Body Armour</option>
+                    <option value="legs">Legs Armour</option>
+                    <option value="ring">Ring</option>
+                    <option value="steed">Steed / Mount</option>
+                    <option value="tool_pickaxe">Tool: Pickaxe</option>
+                    <option value="tool_axe">Tool: Wood Axe</option>
+                    <option value="tool_rod">Tool: Fishing Rod</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="form-row">
+                <label>Description:</label>
+                <textarea id="item-form-desc" rows="2" placeholder="Flavor text, attributes, lore..."></textarea>
+              </div>
+
+              <!-- Equipment & Combat Stats (Optional) -->
+              <details style="font-size: 0.72rem; color: #cbd5e0; margin-bottom: 8px;">
+                <summary style="cursor: pointer; color: var(--gold-main); font-weight: 600; margin-bottom: 6px;">Combat & Gathering Stats (Optional)</summary>
+                <div class="form-row-2col">
+                  <div>
+                    <label>Accuracy:</label>
+                    <input type="number" id="item-form-accuracy" value="0" />
+                  </div>
+                  <div>
+                    <label>Strength:</label>
+                    <input type="number" id="item-form-strength" value="0" />
+                  </div>
+                </div>
+                <div class="form-row-2col">
+                  <div>
+                    <label>Defence:</label>
+                    <input type="number" id="item-form-defence" value="0" />
+                  </div>
+                  <div>
+                    <label>Swing Speed (sec):</label>
+                    <input type="number" id="item-form-speed" step="0.1" value="0" placeholder="e.g. 2.4" />
+                  </div>
+                </div>
+                <div class="form-row-2col">
+                  <div>
+                    <label>Food HP Heal:</label>
+                    <input type="number" id="item-form-heal" value="0" />
+                  </div>
+                  <div>
+                    <label>Tool Speed Bonus (%):</label>
+                    <input type="number" id="item-form-tool-bonus" step="1" value="0" placeholder="e.g. 15 for +15%" />
+                  </div>
+                </div>
+                <div class="form-row-2col">
+                  <div>
+                    <label>Equip Req Skill:</label>
+                    <select id="item-form-req-skill">
+                      <option value="">(None)</option>
+                      <option value="melee">Melee</option>
+                      <option value="ranged">Ranged</option>
+                      <option value="magic">Magic</option>
+                      <option value="defence">Defence</option>
+                      <option value="mining">Mining</option>
+                      <option value="woodcutting">Woodcutting</option>
+                      <option value="fishing">Fishing</option>
+                      <option value="farming">Farming</option>
+                      <option value="cooking">Cooking</option>
+                      <option value="smithing">Smithing</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label>Req Level:</label>
+                    <input type="number" id="item-form-req-lvl" min="1" max="120" value="1" />
+                  </div>
+                </div>
+              </details>
+
+              <div style="display: flex; gap: 6px; margin-top: 8px;">
+                <button type="submit" class="btn-start" style="flex: 2;">Save Item</button>
+                <button type="button" id="btn-delete-item" class="btn-oak" style="color: #fc8181; flex: 1;">Delete / Reset</button>
+                <button type="button" id="btn-cancel-item" class="btn-oak" style="flex: 1;">Cancel</button>
+              </div>
+            </form>
+
+            <!-- Items List -->
+            <div id="editor-items-list" class="editor-entities-list" style="max-height: 440px; overflow-y: auto;"></div>
           </div>
 
         </div>

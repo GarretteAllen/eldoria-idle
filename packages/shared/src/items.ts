@@ -1,4 +1,5 @@
-import { ItemDefinition } from './types.js';
+import { ItemDefinition, InventorySlot } from './types.js';
+import { Rarity } from './constants.js';
 
 export const ITEMS: Record<string, ItemDefinition> = {
   // --- Ores & Minerals ---
@@ -227,3 +228,70 @@ export const ITEMS: Record<string, ItemDefinition> = {
   // --- Steeds (Mounts) ---
   steed_courser: { id: 'steed_courser', name: 'Eldorian Courser', category: 'steed', tier: 2, slot: 'steed', vendorFloorPrice: 20000, description: 'Grants walking speed haste on the road' }
 };
+
+export function isItemStackable(item?: ItemDefinition): boolean {
+  if (!item) return false;
+  if (item.stackable !== undefined) return item.stackable;
+  // Non-stackable by default: weapon, armour, tool, steed
+  if (['weapon', 'armour', 'tool', 'steed'].includes(item.category)) {
+    return false;
+  }
+  return true;
+}
+
+export function getItemMaxStack(item?: ItemDefinition): number {
+  if (!item) return 1;
+  if (!isItemStackable(item)) return 1;
+  return item.maxStack && item.maxStack > 0 ? item.maxStack : 999999;
+}
+
+export function addItemToSlots(
+  slots: InventorySlot[],
+  maxSlots: number,
+  itemId: string,
+  quantity: number,
+  rarity: Rarity = 'plain',
+  plus: number = 0,
+  itemDef?: ItemDefinition
+): { added: number; remainder: number } {
+  if (quantity <= 0) return { added: 0, remainder: 0 };
+  const stackable = isItemStackable(itemDef);
+  const maxStack = getItemMaxStack(itemDef);
+
+  let remaining = quantity;
+
+  // 1. Try filling existing slots if stackable
+  if (stackable) {
+    for (const slot of slots) {
+      if (
+        slot.itemId === itemId &&
+        (slot.rarity || 'plain') === (rarity || 'plain') &&
+        (slot.plus || 0) === (plus || 0) &&
+        slot.quantity < maxStack
+      ) {
+        const canTake = maxStack - slot.quantity;
+        const toAdd = Math.min(canTake, remaining);
+        slot.quantity += toAdd;
+        remaining -= toAdd;
+        if (remaining <= 0) break;
+      }
+    }
+  }
+
+  // 2. Open new slots while space permits
+  while (remaining > 0 && slots.length < maxSlots) {
+    const toAdd = stackable ? Math.min(remaining, maxStack) : 1;
+    slots.push({
+      itemId,
+      quantity: toAdd,
+      rarity,
+      plus,
+    });
+    remaining -= toAdd;
+  }
+
+  return {
+    added: quantity - remaining,
+    remainder: remaining,
+  };
+}

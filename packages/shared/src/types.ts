@@ -79,6 +79,8 @@ export interface ItemDefinition {
   };
   vendorFloorPrice: number;
   description?: string;
+  stackable?: boolean;
+  maxStack?: number;
 }
 
 export interface InventorySlot {

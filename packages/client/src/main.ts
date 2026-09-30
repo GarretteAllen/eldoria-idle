@@ -10,6 +10,9 @@ import {
   QuestDefinition,
   FARMING_CROPS,
   ONLINE_GROWTH_MULTIPLIER,
+  ItemDefinition,
+  isItemStackable,
+  getItemMaxStack,
 } from '@eldoria/shared';
 import { WorldRenderer, WorldNodeDisplay, TILE_SIZE } from './canvas.js';
 import { loadLdtkWorld } from './ldtkLoader.js';
@@ -64,7 +67,7 @@ class EldoriaClient {
   private activeStorageTab: 'storage' | 'vendor' = 'storage';
 
   // Editor State
-  private activeEditorTab: 'nodes' | 'monsters' | 'npcs' | 'quests' | 'collisions' | 'giveitems' = 'nodes';
+  private activeEditorTab: 'nodes' | 'monsters' | 'npcs' | 'quests' | 'collisions' | 'giveitems' | 'items' = 'nodes';
   private collisionBrush: 'paint' | 'erase' = 'paint';
 
   // Interaction State
@@ -463,6 +466,12 @@ class EldoriaClient {
           this.renderer.setCollisions(msg.collisions);
           this.updateCollisionCount();
         }
+        if (msg.items) {
+          Object.assign(ITEMS, msg.items);
+          this.renderInventoryDrawer();
+          this.renderStorageDrawer();
+          this.renderEditorItems();
+        }
 
         if (msg.boss) this.updateBossBanner(msg.boss);
         if (msg.onlineCount !== undefined) {
@@ -600,6 +609,16 @@ class EldoriaClient {
       case 'COLLISIONS_UPDATE':
         this.renderer.setCollisions(msg.collisions || []);
         this.updateCollisionCount();
+        break;
+
+      case 'ITEMS_UPDATE':
+        if (msg.items) {
+          Object.assign(ITEMS, msg.items);
+          this.renderInventoryDrawer();
+          this.renderStorageDrawer();
+          this.renderEditorItems();
+          this.showToast('Item registry updated in real time.');
+        }
         break;
 
       case 'CHAT_BROADCAST':
@@ -3844,6 +3863,9 @@ class EldoriaClient {
       };
     }
 
+    // 5b. Item Editor Setup
+    this.setupItemEditor();
+
     // 5. Node Form Setup
     const typeSelect = document.getElementById('node-form-type') as HTMLSelectElement | null;
     const recSelect = document.getElementById('node-form-recipe') as HTMLSelectElement | null;
@@ -4052,15 +4074,19 @@ class EldoriaClient {
     }
   }
 
-  private switchEditorTab(tab: 'nodes' | 'monsters' | 'npcs' | 'quests' | 'collisions' | 'giveitems') {
+  private switchEditorTab(tab: 'nodes' | 'monsters' | 'npcs' | 'quests' | 'collisions' | 'giveitems' | 'items') {
     this.activeEditorTab = tab;
-    const tabContents = ['nodes', 'monsters', 'npcs', 'quests', 'collisions', 'giveitems'];
+    const tabContents = ['nodes', 'monsters', 'npcs', 'quests', 'collisions', 'giveitems', 'items'];
     for (const t of tabContents) {
       const el = document.getElementById(`tab-content-${t}`);
       if (el) {
         if (t === tab) el.classList.remove('hidden');
         else el.classList.add('hidden');
       }
+    }
+
+    if (tab === 'items') {
+      this.renderEditorItems();
     }
 
     if (tab === 'collisions') {
@@ -4308,6 +4334,225 @@ class EldoriaClient {
         if (confirm(`Delete Quest "${q.title}"?`)) {
           this.sendWs({ type: 'ADMIN_DELETE_QUEST', questId: q.id, id: q.id });
         }
+      });
+
+      container.appendChild(card);
+    }
+  }
+
+  // --- In-Game Item Editor ---
+  private setupItemEditor() {
+    const itemSearchInput = document.getElementById('editor-item-search') as HTMLInputElement | null;
+    if (itemSearchInput) {
+      itemSearchInput.addEventListener('input', () => {
+        this.renderEditorItems(itemSearchInput.value);
+      });
+    }
+
+    const itemForm = document.getElementById('editor-item-form') as HTMLFormElement | null;
+    const btnAddItem = document.getElementById('btn-add-item');
+    const btnCancelItem = document.getElementById('btn-cancel-item');
+    const btnDeleteItem = document.getElementById('btn-delete-item');
+    const chkStackable = document.getElementById('item-form-stackable') as HTMLInputElement | null;
+    const stackRow = document.getElementById('item-form-max-stack-row');
+    const stackInput = document.getElementById('item-form-max-stack') as HTMLInputElement | null;
+
+    if (chkStackable && stackRow && stackInput) {
+      chkStackable.addEventListener('change', () => {
+        if (chkStackable.checked) {
+          stackRow.style.opacity = '1';
+          stackInput.disabled = false;
+          if (parseInt(stackInput.value, 10) <= 1) {
+            stackInput.value = '999999';
+          }
+        } else {
+          stackRow.style.opacity = '0.5';
+          stackInput.disabled = true;
+          stackInput.value = '1';
+        }
+      });
+    }
+
+    if (btnAddItem && itemForm) {
+      btnAddItem.onclick = () => {
+        this.populateItemEditorForm(null);
+      };
+    }
+
+    if (btnCancelItem && itemForm) {
+      btnCancelItem.onclick = () => {
+        itemForm.classList.add('hidden');
+      };
+    }
+
+    if (btnDeleteItem && itemForm) {
+      btnDeleteItem.onclick = () => {
+        const id = (document.getElementById('item-form-id') as HTMLInputElement).value.trim();
+        if (!id) return;
+        if (confirm(`Delete / reset item "${id}"?`)) {
+          this.sendWs({
+            type: 'ADMIN_DELETE_ITEM',
+            id,
+          });
+          itemForm.classList.add('hidden');
+        }
+      };
+    }
+
+    if (itemForm) {
+      itemForm.onsubmit = (e) => {
+        e.preventDefault();
+        const id = (document.getElementById('item-form-id') as HTMLInputElement).value.trim();
+        const name = (document.getElementById('item-form-name') as HTMLInputElement).value.trim();
+        const category = (document.getElementById('item-form-category') as HTMLSelectElement).value as any;
+        const tier = parseInt((document.getElementById('item-form-tier') as HTMLInputElement).value, 10) || 1;
+        const stackable = chkStackable ? chkStackable.checked : true;
+        const maxStack = stackable
+          ? (parseInt(stackInput?.value || '999999', 10) || 999999)
+          : 1;
+        const vendorFloorPrice = parseInt((document.getElementById('item-form-price') as HTMLInputElement).value, 10) || 0;
+        const description = (document.getElementById('item-form-desc') as HTMLTextAreaElement).value.trim();
+        const slotVal = (document.getElementById('item-form-slot') as HTMLSelectElement).value;
+        const slot = slotVal ? (slotVal as EquipSlot) : undefined;
+
+        const reqSkillVal = (document.getElementById('item-form-req-skill') as HTMLSelectElement).value;
+        const reqLvl = parseInt((document.getElementById('item-form-req-lvl') as HTMLInputElement).value, 10) || 1;
+        const equipReq = reqSkillVal ? { skill: reqSkillVal as SkillType, level: reqLvl } : undefined;
+
+        const acc = parseInt((document.getElementById('item-form-accuracy') as HTMLInputElement).value, 10) || 0;
+        const str = parseInt((document.getElementById('item-form-strength') as HTMLInputElement).value, 10) || 0;
+        const def = parseInt((document.getElementById('item-form-defence') as HTMLInputElement).value, 10) || 0;
+        const spd = parseFloat((document.getElementById('item-form-speed') as HTMLInputElement).value) || 0;
+        const heal = parseInt((document.getElementById('item-form-heal') as HTMLInputElement).value, 10) || 0;
+        const toolBonus = (parseFloat((document.getElementById('item-form-tool-bonus') as HTMLInputElement).value) || 0) / 100;
+
+        let baseStats: any = undefined;
+        if (acc || str || def || spd || heal || toolBonus) {
+          baseStats = {};
+          if (acc) baseStats.accuracy = acc;
+          if (str) baseStats.strength = str;
+          if (def) baseStats.defence = def;
+          if (spd) baseStats.swingSpeedSeconds = spd;
+          if (heal) baseStats.healing = heal;
+          if (toolBonus) baseStats.toolSpeedBonus = toolBonus;
+        }
+
+        const itemDef: ItemDefinition = {
+          id,
+          name,
+          category,
+          tier,
+          stackable,
+          maxStack,
+          vendorFloorPrice,
+          description: description || undefined,
+          slot,
+          equipReq,
+          baseStats,
+        };
+
+        this.sendWs({
+          type: 'ADMIN_SAVE_ITEM',
+          item: itemDef,
+        });
+
+        itemForm.classList.add('hidden');
+      };
+    }
+  }
+
+  private populateItemEditorForm(def: ItemDefinition | null) {
+    const form = document.getElementById('editor-item-form') as HTMLFormElement | null;
+    if (!form) return;
+    form.classList.remove('hidden');
+
+    const heading = document.getElementById('item-form-heading');
+    if (heading) heading.textContent = def ? `Edit Item: ${def.name}` : 'Create New Item';
+
+    const idInput = document.getElementById('item-form-id') as HTMLInputElement;
+    idInput.value = def ? def.id : '';
+    idInput.readOnly = false;
+
+    (document.getElementById('item-form-name') as HTMLInputElement).value = def ? def.name : '';
+    (document.getElementById('item-form-category') as HTMLSelectElement).value = def ? def.category : 'ore';
+    (document.getElementById('item-form-tier') as HTMLInputElement).value = (def ? def.tier : 1).toString();
+
+    const isStack = isItemStackable(def || undefined);
+    const maxStack = getItemMaxStack(def || undefined);
+
+    const chkStackable = document.getElementById('item-form-stackable') as HTMLInputElement;
+    chkStackable.checked = isStack;
+
+    const stackInput = document.getElementById('item-form-max-stack') as HTMLInputElement;
+    stackInput.value = maxStack.toString();
+    stackInput.disabled = !isStack;
+
+    const stackRow = document.getElementById('item-form-max-stack-row');
+    if (stackRow) stackRow.style.opacity = isStack ? '1' : '0.5';
+
+    (document.getElementById('item-form-price') as HTMLInputElement).value = (def ? def.vendorFloorPrice : 5).toString();
+    (document.getElementById('item-form-desc') as HTMLTextAreaElement).value = def?.description || '';
+    (document.getElementById('item-form-slot') as HTMLSelectElement).value = def?.slot || '';
+
+    (document.getElementById('item-form-req-skill') as HTMLSelectElement).value = def?.equipReq?.skill || '';
+    (document.getElementById('item-form-req-lvl') as HTMLInputElement).value = (def?.equipReq?.level || 1).toString();
+
+    (document.getElementById('item-form-accuracy') as HTMLInputElement).value = (def?.baseStats?.accuracy || 0).toString();
+    (document.getElementById('item-form-strength') as HTMLInputElement).value = (def?.baseStats?.strength || 0).toString();
+    (document.getElementById('item-form-defence') as HTMLInputElement).value = (def?.baseStats?.defence || 0).toString();
+    (document.getElementById('item-form-speed') as HTMLInputElement).value = (def?.baseStats?.swingSpeedSeconds || 0).toString();
+    (document.getElementById('item-form-heal') as HTMLInputElement).value = (def?.baseStats?.healing || 0).toString();
+    (document.getElementById('item-form-tool-bonus') as HTMLInputElement).value = def?.baseStats?.toolSpeedBonus ? Math.round(def.baseStats.toolSpeedBonus * 100).toString() : '0';
+
+    form.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  private renderEditorItems(filter = '') {
+    const container = document.getElementById('editor-items-list');
+    if (!container) return;
+    container.innerHTML = '';
+
+    const q = filter.trim().toLowerCase();
+    const allItems = Object.values(ITEMS)
+      .filter(it => !q || it.name.toLowerCase().includes(q) || it.id.toLowerCase().includes(q) || it.category.toLowerCase().includes(q))
+      .sort((a, b) => a.name.localeCompare(b.name));
+
+    if (allItems.length === 0) {
+      container.innerHTML = '<div style="color: var(--text-dim); font-size: 0.75rem; padding: 8px; text-align: center;">No matching items found</div>';
+      return;
+    }
+
+    for (const item of allItems) {
+      const isStack = isItemStackable(item);
+      const maxStack = getItemMaxStack(item);
+      const stackBadge = isStack
+        ? (maxStack >= 999999 ? 'Stack: ∞' : `Max: ${maxStack}`)
+        : 'Non-stackable';
+
+      const stackBg = isStack
+        ? (maxStack >= 999999 ? '#2b6cb0' : '#2f855a')
+        : '#742a2a';
+
+      const card = document.createElement('div');
+      card.className = 'editor-entity-card';
+      card.style.cursor = 'pointer';
+      card.innerHTML = `
+        <div class="editor-entity-info">
+          <div class="editor-entity-title" style="display: flex; align-items: center; gap: 6px;">
+            <span>${item.name}</span>
+            <span style="font-size: 0.65rem; background: ${stackBg}; color: #fff; padding: 1px 5px; border-radius: 3px; font-weight: 600;">${stackBadge}</span>
+          </div>
+          <div class="editor-entity-meta" style="font-size: 0.68rem; color: #a0aec0;">
+            <code style="color: #ffd699;">${item.id}</code> · ${item.category} · Tier ${item.tier} · ${item.vendorFloorPrice}g
+          </div>
+        </div>
+        <div class="editor-entity-actions">
+          <button class="btn-micro-edit" data-id="${item.id}">Edit</button>
+        </div>
+      `;
+
+      card.addEventListener('click', () => {
+        this.populateItemEditorForm(item);
       });
 
       container.appendChild(card);

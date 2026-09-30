@@ -20,6 +20,10 @@ import {
   calculatePlayerMoveSpeed,
   FARMING_CROPS,
   ONLINE_GROWTH_MULTIPLIER,
+  addItemToSlots,
+  isItemStackable,
+  getItemMaxStack,
+  Rarity,
 } from '@eldoria/shared';
 import { storage } from './storage.js';
 
@@ -121,6 +125,7 @@ export class GameEngine {
       npcs: storage.getNpcs(),
       quests: storage.getQuests(),
       collisions: Array.from(storage.getCollisions()),
+      items: storage.getItems(),
     });
 
     this.broadcastWorldState();
@@ -180,20 +185,13 @@ export class GameEngine {
     }
   }
 
-  private addItemToPlayer(session: ConnectedSession, itemId: string, qty: number) {
+  private addItemToPlayer(session: ConnectedSession, itemId: string, qty: number, rarity: Rarity = 'plain', plus: number = 0) {
     const { player } = session;
-    const existingInv = player.inventory.find(s => s.itemId === itemId && s.rarity === 'plain' && (s.plus || 0) === 0);
-    if (existingInv) {
-      existingInv.quantity += qty;
-    } else if (player.inventory.length < 28) {
-      player.inventory.push({ itemId, quantity: qty, rarity: 'plain', plus: 0 });
-    } else {
-      const existingStorage = player.storage.find(s => s.itemId === itemId && s.rarity === 'plain' && (s.plus || 0) === 0);
-      if (existingStorage) {
-        existingStorage.quantity += qty;
-      } else {
-        player.storage.push({ itemId, quantity: qty, rarity: 'plain', plus: 0 });
-      }
+    const itemDef = storage.getItem(itemId);
+    const invRes = addItemToSlots(player.inventory, 28, itemId, qty, rarity, plus, itemDef);
+    if (invRes.remainder > 0) {
+      const maxStorage = player.storageSlotsMax || 75;
+      addItemToSlots(player.storage, maxStorage, itemId, invRes.remainder, rarity, plus, itemDef);
     }
   }
 
@@ -682,6 +680,36 @@ export class GameEngine {
         }
         break;
 
+      case 'ADMIN_SAVE_ITEM':
+        if (player.role !== 'admin') {
+          this.send(session.ws, { type: 'NOTIFICATION', message: 'Admin privileges required.' });
+          break;
+        }
+        if (msg.item && msg.item.id) {
+          storage.saveItem(msg.item);
+          this.broadcast({ type: 'ITEMS_UPDATE', items: storage.getItems() });
+          this.send(session.ws, {
+            type: 'NOTIFICATION',
+            message: `Saved item "${msg.item.name}" (${msg.item.id}).`
+          });
+        }
+        break;
+
+      case 'ADMIN_DELETE_ITEM':
+        if (player.role !== 'admin') {
+          this.send(session.ws, { type: 'NOTIFICATION', message: 'Admin privileges required.' });
+          break;
+        }
+        if (msg.id) {
+          storage.deleteItem(msg.id);
+          this.broadcast({ type: 'ITEMS_UPDATE', items: storage.getItems() });
+          this.send(session.ws, {
+            type: 'NOTIFICATION',
+            message: `Deleted / reset item "${msg.id}".`
+          });
+        }
+        break;
+
       case 'PLANT_PLOT': {
         const { plotId, seedId } = msg;
         const cropDef = FARMING_CROPS[seedId];
@@ -1103,13 +1131,14 @@ export class GameEngine {
 
     const slot = player.storage[storageIndex];
     if (!slot) return;
-    const def = ITEMS[slot.itemId];
+    const def = storage.getItem(slot.itemId) || ITEMS[slot.itemId];
 
-    // Check inventory capacity
-    const existingInv = player.inventory.find(
-      s => s.itemId === slot.itemId && s.rarity === slot.rarity && s.plus === slot.plus
-    );
-    if (!existingInv && player.inventory.length >= 28) {
+    const qtyToTake = (typeof requestedQty === 'number' && requestedQty > 0)
+      ? Math.min(slot.quantity, requestedQty)
+      : slot.quantity;
+
+    const res = addItemToSlots(player.inventory, 28, slot.itemId, qtyToTake, slot.rarity, slot.plus, def);
+    if (res.added <= 0) {
       this.send(ws, {
         type: 'NOTIFICATION',
         message: 'Satchel full! Cannot withdraw items.'
@@ -1117,31 +1146,16 @@ export class GameEngine {
       return;
     }
 
-    const qtyToTake = (typeof requestedQty === 'number' && requestedQty > 0)
-      ? Math.min(slot.quantity, requestedQty)
-      : slot.quantity;
-
-    slot.quantity -= qtyToTake;
+    slot.quantity -= res.added;
     if (slot.quantity <= 0) {
       player.storage.splice(storageIndex, 1);
-    }
-
-    if (existingInv) {
-      existingInv.quantity += qtyToTake;
-    } else {
-      player.inventory.push({
-        itemId: slot.itemId,
-        quantity: qtyToTake,
-        rarity: slot.rarity,
-        plus: slot.plus,
-      });
     }
 
     storage.savePlayer(player);
     storage.checkpoint();
     this.send(ws, {
       type: 'NOTIFICATION',
-      message: `Withdrew ${qtyToTake}x ${def?.name || slot.itemId} from the vault.`
+      message: `Withdrew ${res.added}x ${def?.name || slot.itemId} from the vault.`
     });
     this.send(ws, { type: 'PLAYER_UPDATE', player });
   }
@@ -1150,7 +1164,7 @@ export class GameEngine {
     const { player, ws } = session;
     const slot = player.inventory[inventoryIndex];
     if (!slot) return;
-    const def = ITEMS[slot.itemId];
+    const def = storage.getItem(slot.itemId) || ITEMS[slot.itemId];
 
     const hearth = this.getHearthLocation(player.x, player.y);
     const distToHearth = Math.hypot(player.x - hearth.x, player.y - hearth.y);
@@ -1194,12 +1208,13 @@ export class GameEngine {
       }
     }
 
-
     const maxSlots = player.storageSlotsMax || 75;
-    const existingStorage = player.storage.find(
-      s => s.itemId === slot.itemId && s.rarity === slot.rarity && s.plus === slot.plus
-    );
-    if (!existingStorage && player.storage.length >= maxSlots) {
+    const qtyToTake = (typeof requestedQty === 'number' && requestedQty > 0)
+      ? Math.min(slot.quantity, requestedQty)
+      : slot.quantity;
+
+    const res = addItemToSlots(player.storage, maxSlots, slot.itemId, qtyToTake, slot.rarity, slot.plus, def);
+    if (res.added <= 0) {
       this.send(ws, {
         type: 'NOTIFICATION',
         message: 'Hearth Vault full! Purchase additional slots or withdraw items.'
@@ -1207,24 +1222,9 @@ export class GameEngine {
       return;
     }
 
-    const qtyToTake = (typeof requestedQty === 'number' && requestedQty > 0)
-      ? Math.min(slot.quantity, requestedQty)
-      : slot.quantity;
-
-    slot.quantity -= qtyToTake;
+    slot.quantity -= res.added;
     if (slot.quantity <= 0) {
       player.inventory.splice(inventoryIndex, 1);
-    }
-
-    if (existingStorage) {
-      existingStorage.quantity += qtyToTake;
-    } else {
-      player.storage.push({
-        itemId: slot.itemId,
-        quantity: qtyToTake,
-        rarity: slot.rarity,
-        plus: slot.plus,
-      });
     }
 
     storage.savePlayer(player);
@@ -1717,20 +1717,13 @@ export class GameEngine {
 
     // Add output item
     const rarity = rollRarity(1.0);
-    const existingSlot = player.inventory.find(s => s.itemId === recipe.outputItemId && s.rarity === rarity && s.plus === 0);
-    if (existingSlot) {
-      existingSlot.quantity += recipe.outputQuantity;
-    } else if (player.inventory.length < 28) {
-      player.inventory.push({
-        itemId: recipe.outputItemId,
-        quantity: recipe.outputQuantity,
-        rarity,
-        plus: 0,
-      });
-    } else {
+    const outDef = storage.getItem(recipe.outputItemId) || ITEMS[recipe.outputItemId];
+    const addRes = addItemToSlots(player.inventory, 28, recipe.outputItemId, recipe.outputQuantity, rarity, 0, outDef);
+
+    if (addRes.remainder > 0) {
       // Inventory is full! Check auto-banking vs drop
       if (player.dropWhenFull) {
-        this.send(ws, { type: 'NOTIFICATION', message: `Satchel full! Discarded ${ITEMS[recipe.outputItemId]?.name || 'spoils'}.` });
+        this.send(ws, { type: 'NOTIFICATION', message: `Satchel full! Discarded ${outDef?.name || 'spoils'}.` });
       } else {
         // Trigger Autonomous Banking Run to the Hearth!
         player.bankReturnTask = { ...player.currentTask! };
@@ -1774,13 +1767,8 @@ export class GameEngine {
     if (recipe.rareFinds) {
       for (const rf of recipe.rareFinds) {
         if (Math.random() < rf.chance) {
-          const rfItem = ITEMS[rf.itemId];
-          const existingSlot = player.inventory.find(s => s.itemId === rf.itemId && s.rarity === 'plain' && s.plus === 0);
-          if (existingSlot) {
-            existingSlot.quantity += 1;
-          } else if (player.inventory.length < 28) {
-            player.inventory.push({ itemId: rf.itemId, quantity: 1, rarity: 'plain', plus: 0 });
-          }
+          const rfItem = storage.getItem(rf.itemId) || ITEMS[rf.itemId];
+          addItemToSlots(player.inventory, 28, rf.itemId, 1, 'plain', 0, rfItem);
           this.send(ws, {
             type: 'NOTIFICATION',
             message: `Bonus yield! Discovered ${rfItem?.name || rf.itemId}!`
@@ -1926,7 +1914,8 @@ export class GameEngine {
     const quantity = Math.max(1, Math.min(10000, parseInt(msg.quantity, 10) || 1));
     const destination: 'inventory' | 'storage' = msg.destination === 'storage' ? 'storage' : 'inventory';
 
-    if (!ITEMS[itemId]) {
+    const itemDef = storage.getItem(itemId) || ITEMS[itemId];
+    if (!itemDef) {
       this.send(ws, { type: 'NOTIFICATION', message: `Unknown item ID: "${itemId}". No item given.` });
       return;
     }
@@ -1958,27 +1947,21 @@ export class GameEngine {
       targetSession = session;
     }
 
-    // Give item — stack if matching slot exists
-    const slot: InventorySlot = { itemId, quantity, rarity: 'plain', plus: 0 };
+    // Give item — stack if matching slot exists and space permits
     if (destination === 'storage') {
-      const existing = (targetPlayer.storage || []).find(
-        (s: InventorySlot) => s.itemId === itemId && s.rarity === 'plain' && s.plus === 0
-      );
-      if (existing) {
-        existing.quantity += quantity;
-      } else {
-        if (!targetPlayer.storage) targetPlayer.storage = [];
-        targetPlayer.storage.push(slot);
+      const maxSlots = targetPlayer.storageSlotsMax || 75;
+      targetPlayer.storage = targetPlayer.storage || [];
+      const res = addItemToSlots(targetPlayer.storage, maxSlots, itemId, quantity, 'plain', 0, itemDef);
+      if (res.added <= 0) {
+        this.send(ws, {
+          type: 'NOTIFICATION',
+          message: `${targetPlayer.username}'s storage is full.`,
+        });
+        return;
       }
     } else {
-      const existing = targetPlayer.inventory.find(
-        (s: InventorySlot) => s.itemId === itemId && s.rarity === 'plain' && s.plus === 0
-      );
-      if (existing) {
-        existing.quantity += quantity;
-      } else if (targetPlayer.inventory.length < 28) {
-        targetPlayer.inventory.push(slot);
-      } else {
+      const res = addItemToSlots(targetPlayer.inventory, 28, itemId, quantity, 'plain', 0, itemDef);
+      if (res.added <= 0) {
         this.send(ws, {
           type: 'NOTIFICATION',
           message: `${targetPlayer.username}'s inventory is full (28 slots). Try Storage destination.`,
