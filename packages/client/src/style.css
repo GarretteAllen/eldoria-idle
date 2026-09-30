@@ -2822,4 +2822,104 @@ body, html {
   line-height: 1.3;
 }
 
+/* ========================================================
+   18. PINNED QUEST TRACKER CARD & WORLD MAP
+   ======================================================== */
+.quest-tracker-card {
+  position: absolute;
+  top: 154px;
+  left: 12px;
+  width: 250px;
+  max-height: 240px;
+  overflow-y: auto;
+  z-index: 50;
+  transition: all 0.2s ease;
+}
+
+.quest-tracker-card.collapsed #quest-tracker-content {
+  display: none;
+}
+
+.quest-tracker-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.quest-tracker-item {
+  background: rgba(20, 14, 8, 0.08);
+  border: 1px solid rgba(80, 50, 20, 0.15);
+  border-radius: 4px;
+  padding: 6px 8px;
+  font-size: 0.72rem;
+}
+
+.quest-tracker-item:hover {
+  background: rgba(20, 14, 8, 0.13);
+}
+
+.quest-tracker-name {
+  font-weight: 700;
+  color: var(--parchment-text);
+  margin-bottom: 3px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.quest-tracker-bar {
+  width: 100%;
+  height: 6px;
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 3px;
+  overflow: hidden;
+  margin: 4px 0;
+}
+
+.quest-tracker-bar-fill {
+  height: 100%;
+  background: #d69e2e;
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+.quest-tracker-bar-fill.complete {
+  background: #38a169;
+}
+
+.quest-tracker-reward {
+  font-size: 0.65rem;
+  color: var(--parchment-sub);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 2px;
+}
+
+.btn-claim-quest {
+  background: #38a169;
+  color: #fff;
+  border: 1px solid #2f855a;
+  border-radius: 3px;
+  padding: 2px 7px;
+  font-size: 0.66rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.btn-claim-quest:hover {
+  background: #276749;
+}
+
+.world-map-card {
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.9), 0 0 0 1px #84613b;
+}
+
+.legend-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
 

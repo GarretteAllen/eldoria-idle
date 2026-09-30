@@ -71,6 +71,7 @@
 
           <button id="btn-sound-toggle" class="top-util-btn" title="Toggle Sound FX">🔊</button>
           <button id="btn-minimap-toggle" class="top-util-btn" title="Toggle Realm Radar">🧭</button>
+          <button id="btn-worldmap-toggle" class="top-util-btn" title="Open World Atlas [M]">🗺️</button>
 
           <button id="btn-top-logout" class="top-logout-btn" title="Log Out of Character">Log Out</button>
 
@@ -149,6 +150,20 @@
         </div>
       </div>
 
+      <!-- 3b. PINNED QUEST TRACKER CARD (Parchment Float beneath Tasks) -->
+      <div id="quest-tracker-card" class="parchment-card quest-tracker-card">
+        <div class="tasks-card-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+          <div style="display:flex; align-items:center; gap:5px;">
+            <span>📜</span>
+            <span style="font-size:0.82rem; font-weight:800; color:var(--parchment-text);">Bounties & Quests</span>
+          </div>
+          <button id="quest-tracker-toggle-btn" class="icon-btn-micro" style="font-size:0.65rem;" title="Collapse/Expand Quests">▾</button>
+        </div>
+        <div id="quest-tracker-content">
+          <div id="quest-tracker-list" class="quest-tracker-list"></div>
+        </div>
+      </div>
+
       <!-- 4. BOTTOM-LEFT CHAT CARD (Dark Oak Float) -->
       <div id="chat-card" class="dark-oak-card">
         <div class="chat-card-header">
@@ -160,9 +175,9 @@
         </div>
         <div class="chat-channels">
           <button class="chan-btn active" data-chan="All">All</button>
-          <button class="chan-btn" data-chan="Trade">Trade</button>
-          <button class="chan-btn" data-chan="Raid">Raid</button>
-          <button class="chan-btn" data-chan="System">System</button>
+          <button class="chan-btn" data-chan="Combat">Combat</button>
+          <button class="chan-btn" data-chan="Loot">Loot</button>
+          <button class="chan-btn" data-chan="Global">Global</button>
         </div>
         <div id="chat-messages" class="chat-messages"></div>
         <form id="chat-form" class="chat-input-row">
@@ -886,7 +901,35 @@
         </div>
       </div>
 
-      <!-- 16. FLOATING ITEM HOVER TOOLTIP -->
+      <!-- 16. FULL REALM WORLD MAP MODAL -->
+      <div id="world-map-modal" class="modal-backdrop hidden">
+        <div class="modal-box dark-oak-panel world-map-card" style="width: 760px; max-width: 95vw;">
+          <div class="modal-header">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span style="font-size: 1.2rem;">🗺️</span>
+              <div>
+                <h4 style="color: var(--gold-bright); margin: 0;">Realm of Eldoria — World Atlas</h4>
+                <div style="font-size: 0.68rem; color: #a0aec0;">Click anywhere on the map to navigate • Press [M] or [Esc] to exit</div>
+              </div>
+            </div>
+            <button id="world-map-close-btn" class="icon-btn-micro">✕</button>
+          </div>
+          <div class="world-map-body" style="position: relative; overflow: auto; background: #121815; border-radius: 6px; border: 1.5px solid #5a4522; margin-top: 8px;">
+            <canvas id="world-map-canvas" width="710" height="430" style="display: block; cursor: crosshair; image-rendering: pixelated; margin: 0 auto;"></canvas>
+          </div>
+          <div class="world-map-legend" style="display: flex; gap: 14px; flex-wrap: wrap; margin-top: 8px; font-size: 0.72rem; color: #e2e8f0; align-items: center; justify-content: center;">
+            <span style="display:inline-flex; align-items:center; gap:4px;"><span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#ecc94b; border:1px solid #fff;"></span> You</span>
+            <span style="display:inline-flex; align-items:center; gap:4px;"><span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#ffd700;"></span> Hearth Bank</span>
+            <span style="display:inline-flex; align-items:center; gap:4px;"><span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#e53e3e;"></span> Monsters</span>
+            <span style="display:inline-flex; align-items:center; gap:4px;"><span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#38a169;"></span> Timber Trees</span>
+            <span style="display:inline-flex; align-items:center; gap:4px;"><span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#d97706;"></span> Ore Mines</span>
+            <span style="display:inline-flex; align-items:center; gap:4px;"><span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#3182ce;"></span> Fishing</span>
+            <span style="display:inline-flex; align-items:center; gap:4px;"><span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#81e6d9;"></span> NPCs</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 17. FLOATING ITEM HOVER TOOLTIP -->
       <div id="item-hover-tooltip" class="item-hover-tooltip hidden">
         <div id="tooltip-header" class="tooltip-header">
           <span id="tooltip-name" class="tooltip-name">Item Name</span>

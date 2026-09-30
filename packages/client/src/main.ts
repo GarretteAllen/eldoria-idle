@@ -1,5 +1,5 @@
 import { PlayerData, RECIPES, ITEMS, MONSTERS, EquipSlot, SkillType, getXpToNextLevel, NpcDefinition, QuestDefinition } from '@eldoria/shared';
-import { WorldRenderer, WorldNodeDisplay } from './canvas.js';
+import { WorldRenderer, WorldNodeDisplay, TILE_SIZE } from './canvas.js';
 import { loadLdtkWorld } from './ldtkLoader.js';
 import { ICONS, getItemIconSvg } from './icons.js';
 import { sound } from './sound.js';
@@ -69,6 +69,13 @@ class EldoriaClient {
   private previousSkillLevels: Map<string, number> = new Map();
   private previousCompletedQty: number = 0;
 
+  // Chat History & Filtering
+  private chatHistory: Array<{ time: string; senderName?: string; text: string; channel: 'Combat' | 'Loot' | 'Global' | 'System'; isAdmin?: boolean }> = [];
+
+  // Pinned Quests State
+  private acceptedQuests: Set<string> = new Set();
+  private completedQuests: Set<string> = new Set();
+
   constructor() {
     const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
     this.renderer = new WorldRenderer(canvas);
@@ -82,6 +89,9 @@ class EldoriaClient {
     this.setupStorageModal();
     this.setupAdminEditor();
     this.setupSoundAndMinimap();
+    this.setupWorldMapModal();
+    this.setupQuestTracker();
+    this.setupKeyboardControls();
     this.setupLevelUpCelebration();
     this.setupBestiary();
     this.setupItemTooltips();
@@ -399,15 +409,28 @@ class EldoriaClient {
             const curQty = this.player.currentTask.completedQuantity || 0;
             if (curQty > this.previousCompletedQty) {
               const skill = this.player.currentTask.skill;
-              if (skill === 'mining') sound.play('mine');
-              else if (skill === 'woodcutting') sound.play('woodcut');
-              else if (skill === 'smithing') sound.play('mine');
-              else if (skill === 'cooking') sound.play('eat');
+              if (skill === 'mining') {
+                sound.play('mine');
+                this.renderer.spawnParticles(this.player.x, this.player.y, 6, 'ore');
+              } else if (skill === 'woodcutting') {
+                sound.play('woodcut');
+                this.renderer.spawnParticles(this.player.x, this.player.y, 6, 'wood');
+              } else if (skill === 'fishing') {
+                this.renderer.spawnParticles(this.player.x, this.player.y, 6, 'water');
+              } else if (skill === 'smithing') {
+                sound.play('mine');
+                this.renderer.spawnParticles(this.player.x, this.player.y, 8, 'ore');
+              } else if (skill === 'cooking') {
+                sound.play('eat');
+                this.renderer.spawnParticles(this.player.x, this.player.y, 5, 'ore');
+              }
+              this.updateQuestTracker();
             }
             this.previousCompletedQty = curQty;
           } else {
             this.previousCompletedQty = 0;
           }
+          this.updateQuestTracker();
         }
         this.updateUI();
 
@@ -516,11 +539,37 @@ class EldoriaClient {
 
           if (dmg > 0) {
             sound.play('impact');
-            this.renderer.addFloatingText(targetX, targetY, `-${dmg}`, 'damage');
+            if (dmg >= 12) {
+              this.renderer.addFloatingText(targetX, targetY, `CRIT! -${dmg}`, 'crit');
+              this.renderer.spawnParticles(targetX, targetY, 8, 'gold_crit');
+              this.renderer.triggerCameraShake(4);
+              this.appendChatMessage({
+                time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                senderName: 'Combat',
+                channel: 'Combat',
+                text: `⚡ CRITICAL HIT! Dealt ${dmg} damage to ${msg.monsterName || 'target'}!`,
+              });
+            } else {
+              this.renderer.addFloatingText(targetX, targetY, `-${dmg}`, 'damage');
+              this.renderer.spawnParticles(targetX, targetY, 5, 'blood');
+              this.renderer.triggerCameraShake(1.5);
+              this.appendChatMessage({
+                time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                senderName: 'Combat',
+                channel: 'Combat',
+                text: `Struck ${msg.monsterName || 'target'} for ${dmg} damage.`,
+              });
+            }
             if (targetKey) this.renderer.triggerMonsterFlinch(targetKey);
           } else if (!msg.isRespawn) {
             sound.play('splash');
             this.renderer.addFloatingText(targetX, targetY, '0', 'splash');
+            this.appendChatMessage({
+              time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              senderName: 'Combat',
+              channel: 'Combat',
+              text: `Missed strike on ${msg.monsterName || 'target'}.`,
+            });
           }
 
           if (msg.isRespawn && targetKey) {
@@ -528,8 +577,16 @@ class EldoriaClient {
           } else if (msg.monsterHp !== undefined && msg.monsterHp <= 0) {
             sound.play('coin');
             this.renderer.addDeathEffect(targetX, targetY);
+            this.renderer.spawnParticles(targetX, targetY, 15, 'gold_crit');
             if (msg.xp && (!msg.attackerId || msg.attackerId === this.player?.id)) {
               this.renderer.addFloatingText(targetX, targetY - 0.5, `+${msg.xp} XP`, 'xp');
+              this.appendChatMessage({
+                time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                senderName: 'Victory',
+                channel: 'Combat',
+                text: `Defeated ${msg.monsterName || 'enemy'}! Gained ${msg.xp} XP.`,
+              });
+              this.updateQuestTracker();
             }
           }
 
@@ -559,6 +616,8 @@ class EldoriaClient {
           if (dmg > 0) {
             sound.play('impact');
             this.renderer.addFloatingText(px, py, `-${dmg}`, 'damage');
+            this.renderer.spawnParticles(px, py, 4, 'blood');
+            this.renderer.triggerCameraShake(2);
           } else {
             sound.play('splash');
             this.renderer.addFloatingText(px, py, '0', 'splash');
@@ -572,6 +631,15 @@ class EldoriaClient {
 
       case 'NOTIFICATION':
         this.showToast(msg.message);
+        if (msg.message && (msg.message.includes('Loot') || msg.message.includes('DROP') || msg.message.includes('Satchel') || msg.message.includes('Gold') || msg.message.includes('found'))) {
+          this.appendChatMessage({
+            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            senderName: 'Loot',
+            channel: 'Loot',
+            text: msg.message,
+          });
+          this.updateQuestTracker();
+        }
         break;
     }
   }
@@ -2015,6 +2083,7 @@ class EldoriaClient {
         chanBtns.forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         this.activeChannel = btn.getAttribute('data-chan') || 'All';
+        this.renderChatMessages();
       });
     });
 
@@ -2044,28 +2113,59 @@ class EldoriaClient {
   }
 
   private appendChatMessage(msg: any) {
-    const log = document.getElementById('chat-messages')!;
-    const line = document.createElement('div');
-    line.className = 'chat-line';
-
     const now = new Date();
     const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
     const sender = msg.senderName || 'Wanderer';
-
-    const adminTag = msg.isAdmin
-      ? `<span class="chat-admin-badge"><span style="display:inline-flex; width:12px; height:12px; margin-right:2px; vertical-align:middle;">${ICONS.admin}</span>ADMIN</span>`
-      : '';
-
-    // Strip unnecessary emojis from chat messages
+    const channel = msg.channel || 'Global';
     const cleanText = (msg.text || '').replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, '').trim();
 
-    line.innerHTML = `
-      <span class="chat-time">${timeStr}</span>
-      ${adminTag}
-      <span class="chat-sender">${sender}:</span>
-      <span>${cleanText}</span>
-    `;
-    log.appendChild(line);
+    this.chatHistory.push({
+      time: timeStr,
+      senderName: sender,
+      text: cleanText,
+      channel: channel as any,
+      isAdmin: msg.isAdmin,
+    });
+
+    if (this.chatHistory.length > 120) {
+      this.chatHistory.shift();
+    }
+
+    this.renderChatMessages();
+  }
+
+  private renderChatMessages() {
+    const log = document.getElementById('chat-messages');
+    if (!log) return;
+    log.innerHTML = '';
+
+    const filtered = this.chatHistory.filter(m => {
+      if (this.activeChannel === 'All') return true;
+      if (this.activeChannel === 'Combat') return m.channel === 'Combat';
+      if (this.activeChannel === 'Loot') return m.channel === 'Loot';
+      if (this.activeChannel === 'Global') return m.channel === 'Global' || m.channel === 'System';
+      return true;
+    });
+
+    for (const msg of filtered) {
+      const line = document.createElement('div');
+      line.className = 'chat-line';
+
+      const adminTag = msg.isAdmin
+        ? `<span class="chat-admin-badge"><span style="display:inline-flex; width:12px; height:12px; margin-right:2px; vertical-align:middle;">${ICONS.admin}</span>ADMIN</span>`
+        : '';
+
+      let chanColor = '#90cdf4';
+      if (msg.channel === 'Combat') chanColor = '#f6ad55';
+      else if (msg.channel === 'Loot') chanColor = '#ecc94b';
+
+      line.innerHTML = `
+        <span class="chat-time">${msg.time}</span>
+        ${msg.senderName ? `<span class="chat-sender" style="color:${chanColor};">${msg.senderName}${adminTag}:</span>` : ''}
+        <span>${msg.text}</span>
+      `;
+      log.appendChild(line);
+    }
     log.scrollTop = log.scrollHeight;
   }
 
@@ -2253,6 +2353,382 @@ class EldoriaClient {
     }
   }
 
+  private setupWorldMapModal() {
+    const mapBtn = document.getElementById('btn-worldmap-toggle');
+    const closeBtn = document.getElementById('world-map-close-btn');
+    if (mapBtn) {
+      mapBtn.onclick = () => this.toggleWorldMapModal();
+    }
+    if (closeBtn) {
+      closeBtn.onclick = () => {
+        document.getElementById('world-map-modal')?.classList.add('hidden');
+      };
+    }
+
+    const canvas = document.getElementById('world-map-canvas') as HTMLCanvasElement;
+    if (canvas) {
+      canvas.addEventListener('click', (e) => {
+        if (!this.player) return;
+        const stitched = this.renderer.getStitchedWorld();
+        if (!stitched) return;
+
+        const rect = canvas.getBoundingClientRect();
+        const clickX = e.clientX - rect.left;
+        const clickY = e.clientY - rect.top;
+
+        const scaleX = (stitched.widthTiles * TILE_SIZE) / canvas.width;
+        const scaleY = (stitched.heightTiles * TILE_SIZE) / canvas.height;
+
+        const worldPxX = clickX * scaleX;
+        const worldPxY = clickY * scaleY;
+
+        const tileX = Math.max(0, Math.min(stitched.widthTiles - 1, Math.floor(worldPxX / TILE_SIZE)));
+        const tileY = Math.max(0, Math.min(stitched.heightTiles - 1, Math.floor(worldPxY / TILE_SIZE)));
+
+        this.sendWs({ type: 'MOVE_TO', x: tileX, y: tileY });
+        this.renderer.setDestinationMarker(tileX, tileY);
+        this.showToast(`Navigating to (${tileX}, ${tileY})...`);
+        document.getElementById('world-map-modal')?.classList.add('hidden');
+      });
+    }
+  }
+
+  private toggleWorldMapModal() {
+    const modal = document.getElementById('world-map-modal');
+    if (!modal) return;
+    const isOpening = modal.classList.contains('hidden');
+    modal.classList.toggle('hidden');
+    if (isOpening) {
+      this.renderWorldMap();
+    }
+  }
+
+  private renderWorldMap() {
+    const canvas = document.getElementById('world-map-canvas') as HTMLCanvasElement;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const terrain = this.renderer.getTerrainCanvas();
+    const stitched = this.renderer.getStitchedWorld();
+    if (!terrain || !stitched) return;
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    // Draw scaled down terrain
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(terrain, 0, 0, canvas.width, canvas.height);
+
+    const scaleX = canvas.width / (stitched.widthTiles * TILE_SIZE);
+    const scaleY = canvas.height / (stitched.heightTiles * TILE_SIZE);
+
+    // Draw Nodes
+    for (const node of this.worldNodes) {
+      const nx = (node.x * TILE_SIZE + TILE_SIZE / 2) * scaleX;
+      const ny = (node.y * TILE_SIZE + TILE_SIZE / 2) * scaleY;
+
+      let color = '#ffd700';
+      if (node.type === 'monster') color = '#e53e3e';
+      else if (node.type === 'tree') color = '#38a169';
+      else if (node.type === 'mine') color = '#d97706';
+      else if (node.type === 'water') color = '#3182ce';
+      else if (node.type === 'hearth_counter') color = '#ffd700';
+
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.arc(nx, ny, node.type === 'hearth_counter' ? 5 : 3.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Draw NPCs
+    for (const npc of this.npcs) {
+      const nx = (npc.x * TILE_SIZE + TILE_SIZE / 2) * scaleX;
+      const ny = (npc.y * TILE_SIZE + TILE_SIZE / 2) * scaleY;
+      ctx.fillStyle = '#81e6d9';
+      ctx.beginPath();
+      ctx.arc(nx, ny, 4, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Draw Local Player
+    if (this.player) {
+      const px = (this.player.x * TILE_SIZE + TILE_SIZE / 2) * scaleX;
+      const py = (this.player.y * TILE_SIZE + TILE_SIZE / 2) * scaleY;
+
+      // Pulsing ring
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(px, py, 7, 0, Math.PI * 2);
+      ctx.stroke();
+
+      ctx.fillStyle = '#ecc94b';
+      ctx.beginPath();
+      ctx.arc(px, py, 4.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  private setupQuestTracker() {
+    try {
+      const savedAccepted = localStorage.getItem('eldoria_accepted_quests');
+      if (savedAccepted) {
+        this.acceptedQuests = new Set(JSON.parse(savedAccepted));
+      }
+      const savedCompleted = localStorage.getItem('eldoria_completed_quests');
+      if (savedCompleted) {
+        this.completedQuests = new Set(JSON.parse(savedCompleted));
+      }
+    } catch (_) {}
+
+    // Default pin the first intro quest if none accepted
+    if (this.acceptedQuests.size === 0 && this.quests.length > 0) {
+      this.acceptedQuests.add(this.quests[0].id);
+    }
+
+    const toggleBtn = document.getElementById('quest-tracker-toggle-btn');
+    const card = document.getElementById('quest-tracker-card');
+    if (toggleBtn && card) {
+      toggleBtn.onclick = () => {
+        card.classList.toggle('collapsed');
+        toggleBtn.textContent = card.classList.contains('collapsed') ? '▸' : '▾';
+      };
+    }
+
+    this.updateQuestTracker();
+  }
+
+  private saveQuestState() {
+    try {
+      localStorage.setItem('eldoria_accepted_quests', JSON.stringify(Array.from(this.acceptedQuests)));
+      localStorage.setItem('eldoria_completed_quests', JSON.stringify(Array.from(this.completedQuests)));
+    } catch (_) {}
+  }
+
+  private updateQuestTracker() {
+    const listEl = document.getElementById('quest-tracker-list');
+    if (!listEl) return;
+
+    if (this.acceptedQuests.size === 0) {
+      listEl.innerHTML = `<div style="font-size:0.68rem; color:var(--parchment-sub); font-style:italic;">No active bounties. Speak to NPCs in town to embark on quests!</div>`;
+      return;
+    }
+
+    listEl.innerHTML = '';
+    for (const qId of this.acceptedQuests) {
+      const quest = this.quests.find(q => q.id === qId);
+      if (!quest) continue;
+
+      let current = 0;
+      const target = quest.objective.count;
+
+      if (quest.objective.type === 'gather') {
+        if (this.player) {
+          current = this.player.inventory.reduce((acc, slot) => {
+            if (slot && slot.itemId === quest.objective.targetId) return acc + slot.quantity;
+            return acc;
+          }, 0);
+        }
+      } else if (quest.objective.type === 'kill') {
+        if (this.player?.currentTask?.recipeId === quest.objective.targetId) {
+          current = this.player.currentTask.completedQuantity || 0;
+        } else {
+          current = Math.min(target, (this.player?.currentTask?.completedQuantity || 0));
+        }
+      }
+
+      current = Math.min(target, current);
+      const isComplete = current >= target;
+      const pct = Math.min(100, Math.round((current / target) * 100));
+
+      const itemEl = document.createElement('div');
+      itemEl.className = 'quest-tracker-item';
+      itemEl.innerHTML = `
+        <div class="quest-tracker-name">
+          <span>${quest.title}</span>
+          <span style="font-size:0.66rem; color:${isComplete ? '#38a169' : '#84613b'}; font-weight:800;">${current}/${target}</span>
+        </div>
+        <div style="font-size:0.65rem; color:var(--parchment-sub); line-height:1.2; margin-bottom:2px;">
+          ${quest.objective.type.toUpperCase()}: ${quest.objective.targetId.replace(/_/g, ' ')}
+        </div>
+        <div class="quest-tracker-bar">
+          <div class="quest-tracker-bar-fill ${isComplete ? 'complete' : ''}" style="width: ${pct}%;"></div>
+        </div>
+        <div class="quest-tracker-reward">
+          <span>🪙 ${quest.reward.gold || 0}G • ⭐ ${typeof quest.reward.xp === 'number' ? quest.reward.xp : (quest.reward.xp?.amount || 0)} XP</span>
+          ${isComplete ? `<button class="btn-claim-quest" data-qid="${quest.id}">Claim!</button>` : ''}
+        </div>
+      `;
+
+      if (isComplete) {
+        const btn = itemEl.querySelector('.btn-claim-quest') as HTMLButtonElement;
+        if (btn) {
+          btn.onclick = (e) => {
+            e.stopPropagation();
+            this.claimQuestReward(quest);
+          };
+        }
+      }
+
+      listEl.appendChild(itemEl);
+    }
+  }
+
+  private claimQuestReward(quest: QuestDefinition) {
+    this.acceptedQuests.delete(quest.id);
+    this.completedQuests.add(quest.id);
+    this.saveQuestState();
+
+    sound.play('coin');
+    if (this.player) {
+      this.renderer.spawnParticles(this.player.x, this.player.y, 25, 'gold_crit');
+    }
+    const xpAmt = typeof quest.reward.xp === 'number' ? quest.reward.xp : (quest.reward.xp?.amount || 0);
+    this.showToast(`Bounty Complete! Claimed ${quest.reward.gold || 0} Gold & ${xpAmt} XP!`);
+    this.appendChatMessage({
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      senderName: 'Quest Guild',
+      channel: 'Loot',
+      text: `Completed "${quest.title}"! Received ${quest.reward.gold || 0} Gold & ${xpAmt} XP.`,
+    });
+    this.updateQuestTracker();
+  }
+
+  private setupKeyboardControls() {
+    window.addEventListener('keydown', (e) => {
+      // 1. Ignore if typing in text inputs
+      const activeEl = document.activeElement;
+      if (
+        activeEl instanceof HTMLInputElement ||
+        activeEl instanceof HTMLTextAreaElement ||
+        activeEl instanceof HTMLSelectElement
+      ) {
+        if (e.key === 'Escape') {
+          (activeEl as HTMLElement).blur();
+        }
+        return;
+      }
+
+      // 2. Escape: Close any open modal or drawer
+      if (e.key === 'Escape') {
+        const worldMapModal = document.getElementById('world-map-modal');
+        if (worldMapModal && !worldMapModal.classList.contains('hidden')) {
+          worldMapModal.classList.add('hidden');
+          return;
+        }
+        const storageModal = document.getElementById('deepvein-storage-modal');
+        if (storageModal && !storageModal.classList.contains('hidden')) {
+          this.closeStorageModal();
+          return;
+        }
+        const npcModal = document.getElementById('npc-dialogue-modal');
+        if (npcModal && !npcModal.classList.contains('hidden')) {
+          npcModal.classList.add('hidden');
+          return;
+        }
+        const levelUpModal = document.getElementById('level-up-modal');
+        if (levelUpModal && !levelUpModal.classList.contains('hidden')) {
+          levelUpModal.classList.add('hidden');
+          return;
+        }
+        const bestiaryModal = document.getElementById('bestiary-modal');
+        if (bestiaryModal && !bestiaryModal.classList.contains('hidden')) {
+          bestiaryModal.classList.add('hidden');
+          return;
+        }
+        const combatDir = document.getElementById('combat-directory-modal');
+        if (combatDir && !combatDir.classList.contains('hidden')) {
+          combatDir.classList.add('hidden');
+          return;
+        }
+        return;
+      }
+
+      // 3. Movement with WASD / Arrow Keys
+      let dx = 0;
+      let dy = 0;
+      if (e.code === 'KeyW' || e.code === 'ArrowUp') dy = -1;
+      else if (e.code === 'KeyS' || e.code === 'ArrowDown') dy = 1;
+      else if (e.code === 'KeyA' || e.code === 'ArrowLeft') dx = -1;
+      else if (e.code === 'KeyD' || e.code === 'ArrowRight') dx = 1;
+
+      if (dx !== 0 || dy !== 0) {
+        if (this.player) {
+          const targetX = this.player.x + dx;
+          const targetY = this.player.y + dy;
+          if (!this.renderer.getCollisions().has(`${targetX},${targetY}`)) {
+            this.pendingNpcTarget = null;
+            this.pendingMonsterTarget = null;
+            this.pendingHearthTarget = null;
+            this.sendWs({ type: 'MOVE_TO', x: targetX, y: targetY });
+          }
+        }
+        e.preventDefault();
+        return;
+      }
+
+      // 4. Hotkeys
+      if (e.code === 'KeyI') {
+        const invDrawer = document.getElementById('inventory-drawer');
+        if (invDrawer?.classList.contains('open')) {
+          this.switchDrawer('skills');
+        } else {
+          this.switchDrawer('inventory');
+        }
+        e.preventDefault();
+      } else if (e.code === 'KeyK') {
+        this.switchDrawer('skills');
+        e.preventDefault();
+      } else if (e.code === 'KeyC' || e.code === 'KeyE') {
+        const eqDrawer = document.getElementById('equipment-drawer');
+        if (eqDrawer?.classList.contains('open')) {
+          this.switchDrawer('skills');
+        } else {
+          this.switchDrawer('equipment');
+        }
+        e.preventDefault();
+      } else if (e.code === 'KeyB') {
+        const modal = document.getElementById('deepvein-storage-modal');
+        if (modal?.classList.contains('hidden')) {
+          this.openStorageModal();
+        } else {
+          this.closeStorageModal();
+        }
+        e.preventDefault();
+      } else if (e.code === 'KeyF') {
+        this.openCombatDirectory();
+        e.preventDefault();
+      } else if (e.code === 'KeyH') {
+        const hearth = this.getHearthLocation(this.player?.x, this.player?.y);
+        this.sendWs({ type: 'MOVE_TO', x: hearth.x, y: hearth.y });
+        this.openStorageModal();
+        this.showToast('Returning to Hearth Reliquary...');
+        e.preventDefault();
+      } else if (e.code === 'KeyM') {
+        this.toggleWorldMapModal();
+        e.preventDefault();
+      } else if (e.code === 'Space') {
+        this.quickEatFood();
+        e.preventDefault();
+      }
+    });
+  }
+
+  private quickEatFood() {
+    if (!this.player) return;
+    const foodIdx = this.player.inventory.findIndex(slot => slot && ITEMS[slot.itemId]?.baseStats?.healing);
+    if (foodIdx !== -1) {
+      const slot = this.player.inventory[foodIdx];
+      const def = ITEMS[slot.itemId];
+      const heal = def.baseStats?.healing || 10;
+      sound.play('eat');
+      this.renderer.addFloatingText(this.player.x, this.player.y, `+${heal}`, 'heal');
+      this.sendWs({ type: 'EAT_FOOD', inventoryIndex: foodIdx });
+      this.showToast(`Ate ${def.name} (+${heal} HP)`);
+    } else {
+      this.showToast('No edible food found in satchel!');
+    }
+  }
+
   private setupLevelUpCelebration() {
     const closeBtn = document.getElementById('level-up-close-btn');
     const modal = document.getElementById('level-up-modal');
@@ -2282,6 +2758,16 @@ class EldoriaClient {
 
   private showLevelUpModal(skill: string, newLevel: number) {
     sound.play('levelup');
+    if (this.player) {
+      this.renderer.showLevelUpCelebration(this.player.x, this.player.y, skill, newLevel);
+    }
+    this.appendChatMessage({
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      senderName: 'System',
+      channel: 'Global',
+      text: `★ LEVEL UP! You reached ${skill.toUpperCase()} Level ${newLevel}! ★`,
+    });
+
     const modal = document.getElementById('level-up-modal');
     if (!modal) return;
 
@@ -3609,7 +4095,10 @@ class EldoriaClient {
         `;
         const btnAccept = card.querySelector('button')!;
         btnAccept.onclick = () => {
-          this.showToast(`Accepted quest "${q.title}"!`);
+          this.acceptedQuests.add(q.id);
+          this.saveQuestState();
+          this.updateQuestTracker();
+          this.showToast(`Accepted quest "${q.title}"! Pinned to Quest Log.`);
           modal.classList.add('hidden');
         };
         questListEl.appendChild(card);

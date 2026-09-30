@@ -22,7 +22,7 @@ export interface ChatBubble {
 
 export type WorldNodeDisplay = WorldNode;
 
-const TILE_SIZE = 32;
+export const TILE_SIZE = 32;
 
 export class WorldRenderer {
   private canvas: HTMLCanvasElement;
@@ -100,25 +100,139 @@ export class WorldRenderer {
     });
   }
 
-  // Floating combat texts (hitsplats, miss, heals, gold drops)
+  // Floating combat texts (hitsplats, miss, heals, gold drops, crits)
   private floatingTexts: Array<{
     startX: number;
     startY: number;
     text: string;
-    type: 'damage' | 'splash' | 'heal' | 'gold' | 'xp';
+    type: 'damage' | 'splash' | 'heal' | 'gold' | 'xp' | 'crit';
     startTime: number;
     duration: number;
   }> = [];
 
-  public addFloatingText(tileX: number, tileY: number, text: string, type: 'damage' | 'splash' | 'heal' | 'gold' | 'xp' = 'damage') {
+  public addFloatingText(tileX: number, tileY: number, text: string, type: 'damage' | 'splash' | 'heal' | 'gold' | 'xp' | 'crit' = 'damage') {
     this.floatingTexts.push({
       startX: tileX,
       startY: tileY,
       text,
       type,
       startTime: performance.now(),
-      duration: 1000,
+      duration: type === 'crit' ? 1200 : 1000,
     });
+  }
+
+  // Camera Shake on heavy impacts & crits
+  private cameraShake: number = 0;
+  public triggerCameraShake(intensity: number = 4) {
+    this.cameraShake = Math.max(this.cameraShake, intensity);
+  }
+
+  // World Particle System (mining sparks, wood chips, water ripples, combat blood, crits, level-ups)
+  private particles: Array<{
+    x: number;
+    y: number;
+    vx: number;
+    vy: number;
+    color: string;
+    size: number;
+    alpha: number;
+    life: number;
+    maxLife: number;
+    gravity: number;
+    shape: 'spark' | 'circle' | 'star' | 'splat';
+  }> = [];
+
+  public spawnParticles(tileX: number, tileY: number, count: number, type: 'ore' | 'wood' | 'water' | 'blood' | 'gold_crit' | 'levelup') {
+    const originX = tileX * TILE_SIZE + TILE_SIZE / 2;
+    const originY = tileY * TILE_SIZE + TILE_SIZE / 2;
+
+    for (let i = 0; i < count; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      let speed = 1 + Math.random() * 3;
+      let size = 2 + Math.random() * 2;
+      let color = '#ffd700';
+      let gravity = 0.08;
+      let shape: 'spark' | 'circle' | 'star' | 'splat' = 'spark';
+      let maxLife = 400 + Math.random() * 300;
+
+      if (type === 'ore') {
+        const colors = ['#ffd700', '#f6ad55', '#ffffff', '#ecc94b'];
+        color = colors[Math.floor(Math.random() * colors.length)];
+        speed = 1.5 + Math.random() * 2.5;
+        shape = 'spark';
+      } else if (type === 'wood') {
+        const colors = ['#8b5a2b', '#c28e5c', '#5c3818', '#a0522d'];
+        color = colors[Math.floor(Math.random() * colors.length)];
+        speed = 1.2 + Math.random() * 2;
+        shape = 'spark';
+        gravity = 0.12;
+      } else if (type === 'water') {
+        const colors = ['#63b3ed', '#90cdf4', '#ebf8ff', '#bee3f8'];
+        color = colors[Math.floor(Math.random() * colors.length)];
+        speed = 0.8 + Math.random() * 2;
+        shape = 'circle';
+        gravity = 0.04;
+      } else if (type === 'blood') {
+        const colors = ['#e53e3e', '#c53030', '#9b2c2c', '#feb2b2'];
+        color = colors[Math.floor(Math.random() * colors.length)];
+        speed = 1.5 + Math.random() * 3;
+        shape = 'splat';
+        gravity = 0.1;
+      } else if (type === 'gold_crit') {
+        const colors = ['#fff566', '#ffd700', '#ffffff', '#f6ad55'];
+        color = colors[Math.floor(Math.random() * colors.length)];
+        speed = 2.5 + Math.random() * 4;
+        size = 3.5 + Math.random() * 2;
+        shape = 'star';
+        gravity = 0.05;
+        maxLife = 650 + Math.random() * 350;
+      } else if (type === 'levelup') {
+        const colors = ['#ffd700', '#4fd1c5', '#f687b3', '#68d391', '#ffffff'];
+        color = colors[Math.floor(Math.random() * colors.length)];
+        speed = 2 + Math.random() * 5;
+        size = 3 + Math.random() * 3;
+        shape = 'star';
+        gravity = 0.04;
+        maxLife = 900 + Math.random() * 600;
+      }
+
+      this.particles.push({
+        x: originX + (Math.random() - 0.5) * 8,
+        y: originY + (Math.random() - 0.5) * 8,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed - (type === 'levelup' ? 3.5 : 1),
+        color,
+        size,
+        alpha: 1,
+        life: 0,
+        maxLife,
+        gravity,
+        shape,
+      });
+    }
+  }
+
+  // Level Up Celebratory Overhead Banners
+  private levelUpBanners: Array<{
+    x: number;
+    y: number;
+    skill: string;
+    level: number;
+    startTime: number;
+    duration: number;
+  }> = [];
+
+  public showLevelUpCelebration(tileX: number, tileY: number, skill: string, level: number) {
+    this.levelUpBanners.push({
+      x: tileX,
+      y: tileY,
+      skill: skill.charAt(0).toUpperCase() + skill.slice(1),
+      level,
+      startTime: performance.now(),
+      duration: 3500,
+    });
+    this.spawnParticles(tileX, tileY, 40, 'levelup');
+    this.triggerCameraShake(3);
   }
 
   // Monster hit flinch / red flash map
@@ -210,6 +324,14 @@ export class WorldRenderer {
     }
 
     this.terrainCanvas = offscreen;
+  }
+
+  public getTerrainCanvas(): HTMLCanvasElement | null {
+    return this.terrainCanvas;
+  }
+
+  public getStitchedWorld(): StitchedWorld | null {
+    return this.stitchedWorld;
   }
 
   public setLocalPlayer(player: PlayerData) {
@@ -360,8 +482,15 @@ export class WorldRenderer {
       this.cameraY += (targetCamY - this.cameraY) * 0.15;
     }
 
-    const camX = Math.round(this.cameraX);
-    const camY = Math.round(this.cameraY);
+    if (this.cameraShake > 0.05) {
+      this.cameraShake *= 0.82;
+      if (this.cameraShake < 0.05) this.cameraShake = 0;
+    }
+    const shakeOffsetX = this.cameraShake > 0 ? (Math.random() - 0.5) * this.cameraShake * 2 : 0;
+    const shakeOffsetY = this.cameraShake > 0 ? (Math.random() - 0.5) * this.cameraShake * 2 : 0;
+
+    const camX = Math.round(this.cameraX + shakeOffsetX);
+    const camY = Math.round(this.cameraY + shakeOffsetY);
 
     ctx.save();
     ctx.translate(-camX, -camY);
@@ -431,13 +560,19 @@ export class WorldRenderer {
     // 11. Draw Death Poof Particle FX
     this.drawDeathEffects();
 
-    // 12. Draw Floating Hitsplats & Damage Numbers
+    // 12. Draw World Particle Effects (gathering, combat sparks, crit bursts)
+    this.drawParticles();
+
+    // 13. Draw Floating Hitsplats & Damage Numbers
     this.drawFloatingTexts();
 
-    // 13. Draw Overhead Chat Bubbles
+    // 14. Draw Level Up Celebratory Overhead Banners
+    this.drawLevelUpBanners();
+
+    // 15. Draw Overhead Chat Bubbles
     this.drawChatBubbles();
 
-    // 14. Draw Editor Preview Overlay
+    // 16. Draw Editor Preview Overlay
     this.drawEditorOverlay();
 
     ctx.restore();
@@ -589,12 +724,16 @@ export class WorldRenderer {
         bgColor = 'rgba(90, 45, 140, 0.92)';
         borderColor = '#b794f4';
         textColor = '#faf5ff';
+      } else if (ft.type === 'crit') {
+        bgColor = 'rgba(215, 115, 10, 0.96)';
+        borderColor = '#ffd700';
+        textColor = '#fffdf0';
       }
 
       // Hitsplat badge background
       ctx.fillStyle = bgColor;
       ctx.strokeStyle = borderColor;
-      ctx.lineWidth = 1.2;
+      ctx.lineWidth = ft.type === 'crit' ? 1.8 : 1.2;
       ctx.beginPath();
       ctx.roundRect(bx, by, badgeW, badgeH, 4);
       ctx.fill();
@@ -604,7 +743,125 @@ export class WorldRenderer {
       ctx.fillStyle = textColor;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
+      if (ft.type === 'crit') {
+        ctx.font = 'bold 12px Inter, monospace, sans-serif';
+      }
       ctx.fillText(ft.text, 0, 1);
+
+      ctx.restore();
+    }
+  }
+
+  private drawParticles() {
+    if (this.particles.length === 0) return;
+    const dt = 16.6; // ~60fps step
+    const { ctx } = this;
+    const remaining: typeof this.particles = [];
+
+    for (const p of this.particles) {
+      p.life += dt;
+      if (p.life >= p.maxLife) continue;
+
+      p.x += p.vx;
+      p.y += p.vy;
+      p.vy += p.gravity;
+      p.vx *= 0.98;
+      p.alpha = Math.max(0, 1 - p.life / p.maxLife);
+
+      ctx.save();
+      ctx.globalAlpha = p.alpha;
+      ctx.fillStyle = p.color;
+
+      if (p.shape === 'star') {
+        ctx.translate(p.x, p.y);
+        ctx.beginPath();
+        const r = p.size;
+        for (let a = 0; a < 4; a++) {
+          const rot = (a * Math.PI) / 2;
+          ctx.lineTo(Math.cos(rot) * r, Math.sin(rot) * r);
+          ctx.lineTo(Math.cos(rot + Math.PI / 4) * (r * 0.35), Math.sin(rot + Math.PI / 4) * (r * 0.35));
+        }
+        ctx.closePath();
+        ctx.fill();
+      } else if (p.shape === 'circle') {
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size / 2, 0, Math.PI * 2);
+        ctx.fill();
+      } else {
+        // spark or splat
+        ctx.fillRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size);
+      }
+      ctx.restore();
+
+      remaining.push(p);
+    }
+
+    this.particles = remaining;
+  }
+
+  private drawLevelUpBanners() {
+    const now = performance.now();
+    this.levelUpBanners = this.levelUpBanners.filter(b => now - b.startTime < b.duration);
+    if (this.levelUpBanners.length === 0) return;
+    const { ctx } = this;
+
+    for (const b of this.levelUpBanners) {
+      const elapsed = now - b.startTime;
+      const progress = Math.min(1, elapsed / b.duration);
+
+      // Float upward gently
+      const floatY = Math.sin(Math.min(1, progress * 1.5) * (Math.PI / 2)) * 34;
+      const alpha = progress < 0.75 ? 1 : 1 - (progress - 0.75) / 0.25;
+
+      const px = Math.round(b.x * TILE_SIZE + TILE_SIZE / 2);
+      const py = Math.round(b.y * TILE_SIZE - 28 - floatY);
+
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, Math.min(1, alpha));
+
+      // Pop-in scale bounce
+      const scale = progress < 0.12 ? 0.4 + (progress / 0.12) * 0.7 : (progress < 0.22 ? 1.1 - (progress - 0.12) * 1 : 1.0);
+      ctx.translate(px, py);
+      ctx.scale(scale, scale);
+
+      const title = '★ LEVEL UP! ★';
+      const detail = `${b.skill} Level ${b.level}`;
+
+      ctx.font = 'bold 9.5px Inter, system-ui, sans-serif';
+      const w1 = ctx.measureText(title).width;
+      ctx.font = 'bold 12px Inter, system-ui, sans-serif';
+      const w2 = ctx.measureText(detail).width;
+
+      const badgeW = Math.max(w1, w2) + 24;
+      const badgeH = 34;
+      const bx = -badgeW / 2;
+      const by = -badgeH / 2;
+
+      // Glow behind banner
+      ctx.fillStyle = 'rgba(255, 215, 0, 0.25)';
+      ctx.beginPath();
+      ctx.roundRect(bx - 3, by - 3, badgeW + 6, badgeH + 6, 8);
+      ctx.fill();
+
+      // Royal Oak & Gold Banner
+      ctx.fillStyle = 'rgba(20, 14, 8, 0.95)';
+      ctx.strokeStyle = '#ffd700';
+      ctx.lineWidth = 1.8;
+      ctx.beginPath();
+      ctx.roundRect(bx, by, badgeW, badgeH, 6);
+      ctx.fill();
+      ctx.stroke();
+
+      // Top Header: "★ LEVEL UP! ★"
+      ctx.font = 'bold 9.5px Inter, system-ui, sans-serif';
+      ctx.fillStyle = '#f6ad55';
+      ctx.textAlign = 'center';
+      ctx.fillText(title, 0, by + 12);
+
+      // Skill & Level: "Mining Level 15"
+      ctx.font = 'bold 12px Inter, system-ui, sans-serif';
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText(detail, 0, by + 27);
 
       ctx.restore();
     }
