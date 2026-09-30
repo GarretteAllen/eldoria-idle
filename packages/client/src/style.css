@@ -2922,4 +2922,143 @@ body, html {
   border-radius: 50%;
 }
 
+/* Farm Allotment Modal & Elements */
+.farm-plot-card {
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.9), 0 0 0 1.5px #38a169;
+}
+.farm-state-box {
+  background: rgba(18, 24, 20, 0.85);
+  border: 1px solid rgba(72, 187, 120, 0.25);
+  border-radius: 6px;
+  padding: 16px;
+  margin-bottom: 12px;
+  text-align: center;
+}
+.farm-growth-bar-wrap {
+  width: 100%;
+  height: 14px;
+  background: #1a202c;
+  border-radius: 7px;
+  overflow: hidden;
+  border: 1px solid #4a5568;
+  margin: 10px 0;
+  position: relative;
+}
+.farm-growth-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #38a169, #48bb78, #68d391);
+  border-radius: 7px;
+  transition: width 0.3s ease;
+}
+.farm-growth-text {
+  font-size: 0.76rem;
+  color: #c6f6d5;
+  font-weight: 600;
+  display: flex;
+  justify-content: space-between;
+  margin-top: 4px;
+}
+.farm-seed-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 380px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+.farm-seed-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(22, 28, 24, 0.9);
+  border: 1px solid rgba(72, 187, 120, 0.2);
+  border-radius: 6px;
+  padding: 8px 12px;
+  transition: border-color 0.15s;
+}
+.farm-seed-row:hover:not(.locked) {
+  border-color: #48bb78;
+  background: rgba(26, 36, 30, 0.95);
+}
+.farm-seed-row.locked {
+  opacity: 0.6;
+  filter: grayscale(0.5);
+}
+.farm-seed-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.farm-seed-name {
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: #e2e8f0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.farm-seed-sub {
+  font-size: 0.72rem;
+  color: #a0aec0;
+}
+.farm-seed-time {
+  font-size: 0.7rem;
+  color: #9ae6b4;
+  font-weight: 500;
+}
+.farm-badge-high-xp {
+  background: rgba(214, 158, 46, 0.2);
+  color: #ecc94b;
+  border: 1px solid #d69e2e;
+  border-radius: 3px;
+  padding: 1px 5px;
+  font-size: 0.64rem;
+  font-weight: 700;
+}
+.farm-badge-locked {
+  background: rgba(229, 62, 62, 0.2);
+  color: #feb2b2;
+  border: 1px solid #e53e3e;
+  border-radius: 3px;
+  padding: 1px 5px;
+  font-size: 0.64rem;
+  font-weight: 700;
+}
+.btn-plant {
+  background: linear-gradient(180deg, #38a169, #276749);
+  color: #fff;
+  border: 1px solid #48bb78;
+  border-radius: 4px;
+  padding: 6px 14px;
+  font-size: 0.76rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: filter 0.15s;
+}
+.btn-plant:hover:not(:disabled) {
+  filter: brightness(1.15);
+}
+.btn-plant:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  filter: grayscale(1);
+}
+.btn-harvest-big {
+  background: linear-gradient(180deg, #d69e2e, #b7791f);
+  color: #fff;
+  border: 1.5px solid #f6e05e;
+  border-radius: 6px;
+  padding: 10px 24px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 0 15px rgba(246, 224, 94, 0.4);
+  transition: transform 0.1s, filter 0.15s;
+}
+.btn-harvest-big:hover {
+  transform: scale(1.03);
+  filter: brightness(1.15);
+}
+
+
 

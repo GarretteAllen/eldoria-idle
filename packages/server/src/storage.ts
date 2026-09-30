@@ -85,6 +85,7 @@ const INITIAL_SKILLS: Record<SkillType, { xp: number; level: number }> = {
   fishing: { xp: 0, level: 1 },
   herbalism: { xp: 0, level: 1 },
   thieving: { xp: 0, level: 1 },
+  farming: { xp: 0, level: 1 },
   smithing: { xp: 0, level: 1 },
   cooking: { xp: 0, level: 1 },
   fletching: { xp: 0, level: 1 },
@@ -481,6 +482,33 @@ class StorageManager {
     const nodeRows = this.stmtGetWorldNodes.all() as Array<{ data: string }>;
     this.nodesCache = nodeRows.map(r => JSON.parse(r.data));
 
+    // Ensure farm plots and universal stations exist in world nodes!
+    let nodesUpdated = false;
+    const farmPlotsNeeded: WorldNode[] = [
+      { id: 'farm_plot_1', name: 'Verdant Allotment (Plot I)', type: 'farm', x: 13, y: 22 },
+      { id: 'farm_plot_2', name: 'Verdant Allotment (Plot II)', type: 'farm', x: 14, y: 24 },
+    ];
+    for (const plot of farmPlotsNeeded) {
+      if (!this.nodesCache.some(n => n.id === plot.id)) {
+        this.nodesCache.push(plot);
+        nodesUpdated = true;
+      }
+    }
+    // Universalize hearth_fire and hearth_forge if still bound to single recipe
+    for (const n of this.nodesCache) {
+      if (n.id === 'hearth_fire' && n.recipeId) {
+        delete n.recipeId;
+        nodesUpdated = true;
+      }
+      if (n.id === 'hearth_forge' && n.recipeId) {
+        delete n.recipeId;
+        nodesUpdated = true;
+      }
+    }
+    if (nodesUpdated) {
+      this.saveWorldNodes(this.nodesCache);
+    }
+
     // NPCs
     const npcRows = this.stmtGetNpcs.all() as Array<{ data: string }>;
     this.npcsCache = npcRows.map(r => JSON.parse(r.data));
@@ -530,6 +558,12 @@ class StorageManager {
         if (!player.currentHp || player.currentHp < player.skills.hitpoints.level) {
           player.currentHp = player.skills.hitpoints.level;
         }
+      }
+      if (!player.skills.farming) {
+        player.skills.farming = { level: 1, xp: 0 };
+      }
+      if (!player.farmPlots) {
+        player.farmPlots = {};
       }
       return player;
     } catch (err) {
@@ -616,6 +650,7 @@ class StorageManager {
       inventory: [
         { itemId: 'rune_pickaxe_dawnburn', quantity: 1, rarity: 'plain', plus: 0 },
         { itemId: 'smoked_prawn', quantity: 10, rarity: 'plain', plus: 0 },
+        { itemId: 'earthtuber_seed', quantity: 5, rarity: 'plain', plus: 0 },
       ],
       storage: [],
       storageSlotsMax: 75,
@@ -661,6 +696,7 @@ class StorageManager {
       inventory: [
         { itemId: 'rune_pickaxe_dawnburn', quantity: 1, rarity: 'plain', plus: 0 },
         { itemId: 'smoked_prawn', quantity: 10, rarity: 'plain', plus: 0 },
+        { itemId: 'earthtuber_seed', quantity: 5, rarity: 'plain', plus: 0 },
       ],
       storage: [],
       storageSlotsMax: 75,

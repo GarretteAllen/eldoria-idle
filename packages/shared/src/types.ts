@@ -5,7 +5,8 @@ export type GatheringSkill =
   | 'woodcutting'
   | 'fishing'
   | 'herbalism'
-  | 'thieving';
+  | 'thieving'
+  | 'farming';
 
 export type CraftingSkill =
   | 'smithing'
@@ -226,6 +227,22 @@ export interface QuestDefinition {
   levelReq?: number;
 }
 
+export interface FarmPlotState {
+  plotId: string;
+  seedId: string;
+  cropId: string;
+  cropName: string;
+  plantedAt: number;
+  baseDurationSeconds: number;
+  effectiveProgressSeconds: number;
+  lastUpdated: number;
+  status: 'growing' | 'ready';
+  minYield: number;
+  maxYield: number;
+  xp: number;
+  isHighXpMethod?: boolean;
+}
+
 export interface PlayerData {
   id: string;
   username: string;
@@ -252,6 +269,7 @@ export interface PlayerData {
   storageSlotsMax: number;
   overflowTray: InventorySlot[];
   equipment: Partial<Record<EquipSlot, InventorySlot>>;
+  farmPlots?: Record<string, FarmPlotState>;
   currentTask: ActiveTask | null;
   taskQueue: QueuedTask[];
   eatsAtHpPercent: number; // e.g. 50

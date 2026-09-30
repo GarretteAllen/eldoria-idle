@@ -199,6 +199,16 @@ export const ICONS: Record<string, string> = {
     </svg>
   `,
 
+  farming: `
+    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M12 21V11" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      <path d="M12 14c-3-3-7-3-8 1 3 2 7 1 8-1z" fill="#48bb78" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+      <path d="M12 11c3-3 7-3 8 1-3 2-7 1-8-1z" fill="#38a169" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+      <path d="M5 21h14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+      <circle cx="12" cy="7" r="2.5" fill="#f6e05e" stroke="currentColor" stroke-width="1.2"/>
+    </svg>
+  `,
+
   thieving: `
     <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
       <path d="M4 11a8 8 0 0 1 16 0v2H4v-2z" stroke="currentColor" stroke-width="1.8"/>

@@ -7,3 +7,4 @@ export * from './monsters.js';
 export * from './monsterSprites.js';
 export * from './playerEquipmentSprites.js';
 export * from './formulas.js';
+export * from './farming.js';

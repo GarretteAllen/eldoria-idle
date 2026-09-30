@@ -1512,6 +1512,54 @@ export class WorldRenderer {
         ctx.stroke();
       }
 
+      if (node.type === 'farm') {
+        // Draw rich tilled soil ground patch
+        ctx.fillStyle = '#3a2312';
+        ctx.fillRect(px + 2, py + 2, TILE_SIZE - 4, TILE_SIZE - 4);
+        ctx.strokeStyle = '#5a3a1f';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(px + 2, py + 2, TILE_SIZE - 4, TILE_SIZE - 4);
+
+        // Soil furrows
+        ctx.strokeStyle = '#27170a';
+        ctx.beginPath();
+        ctx.moveTo(px + 4, py + 10); ctx.lineTo(px + TILE_SIZE - 4, py + 10);
+        ctx.moveTo(px + 4, py + 18); ctx.lineTo(px + TILE_SIZE - 4, py + 18);
+        ctx.moveTo(px + 4, py + 26); ctx.lineTo(px + TILE_SIZE - 4, py + 26);
+        ctx.stroke();
+
+        const plot = this.localPlayer?.farmPlots?.[node.id];
+        if (plot && plot.status === 'ready') {
+          // Ready: glowing golden crop with harvest pulse
+          const harvestPulse = Math.sin(this.animTick * 0.008) * 2;
+          ctx.fillStyle = 'rgba(236, 201, 75, 0.4)';
+          ctx.beginPath();
+          ctx.arc(px + TILE_SIZE / 2, py + TILE_SIZE / 2, 8 + harvestPulse, 0, Math.PI * 2);
+          ctx.fill();
+
+          ctx.fillStyle = '#2f855a';
+          ctx.fillRect(px + TILE_SIZE / 2 - 2, py + 12, 4, 10);
+          ctx.fillStyle = '#f6e05e';
+          ctx.beginPath();
+          ctx.arc(px + TILE_SIZE / 2, py + 10, 5, 0, Math.PI * 2);
+          ctx.fill();
+        } else if (plot && plot.status === 'growing') {
+          // Growing: sprouting green seedling with mini progress bar
+          const pct = Math.min(1, plot.effectiveProgressSeconds / plot.baseDurationSeconds);
+          ctx.fillStyle = '#48bb78';
+          ctx.beginPath();
+          ctx.arc(px + TILE_SIZE / 2, py + TILE_SIZE / 2, 3 + pct * 3, 0, Math.PI * 2);
+          ctx.fill();
+
+          // Mini progress bar on the soil
+          const barW = TILE_SIZE - 8;
+          ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+          ctx.fillRect(px + 4, py + TILE_SIZE - 7, barW, 4);
+          ctx.fillStyle = '#48bb78';
+          ctx.fillRect(px + 4, py + TILE_SIZE - 7, Math.round(barW * pct), 4);
+        }
+      }
+
       const pulse = Math.sin(this.animTick * 0.003 + node.x * 2) * (isHearth ? 2.5 : 1.5);
       ctx.fillStyle = isHearth ? 'rgba(223, 166, 55, 0.35)' : 'rgba(212, 175, 55, 0.2)';
       ctx.beginPath();
@@ -1519,7 +1567,21 @@ export class WorldRenderer {
       ctx.fill();
 
       // Stylized nameplate badge
-      const text = node.name;
+      let text = node.name;
+      const farmPlot = node.type === 'farm' ? this.localPlayer?.farmPlots?.[node.id] : null;
+      if (farmPlot) {
+        if (farmPlot.status === 'ready') {
+          text = `🌾 ${farmPlot.cropName} [Ready!]`;
+        } else {
+          const pct = Math.min(100, Math.floor((farmPlot.effectiveProgressSeconds / farmPlot.baseDurationSeconds) * 100));
+          text = `🌱 ${farmPlot.cropName} (${pct}%)`;
+        }
+      } else if (node.type === 'fire') {
+        text = `🔥 ${node.name}`;
+      } else if (node.type === 'forge') {
+        text = `⚒️ ${node.name}`;
+      }
+
       ctx.font = isHearth ? '700 11px Inter, sans-serif' : '600 10px Inter, sans-serif';
       const textWidth = ctx.measureText(text).width;
       const badgeW = textWidth + (isHearth ? 18 : 14);
@@ -1527,15 +1589,16 @@ export class WorldRenderer {
       const badgeX = px + TILE_SIZE / 2 - badgeW / 2;
       const badgeY = py - (isHearth ? 10 : 8);
 
-      ctx.fillStyle = isHearth ? 'rgba(28, 17, 8, 0.95)' : 'rgba(18, 22, 28, 0.85)';
-      ctx.strokeStyle = isHovered ? (isHearth ? '#ffe680' : '#d4af37') : (isHearth ? '#dfa637' : '#5a4522');
-      ctx.lineWidth = (isHovered || isHearth) ? 1.5 : 1;
+      const isReadyHarvest = Boolean(farmPlot && farmPlot.status === 'ready');
+      ctx.fillStyle = isReadyHarvest ? 'rgba(40, 32, 10, 0.95)' : (isHearth ? 'rgba(28, 17, 8, 0.95)' : 'rgba(18, 22, 28, 0.85)');
+      ctx.strokeStyle = isReadyHarvest ? '#f6e05e' : (isHovered ? (isHearth ? '#ffe680' : '#d4af37') : (isHearth ? '#dfa637' : '#5a4522'));
+      ctx.lineWidth = (isHovered || isHearth || isReadyHarvest) ? 1.5 : 1;
       ctx.beginPath();
       ctx.roundRect(badgeX, badgeY, badgeW, badgeH, 4);
       ctx.fill();
       ctx.stroke();
 
-      ctx.fillStyle = isHearth ? '#ffd466' : (isHovered ? '#fff4cc' : '#f3e8cb');
+      ctx.fillStyle = isReadyHarvest ? '#fef08a' : (isHearth ? '#ffd466' : (isHovered ? '#fff4cc' : '#f3e8cb'));
       ctx.textAlign = 'center';
       ctx.fillText(text, px + TILE_SIZE / 2, badgeY + (isHearth ? 13 : 11));
       ctx.restore();

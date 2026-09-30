@@ -18,6 +18,8 @@ import {
   InventorySlot,
   findPath,
   calculatePlayerMoveSpeed,
+  FARMING_CROPS,
+  ONLINE_GROWTH_MULTIPLIER,
 } from '@eldoria/shared';
 import { storage } from './storage.js';
 
@@ -104,6 +106,7 @@ export class GameEngine {
     }
 
     player.lastActiveTimestamp = Date.now();
+    this.catchUpFarmPlots(player);
     player.moveSpeedTilesPerTick = calculatePlayerMoveSpeed(player);
     this.sessions.set(player.id, { ws, player, ticksInTask: 0, moveAccumulator: 0, pendingTask: null, pendingCombat: null, activeCombat: null });
 
@@ -151,6 +154,49 @@ export class GameEngine {
     return findPath(startX, startY, targetX, targetY, 60, 60, (x, y) => storage.isCollidable(x, y));
   }
 
+  private catchUpFarmPlots(player: PlayerData) {
+    if (!player.farmPlots) {
+      player.farmPlots = {};
+      return;
+    }
+    const now = Date.now();
+    let updated = false;
+    for (const plot of Object.values(player.farmPlots)) {
+      if (plot.status === 'growing') {
+        const elapsedSec = Math.max(0, (now - plot.lastUpdated) / 1000);
+        if (elapsedSec > 0) {
+          // Offline growth proceeds at 1.0x standard rate
+          plot.effectiveProgressSeconds += elapsedSec * 1.0;
+          plot.lastUpdated = now;
+          if (plot.effectiveProgressSeconds >= plot.baseDurationSeconds) {
+            plot.status = 'ready';
+          }
+          updated = true;
+        }
+      }
+    }
+    if (updated) {
+      storage.savePlayer(player);
+    }
+  }
+
+  private addItemToPlayer(session: ConnectedSession, itemId: string, qty: number) {
+    const { player } = session;
+    const existingInv = player.inventory.find(s => s.itemId === itemId && s.rarity === 'plain' && (s.plus || 0) === 0);
+    if (existingInv) {
+      existingInv.quantity += qty;
+    } else if (player.inventory.length < 28) {
+      player.inventory.push({ itemId, quantity: qty, rarity: 'plain', plus: 0 });
+    } else {
+      const existingStorage = player.storage.find(s => s.itemId === itemId && s.rarity === 'plain' && (s.plus || 0) === 0);
+      if (existingStorage) {
+        existingStorage.quantity += qty;
+      } else {
+        player.storage.push({ itemId, quantity: qty, rarity: 'plain', plus: 0 });
+      }
+    }
+  }
+
   public handleClientMessage(playerId: string, msg: any) {
     const session = this.sessions.get(playerId);
     if (!session) return;
@@ -184,13 +230,43 @@ export class GameEngine {
       case 'START_TASK':
         if (msg.recipeId && RECIPES[msg.recipeId]) {
           const rec = RECIPES[msg.recipeId];
+          const playerSkillLevel = player.skills[rec.skill]?.level || 1;
+          if (playerSkillLevel < rec.levelReq) {
+            this.send(session.ws, {
+              type: 'NOTIFICATION',
+              message: `Locked: Requires ${rec.skill} Level ${rec.levelReq}.`
+            });
+            break;
+          }
+
           let targetX = typeof msg.targetX === 'number' ? msg.targetX : player.x;
           let targetY = typeof msg.targetY === 'number' ? msg.targetY : player.y;
-          const nodeX = typeof msg.nodeX === 'number' ? msg.nodeX : targetX;
-          const nodeY = typeof msg.nodeY === 'number' ? msg.nodeY : targetY;
+          let nodeX = typeof msg.nodeX === 'number' ? msg.nodeX : targetX;
+          let nodeY = typeof msg.nodeY === 'number' ? msg.nodeY : targetY;
 
-          // If destination tile is collidable (e.g. water or obstacle), resolve adjacent walkable tile
-          if (storage.isCollidable(targetX, targetY)) {
+          // Universal station redirection:
+          // Cooking always takes place at the Hearth Firepit
+          if (rec.skill === 'cooking') {
+            const fireNode = storage.getWorldNodes().find(n => n.type === 'fire');
+            if (fireNode) {
+              const adj = this.getAdjacentWalkableTile(player.x, player.y, fireNode.x, fireNode.y);
+              targetX = adj.x;
+              targetY = adj.y;
+              nodeX = fireNode.x;
+              nodeY = fireNode.y;
+            }
+          } else if (rec.skill === 'smithing') {
+            // Smithing always takes place at the Ancestral Runeforge
+            const forgeNode = storage.getWorldNodes().find(n => n.type === 'forge');
+            if (forgeNode) {
+              const adj = this.getAdjacentWalkableTile(player.x, player.y, forgeNode.x, forgeNode.y);
+              targetX = adj.x;
+              targetY = adj.y;
+              nodeX = forgeNode.x;
+              nodeY = forgeNode.y;
+            }
+          } else if (storage.isCollidable(targetX, targetY)) {
+            // If destination tile is collidable (e.g. water or obstacle), resolve adjacent walkable tile
             const adj = this.getAdjacentWalkableTile(player.x, player.y, targetX, targetY);
             targetX = adj.x;
             targetY = adj.y;
@@ -589,6 +665,176 @@ export class GameEngine {
           });
         }
         break;
+
+      case 'PLANT_PLOT': {
+        const { plotId, seedId } = msg;
+        const cropDef = FARMING_CROPS[seedId];
+        if (!cropDef) {
+          this.send(session.ws, { type: 'NOTIFICATION', message: 'Unknown agricultural seed.' });
+          break;
+        }
+
+        const farmingLevel = player.skills.farming?.level || 1;
+        if (farmingLevel < cropDef.levelReq) {
+          this.send(session.ws, {
+            type: 'NOTIFICATION',
+            message: `Locked: Requires Farming Level ${cropDef.levelReq} to sow ${cropDef.name}.`
+          });
+          break;
+        }
+
+        const plotNode = storage.getWorldNodes().find(n => n.id === plotId && n.type === 'farm');
+        if (!plotNode) {
+          this.send(session.ws, { type: 'NOTIFICATION', message: 'Farm allotment not found.' });
+          break;
+        }
+
+        const dist = Math.hypot(player.x - plotNode.x, player.y - plotNode.y);
+        if (dist > 2.5) {
+          this.send(session.ws, { type: 'NOTIFICATION', message: 'Move closer to the farm allotment to plant.' });
+          break;
+        }
+
+        player.farmPlots = player.farmPlots || {};
+        if (player.farmPlots[plotId] && player.farmPlots[plotId].status === 'growing') {
+          this.send(session.ws, { type: 'NOTIFICATION', message: 'A crop is already growing in this allotment.' });
+          break;
+        }
+
+        // Deduct 1 seed from inventory or storage
+        const invIdx = player.inventory.findIndex(s => s.itemId === seedId && s.quantity > 0);
+        if (invIdx >= 0) {
+          player.inventory[invIdx].quantity--;
+          if (player.inventory[invIdx].quantity <= 0) {
+            player.inventory.splice(invIdx, 1);
+          }
+        } else {
+          const storageIdx = player.storage.findIndex(s => s.itemId === seedId && s.quantity > 0);
+          if (storageIdx >= 0) {
+            player.storage[storageIdx].quantity--;
+            if (player.storage[storageIdx].quantity <= 0) {
+              player.storage.splice(storageIdx, 1);
+            }
+          } else {
+            this.send(session.ws, {
+              type: 'NOTIFICATION',
+              message: `No ${cropDef.name} seeds in your satchel or Hearth storage.`
+            });
+            break;
+          }
+        }
+
+        player.farmPlots[plotId] = {
+          plotId,
+          seedId,
+          cropId: cropDef.cropId,
+          cropName: cropDef.name,
+          plantedAt: Date.now(),
+          baseDurationSeconds: cropDef.baseDurationSeconds,
+          effectiveProgressSeconds: 0,
+          lastUpdated: Date.now(),
+          status: 'growing',
+          minYield: cropDef.minYield,
+          maxYield: cropDef.maxYield,
+          xp: cropDef.xp,
+          isHighXpMethod: cropDef.isHighXpMethod,
+        };
+
+        storage.savePlayer(player);
+        this.send(session.ws, {
+          type: 'NOTIFICATION',
+          message: `Sowed ${cropDef.name} seeds! Growing at 2x online speed (${Math.round(cropDef.baseDurationSeconds / 120)}m online / ${Math.round(cropDef.baseDurationSeconds / 60)}m offline).`
+        });
+        this.send(session.ws, { type: 'PLAYER_UPDATE', player });
+        this.broadcastWorldState();
+        break;
+      }
+
+      case 'HARVEST_PLOT': {
+        const { plotId } = msg;
+        player.farmPlots = player.farmPlots || {};
+        const plot = player.farmPlots[plotId];
+        if (!plot) {
+          this.send(session.ws, { type: 'NOTIFICATION', message: 'No crop growing in this allotment.' });
+          break;
+        }
+
+        if (plot.status !== 'ready') {
+          const remainingSec = Math.max(0, Math.ceil((plot.baseDurationSeconds - plot.effectiveProgressSeconds) / ONLINE_GROWTH_MULTIPLIER));
+          const mins = Math.floor(remainingSec / 60);
+          const secs = remainingSec % 60;
+          this.send(session.ws, {
+            type: 'NOTIFICATION',
+            message: `${plot.cropName} is still maturing (~${mins}m ${secs}s remaining online).`
+          });
+          break;
+        }
+
+        const plotNode = storage.getWorldNodes().find(n => n.id === plotId && n.type === 'farm');
+        if (plotNode) {
+          const dist = Math.hypot(player.x - plotNode.x, player.y - plotNode.y);
+          if (dist > 2.5) {
+            this.send(session.ws, { type: 'NOTIFICATION', message: 'Move closer to harvest this allotment.' });
+            break;
+          }
+        }
+
+        const cropDef = FARMING_CROPS[plot.seedId];
+        const minYield = cropDef?.minYield || 3;
+        const maxYield = cropDef?.maxYield || 5;
+        const yieldQty = Math.floor(Math.random() * (maxYield - minYield + 1)) + minYield;
+        const seedReturn = Math.random() < (cropDef?.seedReturnChance || 0.4);
+
+        // Add harvest to player inventory (or storage)
+        this.addItemToPlayer(session, plot.cropId, yieldQty);
+        if (seedReturn) {
+          this.addItemToPlayer(session, plot.seedId, 1);
+        }
+
+        // Award Farming XP
+        const farmingSkill = player.skills.farming || { xp: 0, level: 1 };
+        farmingSkill.xp += plot.xp;
+        const oldLevel = farmingSkill.level;
+        farmingSkill.level = getLevelFromXp(farmingSkill.xp);
+        player.skills.farming = farmingSkill;
+
+        if (farmingSkill.level > oldLevel) {
+          this.send(session.ws, {
+            type: 'NOTIFICATION',
+            message: `🌟 Congratulations! Your Farming skill advanced to Level ${farmingSkill.level}!`
+          });
+        }
+
+        delete player.farmPlots[plotId];
+        storage.savePlayer(player);
+
+        const cropName = ITEMS[plot.cropId]?.name || plot.cropName;
+        this.send(session.ws, {
+          type: 'NOTIFICATION',
+          message: `Harvested ${yieldQty}x ${cropName}${seedReturn ? ' + 1 bonus seed' : ''}! (+${plot.xp} Farming XP)`
+        });
+        this.send(session.ws, { type: 'PLAYER_UPDATE', player });
+        this.broadcastWorldState();
+        break;
+      }
+
+      case 'CLAIM_STARTER_SEEDS': {
+        player.farmPlots = player.farmPlots || {};
+        const hasSeeds = player.inventory.some(s => s.itemId.includes('seed') || s.itemId.includes('spore') || s.itemId.includes('pod')) ||
+                         player.storage.some(s => s.itemId.includes('seed') || s.itemId.includes('spore') || s.itemId.includes('pod'));
+        if (hasSeeds) {
+          this.send(session.ws, { type: 'NOTIFICATION', message: 'You already possess agricultural seeds in your satchel or storage.' });
+          break;
+        }
+        this.addItemToPlayer(session, 'earthtuber_seed', 3);
+        storage.savePlayer(player);
+        this.send(session.ws, {
+          type: 'NOTIFICATION',
+          message: 'Received 3x Starter Earthtuber Seeds from the garden shed!'
+        });
+        this.send(session.ws, { type: 'PLAYER_UPDATE', player });
+        break;
+      }
 
       case 'ATTACK_BOSS':
         this.handleBossAttack(session);
@@ -1189,6 +1435,30 @@ export class GameEngine {
 
         if (this.tickCount % regenInterval === 0) {
           player.currentHp = Math.min(maxHp, player.currentHp + regenAmount);
+          this.send(ws, { type: 'PLAYER_UPDATE', player });
+        }
+      }
+
+      // 4. Online Accelerated Crop Growth (2.0x online speed boost!)
+      if (player.farmPlots) {
+        let plotsChanged = false;
+        const now = Date.now();
+        const dt = TICK_MS / 1000;
+        for (const plot of Object.values(player.farmPlots)) {
+          if (plot.status === 'growing') {
+            plot.effectiveProgressSeconds += dt * ONLINE_GROWTH_MULTIPLIER;
+            plot.lastUpdated = now;
+            if (plot.effectiveProgressSeconds >= plot.baseDurationSeconds) {
+              plot.status = 'ready';
+              plotsChanged = true;
+              this.send(ws, {
+                type: 'NOTIFICATION',
+                message: `🌱 ${plot.cropName} in ${plot.plotId} is fully grown and ready to harvest!`
+              });
+            }
+          }
+        }
+        if (plotsChanged || (this.tickCount % 5 === 0 && Object.keys(player.farmPlots).length > 0)) {
           this.send(ws, { type: 'PLAYER_UPDATE', player });
         }
       }
