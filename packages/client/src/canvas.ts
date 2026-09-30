@@ -272,8 +272,8 @@ export class WorldRenderer {
 
       if (this.editorMode === 'none') {
         const isHoveringNpc = this.npcs.some(n => n.x === this.hoverTileX && n.y === this.hoverTileY);
-        const isHoveringMonster = this.nodes.some(n => n.type === 'monster' && n.x === this.hoverTileX && n.y === this.hoverTileY);
-        this.canvas.style.cursor = (isHoveringNpc || isHoveringMonster) ? 'pointer' : 'default';
+        const isHoveringNode = this.nodes.some(n => n.x === this.hoverTileX && n.y === this.hoverTileY);
+        this.canvas.style.cursor = (isHoveringNpc || isHoveringNode) ? 'pointer' : 'default';
       }
     });
 
@@ -323,8 +323,8 @@ export class WorldRenderer {
         return;
       }
 
-      // 3. Click Node
-      const clickedNode = this.nodes.find(n => Math.hypot(n.x - tileX, n.y - tileY) <= 1.2);
+      // 3. Click Node (ONLY on the exact tile square of the Node)
+      const clickedNode = this.nodes.find(n => n.x === tileX && n.y === tileY);
       if (clickedNode && this.onNodeClick) {
         this.onNodeClick(clickedNode);
         return;
@@ -1115,6 +1115,67 @@ export class WorldRenderer {
       }
 
       const isHearth = node.type === 'hearth_counter';
+      const isHovered = this.hoverTileX === node.x && this.hoverTileY === node.y;
+
+      // Themed hover outline feedback on the exact tile when hovered
+      if (isHovered) {
+        let fillStyle = 'rgba(212, 175, 55, 0.2)';
+        let strokeStyle = '#d4af37';
+        let cornerStyle = '#fef08a';
+
+        if (isHearth) {
+          fillStyle = 'rgba(223, 166, 55, 0.25)';
+          strokeStyle = '#dfa637';
+          cornerStyle = '#ffe680';
+        } else if (node.type === 'tree') {
+          fillStyle = 'rgba(56, 161, 105, 0.22)';
+          strokeStyle = '#38a169';
+          cornerStyle = '#9ae6b4';
+        } else if (node.type === 'mine') {
+          fillStyle = 'rgba(217, 119, 6, 0.22)';
+          strokeStyle = '#d97706';
+          cornerStyle = '#fcd34d';
+        } else if (node.type === 'water') {
+          fillStyle = 'rgba(49, 130, 206, 0.22)';
+          strokeStyle = '#3182ce';
+          cornerStyle = '#90cdf4';
+        } else if (node.type === 'forge' || node.type === 'fire') {
+          fillStyle = 'rgba(221, 107, 32, 0.25)';
+          strokeStyle = '#dd6b20';
+          cornerStyle = '#fbd38d';
+        } else if (node.type === 'farm') {
+          fillStyle = 'rgba(72, 187, 120, 0.22)';
+          strokeStyle = '#48bb78';
+          cornerStyle = '#c6f6d5';
+        } else if (node.type === 'boss_arena') {
+          fillStyle = 'rgba(159, 122, 234, 0.22)';
+          strokeStyle = '#9f7aea';
+          cornerStyle = '#d6bcfa';
+        }
+
+        ctx.fillStyle = fillStyle;
+        ctx.fillRect(px + 1, py + 1, TILE_SIZE - 2, TILE_SIZE - 2);
+
+        ctx.strokeStyle = strokeStyle;
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(px + 0.5, py + 0.5, TILE_SIZE - 1, TILE_SIZE - 1);
+
+        // Corner bracket accents
+        ctx.strokeStyle = cornerStyle;
+        ctx.lineWidth = 2;
+        const c = 5;
+        ctx.beginPath();
+        // Top-left
+        ctx.moveTo(px, py + c); ctx.lineTo(px, py); ctx.lineTo(px + c, py);
+        // Top-right
+        ctx.moveTo(px + TILE_SIZE - c, py); ctx.lineTo(px + TILE_SIZE, py); ctx.lineTo(px + TILE_SIZE, py + c);
+        // Bottom-left
+        ctx.moveTo(px, py + TILE_SIZE - c); ctx.lineTo(px, py + TILE_SIZE); ctx.lineTo(px + c, py + TILE_SIZE);
+        // Bottom-right
+        ctx.moveTo(px + TILE_SIZE - c, py + TILE_SIZE); ctx.lineTo(px + TILE_SIZE, py + TILE_SIZE); ctx.lineTo(px + TILE_SIZE, py + TILE_SIZE - c);
+        ctx.stroke();
+      }
+
       const pulse = Math.sin(this.animTick * 0.003 + node.x * 2) * (isHearth ? 2.5 : 1.5);
       ctx.fillStyle = isHearth ? 'rgba(223, 166, 55, 0.35)' : 'rgba(212, 175, 55, 0.2)';
       ctx.beginPath();
@@ -1131,14 +1192,14 @@ export class WorldRenderer {
       const badgeY = py - (isHearth ? 10 : 8);
 
       ctx.fillStyle = isHearth ? 'rgba(28, 17, 8, 0.95)' : 'rgba(18, 22, 28, 0.85)';
-      ctx.strokeStyle = isHearth ? '#dfa637' : '#5a4522';
-      ctx.lineWidth = isHearth ? 1.5 : 1;
+      ctx.strokeStyle = isHovered ? (isHearth ? '#ffe680' : '#d4af37') : (isHearth ? '#dfa637' : '#5a4522');
+      ctx.lineWidth = (isHovered || isHearth) ? 1.5 : 1;
       ctx.beginPath();
       ctx.roundRect(badgeX, badgeY, badgeW, badgeH, 4);
       ctx.fill();
       ctx.stroke();
 
-      ctx.fillStyle = isHearth ? '#ffd466' : '#f3e8cb';
+      ctx.fillStyle = isHearth ? '#ffd466' : (isHovered ? '#fff4cc' : '#f3e8cb');
       ctx.textAlign = 'center';
       ctx.fillText(text, px + TILE_SIZE / 2, badgeY + (isHearth ? 13 : 11));
       ctx.restore();

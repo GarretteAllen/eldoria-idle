@@ -57,6 +57,7 @@ class EldoriaClient {
   // Interaction State
   private pendingNpcTarget: NpcDefinition | null = null;
   private pendingMonsterTarget: WorldNodeDisplay | null = null;
+  private pendingHearthTarget: WorldNodeDisplay | null = null;
   private activeCombatMonster: {
     id: string;
     name: string;
@@ -152,11 +153,14 @@ class EldoriaClient {
       this.renderer.onGroundClick = (tileX, tileY) => {
         this.pendingNpcTarget = null;
         this.pendingMonsterTarget = null;
+        this.pendingHearthTarget = null;
         this.sendWs({ type: 'MOVE_TO', x: tileX, y: tileY });
       };
 
       this.renderer.onNpcClick = (npc: NpcDefinition) => {
         if (!this.player) return;
+        this.pendingMonsterTarget = null;
+        this.pendingHearthTarget = null;
         const dist = Math.hypot(this.player.x - npc.x, this.player.y - npc.y);
         if (dist <= 1.5) {
           // Already adjacent / at NPC: talk immediately
@@ -165,7 +169,6 @@ class EldoriaClient {
         } else {
           // Player MUST walk to the NPC before talking to it!
           this.pendingNpcTarget = npc;
-          this.pendingMonsterTarget = null;
           const target = this.getAdjacentWalkableTile(npc.x, npc.y);
           this.sendWs({ type: 'MOVE_TO', x: target.x, y: target.y });
           this.showToast(`Walking to ${npc.name}...`);
@@ -174,6 +177,7 @@ class EldoriaClient {
 
       this.renderer.onNodeClick = (node: WorldNodeDisplay) => {
         this.pendingNpcTarget = null;
+        this.pendingHearthTarget = null;
 
         // MONSTER / ENEMY: Stop one tile before the enemy, and then attack it!
         if (node.type === 'monster') {
@@ -202,6 +206,23 @@ class EldoriaClient {
         }
 
         this.pendingMonsterTarget = null;
+
+        // HEARTH COUNTER: Walk adjacent to the counter, then open bank modal!
+        if (node.type === 'hearth_counter') {
+          if (!this.player) return;
+          const dist = Math.hypot(this.player.x - node.x, this.player.y - node.y);
+          if (dist <= 1.5) {
+            this.pendingHearthTarget = null;
+            this.openStorageModal();
+          } else {
+            this.pendingHearthTarget = node;
+            const target = this.getAdjacentWalkableTile(node.x, node.y);
+            this.sendWs({ type: 'MOVE_TO', x: target.x, y: target.y });
+            this.showToast(`Walking to ${node.name}...`);
+          }
+          return;
+        }
+
         if (node.recipeId) {
           const rec = RECIPES[node.recipeId];
           if (rec) {
@@ -215,9 +236,6 @@ class EldoriaClient {
             targetX: node.x,
             targetY: node.y,
           });
-        } else if (node.type === 'hearth_counter') {
-          this.sendWs({ type: 'MOVE_TO', x: node.x, y: node.y });
-          this.openStorageModal();
         } else {
           this.sendWs({ type: 'MOVE_TO', x: node.x, y: node.y });
         }
@@ -418,6 +436,15 @@ class EldoriaClient {
               targetY: target.y,
             });
             this.showToast(`Attacking ${target.name}!`);
+          }
+        }
+
+        // Check if arrived adjacent to clicked Hearth Bank
+        if (this.pendingHearthTarget && this.player) {
+          const dist = Math.hypot(this.player.x - this.pendingHearthTarget.x, this.player.y - this.pendingHearthTarget.y);
+          if (dist <= 1.5) {
+            this.pendingHearthTarget = null;
+            this.openStorageModal();
           }
         }
         break;
