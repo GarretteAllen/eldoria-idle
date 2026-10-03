@@ -251,8 +251,14 @@ export function simulateOfflineCatchUp(
 
   const effectiveInterval = Math.max(0.6, recipe.intervalSeconds / (speedMult * (1 + toolBonus)));
 
+  const rawTarget = player.currentTask.targetQuantity;
+  const targetQuantity = (typeof rawTarget === 'number' && rawTarget > 0) ? rawTarget : Infinity;
+  player.currentTask.targetQuantity = targetQuantity;
+
   const potentialCycles = Math.floor(cappedElapsed / effectiveInterval);
-  const remainingTarget = player.currentTask.targetQuantity - player.currentTask.completedQuantity;
+  const remainingTarget = targetQuantity === Infinity
+    ? Infinity
+    : Math.max(0, targetQuantity - (player.currentTask.completedQuantity || 0));
   const cyclesToExecute = Math.min(potentialCycles, remainingTarget);
 
   if (cyclesToExecute <= 0) return summary;
@@ -337,7 +343,11 @@ export function simulateOfflineCatchUp(
 
   summary.completedCycles = executed;
   summary.xpGained = totalXp;
-  player.currentTask.completedQuantity += executed;
+  player.currentTask.completedQuantity = (player.currentTask.completedQuantity || 0) + executed;
+
+  if (targetQuantity !== Infinity && player.currentTask.completedQuantity >= targetQuantity) {
+    player.currentTask = null;
+  }
 
   // Apply XP & check level up
   const skillRecord = player.skills[recipe.skill];

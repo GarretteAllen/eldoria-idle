@@ -568,6 +568,23 @@ class StorageManager {
       if (!player.farmPlots) {
         player.farmPlots = {};
       }
+      // Ensure targetQuantity is restored as Infinity if null (from JSON serialization)
+      if (player.currentTask) {
+        player.currentTask.targetQuantity = (typeof player.currentTask.targetQuantity === 'number' && player.currentTask.targetQuantity > 0)
+          ? player.currentTask.targetQuantity
+          : Infinity;
+        if (typeof player.currentTask.completedQuantity !== 'number') {
+          player.currentTask.completedQuantity = 0;
+        }
+      }
+      if (player.bankReturnTask) {
+        player.bankReturnTask.targetQuantity = (typeof player.bankReturnTask.targetQuantity === 'number' && player.bankReturnTask.targetQuantity > 0)
+          ? player.bankReturnTask.targetQuantity
+          : Infinity;
+        if (typeof player.bankReturnTask.completedQuantity !== 'number') {
+          player.bankReturnTask.completedQuantity = 0;
+        }
+      }
       return player;
     } catch (err) {
       console.error('SQLite getPlayer error', err);

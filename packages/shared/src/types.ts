@@ -281,6 +281,14 @@ export interface PlayerData {
   equipment: Partial<Record<EquipSlot, InventorySlot>>;
   farmPlots?: Record<string, FarmPlotState>;
   currentTask: ActiveTask | null;
+  pendingTask?: {
+    recipeId: string;
+    targetX: number;
+    targetY: number;
+    quantity?: number;
+    nodeX?: number;
+    nodeY?: number;
+  } | null;
   taskQueue: QueuedTask[];
   eatsAtHpPercent: number; // e.g. 50
   currentHp: number;

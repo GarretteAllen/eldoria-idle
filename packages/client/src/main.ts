@@ -400,7 +400,29 @@ class EldoriaClient {
       }
     }
 
-    // No persistent registered session -> Present realm entry / login gate modal
+    // Auto-resume active guest session if token not present
+    const guestId = localStorage.getItem('eldoria_guest_id');
+    if (guestId) {
+      try {
+        const res = await fetch('/api/auth/guest', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ guestId }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.player) {
+            this.player = data.player;
+            this.connectWs();
+            return;
+          }
+        }
+      } catch (err) {
+        console.warn('Guest session verification failed, falling back', err);
+      }
+    }
+
+    // No persistent registered session or guest -> Present realm entry / login gate modal
     this.openAuthModal('login', false);
   }
 
@@ -975,10 +997,11 @@ class EldoriaClient {
 
         const pSkill = this.player.skills[skill as SkillType] || { level: 1, xp: 0 };
         const { percent } = getXpToNextLevel(pSkill.level, pSkill.xp);
-        const targetQty = this.player.currentTask.targetQuantity;
+        const rawTarget = this.player.currentTask.targetQuantity;
+        const targetQty = (typeof rawTarget === 'number' && rawTarget > 0) ? rawTarget : Infinity;
         const completedQty = this.player.currentTask.completedQuantity || 0;
 
-        if (targetQty && targetQty !== Infinity) {
+        if (targetQty !== Infinity) {
           const quotaPct = Math.min(100, Math.round((completedQty / targetQty) * 100));
           taskSubEl.textContent = `${skill.toUpperCase()} ${pSkill.level} • Progress: ${completedQty} / ${targetQty} (${quotaPct}%) • Auto-banking`;
           progressFillEl.style.width = `${Math.max(5, quotaPct)}%`;
@@ -1319,7 +1342,7 @@ class EldoriaClient {
       this.sendWs({
         type: 'START_TASK',
         recipeId: rec.id,
-        quantity: this.selectedJobQuantity,
+        quantity: this.selectedJobQuantity === Infinity ? -1 : this.selectedJobQuantity,
         targetX,
         targetY,
         nodeX,
