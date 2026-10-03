@@ -1774,9 +1774,12 @@ class EldoriaClient {
         if (slot.rarity && slot.rarity !== 'plain') {
           slotEl.classList.add(`rarity-${slot.rarity}`);
         }
+        const iconSvg = getItemIconSvg(slot.itemId, def?.category);
+        const qtyFormatted = slot.quantity >= 1000 ? `${(slot.quantity / 1000).toFixed(1)}K` : slot.quantity.toString();
+
         slotEl.innerHTML = `
-          <div class="item-name">${name}</div>
-          <span class="item-qty">${slot.quantity > 1 ? slot.quantity : ''}</span>
+          ${iconSvg}
+          <span class="item-qty">${slot.quantity > 1 ? qtyFormatted : ''}</span>
         `;
         slotEl.title = `${name} (${slot.rarity || 'plain'})\nClick for actions`;
         this.attachItemTooltip(slotEl, slot);
@@ -1850,9 +1853,11 @@ class EldoriaClient {
                           itemSlot.rarity === 'rare' ? '#63b3ed' :
                           itemSlot.rarity === 'uncommon' ? '#68d391' : '#e2e8f0';
 
+        const iconSvg = getItemIconSvg(itemSlot.itemId, def?.category);
+
         div.innerHTML = `
           <div style="display:flex; align-items:center; gap:8px;">
-            <span style="font-size:1.1rem;">${slotDef.icon}</span>
+            <div style="width:26px; height:26px; display:flex; align-items:center; justify-content:center; flex-shrink:0;">${iconSvg}</div>
             <div>
               <div style="font-weight:700; font-size:0.75rem; color:var(--gold-main);">${slotDef.label}</div>
               <div style="font-size:0.78rem; font-weight:600; color:${rarityCol};">${def ? def.name : itemSlot.itemId}</div>
@@ -1924,9 +1929,11 @@ class EldoriaClient {
                             itemSlot.rarity === 'rare' ? '#63b3ed' :
                             itemSlot.rarity === 'uncommon' ? '#68d391' : '#e2e8f0';
 
+          const iconSvg = getItemIconSvg(itemSlot.itemId, def?.category);
+
           div.innerHTML = `
             <div style="display:flex; align-items:center; gap:8px;">
-              <span style="font-size:1.1rem;">${slotDef.icon}</span>
+              <div style="width:26px; height:26px; display:flex; align-items:center; justify-content:center; flex-shrink:0;">${iconSvg}</div>
               <div>
                 <div style="font-weight:700; font-size:0.75rem; color:var(--gold-main);">${slotDef.label}</div>
                 <div style="font-size:0.78rem; font-weight:600; color:${rarityCol};">${def ? def.name : itemSlot.itemId} <span style="font-size:0.7rem; color:#48bb78;">(${speedBonus})</span></div>
@@ -1975,13 +1982,16 @@ class EldoriaClient {
       if (slot.rarity && slot.rarity !== 'plain') {
         div.classList.add(`rarity-${slot.rarity}`);
       }
+      const iconSvg = getItemIconSvg(slot.itemId, def?.category);
+      const qtyFormatted = slot.quantity >= 1000 ? `${(slot.quantity / 1000).toFixed(1)}K` : slot.quantity.toString();
+
       div.innerHTML = `
-        <div class="item-name">${def ? def.name : slot.itemId}</div>
-        <span class="item-qty">${slot.quantity}</span>
+        ${iconSvg}
+        <span class="item-qty">${qtyFormatted}</span>
       `;
       div.title = isNearHearth 
-        ? `Click to withdraw ${def?.name || slot.itemId} into satchel` 
-        : `Travel to Hearth to withdraw items`;
+        ? `${def?.name || slot.itemId} (x${slot.quantity.toLocaleString()}) — Click to withdraw into satchel` 
+        : `${def?.name || slot.itemId} (x${slot.quantity.toLocaleString()}) — Travel to Hearth to withdraw`;
       this.attachItemTooltip(div, slot);
       div.onclick = () => {
         if (!isNearHearth) {

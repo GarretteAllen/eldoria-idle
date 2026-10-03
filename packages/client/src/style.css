@@ -1342,7 +1342,7 @@ body, html {
   aspect-ratio: 1;
   background: var(--bg-inset);
   border: 1px solid var(--border-subtle);
-  border-radius: 3px;
+  border-radius: 4px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1352,10 +1352,21 @@ body, html {
   cursor: pointer;
   transition: all 0.1s;
   box-shadow: inset 0 2px 4px rgba(0,0,0,0.6);
+  box-sizing: border-box;
+}
+.rpg-slot:empty {
+  opacity: 0.45;
+  cursor: default;
 }
 .rpg-slot:hover {
   border-color: var(--gold-main);
   background: var(--bg-card-hover);
+}
+.rpg-slot .dv-slot-svg {
+  width: 72%;
+  height: 72%;
+  pointer-events: none;
+  filter: drop-shadow(0 1px 2px rgba(0,0,0,0.8));
 }
 .rpg-slot .item-name {
   font-size: 0.65rem;
@@ -1366,11 +1377,15 @@ body, html {
 }
 .rpg-slot .item-qty {
   position: absolute;
-  bottom: 2px;
-  right: 3px;
-  font-size: 0.65rem;
+  bottom: 1px;
+  right: 2px;
+  font-size: 0.68rem;
   font-weight: 800;
-  color: var(--gold-bright);
+  color: #ffffff;
+  text-shadow: 0 1px 2px #000, 0 0 3px #000, 0 0 2px #000;
+  font-family: monospace, sans-serif;
+  pointer-events: none;
+  line-height: 1;
 }
 .rpg-slot.rarity-uncommon { border-color: #38a169; }
 .rpg-slot.rarity-rare { border-color: #3182ce; }
