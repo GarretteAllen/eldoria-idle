@@ -1780,7 +1780,7 @@ class EldoriaClient {
         }
       }
 
-      const iconSvg = ICONS[recipe.outputItemId] || ICONS[recipe.skill] || ICONS.skills;
+      const iconSvg = recipe.outputItemId ? getItemIconSvg(recipe.outputItemId, ITEMS[recipe.outputItemId]?.category) : (ICONS[recipe.skill] || ICONS.skills);
 
       itemEl.innerHTML = `
         <div class="job-item-icon-box">
