@@ -136,7 +136,13 @@ export async function loadLdtkWorld(): Promise<StitchedWorld | null> {
     octx.fillRect(0, 0, overworldCanvas.width, overworldCanvas.height);
 
     for (const lvl of pool) {
-      octx.drawImage(lvl.canvas, (lvl.tileX - minTileX) * 32, (lvl.tileY - minTileY) * 32);
+      octx.drawImage(
+        lvl.canvas,
+        (lvl.tileX - minTileX) * 32,
+        (lvl.tileY - minTileY) * 32,
+        lvl.widthTiles * 32 + 0.5,
+        lvl.heightTiles * 32 + 0.5
+      );
     }
 
     console.log(`🗺️ Dynamic LDtk World loaded! ${bakedLevels.length} levels baked. Overworld bounds: (${minTileX}, ${minTileY}) to (${maxTileX}, ${maxTileY}) [${maxTileX - minTileX}x${maxTileY - minTileY} tiles].`);

@@ -969,7 +969,14 @@ export class WorldRenderer {
       mCtx.scale(w / sDim, h / sDim);
       mCtx.translate(-minPxX, -minPxY);
 
+      if (this.stitchedWorld.overworldCanvas) {
+        const owPx = this.stitchedWorld.minTileX * TILE_SIZE;
+        const owPy = this.stitchedWorld.minTileY * TILE_SIZE;
+        mCtx.drawImage(this.stitchedWorld.overworldCanvas, owPx, owPy);
+      }
+
       for (const lvl of this.stitchedWorld.levels) {
+        if (!lvl.isFarOff) continue;
         const px = lvl.tileX * TILE_SIZE;
         const py = lvl.tileY * TILE_SIZE;
         const pw = lvl.widthTiles * TILE_SIZE;
@@ -1095,7 +1102,23 @@ export class WorldRenderer {
     const viewRight = this.cameraX + viewW + 64;
     const viewBottom = this.cameraY + viewH + 64;
 
+    // 1. Draw contiguous overworld as a single unified seamless canvas (zero seam lines!)
+    if (this.stitchedWorld.overworldCanvas) {
+      const owPx = this.stitchedWorld.minTileX * TILE_SIZE;
+      const owPy = this.stitchedWorld.minTileY * TILE_SIZE;
+      const owPw = this.stitchedWorld.widthTiles * TILE_SIZE;
+      const owPh = this.stitchedWorld.heightTiles * TILE_SIZE;
+
+      if (!(owPx + owPw < viewLeft || owPx > viewRight || owPy + owPh < viewTop || owPy > viewBottom)) {
+        ctx.drawImage(this.stitchedWorld.overworldCanvas, owPx, owPy);
+      }
+    }
+
+    // 2. Draw far-off levels (e.g. far-away interior maps/dungeons) with subpixel bleed
+    const bleed = 1 / this.zoom;
     for (const lvl of this.stitchedWorld.levels) {
+      if (!lvl.isFarOff) continue;
+
       const px = lvl.tileX * TILE_SIZE;
       const py = lvl.tileY * TILE_SIZE;
       const pw = lvl.widthTiles * TILE_SIZE;
@@ -1105,7 +1128,7 @@ export class WorldRenderer {
         continue;
       }
 
-      ctx.drawImage(lvl.canvas, px, py);
+      ctx.drawImage(lvl.canvas, px, py, pw + bleed, ph + bleed);
     }
   }
 
