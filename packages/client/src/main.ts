@@ -3053,15 +3053,21 @@ class EldoriaClient {
     }
 
     for (const [sk, data] of Object.entries(player.skills)) {
-      const prev = this.previousSkillLevels.get(sk) ?? (data as any).level;
-      if ((data as any).level > prev) {
-        this.showLevelUpModal(sk, (data as any).level);
-        this.previousSkillLevels.set(sk, (data as any).level);
+      const currentLevel = (data as any).level;
+      const prev = this.previousSkillLevels.get(sk) ?? currentLevel;
+      if (currentLevel > prev) {
+        this.showLevelUpModal(sk, currentLevel);
       }
     }
   }
 
   private showLevelUpModal(skill: string, newLevel: number) {
+    const prev = this.previousSkillLevels.get(skill);
+    if (prev !== undefined && newLevel <= prev) {
+      return;
+    }
+    this.previousSkillLevels.set(skill, newLevel);
+
     sound.play('levelup');
     if (this.player) {
       this.renderer.showLevelUpCelebration(this.player.x, this.player.y, skill, newLevel);
