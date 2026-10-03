@@ -119,7 +119,13 @@
             <span class="minimap-compass-glyph">🧭</span>
             <span class="minimap-title">Radar</span>
           </div>
-          <span class="minimap-coords" id="minimap-coords">8, 24</span>
+          <div style="display:flex; align-items:center; gap:6px;">
+            <span class="minimap-coords" id="minimap-coords">8, 24</span>
+            <div class="minimap-zoom-group">
+              <button id="btn-zoom-out" class="minimap-zoom-btn" title="Zoom Out (−)">−</button>
+              <button id="btn-zoom-in" class="minimap-zoom-btn" title="Zoom In (+)">+</button>
+            </div>
+          </div>
         </div>
         <div class="minimap-body">
           <canvas id="minimap-canvas" width="136" height="136"></canvas>

@@ -2487,6 +2487,41 @@ body, html {
   font-family: monospace, sans-serif;
 }
 
+.minimap-zoom-group {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.minimap-zoom-btn {
+  background: rgba(30, 20, 12, 0.85);
+  border: 1px solid #5a3e22;
+  color: #d69e2e;
+  font-size: 0.72rem;
+  font-weight: 800;
+  line-height: 1;
+  width: 17px;
+  height: 17px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 3px;
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.15s ease;
+}
+
+.minimap-zoom-btn:hover {
+  background: #4a3318;
+  border-color: #ffd700;
+  color: #ffffff;
+}
+
+.minimap-zoom-btn:active {
+  transform: scale(0.92);
+}
+
 .minimap-canvas {
   width: 136px;
   height: 136px;

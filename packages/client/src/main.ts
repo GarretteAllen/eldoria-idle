@@ -2531,6 +2531,15 @@ class EldoriaClient {
       };
     }
 
+    const zoomInBtn = document.getElementById('btn-zoom-in');
+    const zoomOutBtn = document.getElementById('btn-zoom-out');
+    if (zoomInBtn) {
+      zoomInBtn.onclick = () => this.renderer.zoomIn();
+    }
+    if (zoomOutBtn) {
+      zoomOutBtn.onclick = () => this.renderer.zoomOut();
+    }
+
     const minimapCanvas = document.getElementById('minimap-canvas') as HTMLCanvasElement;
     if (minimapCanvas) {
       this.renderer.setMinimapCanvas(minimapCanvas);

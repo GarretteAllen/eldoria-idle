@@ -46,9 +46,17 @@ export class WorldRenderer {
   private hoverTileX = 0;
   private hoverTileY = 0;
 
+  // Zoom level (1.0 = default 1:1 view, 0.55 = maximum zoom out)
+  private zoom = 1.0;
+  private targetZoom = 1.0;
+  private readonly MIN_ZOOM = 0.55;
+  private readonly MAX_ZOOM = 1.0;
+
   // Smooth visual positions (sub-tile interpolation)
   private visualX = 25;
   private visualY = 25;
+  private cameraCenterX = 25 * TILE_SIZE;
+  private cameraCenterY = 25 * TILE_SIZE;
   private cameraX = 0;
   private cameraY = 0;
   private animTick = 0;
@@ -305,7 +313,29 @@ export class WorldRenderer {
     return this.stitchedWorld;
   }
 
+  public zoomIn(step = 0.08) {
+    this.targetZoom = Math.min(this.MAX_ZOOM, this.targetZoom + step);
+  }
+
+  public zoomOut(step = 0.08) {
+    this.targetZoom = Math.max(this.MIN_ZOOM, this.targetZoom - step);
+  }
+
+  public resetZoom() {
+    this.targetZoom = 1.0;
+  }
+
+  public getZoom(): number {
+    return this.zoom;
+  }
+
   public setLocalPlayer(player: PlayerData) {
+    if (!this.localPlayer) {
+      this.visualX = player.x;
+      this.visualY = player.y;
+      this.cameraCenterX = player.x * TILE_SIZE;
+      this.cameraCenterY = player.y * TILE_SIZE;
+    }
     this.localPlayer = player;
   }
 
@@ -340,12 +370,14 @@ export class WorldRenderer {
 
     this.canvas.addEventListener('mousemove', (e) => {
       const rect = this.canvas.getBoundingClientRect();
-      const clickScreenX = e.clientX - rect.left;
-      const clickScreenY = e.clientY - rect.top;
+      const scaleX = rect.width > 0 ? this.canvas.width / rect.width : 1;
+      const scaleY = rect.height > 0 ? this.canvas.height / rect.height : 1;
+      const clickScreenX = (e.clientX - rect.left) * scaleX;
+      const clickScreenY = (e.clientY - rect.top) * scaleY;
       const camX = Math.round(this.cameraX);
       const camY = Math.round(this.cameraY);
-      this.hoverTileX = Math.floor((clickScreenX + camX) / TILE_SIZE);
-      this.hoverTileY = Math.floor((clickScreenY + camY) / TILE_SIZE);
+      this.hoverTileX = Math.floor((camX + clickScreenX / this.zoom) / TILE_SIZE);
+      this.hoverTileY = Math.floor((camY + clickScreenY / this.zoom) / TILE_SIZE);
 
       if (isMouseDown) {
         if (this.editorMode === 'paint_collision') {
@@ -380,14 +412,16 @@ export class WorldRenderer {
 
     this.canvas.addEventListener('click', (e) => {
       const rect = this.canvas.getBoundingClientRect();
-      const clickScreenX = e.clientX - rect.left;
-      const clickScreenY = e.clientY - rect.top;
+      const scaleX = rect.width > 0 ? this.canvas.width / rect.width : 1;
+      const scaleY = rect.height > 0 ? this.canvas.height / rect.height : 1;
+      const clickScreenX = (e.clientX - rect.left) * scaleX;
+      const clickScreenY = (e.clientY - rect.top) * scaleY;
 
       const camX = Math.round(this.cameraX);
       const camY = Math.round(this.cameraY);
 
-      const tileX = Math.floor((clickScreenX + camX) / TILE_SIZE);
-      const tileY = Math.floor((clickScreenY + camY) / TILE_SIZE);
+      const tileX = Math.floor((camX + clickScreenX / this.zoom) / TILE_SIZE);
+      const tileY = Math.floor((camY + clickScreenY / this.zoom) / TILE_SIZE);
 
       // 1. Editor mode handling
       if (this.editorMode === 'paint_collision') {
@@ -431,12 +465,74 @@ export class WorldRenderer {
         this.onGroundClick(tileX, tileY);
       }
     });
+
+    // Mouse wheel zoom (scroll down = zoom out, scroll up = zoom in)
+    this.canvas.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      const zoomStep = 0.08;
+      if (e.deltaY > 0) {
+        this.zoomOut(zoomStep);
+      } else if (e.deltaY < 0) {
+        this.zoomIn(zoomStep);
+      }
+    }, { passive: false });
+
+    // Touch pinch-to-zoom support
+    let initialPinchDistance: number | null = null;
+    let initialPinchZoom = 1.0;
+
+    this.canvas.addEventListener('touchstart', (e) => {
+      if (e.touches.length === 2) {
+        const dx = e.touches[0].clientX - e.touches[1].clientX;
+        const dy = e.touches[0].clientY - e.touches[1].clientY;
+        initialPinchDistance = Math.hypot(dx, dy);
+        initialPinchZoom = this.targetZoom;
+      }
+    }, { passive: true });
+
+    this.canvas.addEventListener('touchmove', (e) => {
+      if (e.touches.length === 2 && initialPinchDistance !== null) {
+        const dx = e.touches[0].clientX - e.touches[1].clientX;
+        const dy = e.touches[0].clientY - e.touches[1].clientY;
+        const currentDistance = Math.hypot(dx, dy);
+        const factor = currentDistance / initialPinchDistance;
+        this.targetZoom = Math.max(this.MIN_ZOOM, Math.min(this.MAX_ZOOM, initialPinchZoom * factor));
+      }
+    }, { passive: true });
+
+    this.canvas.addEventListener('touchend', (e) => {
+      if (e.touches.length < 2) {
+        initialPinchDistance = null;
+      }
+    }, { passive: true });
+
+    // Keyboard zoom controls (+ / - / 0)
+    window.addEventListener('keydown', (e) => {
+      const target = e.target as HTMLElement | null;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
+        return;
+      }
+      if (e.key === '=' || e.key === '+') {
+        this.zoomIn(0.08);
+      } else if (e.key === '-' || e.key === '_') {
+        this.zoomOut(0.08);
+      } else if (e.key === '0') {
+        this.resetZoom();
+      }
+    });
   }
 
   private render(timestamp: number) {
     this.animTick = timestamp;
     const { ctx, canvas } = this;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Smoothly interpolate zoom towards targetZoom
+    if (Math.abs(this.targetZoom - this.zoom) > 0.001) {
+      this.zoom += (this.targetZoom - this.zoom) * 0.18;
+    } else {
+      this.zoom = this.targetZoom;
+    }
 
     if (this.localPlayer) {
       // 60 FPS Sub-tile linear interpolation for smooth movement
@@ -448,13 +544,17 @@ export class WorldRenderer {
       this.visualX += dx * 0.25;
       this.visualY += dy * 0.25;
 
-
-      // Camera smoothly tracks interpolated position
-      const targetCamX = this.visualX * TILE_SIZE - canvas.width / 2;
-      const targetCamY = this.visualY * TILE_SIZE - canvas.height / 2;
-      this.cameraX += (targetCamX - this.cameraX) * 0.15;
-      this.cameraY += (targetCamY - this.cameraY) * 0.15;
+      // Camera smoothly tracks player focal center
+      const targetCenterX = this.visualX * TILE_SIZE;
+      const targetCenterY = this.visualY * TILE_SIZE;
+      this.cameraCenterX += (targetCenterX - this.cameraCenterX) * 0.15;
+      this.cameraCenterY += (targetCenterY - this.cameraCenterY) * 0.15;
     }
+
+    const halfViewW = (canvas.width / this.zoom) / 2;
+    const halfViewH = (canvas.height / this.zoom) / 2;
+    this.cameraX = this.cameraCenterX - halfViewW;
+    this.cameraY = this.cameraCenterY - halfViewH;
 
     if (this.cameraShake > 0.05) {
       this.cameraShake *= 0.82;
@@ -467,6 +567,7 @@ export class WorldRenderer {
     const camY = Math.round(this.cameraY + shakeOffsetY);
 
     ctx.save();
+    ctx.scale(this.zoom, this.zoom);
     ctx.translate(-camX, -camY);
 
     // 1. Draw World Terrain (Stitched LDtk Tiles)
@@ -968,12 +1069,14 @@ export class WorldRenderer {
 
   private drawTerrain() {
     const { ctx } = this;
+    const viewW = this.canvas.width / this.zoom;
+    const viewH = this.canvas.height / this.zoom;
 
     if (!this.stitchedWorld) {
       const startTileX = Math.floor(this.cameraX / TILE_SIZE) - 1;
-      const endTileX = Math.ceil((this.cameraX + this.canvas.width) / TILE_SIZE) + 1;
+      const endTileX = Math.ceil((this.cameraX + viewW) / TILE_SIZE) + 1;
       const startTileY = Math.floor(this.cameraY / TILE_SIZE) - 1;
-      const endTileY = Math.ceil((this.cameraY + this.canvas.height) / TILE_SIZE) + 1;
+      const endTileY = Math.ceil((this.cameraY + viewH) / TILE_SIZE) + 1;
 
       for (let x = startTileX; x <= endTileX; x++) {
         for (let y = startTileY; y <= endTileY; y++) {
@@ -989,8 +1092,8 @@ export class WorldRenderer {
     // Viewport frustum culling (with 64px safety padding)
     const viewLeft = this.cameraX - 64;
     const viewTop = this.cameraY - 64;
-    const viewRight = this.cameraX + this.canvas.width + 64;
-    const viewBottom = this.cameraY + this.canvas.height + 64;
+    const viewRight = this.cameraX + viewW + 64;
+    const viewBottom = this.cameraY + viewH + 64;
 
     for (const lvl of this.stitchedWorld.levels) {
       const px = lvl.tileX * TILE_SIZE;
