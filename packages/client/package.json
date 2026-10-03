@@ -8,7 +8,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@eldoria/shared": "*"
+    "@eldoria/shared": "*",
+    "lucide": "^1.51.0"
   },
   "devDependencies": {
     "typescript": "^5.7.3",

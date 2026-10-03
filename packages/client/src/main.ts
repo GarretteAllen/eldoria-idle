@@ -1944,7 +1944,7 @@ class EldoriaClient {
       } else {
         div.innerHTML = `
           <div style="display:flex; align-items:center; gap:8px;">
-            <div style="width:20px; height:20px; display:flex; align-items:center; justify-content:center; opacity:0.35;">${ICONS[slotDef.iconKey] || ICONS.skills}</div>
+            <span class="rpg-slot-empty-icon">${ICONS[slotDef.iconKey] || ICONS.skills}</span>
             <div style="font-weight:600; font-size:0.75rem; color:var(--text-dim);">${slotDef.label}</div>
           </div>
           <div style="font-size:0.7rem; color:var(--text-dim); font-style:italic;">(empty)</div>
@@ -2020,7 +2020,7 @@ class EldoriaClient {
         } else {
           div.innerHTML = `
             <div style="display:flex; align-items:center; gap:8px;">
-              <div style="width:20px; height:20px; display:flex; align-items:center; justify-content:center; opacity:0.35;">${ICONS[slotDef.iconKey] || ICONS.skills}</div>
+              <span class="rpg-slot-empty-icon">${ICONS[slotDef.iconKey] || ICONS.skills}</span>
               <div style="font-weight:600; font-size:0.75rem; color:var(--text-dim);">${slotDef.label}</div>
             </div>
             <div style="font-size:0.7rem; color:var(--text-dim); font-style:italic;">(empty)</div>
