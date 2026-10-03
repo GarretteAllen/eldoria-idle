@@ -198,6 +198,9 @@ export interface CatchUpSummary {
   completedCycles: number;
   xpGained: number;
   leveledUp: boolean;
+  skillName?: string;
+  startLevel?: number;
+  newLevel?: number;
   itemsGained: Record<string, number>;
   overflowOccurred: boolean;
 }
@@ -357,6 +360,9 @@ export function simulateOfflineCatchUp(
     skillRecord.level = getLevelFromXp(skillRecord.xp);
     if (skillRecord.level > oldLevel) {
       summary.leveledUp = true;
+      summary.skillName = recipe.skill;
+      summary.startLevel = oldLevel;
+      summary.newLevel = skillRecord.level;
     }
   }
 

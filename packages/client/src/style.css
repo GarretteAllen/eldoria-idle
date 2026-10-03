@@ -2573,129 +2573,142 @@ body, html {
 }
 
 /* ========================================================
-   14. LEVEL UP CELEBRATION MODAL
+   14. NON-INTRUSIVE FLOATING LEVEL UP BANNER
    ======================================================== */
-.level-up-card {
-  width: clamp(320px, 90vw, 420px);
-  background: radial-gradient(ellipse at 50% -20%, #4a3318 0%, #1c1108 65%, #100a05 100%);
-  border: 2px solid var(--gold-bright);
-  box-shadow: 0 0 35px rgba(223, 166, 55, 0.35), 0 20px 50px rgba(0, 0, 0, 0.95);
-  animation: levelUpPop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+.level-up-toast {
+  position: fixed;
+  top: 68px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 999;
+  pointer-events: auto;
+  animation: levelUpSlideDown 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: opacity 0.3s ease, transform 0.3s ease;
+  max-width: 90vw;
 }
 
-@keyframes levelUpPop {
-  0% { transform: scale(0.85); opacity: 0; }
-  100% { transform: scale(1); opacity: 1; }
+@keyframes levelUpSlideDown {
+  0% {
+    transform: translate(-50%, -20px) scale(0.95);
+    opacity: 0;
+  }
+  100% {
+    transform: translate(-50%, 0) scale(1);
+    opacity: 1;
+  }
 }
 
-.level-up-header {
-  text-align: center;
-  padding: 6px 0 10px 0;
-  border-bottom: 1px solid rgba(223, 166, 55, 0.25);
-}
-
-.level-up-stars {
-  font-size: 1.1rem;
-  color: var(--gold-bright);
-  letter-spacing: 6px;
-  text-shadow: 0 0 8px rgba(255, 215, 0, 0.8);
-}
-
-.level-up-title {
-  font-size: 1.4rem;
-  font-weight: 900;
-  color: #fff4d1;
-  letter-spacing: 0.06em;
-  margin: 4px 0 2px 0;
-  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.8), 0 0 14px rgba(223, 166, 55, 0.6);
-}
-
-.level-up-subtitle {
-  font-size: 0.78rem;
-  color: var(--gold-light);
-  font-style: italic;
-}
-
-.level-up-body {
-  padding: 14px 6px;
+.level-up-toast-content {
   display: flex;
-  flex-direction: column;
+  align-items: center;
   gap: 12px;
+  background: linear-gradient(135deg, rgba(28, 17, 8, 0.96) 0%, rgba(46, 28, 14, 0.96) 100%);
+  border: 1.5px solid var(--gold-bright);
+  border-radius: 8px;
+  padding: 8px 14px;
+  box-shadow: 0 4px 22px rgba(0, 0, 0, 0.75), 0 0 16px rgba(223, 166, 55, 0.3);
+  backdrop-filter: blur(8px);
 }
 
-.level-up-badge {
+.level-up-toast-badge {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.level-up-toast-icon {
+  font-size: 1.5rem;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 14px;
-  background: rgba(0, 0, 0, 0.35);
-  border: 1px solid #573c24;
-  border-radius: 6px;
-  padding: 10px 14px;
+  filter: drop-shadow(0 0 6px rgba(223, 166, 55, 0.6));
 }
 
-.level-up-icon {
-  font-size: 2.2rem;
-  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.9));
-}
-
-.level-up-text {
+.level-up-toast-info {
   display: flex;
   flex-direction: column;
 }
 
-.level-up-skill-name {
-  font-size: 1.1rem;
+.level-up-toast-tag {
+  font-size: 0.65rem;
   font-weight: 800;
-  color: #ffffff;
+  letter-spacing: 0.12em;
+  color: var(--gold-bright);
+  text-shadow: 0 0 8px rgba(255, 215, 0, 0.6);
 }
 
-.level-up-level-row {
+.level-up-toast-headline {
   font-size: 0.95rem;
-  font-weight: 700;
+  font-weight: 800;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.level-up-toast-sep {
+  color: var(--gold-light);
+  opacity: 0.6;
+}
+
+.level-up-toast-lvl {
   color: var(--gold-bright);
 }
 
 .level-up-num {
-  font-size: 1.25rem;
   font-weight: 900;
-  color: #fff1b8;
-  text-shadow: 0 0 6px rgba(245, 158, 11, 0.7);
+  color: #fff5c0;
+  text-shadow: 0 0 6px rgba(223, 166, 55, 0.7);
 }
 
-.level-up-unlocks {
-  background: #120b06;
-  border: 1px solid #3d2919;
-  border-radius: 5px;
-  padding: 10px;
-}
-
-.unlocks-title {
-  font-size: 0.72rem;
-  font-weight: 800;
-  color: var(--gold-main);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  margin-bottom: 6px;
-}
-
-.unlock-items-list {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.unlock-item-row {
+.level-up-toast-unlocks {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 0.8rem;
-  color: #e2e8f0;
+  border-left: 1px solid rgba(223, 166, 55, 0.3);
+  padding-left: 10px;
 }
 
-.unlock-item-bullet {
-  color: #48bb78;
-  font-weight: 800;
+.level-up-toast-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  max-width: 320px;
+}
+
+.unlock-item-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(223, 166, 55, 0.35);
+  border-radius: 4px;
+  padding: 2px 7px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #e2e8f0;
+  white-space: nowrap;
+}
+
+.unlock-item-pill span {
+  color: var(--gold-light);
+}
+
+.level-up-toast-close {
+  background: transparent;
+  border: none;
+  color: var(--gold-light);
+  font-size: 0.85rem;
+  cursor: pointer;
+  padding: 4px;
+  margin-left: 4px;
+  opacity: 0.7;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.level-up-toast-close:hover {
+  opacity: 1;
+  transform: scale(1.15);
 }
 
 /* ========================================================

@@ -1055,32 +1055,24 @@
         </div>
       </div>
 
-      <!-- 14. LEVEL UP CELEBRATION MODAL -->
-      <div id="level-up-modal" class="modal-backdrop hidden">
-        <div class="modal-box dark-oak-panel level-up-card">
-          <div class="level-up-header">
-            <div class="level-up-stars">✦ ✦ ✦</div>
-            <h2 class="level-up-title">CONGRATULATIONS!</h2>
-            <div class="level-up-subtitle">Your skill has advanced</div>
-          </div>
-          <div class="level-up-body">
-            <div class="level-up-badge">
-              <span id="level-up-icon" class="level-up-icon">⛏️</span>
-              <div class="level-up-text">
-                <div id="level-up-skill" class="level-up-skill-name">Mining</div>
-                <div class="level-up-level-row">Level <span id="level-up-level" class="level-up-num">15</span></div>
-              </div>
-            </div>
-            <div class="level-up-unlocks">
-              <div class="unlocks-title">Unlocked Capabilities</div>
-              <div id="level-up-unlock-list" class="unlock-items-list">
-                <!-- Dynamically populated -->
+      <!-- 14. NON-INTRUSIVE FLOATING LEVEL UP BANNER (Auto-dismissing, non-blocking) -->
+      <div id="level-up-banner" class="level-up-toast hidden">
+        <div class="level-up-toast-content">
+          <div class="level-up-toast-badge">
+            <span id="level-up-icon" class="level-up-toast-icon">⭐</span>
+            <div class="level-up-toast-info">
+              <div class="level-up-toast-tag">✦ LEVEL UP ✦</div>
+              <div class="level-up-toast-headline">
+                <span id="level-up-skill" class="level-up-toast-skill">Mining</span>
+                <span class="level-up-toast-sep">·</span>
+                <span class="level-up-toast-lvl">Level <span id="level-up-level" class="level-up-num">15</span></span>
               </div>
             </div>
           </div>
-          <div class="modal-footer" style="margin-top: 14px;">
-            <button id="level-up-close-btn" class="btn-start" style="width: 100%;">Continue Journey</button>
+          <div id="level-up-unlocks" class="level-up-toast-unlocks hidden">
+            <div id="level-up-unlock-list" class="level-up-toast-pills"></div>
           </div>
+          <button id="level-up-close-btn" class="level-up-toast-close" title="Dismiss">✕</button>
         </div>
       </div>
 

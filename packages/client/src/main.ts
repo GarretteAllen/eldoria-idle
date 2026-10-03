@@ -93,6 +93,8 @@ class EldoriaClient {
   private acceptedQuests: Set<string> = new Set();
   private completedQuests: Set<string> = new Set();
 
+  private levelUpTimer: any = null;
+
   constructor() {
     const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
     this.renderer = new WorldRenderer(canvas);
@@ -2928,9 +2930,10 @@ class EldoriaClient {
           npcModal.classList.add('hidden');
           return;
         }
-        const levelUpModal = document.getElementById('level-up-modal');
-        if (levelUpModal && !levelUpModal.classList.contains('hidden')) {
-          levelUpModal.classList.add('hidden');
+        const levelUpBanner = document.getElementById('level-up-banner');
+        if (levelUpBanner && !levelUpBanner.classList.contains('hidden')) {
+          levelUpBanner.classList.add('hidden');
+          if (this.levelUpTimer) clearTimeout(this.levelUpTimer);
           return;
         }
         const bestiaryModal = document.getElementById('bestiary-modal');
@@ -3036,10 +3039,12 @@ class EldoriaClient {
 
   private setupLevelUpCelebration() {
     const closeBtn = document.getElementById('level-up-close-btn');
-    const modal = document.getElementById('level-up-modal');
-    if (closeBtn && modal) {
-      closeBtn.onclick = () => {
-        modal.classList.add('hidden');
+    const banner = document.getElementById('level-up-banner');
+    if (closeBtn && banner) {
+      closeBtn.onclick = (e) => {
+        e.stopPropagation();
+        banner.classList.add('hidden');
+        if (this.levelUpTimer) clearTimeout(this.levelUpTimer);
       };
     }
   }
@@ -3079,56 +3084,70 @@ class EldoriaClient {
       text: `★ LEVEL UP! You reached ${skill.toUpperCase()} Level ${newLevel}! ★`,
     });
 
-    const modal = document.getElementById('level-up-modal');
-    if (!modal) return;
+    const banner = document.getElementById('level-up-banner');
+    if (!banner) return;
 
     const iconEl = document.getElementById('level-up-icon');
     const skillEl = document.getElementById('level-up-skill');
     const levelEl = document.getElementById('level-up-level');
+    const unlocksContainer = document.getElementById('level-up-unlocks');
     const listEl = document.getElementById('level-up-unlock-list');
 
     if (iconEl) iconEl.innerHTML = ICONS[skill] || '⭐';
     if (skillEl) skillEl.textContent = skill.charAt(0).toUpperCase() + skill.slice(1);
     if (levelEl) levelEl.textContent = newLevel.toString();
 
-    if (listEl) {
+    if (listEl && unlocksContainer) {
       listEl.innerHTML = '';
       const unlocks: string[] = [];
 
       for (const rec of Object.values(RECIPES)) {
         if (rec.skill === skill && rec.levelReq === newLevel) {
-          unlocks.push(`${rec.name} (${rec.skill.toUpperCase()})`);
+          unlocks.push(rec.name);
         }
       }
 
       for (const item of Object.values(ITEMS)) {
         if (item.equipReq && item.equipReq.skill === skill && item.equipReq.level === newLevel) {
-          unlocks.push(`Equip: ${item.name}`);
+          unlocks.push(item.name);
         }
       }
 
       if (skill === 'melee' || skill === 'ranged' || skill === 'magic' || skill === 'defence') {
         for (const mob of Object.values(MONSTERS)) {
           if (mob.level === newLevel) {
-            unlocks.push(`Challenger: ${mob.name} (${mob.zone})`);
+            unlocks.push(mob.name);
           }
         }
       }
 
-      if (unlocks.length === 0) {
-        unlocks.push(`Enhanced skill mastery, precision and speed`);
-        unlocks.push(`Higher tier efficiency in ${skill}`);
-      }
-
-      for (const u of unlocks) {
-        const row = document.createElement('div');
-        row.className = 'unlock-item-row';
-        row.innerHTML = `<span class="unlock-item-bullet">✦</span> <span>${u}</span>`;
-        listEl.appendChild(row);
+      if (unlocks.length > 0) {
+        unlocksContainer.classList.remove('hidden');
+        for (const u of unlocks.slice(0, 3)) {
+          const pill = document.createElement('span');
+          pill.className = 'unlock-item-pill';
+          pill.innerHTML = `<span>✦</span> ${u}`;
+          listEl.appendChild(pill);
+        }
+        if (unlocks.length > 3) {
+          const more = document.createElement('span');
+          more.className = 'unlock-item-pill';
+          more.textContent = `+${unlocks.length - 3} more`;
+          listEl.appendChild(more);
+        }
+      } else {
+        unlocksContainer.classList.add('hidden');
       }
     }
 
-    modal.classList.remove('hidden');
+    banner.classList.remove('hidden');
+
+    if (this.levelUpTimer) {
+      clearTimeout(this.levelUpTimer);
+    }
+    this.levelUpTimer = setTimeout(() => {
+      banner.classList.add('hidden');
+    }, 4500);
   }
 
   private setupBestiary() {
@@ -3745,13 +3764,65 @@ class EldoriaClient {
     const body = document.getElementById('away-body')!;
 
     const minutes = Math.floor(summary.elapsedSeconds / 60);
+    const hours = Math.floor(minutes / 60);
+    const remMins = minutes % 60;
+    const timeStr = hours > 0 ? `${hours}h ${remMins}m` : `${minutes} minutes`;
+
+    let levelUpHtml = '';
+    if (summary.leveledUp) {
+      if (summary.skillName && summary.newLevel) {
+        const skillCapitalized = summary.skillName.charAt(0).toUpperCase() + summary.skillName.slice(1);
+        const diff = summary.startLevel ? ` (+${summary.newLevel - summary.startLevel} Levels)` : '';
+        const progression = summary.startLevel ? `Lv ${summary.startLevel} → Lv ${summary.newLevel}` : `Lv ${summary.newLevel}`;
+        levelUpHtml = `
+          <div style="background: rgba(223, 166, 55, 0.15); border: 1px solid var(--gold-bright); border-radius: 6px; padding: 8px 10px; margin-top: 4px;">
+            <div style="font-weight: 800; color: var(--gold-bright); font-size: 0.85rem; display: flex; align-items: center; gap: 6px;">
+              <span>⭐</span>
+              <span>${skillCapitalized} Advanced: ${progression}${diff}!</span>
+            </div>
+          </div>
+        `;
+      } else {
+        levelUpHtml = `
+          <div style="background: rgba(223, 166, 55, 0.15); border: 1px solid var(--gold-bright); border-radius: 6px; padding: 8px 10px; margin-top: 4px;">
+            <div style="font-weight: 800; color: var(--gold-bright); font-size: 0.85rem;">
+              ⭐ Ascension! Your skills advanced while you were away!
+            </div>
+          </div>
+        `;
+      }
+    }
+
+    let itemsHtml = '';
+    if (summary.itemsGained && Object.keys(summary.itemsGained).length > 0) {
+      itemsHtml = `
+        <div style="margin-top: 6px;">
+          <div style="font-weight: 700; color: var(--gold-light); font-size: 0.74rem; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.05em;">Spoils Collected:</div>
+          <div style="display: flex; flex-wrap: wrap; gap: 6px; max-height: 120px; overflow-y: auto;">
+            ${Object.entries(summary.itemsGained).map(([id, qty]) => {
+              const def = ITEMS[id];
+              const name = def?.name || id;
+              return `<span style="background: rgba(0, 0, 0, 0.45); border: 1px solid #573c24; border-radius: 4px; padding: 3px 8px; font-size: 0.75rem; color: #fff;"><b>${qty}x</b> ${name}</span>`;
+            }).join('')}
+          </div>
+        </div>
+      `;
+    }
+
     body.innerHTML = `
-      <p style="margin-bottom: 8px;">You rested for <b>${minutes} minutes</b>.</p>
-      <div style="background: #1c1108; padding: 10px; border-radius: 6px; border: 1px solid #4a301a; display: flex; flex-direction: column; gap: 4px; font-size: 0.8rem;">
-        <div><b>Actions Finished:</b> ${summary.completedCycles}</div>
-        <div><b>XP Earned:</b> +${summary.xpGained.toLocaleString()}</div>
-        ${summary.leveledUp ? '<div style="color:var(--gold-bright); font-weight:700;">Ascension! You gained new levels!</div>' : ''}
-        ${summary.overflowOccurred ? '<div style="color:var(--red-accent);">Satchel filled! Remaining spoils were safely deposited at the Hearth Altar.</div>' : ''}
+      <p style="margin-bottom: 8px; font-size: 0.88rem; color: #e2e8f0;">You rested for <b>${timeStr}</b> while away.</p>
+      <div style="background: #1c1108; padding: 12px; border-radius: 6px; border: 1px solid #4a301a; display: flex; flex-direction: column; gap: 6px; font-size: 0.8rem;">
+        <div style="display: flex; justify-content: space-between;">
+          <span style="color: var(--gold-light);">Actions Finished:</span>
+          <b>${(summary.completedCycles || 0).toLocaleString()}</b>
+        </div>
+        <div style="display: flex; justify-content: space-between;">
+          <span style="color: var(--gold-light);">XP Earned:</span>
+          <b style="color: #48bb78;">+${(summary.xpGained || 0).toLocaleString()} XP</b>
+        </div>
+        ${levelUpHtml}
+        ${itemsHtml}
+        ${summary.overflowOccurred ? '<div style="color: #f6ad55; font-size: 0.74rem; margin-top: 4px;">📦 Satchel filled: Extra spoils safely deposited at Hearth Storage.</div>' : ''}
       </div>
     `;
 
