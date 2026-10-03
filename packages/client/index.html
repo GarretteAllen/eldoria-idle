@@ -69,9 +69,9 @@
             <span id="top-player-name">Wanderer</span>
           </div>
 
-          <button id="btn-sound-toggle" class="top-util-btn" title="Toggle Sound FX">🔊</button>
-          <button id="btn-minimap-toggle" class="top-util-btn" title="Toggle Realm Radar">🧭</button>
-          <button id="btn-worldmap-toggle" class="top-util-btn" title="Open World Atlas [M]">🗺️</button>
+          <button id="btn-sound-toggle" class="top-util-btn" title="Toggle Sound FX"></button>
+          <button id="btn-minimap-toggle" class="top-util-btn" title="Toggle Realm Radar"></button>
+          <button id="btn-worldmap-toggle" class="top-util-btn" title="Open World Atlas [M]"></button>
 
           <button id="btn-top-logout" class="top-logout-btn" title="Log Out of Character">Log Out</button>
 
@@ -116,7 +116,7 @@
       <div id="minimap-card" class="minimap-card">
         <div class="minimap-header">
           <div style="display:flex; align-items:center; gap:5px;">
-            <span class="minimap-compass-glyph">🧭</span>
+            <span class="minimap-compass-glyph svg-icon-inline icon-sm" id="minimap-compass-glyph"></span>
             <span class="minimap-title">Radar</span>
           </div>
           <div style="display:flex; align-items:center; gap:6px;">
@@ -160,10 +160,10 @@
       <div id="quest-tracker-card" class="parchment-card quest-tracker-card">
         <div class="tasks-card-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
           <div style="display:flex; align-items:center; gap:5px;">
-            <span>📜</span>
+            <span id="quest-tracker-header-icon" class="svg-icon-inline icon-sm"></span>
             <span style="font-size:0.82rem; font-weight:800; color:var(--parchment-text);">Bounties & Quests</span>
           </div>
-          <button id="quest-tracker-toggle-btn" class="icon-btn-micro" style="font-size:0.65rem;" title="Collapse/Expand Quests">▾</button>
+          <button id="quest-tracker-toggle-btn" class="icon-btn-micro" title="Collapse/Expand Quests"></button>
         </div>
         <div id="quest-tracker-content">
           <div id="quest-tracker-list" class="quest-tracker-list"></div>
@@ -177,7 +177,7 @@
             <span>Chat</span>
             <span class="chat-online-sub">· <span id="chat-online-count">1</span> online</span>
           </div>
-          <button id="chat-collapse-btn" class="icon-btn-micro">▾</button>
+          <button id="chat-collapse-btn" class="icon-btn-micro" title="Collapse/Expand Chat"></button>
         </div>
         <div class="chat-channels">
           <button class="chan-btn active" data-chan="All">All</button>
@@ -224,7 +224,7 @@
         </div>
         <div class="drawer-footer">
           <button id="btn-quick-fight" class="btn-oak"><span class="btn-icon" id="btn-fight-icon"></span> Fight</button>
-          <button id="btn-quick-bestiary" class="btn-oak"><span class="btn-icon" style="font-size:0.75rem;">📜</span> Bestiary</button>
+          <button id="btn-quick-bestiary" class="btn-oak"><span class="btn-icon" id="btn-bestiary-icon"></span> Bestiary</button>
           <button id="btn-quick-home" class="btn-oak"><span class="btn-icon" id="btn-home-icon"></span> Go home</button>
         </div>
       </div>
@@ -337,7 +337,7 @@
               <button id="dv-tab-vendor" class="dv-tab-btn">Vendor</button>
             </div>
             <div id="dv-slots-counter" class="dv-slots-label">0 / 75 slots</div>
-            <button id="dv-storage-close-btn" class="dv-close-circle-btn" title="Close storage">✕</button>
+            <button id="dv-storage-close-btn" class="dv-close-circle-btn" title="Close storage"></button>
           </div>
 
           <!-- Sub-Header Actions Row -->
@@ -346,7 +346,7 @@
             <div class="dv-subbar-actions">
               <button id="dv-btn-buy-slot" class="dv-sub-btn dv-btn-buy" title="Expand vault capacity by 5 slots">Buy a slot • 1,000</button>
               <button id="dv-btn-auto-arrange" class="dv-sub-btn" title="Auto arrange vault contents">Auto arrange</button>
-              <button id="dv-btn-home-depot" class="dv-sub-btn dv-btn-check" title="Quick deposit all spoils">Home depot ✓</button>
+              <button id="dv-btn-home-depot" class="dv-sub-btn dv-btn-check" title="Quick deposit all spoils"><span id="dv-depot-check-icon" class="svg-icon-inline icon-sm"></span> Home depot</button>
             </div>
           </div>
 
@@ -791,7 +791,7 @@
               <!-- Stacking Behavior Box -->
               <div style="background: rgba(0, 0, 0, 0.35); border: 1px solid #4a3622; border-radius: 6px; padding: 10px; margin: 8px 0; display: flex; flex-direction: column; gap: 8px;">
                 <div style="font-size: 0.75rem; font-weight: 700; color: #ffd699; display: flex; align-items: center; justify-content: space-between;">
-                  <span>📦 Stacking Behavior</span>
+                  <span style="display:inline-flex; align-items:center; gap:6px;"><span id="stack-behavior-icon" class="svg-icon-inline icon-sm"></span> Stacking Behavior</span>
                   <span style="font-size: 0.65rem; color: #a0aec0; font-weight: normal;">Configure Satchel & Bank independently</span>
                 </div>
 
@@ -799,7 +799,7 @@
                 <div style="background: rgba(20, 20, 26, 0.6); border: 1px solid #3d3429; border-radius: 4px; padding: 8px;">
                   <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 0.75rem; color: #e2e8f0; font-weight: 600;">
                     <input type="checkbox" id="item-form-stackable-inv" checked />
-                    🎒 Stack in Satchel (Inventory)
+                    <span id="satchel-stack-icon" class="svg-icon-inline icon-sm"></span> Stack in Satchel (Inventory)
                   </label>
                   <div class="form-row" id="item-form-max-stack-inv-row" style="margin-top: 6px;">
                     <label style="font-size: 0.7rem;">Satchel Max Stack:</label>
@@ -814,7 +814,7 @@
                 <div style="background: rgba(20, 20, 26, 0.6); border: 1px solid #3d3429; border-radius: 4px; padding: 8px;">
                   <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 0.75rem; color: #e2e8f0; font-weight: 600;">
                     <input type="checkbox" id="item-form-stackable-bank" checked />
-                    🏦 Stack in Hearth Vault (Bank)
+                    <span id="vault-stack-icon" class="svg-icon-inline icon-sm"></span> Stack in Hearth Vault (Bank)
                   </label>
                   <div class="form-row" id="item-form-max-stack-bank-row" style="margin-top: 6px;">
                     <label style="font-size: 0.7rem;">Vault Max Stack:</label>
@@ -1059,9 +1059,9 @@
       <div id="level-up-banner" class="level-up-toast hidden">
         <div class="level-up-toast-content">
           <div class="level-up-toast-badge">
-            <span id="level-up-icon" class="level-up-toast-icon">⭐</span>
+            <span id="level-up-icon" class="level-up-toast-icon"></span>
             <div class="level-up-toast-info">
-              <div class="level-up-toast-tag">✦ LEVEL UP ✦</div>
+              <div class="level-up-toast-tag">LEVEL UP</div>
               <div class="level-up-toast-headline">
                 <span id="level-up-skill" class="level-up-toast-skill">Mining</span>
                 <span class="level-up-toast-sep">·</span>
@@ -1072,7 +1072,7 @@
           <div id="level-up-unlocks" class="level-up-toast-unlocks hidden">
             <div id="level-up-unlock-list" class="level-up-toast-pills"></div>
           </div>
-          <button id="level-up-close-btn" class="level-up-toast-close" title="Dismiss">✕</button>
+          <button id="level-up-close-btn" class="level-up-toast-close" title="Dismiss"></button>
         </div>
       </div>
 
@@ -1081,10 +1081,10 @@
         <div class="modal-box dark-oak-panel bestiary-card">
           <div class="modal-header">
             <div style="display: flex; align-items: center; gap: 8px;">
-              <span style="font-size: 1.1rem;">📜</span>
+              <span id="bestiary-modal-icon" class="svg-icon-inline icon-lg"></span>
               <h4>Realm Bestiary & Drop Tables</h4>
             </div>
-            <button id="bestiary-close-btn" class="icon-btn-micro">✕</button>
+            <button id="bestiary-close-btn" class="icon-btn-micro" title="Close Bestiary"></button>
           </div>
           <div class="bestiary-search-row">
             <input type="text" id="bestiary-search-input" placeholder="Search beasts or drops..." />
@@ -1100,13 +1100,13 @@
         <div class="modal-box dark-oak-panel world-map-card" style="width: 760px; max-width: 95vw;">
           <div class="modal-header">
             <div style="display: flex; align-items: center; gap: 8px;">
-              <span style="font-size: 1.2rem;">🗺️</span>
+              <span id="world-map-modal-icon" class="svg-icon-inline icon-lg"></span>
               <div>
                 <h4 style="color: var(--gold-bright); margin: 0;">Realm of Eldoria — World Atlas</h4>
                 <div style="font-size: 0.68rem; color: #a0aec0;">Click anywhere on the map to navigate • Press [M] or [Esc] to exit</div>
               </div>
             </div>
-            <button id="world-map-close-btn" class="icon-btn-micro">✕</button>
+            <button id="world-map-close-btn" class="icon-btn-micro" title="Close World Atlas"></button>
           </div>
           <div class="world-map-body" style="position: relative; overflow: auto; background: #121815; border-radius: 6px; border: 1.5px solid #5a4522; margin-top: 8px;">
             <canvas id="world-map-canvas" width="710" height="430" style="display: block; cursor: crosshair; image-rendering: pixelated; margin: 0 auto;"></canvas>

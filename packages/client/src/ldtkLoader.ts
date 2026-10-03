@@ -145,7 +145,7 @@ export async function loadLdtkWorld(): Promise<StitchedWorld | null> {
       );
     }
 
-    console.log(`🗺️ Dynamic LDtk World loaded! ${bakedLevels.length} levels baked. Overworld bounds: (${minTileX}, ${minTileY}) to (${maxTileX}, ${maxTileY}) [${maxTileX - minTileX}x${maxTileY - minTileY} tiles].`);
+    console.log(`[LDtk World] Dynamic LDtk World loaded! ${bakedLevels.length} levels baked. Overworld bounds: (${minTileX}, ${minTileY}) to (${maxTileX}, ${maxTileY}) [${maxTileX - minTileX}x${maxTileY - minTileY} tiles].`);
 
     return {
       tileSize: 32,

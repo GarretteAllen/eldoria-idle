@@ -359,6 +359,182 @@ export const ICONS: Record<string, string> = {
       <circle cx="12" cy="10" r="3" stroke="currentColor" stroke-width="1.8"/>
     </svg>
   `,
+
+  // === Audio & Utility Navigation ===
+  soundOn: `
+    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M11 5L6 9H2v6h4l5 4V5z" fill="currentColor" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+      <path d="M15.5 8.5a5 5 0 0 1 0 7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+      <path d="M19 5.5a9 9 0 0 1 0 13" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+    </svg>
+  `,
+
+  soundOff: `
+    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M11 5L6 9H2v6h4l5 4V5z" fill="currentColor" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+      <line x1="21" y1="9" x2="15" y2="15" stroke="#ef4444" stroke-width="2" stroke-linecap="round"/>
+      <line x1="15" y1="9" x2="21" y2="15" stroke="#ef4444" stroke-width="2" stroke-linecap="round"/>
+    </svg>
+  `,
+
+  compass: `
+    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="12" cy="12" r="9.5" stroke="#d4af37" stroke-width="1.6"/>
+      <polygon points="12,4 14.5,12 12,10.5 9.5,12" fill="#e53e3e" stroke="#c53030" stroke-width="0.6"/>
+      <polygon points="12,20 14.5,12 12,13.5 9.5,12" fill="#cbd5e1" stroke="#94a3b8" stroke-width="0.6"/>
+      <circle cx="12" cy="12" r="1.5" fill="#fcd34d"/>
+    </svg>
+  `,
+
+  worldMap: `
+    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <polygon points="3,6 9,3 15,6 21,3 21,18 15,21 9,18 3,21" fill="#2d2013" stroke="#d4af37" stroke-width="1.6" stroke-linejoin="round"/>
+      <line x1="9" y1="3" x2="9" y2="18" stroke="#84613b" stroke-width="1.2" stroke-dasharray="1.5 1.5"/>
+      <line x1="15" y1="6" x2="15" y2="21" stroke="#84613b" stroke-width="1.2" stroke-dasharray="1.5 1.5"/>
+      <circle cx="6" cy="12" r="1.5" fill="#e53e3e"/>
+      <circle cx="18" cy="9" r="1.5" fill="#38bdf8"/>
+      <path d="M7 12c3-2 8-1 10-3" stroke="#d97706" stroke-width="1" stroke-dasharray="1 1"/>
+    </svg>
+  `,
+
+  scroll: `
+    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M19 17V5a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2z" fill="#2d2214" stroke="#d4af37" stroke-width="1.5"/>
+      <path d="M7 7h10M7 11h10M7 15h6" stroke="#f6e05e" stroke-width="1.3" stroke-linecap="round"/>
+      <circle cx="16.5" cy="16.5" r="2" fill="#991b1b" stroke="#f87171" stroke-width="0.8"/>
+    </svg>
+  `,
+
+  bestiary: `
+    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" stroke="#d4af37" stroke-width="1.8" stroke-linecap="round"/>
+      <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" fill="#1e140d" stroke="#d4af37" stroke-width="1.8"/>
+      <path d="M9 7h7M9 11h5" stroke="#f59e0b" stroke-width="1.4" stroke-linecap="round"/>
+      <polygon points="13,15 14.5,18 11.5,18" fill="#e53e3e"/>
+      <circle cx="13" cy="17" r="2.5" fill="none" stroke="#e53e3e" stroke-width="1"/>
+    </svg>
+  `,
+
+  star: `
+    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <polygon points="12,2 15,8.5 22,9.5 17,14.5 18.5,21.5 12,18 5.5,21.5 7,14.5 2,9.5 9,8.5" fill="#facc15" stroke="#ca8a04" stroke-width="1.2" stroke-linejoin="round"/>
+      <polygon points="12,5 13.5,9.5 18,10 14.5,13.5 15.5,18 12,15.5 8.5,18 9.5,13.5 6,10 10.5,9.5" fill="#fef08a" opacity="0.6"/>
+    </svg>
+  `,
+
+  levelUp: `
+    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <polygon points="12,2 15,8.5 22,9.5 17,14.5 18.5,21.5 12,18 5.5,21.5 7,14.5 2,9.5 9,8.5" fill="#facc15" stroke="#ca8a04" stroke-width="1.2" stroke-linejoin="round"/>
+      <polygon points="12,5 13.5,9.5 18,10 14.5,13.5 15.5,18 12,15.5 8.5,18 9.5,13.5 6,10 10.5,9.5" fill="#fef08a" opacity="0.6"/>
+    </svg>
+  `,
+
+  crate: `
+    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M4 7l8-4 8 4-8 4-8-4z" fill="#92400e" stroke="#d97706" stroke-width="1.4" stroke-linejoin="round"/>
+      <path d="M4 7v10l8 4 8-4V7" fill="#78350f" stroke="#b45309" stroke-width="1.4" stroke-linejoin="round"/>
+      <path d="M12 11v10" stroke="#d97706" stroke-width="1.4"/>
+      <line x1="8" y1="5.5" x2="16" y2="13.5" stroke="#d97706" stroke-width="1" opacity="0.7"/>
+    </svg>
+  `,
+
+  satchel: `
+    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M5 9h14v10a3 3 0 0 1-3 3H8a3 3 0 0 1-3-3V9z" fill="#78350f" stroke="#d97706" stroke-width="1.5" stroke-linejoin="round"/>
+      <path d="M8 9V6a4 4 0 0 1 8 0v3" stroke="#f59e0b" stroke-width="1.5"/>
+      <path d="M5 13h14" stroke="#451a03" stroke-width="1.5"/>
+      <rect x="10.5" y="11.5" width="3" height="3" rx="0.5" fill="#fcd34d" stroke="#78350f" stroke-width="0.8"/>
+    </svg>
+  `,
+
+  vault: `
+    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect x="4" y="4" width="16" height="16" rx="2" fill="#1e293b" stroke="#d97706" stroke-width="1.6"/>
+      <circle cx="12" cy="12" r="4.5" stroke="#fcd34d" stroke-width="1.5"/>
+      <line x1="12" y1="7.5" x2="12" y2="16.5" stroke="#fcd34d" stroke-width="1.2"/>
+      <line x1="7.5" y1="12" x2="16.5" y2="12" stroke="#fcd34d" stroke-width="1.2"/>
+      <circle cx="12" cy="12" r="1.5" fill="#f59e0b"/>
+    </svg>
+  `,
+
+  sword: `
+    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M19 5l-3 3-8-8-3 3 8 8-3 3 2 2 3-3 3 3 2-2-3-3 3-3 2 2 2-2-2-2z" fill="#cbd5e1" stroke="#94a3b8" stroke-width="1.2" stroke-linejoin="round"/>
+      <line x1="5" y1="19" x2="9" y2="15" stroke="#f59e0b" stroke-width="2.2" stroke-linecap="round"/>
+      <line x1="4" y1="16" x2="8" y2="20" stroke="#d97706" stroke-width="1.6" stroke-linecap="round"/>
+    </svg>
+  `,
+
+  shield: `
+    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M12 2l8 3.5v6.5c0 5.5-3.5 10-8 12-4.5-2-8-6.5-8-12V5.5L12 2z" fill="#1e293b" stroke="#38bdf8" stroke-width="1.6" stroke-linejoin="round"/>
+      <path d="M12 5v13M7 9h10" stroke="#7dd3fc" stroke-width="1.4" stroke-linecap="round"/>
+    </svg>
+  `,
+
+  helmet: `
+    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M4 14c0-5 3.5-9 8-9s8 4 8 9v3H4v-3z" fill="#334155" stroke="#94a3b8" stroke-width="1.6" stroke-linejoin="round"/>
+      <path d="M12 5v6M8 12h8" stroke="#cbd5e1" stroke-width="1.5" stroke-linecap="round"/>
+      <path d="M6 14h12v2H6z" fill="#0f172a"/>
+      <path d="M10 2c1 1 2 2 2 3" stroke="#f59e0b" stroke-width="1.5" stroke-linecap="round"/>
+    </svg>
+  `,
+
+  hair: `
+    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="12" cy="11" r="5" stroke="#fcd34d" stroke-width="1.6" fill="#1e1b18"/>
+      <path d="M7 11c0-3 2.5-6 5-6s5 3 5 6c0 2-1 4-1 4H8s-1-2-1-4z" fill="#d97706" opacity="0.6"/>
+      <path d="M6 19c1.5-2 3.5-3 6-3s4.5 1 6 3" stroke="#94a3b8" stroke-width="1.5" stroke-linecap="round"/>
+    </svg>
+  `,
+
+  body: `
+    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M8 3h8l4 4-2 4-2-1v9H8v-9l-2 1-2-4 4-4z" fill="#334155" stroke="#94a3b8" stroke-width="1.6" stroke-linejoin="round"/>
+      <path d="M12 3v16M8 9h8" stroke="#cbd5e1" stroke-width="1.4" stroke-linecap="round"/>
+    </svg>
+  `,
+
+  legs: `
+    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M6 4h12v4l-1 12h-3.5L12 11l-1.5 9H7L6 8V4z" fill="#334155" stroke="#94a3b8" stroke-width="1.6" stroke-linejoin="round"/>
+      <path d="M6 8h12" stroke="#64748b" stroke-width="1.2"/>
+    </svg>
+  `,
+
+  amulet: `
+    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M6 4c2 6 6 8 6 8s4-2 6-8" stroke="#fcd34d" stroke-width="1.6" stroke-linecap="round"/>
+      <polygon points="12,12 16,16 12,21 8,16" fill="#38bdf8" stroke="#bae6fd" stroke-width="1.2"/>
+      <circle cx="12" cy="16" r="1.5" fill="#fff"/>
+    </svg>
+  `,
+
+  ring: `
+    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="12" cy="14" r="7" stroke="#fcd34d" stroke-width="1.8"/>
+      <polygon points="12,4 15,7 12,10 9,7" fill="#a855f7" stroke="#e9d5ff" stroke-width="1.2"/>
+    </svg>
+  `,
+
+  chevronUp: `
+    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M18 15l-6-6-6 6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+  `,
+
+  chevronDown: `
+    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+  `,
+
+  spark: `
+    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M12 2l1.5 6.5L20 10l-6.5 1.5L12 18l-1.5-6.5L4 10l6.5-1.5L12 2z" fill="#fcd34d" stroke="#f59e0b" stroke-width="1"/>
+    </svg>
+  `,
 };
 
 /**

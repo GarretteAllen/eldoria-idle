@@ -133,6 +133,24 @@ class EldoriaClient {
     document.getElementById('task-home-btn')!.innerHTML = ICONS.hearth;
     document.getElementById('task-stop-btn')!.innerHTML = ICONS.stop;
 
+    // Top Controls & Radar
+    const soundBtn = document.getElementById('btn-sound-toggle');
+    if (soundBtn) soundBtn.innerHTML = ICONS.soundOn;
+    const minimapBtn = document.getElementById('btn-minimap-toggle');
+    if (minimapBtn) minimapBtn.innerHTML = ICONS.compass;
+    const worldmapBtn = document.getElementById('btn-worldmap-toggle');
+    if (worldmapBtn) worldmapBtn.innerHTML = ICONS.worldMap;
+    const minimapGlyph = document.getElementById('minimap-compass-glyph');
+    if (minimapGlyph) minimapGlyph.innerHTML = ICONS.compass;
+
+    // Quest Tracker & Chat
+    const questTrackerHeaderIcon = document.getElementById('quest-tracker-header-icon');
+    if (questTrackerHeaderIcon) questTrackerHeaderIcon.innerHTML = ICONS.scroll;
+    const questTrackerToggleBtn = document.getElementById('quest-tracker-toggle-btn');
+    if (questTrackerToggleBtn) questTrackerToggleBtn.innerHTML = ICONS.chevronDown;
+    const chatCollapseBtn = document.getElementById('chat-collapse-btn');
+    if (chatCollapseBtn) chatCollapseBtn.innerHTML = ICONS.chevronDown;
+
     // Toolbar
     document.getElementById('tool-btn-skills')!.innerHTML = ICONS.skills;
     document.getElementById('tool-btn-inventory')!.innerHTML = ICONS.inventory;
@@ -148,7 +166,35 @@ class EldoriaClient {
 
     // Drawer Buttons
     document.getElementById('btn-fight-icon')!.innerHTML = ICONS.melee;
+    const bestiaryBtnIcon = document.getElementById('btn-bestiary-icon');
+    if (bestiaryBtnIcon) bestiaryBtnIcon.innerHTML = ICONS.bestiary;
     document.getElementById('btn-home-icon')!.innerHTML = ICONS.hearth;
+
+    // Storage Modal Controls
+    const dvStorageClose = document.getElementById('dv-storage-close-btn');
+    if (dvStorageClose) dvStorageClose.innerHTML = ICONS.close;
+    const dvDepotIcon = document.getElementById('dv-depot-check-icon');
+    if (dvDepotIcon) dvDepotIcon.innerHTML = ICONS.check;
+
+    // Stacking Behavior Icons
+    const stackBehaviorIcon = document.getElementById('stack-behavior-icon');
+    if (stackBehaviorIcon) stackBehaviorIcon.innerHTML = ICONS.crate;
+    const satchelStackIcon = document.getElementById('satchel-stack-icon');
+    if (satchelStackIcon) satchelStackIcon.innerHTML = ICONS.satchel;
+    const vaultStackIcon = document.getElementById('vault-stack-icon');
+    if (vaultStackIcon) vaultStackIcon.innerHTML = ICONS.vault;
+
+    // Modals Close & Headers
+    const levelUpClose = document.getElementById('level-up-close-btn');
+    if (levelUpClose) levelUpClose.innerHTML = ICONS.close;
+    const bestiaryModalIcon = document.getElementById('bestiary-modal-icon');
+    if (bestiaryModalIcon) bestiaryModalIcon.innerHTML = ICONS.bestiary;
+    const bestiaryClose = document.getElementById('bestiary-close-btn');
+    if (bestiaryClose) bestiaryClose.innerHTML = ICONS.close;
+    const worldMapModalIcon = document.getElementById('world-map-modal-icon');
+    if (worldMapModalIcon) worldMapModalIcon.innerHTML = ICONS.worldMap;
+    const worldMapClose = document.getElementById('world-map-close-btn');
+    if (worldMapClose) worldMapClose.innerHTML = ICONS.close;
 
     // Popup Close
     document.getElementById('popup-close-btn')!.innerHTML = ICONS.close;
@@ -682,7 +728,7 @@ class EldoriaClient {
                 time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                 senderName: 'Combat',
                 channel: 'Combat',
-                text: `⚡ CRITICAL HIT! Dealt ${dmg} damage to ${msg.monsterName || 'target'}!`,
+                text: `[CRITICAL HIT] Dealt ${dmg} damage to ${msg.monsterName || 'target'}!`,
               });
             } else {
               this.renderer.addFloatingText(targetX, targetY, `-${dmg}`, 'damage');
@@ -1481,7 +1527,7 @@ class EldoriaClient {
 
       itemEl.innerHTML = `
         <div class="job-item-icon-box" style="background: #1c0e08; border-color: ${isTargeted ? '#e53e3e' : '#844c27'}; color: #feb2b2;">
-          <span style="font-size: 1.2rem;">⚔️</span>
+          ${ICONS.sword}
         </div>
         <div class="job-item-body">
           <div class="job-name-wrap">
@@ -1498,7 +1544,7 @@ class EldoriaClient {
         </div>
         <div class="job-item-side" style="display: flex; flex-direction: column; align-items: flex-end; justify-content: center; gap: 4px;">
           <button class="btn-start btn-fight-foe" type="button" style="padding: 4px 10px; font-size: 0.74rem; white-space: nowrap; ${isTargeted ? 'background: #9b2c2c;' : ''}">
-            ${isTargeted ? 'Fighting' : '⚔️ Fight'}
+            ${isTargeted ? 'Engaged' : 'Fight'}
           </button>
           ${hasNodes ? `<span style="font-size: 0.65rem; color: #718096;">${matchingNodes.length} in habitat</span>` : `<span style="font-size: 0.65rem; color: #718096;">Uncharted</span>`}
         </div>
@@ -1848,16 +1894,16 @@ class EldoriaClient {
     const container = document.getElementById('equipment-slots')!;
     container.innerHTML = '';
 
-    const wornSlots: Array<{ key: EquipSlot; label: string; icon: string }> = [
-      { key: 'weapon', label: 'Main Weapon', icon: '⚔️' },
-      { key: 'shield', label: 'Shield / Off-Hand', icon: '🛡️' },
-      { key: 'helmet', label: 'Headgear', icon: '🪖' },
-      { key: 'hair', label: 'Cosmetic Hair', icon: '💇' },
-      { key: 'body', label: 'Body Armour', icon: '🥋' },
-      { key: 'legs', label: 'Leg Greaves', icon: '👖' },
-      { key: 'steed', label: 'Mount / Steed', icon: '🐎' },
-      { key: 'amulet', label: 'Amulet', icon: '📿' },
-      { key: 'ring', label: 'Ring', icon: '💍' },
+    const wornSlots: Array<{ key: EquipSlot; label: string; iconKey: string }> = [
+      { key: 'weapon', label: 'Main Weapon', iconKey: 'sword' },
+      { key: 'shield', label: 'Shield / Off-Hand', iconKey: 'shield' },
+      { key: 'helmet', label: 'Headgear', iconKey: 'helmet' },
+      { key: 'hair', label: 'Cosmetic Hair', iconKey: 'hair' },
+      { key: 'body', label: 'Body Armour', iconKey: 'body' },
+      { key: 'legs', label: 'Leg Greaves', iconKey: 'legs' },
+      { key: 'steed', label: 'Mount / Steed', iconKey: 'mount' },
+      { key: 'amulet', label: 'Amulet', iconKey: 'amulet' },
+      { key: 'ring', label: 'Ring', iconKey: 'ring' },
     ];
 
     for (const slotDef of wornSlots) {
@@ -1898,7 +1944,7 @@ class EldoriaClient {
       } else {
         div.innerHTML = `
           <div style="display:flex; align-items:center; gap:8px;">
-            <span style="font-size:1rem; opacity:0.4;">${slotDef.icon}</span>
+            <div style="width:20px; height:20px; display:flex; align-items:center; justify-content:center; opacity:0.35;">${ICONS[slotDef.iconKey] || ICONS.skills}</div>
             <div style="font-weight:600; font-size:0.75rem; color:var(--text-dim);">${slotDef.label}</div>
           </div>
           <div style="font-size:0.7rem; color:var(--text-dim); font-style:italic;">(empty)</div>
@@ -1916,12 +1962,12 @@ class EldoriaClient {
         key: EquipSlot;
         fallbackKey?: EquipSlot;
         label: string;
-        icon: string;
+        iconKey: string;
         matchCategory: string;
       }> = [
-        { key: 'tool_pickaxe', fallbackKey: 'tool', label: 'Mining Pickaxe', icon: '⛏️', matchCategory: 'pickaxe' },
-        { key: 'tool_axe', fallbackKey: 'tool', label: 'Woodcutting Axe', icon: '🪓', matchCategory: 'axe' },
-        { key: 'tool_rod', fallbackKey: 'tool', label: 'Fishing Tackle', icon: '🎣', matchCategory: 'rod' },
+        { key: 'tool_pickaxe', fallbackKey: 'tool', label: 'Mining Pickaxe', iconKey: 'mining', matchCategory: 'pickaxe' },
+        { key: 'tool_axe', fallbackKey: 'tool', label: 'Woodcutting Axe', iconKey: 'woodcutting', matchCategory: 'axe' },
+        { key: 'tool_rod', fallbackKey: 'tool', label: 'Fishing Tackle', iconKey: 'fishing', matchCategory: 'rod' },
       ];
 
       for (const slotDef of toolbeltSlots) {
@@ -1974,7 +2020,7 @@ class EldoriaClient {
         } else {
           div.innerHTML = `
             <div style="display:flex; align-items:center; gap:8px;">
-              <span style="font-size:1rem; opacity:0.4;">${slotDef.icon}</span>
+              <div style="width:20px; height:20px; display:flex; align-items:center; justify-content:center; opacity:0.35;">${ICONS[slotDef.iconKey] || ICONS.skills}</div>
               <div style="font-weight:600; font-size:0.75rem; color:var(--text-dim);">${slotDef.label}</div>
             </div>
             <div style="font-size:0.7rem; color:var(--text-dim); font-style:italic;">(empty)</div>
@@ -2351,10 +2397,10 @@ class EldoriaClient {
       this.chatCollapsed = !this.chatCollapsed;
       if (this.chatCollapsed) {
         chatCard.style.maxHeight = '34px';
-        collapseBtn.textContent = '▴';
+        collapseBtn.innerHTML = ICONS.chevronUp;
       } else {
         chatCard.style.maxHeight = '280px';
-        collapseBtn.textContent = '▾';
+        collapseBtn.innerHTML = ICONS.chevronDown;
       }
     };
 
@@ -2601,7 +2647,7 @@ class EldoriaClient {
     if (soundBtn) {
       soundBtn.onclick = () => {
         const enabled = sound.toggle();
-        soundBtn.textContent = enabled ? '🔊' : '🔇';
+        soundBtn.innerHTML = enabled ? ICONS.soundOn : ICONS.soundOff;
         soundBtn.classList.toggle('muted', !enabled);
         this.showToast(enabled ? 'Procedural Sound Enabled' : 'Sound Muted');
       };
@@ -2793,7 +2839,7 @@ class EldoriaClient {
     if (toggleBtn && card) {
       toggleBtn.onclick = () => {
         card.classList.toggle('collapsed');
-        toggleBtn.textContent = card.classList.contains('collapsed') ? '▸' : '▾';
+        toggleBtn.innerHTML = card.classList.contains('collapsed') ? ICONS.chevronUp : ICONS.chevronDown;
       };
     }
 
@@ -2857,7 +2903,7 @@ class EldoriaClient {
           <div class="quest-tracker-bar-fill ${isComplete ? 'complete' : ''}" style="width: ${pct}%;"></div>
         </div>
         <div class="quest-tracker-reward">
-          <span>🪙 ${quest.reward.gold || 0}G • ⭐ ${typeof quest.reward.xp === 'number' ? quest.reward.xp : (quest.reward.xp?.amount || 0)} XP</span>
+          <span><span class="svg-icon-inline icon-sm">${ICONS.gold}</span> ${quest.reward.gold || 0}G • <span class="svg-icon-inline icon-sm">${ICONS.star}</span> ${typeof quest.reward.xp === 'number' ? quest.reward.xp : (quest.reward.xp?.amount || 0)} XP</span>
           ${isComplete ? `<button class="btn-claim-quest" data-qid="${quest.id}">Claim!</button>` : ''}
         </div>
       `;
@@ -3081,7 +3127,7 @@ class EldoriaClient {
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       senderName: 'System',
       channel: 'Global',
-      text: `★ LEVEL UP! You reached ${skill.toUpperCase()} Level ${newLevel}! ★`,
+      text: `LEVEL UP! You reached ${skill.toUpperCase()} Level ${newLevel}!`,
     });
 
     const banner = document.getElementById('level-up-banner');
@@ -3093,7 +3139,7 @@ class EldoriaClient {
     const unlocksContainer = document.getElementById('level-up-unlocks');
     const listEl = document.getElementById('level-up-unlock-list');
 
-    if (iconEl) iconEl.innerHTML = ICONS[skill] || '⭐';
+    if (iconEl) iconEl.innerHTML = ICONS[skill] || ICONS.star;
     if (skillEl) skillEl.textContent = skill.charAt(0).toUpperCase() + skill.slice(1);
     if (levelEl) levelEl.textContent = newLevel.toString();
 
@@ -3126,7 +3172,7 @@ class EldoriaClient {
         for (const u of unlocks.slice(0, 3)) {
           const pill = document.createElement('span');
           pill.className = 'unlock-item-pill';
-          pill.innerHTML = `<span>✦</span> ${u}`;
+          pill.innerHTML = `<span class="svg-icon-inline icon-sm">${ICONS.spark}</span> ${u}`;
           listEl.appendChild(pill);
         }
         if (unlocks.length > 3) {
@@ -3197,11 +3243,13 @@ class EldoriaClient {
       card.className = 'bestiary-entry';
 
       const gDropName = m.guaranteedDropItemId && ITEMS[m.guaranteedDropItemId] ? ITEMS[m.guaranteedDropItemId].name : 'None';
+      const gDropIcon = m.guaranteedDropItemId ? getItemIconSvg(m.guaranteedDropItemId, ITEMS[m.guaranteedDropItemId]?.category) : ICONS.crate;
       let rareDropHtml = '';
       if (m.rareDrop && ITEMS[m.rareDrop.itemId]) {
         const rName = ITEMS[m.rareDrop.itemId].name;
+        const rIcon = getItemIconSvg(m.rareDrop.itemId, ITEMS[m.rareDrop.itemId]?.category);
         const pct = (m.rareDrop.chance * 100).toFixed(2);
-        rareDropHtml = `<span class="bestiary-drop-pill" style="border-color: #805c2a; color: #ffd699;">⭐ ${rName} <span class="bestiary-drop-rate">(${pct}%)</span></span>`;
+        rareDropHtml = `<span class="bestiary-drop-pill" style="border-color: #805c2a; color: #ffd699;"><span class="svg-icon-inline icon-sm">${rIcon}</span> ${rName} <span class="bestiary-drop-rate">(${pct}%)</span></span>`;
       }
 
       card.innerHTML = `
@@ -3218,7 +3266,7 @@ class EldoriaClient {
         <div class="bestiary-drops-container">
           <span class="bestiary-drops-title">Spoils & Drops:</span>
           <div class="bestiary-drops-pills">
-            <span class="bestiary-drop-pill">📦 ${gDropName} <span class="bestiary-drop-rate">(100%)</span></span>
+            <span class="bestiary-drop-pill"><span class="svg-icon-inline icon-sm">${gDropIcon}</span> ${gDropName} <span class="bestiary-drop-rate">(100%)</span></span>
             ${rareDropHtml}
           </div>
         </div>
@@ -3777,7 +3825,7 @@ class EldoriaClient {
         levelUpHtml = `
           <div style="background: rgba(223, 166, 55, 0.15); border: 1px solid var(--gold-bright); border-radius: 6px; padding: 8px 10px; margin-top: 4px;">
             <div style="font-weight: 800; color: var(--gold-bright); font-size: 0.85rem; display: flex; align-items: center; gap: 6px;">
-              <span>⭐</span>
+              <span class="svg-icon-inline icon-sm">${ICONS.star}</span>
               <span>${skillCapitalized} Advanced: ${progression}${diff}!</span>
             </div>
           </div>
@@ -3785,8 +3833,9 @@ class EldoriaClient {
       } else {
         levelUpHtml = `
           <div style="background: rgba(223, 166, 55, 0.15); border: 1px solid var(--gold-bright); border-radius: 6px; padding: 8px 10px; margin-top: 4px;">
-            <div style="font-weight: 800; color: var(--gold-bright); font-size: 0.85rem;">
-              ⭐ Ascension! Your skills advanced while you were away!
+            <div style="font-weight: 800; color: var(--gold-bright); font-size: 0.85rem; display: flex; align-items: center; gap: 6px;">
+              <span class="svg-icon-inline icon-sm">${ICONS.star}</span>
+              <span>Ascension! Your skills advanced while you were away!</span>
             </div>
           </div>
         `;
@@ -3822,7 +3871,7 @@ class EldoriaClient {
         </div>
         ${levelUpHtml}
         ${itemsHtml}
-        ${summary.overflowOccurred ? '<div style="color: #f6ad55; font-size: 0.74rem; margin-top: 4px;">📦 Satchel filled: Extra spoils safely deposited at Hearth Storage.</div>' : ''}
+        ${summary.overflowOccurred ? `<div style="color: #f6ad55; font-size: 0.74rem; margin-top: 4px; display: flex; align-items: center; gap: 5px;"><span class="svg-icon-inline icon-sm">${ICONS.storage}</span> Satchel filled: Extra spoils safely deposited at Hearth Storage.</div>` : ''}
       </div>
     `;
 
@@ -4821,7 +4870,7 @@ class EldoriaClient {
         if (isAccepted) {
           badgeHtml = `<span style="font-size:0.65rem; color:#63b3ed; background:rgba(66,153,225,0.15); border:1px solid #3182ce; padding:1px 5px; border-radius:3px; font-weight:700;">In Progress</span>`;
         } else if (isCompleted && !isRepeatable) {
-          badgeHtml = `<span style="font-size:0.65rem; color:#68d391; background:rgba(72,187,120,0.15); border:1px solid #38a169; padding:1px 5px; border-radius:3px; font-weight:700;">Completed ✓</span>`;
+          badgeHtml = `<span style="font-size:0.65rem; color:#68d391; background:rgba(72,187,120,0.15); border:1px solid #38a169; padding:1px 5px; border-radius:3px; font-weight:700; display:inline-flex; align-items:center; gap:3px;"><span class="svg-icon-inline icon-sm">${ICONS.check}</span> Completed</span>`;
         } else if (isRepeatable) {
           badgeHtml = `<span style="font-size:0.65rem; color:#ecc94b; background:rgba(214,158,46,0.15); border:1px solid #d69e2e; padding:1px 5px; border-radius:3px; font-weight:700;">Repeatable</span>`;
         }

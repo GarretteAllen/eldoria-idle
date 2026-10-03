@@ -614,7 +614,7 @@ export class GameEngine {
               player.targetY = ty;
               player.path = [];
               player.isMoving = false;
-              this.send(session.ws, { type: 'NOTIFICATION', message: `✨ Teleported to (${tx}, ${ty}).` });
+              this.send(session.ws, { type: 'NOTIFICATION', message: `Teleported to (${tx}, ${ty}).` });
               this.send(session.ws, { type: 'PLAYER_UPDATE', player });
               this.broadcastWorldState();
               break;
@@ -625,7 +625,7 @@ export class GameEngine {
               player.targetY = -15;
               player.path = [];
               player.isMoving = false;
-              this.send(session.ws, { type: 'NOTIFICATION', message: `✨ Teleported to Eldoria Castle (-301, -15).` });
+              this.send(session.ws, { type: 'NOTIFICATION', message: `Teleported to Eldoria Castle (-301, -15).` });
               this.send(session.ws, { type: 'PLAYER_UPDATE', player });
               this.broadcastWorldState();
               break;
@@ -637,7 +637,7 @@ export class GameEngine {
               player.targetY = hearth.y;
               player.path = [];
               player.isMoving = false;
-              this.send(session.ws, { type: 'NOTIFICATION', message: `✨ Teleported to Hearth Town (${hearth.x}, ${hearth.y}).` });
+              this.send(session.ws, { type: 'NOTIFICATION', message: `Teleported to Hearth Town (${hearth.x}, ${hearth.y}).` });
               this.send(session.ws, { type: 'PLAYER_UPDATE', player });
               this.broadcastWorldState();
               break;
@@ -1008,7 +1008,7 @@ export class GameEngine {
         if (farmingSkill.level > oldLevel) {
           this.send(session.ws, {
             type: 'NOTIFICATION',
-            message: `🌟 Congratulations! Your Farming skill advanced to Level ${farmingSkill.level}!`
+            message: `Congratulations! Your Farming skill advanced to Level ${farmingSkill.level}!`
           });
         }
 
@@ -1065,7 +1065,7 @@ export class GameEngine {
             if (newLevel > oldLevel) {
               this.send(session.ws, {
                 type: 'NOTIFICATION',
-                message: `🌟 Level Up! Your ${skillKey} advanced to Level ${newLevel}!`
+                message: `Level Up! Your ${skillKey} advanced to Level ${newLevel}!`
               });
             }
           }
@@ -1697,7 +1697,7 @@ export class GameEngine {
               plotsChanged = true;
               this.send(ws, {
                 type: 'NOTIFICATION',
-                message: `🌱 ${plot.cropName} is fully grown and ready to harvest!`
+                message: `${plot.cropName} is fully grown and ready to harvest!`
               });
             }
           }
@@ -2083,7 +2083,7 @@ export class GameEngine {
         });
         this.send(ws, {
           type: 'NOTIFICATION',
-          message: `🌟 Congratulations! Your Farming skill advanced to Level ${farmingSkill.level}!`
+          message: `Congratulations! Your Farming skill advanced to Level ${farmingSkill.level}!`
         });
       }
 
@@ -2092,7 +2092,7 @@ export class GameEngine {
       const cropName = produceDef?.name || plot.cropName;
       this.send(ws, {
         type: 'NOTIFICATION',
-        message: `🌾 Harvested ${yieldQty}x ${cropName}${seedReturn ? ' + 1 bonus seed' : ''}! (+${xpEarned} Farming XP)`
+        message: `Harvested ${yieldQty}x ${cropName}${seedReturn ? ' + 1 bonus seed' : ''}! (+${xpEarned} Farming XP)`
       });
 
       storage.savePlayer(player);
@@ -2139,7 +2139,7 @@ export class GameEngine {
           const plotDisplayName = (emptyPlotNode.name && !emptyPlotNode.name.startsWith('node_')) ? emptyPlotNode.name : 'Verdant Plot';
           this.send(ws, {
             type: 'NOTIFICATION',
-            message: `🌱 Sowed ${cropName} in ${plotDisplayName}.${targetStr}`
+            message: `Sowed ${cropName} in ${plotDisplayName}.${targetStr}`
           });
 
           if (hasQuota && task.completedQuantity >= task.targetQuantity) {

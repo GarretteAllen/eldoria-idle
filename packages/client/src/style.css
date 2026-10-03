@@ -2485,6 +2485,64 @@ body, html {
   filter: grayscale(1);
 }
 
+.top-util-btn svg {
+  width: 15px;
+  height: 15px;
+  display: block;
+}
+
+.icon-btn-micro svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.dv-close-circle-btn svg {
+  width: 12px;
+  height: 12px;
+  display: block;
+}
+
+.level-up-toast-close svg {
+  width: 13px;
+  height: 13px;
+  display: block;
+}
+
+.level-up-toast-icon svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.svg-icon-inline {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  vertical-align: -2px;
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+.svg-icon-inline svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.svg-icon-inline.icon-sm {
+  width: 12px;
+  height: 12px;
+  vertical-align: -1px;
+}
+
+.svg-icon-inline.icon-lg {
+  width: 18px;
+  height: 18px;
+  vertical-align: -3px;
+}
+
 .minimap-card {
   position: absolute;
   top: 42px;

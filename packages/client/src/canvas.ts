@@ -896,7 +896,7 @@ export class WorldRenderer {
       ctx.translate(px, py);
       ctx.scale(scale, scale);
 
-      const title = '★ LEVEL UP! ★';
+      const title = 'LEVEL UP!';
       const detail = `${b.skill} Level ${b.level}`;
 
       ctx.font = 'bold 9.5px Inter, system-ui, sans-serif';
@@ -924,7 +924,7 @@ export class WorldRenderer {
       ctx.fill();
       ctx.stroke();
 
-      // Top Header: "★ LEVEL UP! ★"
+      // Top Header: "LEVEL UP!"
       ctx.font = 'bold 9.5px Inter, system-ui, sans-serif';
       ctx.fillStyle = '#f6ad55';
       ctx.textAlign = 'center';
@@ -1706,15 +1706,13 @@ export class WorldRenderer {
       const farmPlot = node.type === 'farm' ? this.localPlayer?.farmPlots?.[node.id] : null;
       if (farmPlot) {
         if (farmPlot.status === 'ready') {
-          text = `🌾 ${farmPlot.cropName} [Ready!]`;
+          text = `${farmPlot.cropName} [Ready!]`;
         } else {
           const pct = Math.min(100, Math.floor((farmPlot.effectiveProgressSeconds / farmPlot.baseDurationSeconds) * 100));
-          text = `🌱 ${farmPlot.cropName} (${pct}%)`;
+          text = `${farmPlot.cropName} (${pct}%)`;
         }
-      } else if (node.type === 'fire') {
-        text = `🔥 ${friendlyName}`;
-      } else if (node.type === 'forge') {
-        text = `⚒️ ${friendlyName}`;
+      } else {
+        text = friendlyName;
       }
 
       ctx.font = isHearth ? '700 11px Inter, sans-serif' : '600 10px Inter, sans-serif';
@@ -2180,7 +2178,7 @@ export class WorldRenderer {
       ctx.font = 'bold 9px Inter, sans-serif';
       ctx.fillStyle = '#ffd700';
       ctx.textAlign = 'center';
-      ctx.fillText('👑 [ADMIN]', px, adminY);
+      ctx.fillText('[ADMIN]', px, adminY);
     }
 
     // Name with 4-directional dark stroke for sharp contrast against all terrains
