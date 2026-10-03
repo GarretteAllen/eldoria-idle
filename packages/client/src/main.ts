@@ -322,12 +322,14 @@ class EldoriaClient {
           this.sendWs({
             type: 'START_TASK',
             recipeId: node.recipeId,
+            quantity: this.selectedJobQuantity,
             targetX: target.x,
             targetY: target.y,
             nodeX: node.x,
             nodeY: node.y,
           });
-          this.showToast(rec ? `Gathering ${rec.name}...` : `Working at ${node.name}...`);
+          const qtyStr = this.selectedJobQuantity === Infinity ? '(∞)' : `(${this.selectedJobQuantity}x)`;
+          this.showToast(rec ? `Gathering ${rec.name} ${qtyStr}...` : `Working at ${node.name}...`);
         } else {
           this.sendWs({ type: 'MOVE_TO', x: node.x, y: node.y });
         }
@@ -973,8 +975,17 @@ class EldoriaClient {
 
         const pSkill = this.player.skills[skill as SkillType] || { level: 1, xp: 0 };
         const { percent } = getXpToNextLevel(pSkill.level, pSkill.xp);
-        taskSubEl.textContent = `${skill.toUpperCase()} ${pSkill.level} · ${percent.toFixed(1)}% to ${pSkill.level + 1} • Auto-banks when full`;
-        progressFillEl.style.width = `${Math.max(5, percent)}%`;
+        const targetQty = this.player.currentTask.targetQuantity;
+        const completedQty = this.player.currentTask.completedQuantity || 0;
+
+        if (targetQty && targetQty !== Infinity) {
+          const quotaPct = Math.min(100, Math.round((completedQty / targetQty) * 100));
+          taskSubEl.textContent = `${skill.toUpperCase()} ${pSkill.level} • Progress: ${completedQty} / ${targetQty} (${quotaPct}%) • Auto-banking`;
+          progressFillEl.style.width = `${Math.max(5, quotaPct)}%`;
+        } else {
+          taskSubEl.textContent = `${skill.toUpperCase()} ${pSkill.level} · ${percent.toFixed(1)}% to ${pSkill.level + 1} • Auto-banks non-stop (∞)`;
+          progressFillEl.style.width = `${Math.max(5, percent)}%`;
+        }
         taskIconEl.innerHTML = ICONS[skill] || ICONS.skills;
         statusTagEl.textContent = 'WORKING';
         statusTagEl.className = 'status-tag';
@@ -1221,14 +1232,40 @@ class EldoriaClient {
 
     // HOW MANY quantity buttons
     const qtyPills = document.querySelectorAll('.qty-pill');
+    const customInput = document.getElementById('qty-custom-input') as HTMLInputElement | null;
+
     qtyPills.forEach(pill => {
       pill.addEventListener('click', () => {
         qtyPills.forEach(p => p.classList.remove('active'));
         pill.classList.add('active');
         const q = pill.getAttribute('data-qty');
-        this.selectedJobQuantity = q === 'Infinity' ? Infinity : parseInt(q || '1', 10);
+        if (q === 'custom') {
+          if (customInput) {
+            customInput.classList.remove('hidden');
+            customInput.focus();
+            const val = parseInt(customInput.value, 10);
+            this.selectedJobQuantity = !isNaN(val) && val > 0 ? val : 50;
+            if (!customInput.value) customInput.value = '50';
+          }
+        } else {
+          if (customInput) {
+            customInput.classList.add('hidden');
+          }
+          this.selectedJobQuantity = q === 'Infinity' ? Infinity : parseInt(q || '1', 10);
+        }
+        this.syncJobQuantityUI();
       });
     });
+
+    if (customInput) {
+      customInput.addEventListener('input', () => {
+        const val = parseInt(customInput.value, 10);
+        this.selectedJobQuantity = !isNaN(val) && val > 0 ? val : 1;
+        qtyPills.forEach(p => p.classList.remove('active'));
+        document.getElementById('qty-pill-custom')?.classList.add('active');
+        this.syncJobQuantityUI();
+      });
+    }
 
     // Start button
     document.getElementById('btn-job-start')!.onclick = () => {
@@ -1525,6 +1562,21 @@ class EldoriaClient {
     }
   }
 
+  private syncJobQuantityUI() {
+    const btnStart = document.getElementById('btn-job-start');
+    if (btnStart) {
+      btnStart.textContent = this.selectedJobQuantity === Infinity ? 'Start (∞)' : `Start (${this.selectedJobQuantity})`;
+    }
+    const popupNote = document.getElementById('popup-job-note');
+    if (popupNote) {
+      if (this.selectedJobQuantity === Infinity) {
+        popupNote.textContent = 'Continuous idle (∞): automatically banks spoils at the Hearth and resumes non-stop.';
+      } else {
+        popupNote.textContent = `Will craft/gather exactly ${this.selectedJobQuantity} time${this.selectedJobQuantity === 1 ? '' : 's'} (auto-banking if full), then stop.`;
+      }
+    }
+  }
+
   private updateSkillJobPopup() {
     if (!this.player) return;
     this.updatePopupPosition();
@@ -1544,10 +1596,7 @@ class EldoriaClient {
       btnStop.style.display = 'inline-block';
       btnStop.textContent = 'Stop';
     }
-    const popupNote = document.querySelector('.popup-note') as HTMLElement | null;
-    if (popupNote) {
-      popupNote.textContent = 'Draws the materials from storage, works, and stores what it made.';
-    }
+    this.syncJobQuantityUI();
     const jobsHeading = document.getElementById('popup-jobs-heading')!;
     if (jobsHeading) jobsHeading.textContent = 'Jobs & Veins';
 

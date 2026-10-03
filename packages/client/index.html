@@ -257,16 +257,18 @@
           <div class="how-many-row">
             <span class="how-many-label">HOW MANY</span>
             <div class="how-many-pills">
-              <button class="qty-pill active" data-qty="Infinity">∞</button>
+              <button class="qty-pill active" data-qty="Infinity" title="Continuous Non-Stop (∞)">∞</button>
               <button class="qty-pill" data-qty="1">1</button>
               <button class="qty-pill" data-qty="10">10</button>
-              <button class="qty-pill" data-qty="28">28</button>
+              <button class="qty-pill" data-qty="28" title="Full Satchel (28)">28</button>
               <button class="qty-pill" data-qty="100">100</button>
+              <button class="qty-pill" id="qty-pill-custom" data-qty="custom" title="Enter Custom Amount">Custom</button>
+              <input type="number" id="qty-custom-input" class="qty-custom-input hidden" min="1" max="99999" placeholder="Amt" />
             </div>
           </div>
-          <div class="popup-note">Draws the materials from storage, works, and stores what it made.</div>
+          <div class="popup-note" id="popup-job-note">Continuous idle (∞): automatically banks spoils at the Hearth and resumes non-stop.</div>
           <div class="popup-action-row">
-            <button id="btn-job-start" class="btn-start">Start</button>
+            <button id="btn-job-start" class="btn-start">Start (∞)</button>
             <button id="btn-job-stop" class="btn-stop">Stop</button>
           </div>
         </div>

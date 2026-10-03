@@ -1849,6 +1849,10 @@ export class GameEngine {
         };
       } else {
         player.currentTask = null;
+        this.send(ws, {
+          type: 'NOTIFICATION',
+          message: `Finished task: Completed ${task.completedQuantity}x ${recipe.name}.`
+        });
       }
     }
 

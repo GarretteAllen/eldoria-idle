@@ -1263,6 +1263,8 @@ body, html {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 4px;
 }
 .how-many-label {
   font-size: 0.62rem;
@@ -1272,6 +1274,7 @@ body, html {
 }
 .how-many-pills {
   display: flex;
+  align-items: center;
   gap: 3px;
 }
 .qty-pill {
@@ -1283,6 +1286,7 @@ body, html {
   font-weight: 700;
   padding: 2px 6px;
   cursor: pointer;
+  transition: all 0.15s ease;
 }
 .qty-pill:hover {
   background: var(--bg-card-hover);
@@ -1292,6 +1296,27 @@ body, html {
   background: var(--btn-start-bg);
   border-color: var(--border-gold);
   color: #fff;
+}
+.qty-custom-input {
+  width: 50px;
+  background: #140d07;
+  border: 1px solid var(--gold-bright);
+  border-radius: 3px;
+  color: #ffd700;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 2px 4px;
+  text-align: center;
+  outline: none;
+  box-shadow: 0 0 8px rgba(223, 166, 55, 0.25);
+}
+.qty-custom-input.hidden {
+  display: none !important;
+}
+.qty-custom-input::-webkit-inner-spin-button,
+.qty-custom-input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
 }
 .popup-note {
   font-size: 0.65rem;
