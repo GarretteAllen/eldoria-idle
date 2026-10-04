@@ -704,6 +704,40 @@ export class GameEngine {
         }
         break;
 
+      case 'ADMIN_TELEPORT': {
+        if (player.role !== 'admin') {
+          this.send(session.ws, { type: 'NOTIFICATION', message: 'Admin privileges required.' });
+          break;
+        }
+        const x = Math.round(Number(msg.x));
+        const y = Math.round(Number(msg.y));
+        if (Number.isFinite(x) && Number.isFinite(y)) {
+          // Cancel active tasks, pathing, and combat
+          if (player.currentTask) player.currentTask = null;
+          player.pendingTask = null;
+          session.pendingTask = null;
+          session.pendingCombat = null;
+          session.activeCombat = null;
+          player.bankReturnTask = null;
+          player.bankingState = 'idle';
+
+          player.x = x;
+          player.y = y;
+          player.targetX = x;
+          player.targetY = y;
+          player.path = [];
+          player.isMoving = false;
+          storage.savePlayer(player);
+          this.send(session.ws, { type: 'PLAYER_UPDATE', player });
+          this.broadcastWorldState();
+          this.send(session.ws, {
+            type: 'NOTIFICATION',
+            message: `Admin Teleported to (${x}, ${y}).`
+          });
+        }
+        break;
+      }
+
       case 'ADMIN_SAVE_NPC':
         if (player.role !== 'admin') {
           this.send(session.ws, { type: 'NOTIFICATION', message: 'Admin privileges required.' });

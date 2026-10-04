@@ -68,6 +68,8 @@ class EldoriaClient {
   // Editor State
   private activeEditorTab: 'nodes' | 'monsters' | 'npcs' | 'quests' | 'collisions' | 'giveitems' | 'items' = 'nodes';
   private collisionBrush: 'paint' | 'erase' = 'paint';
+  private adminNodeSearchQuery: string = '';
+  private adminNodeTypeFilter: string = 'all';
 
   // Interaction State
   private pendingNpcTarget: NpcDefinition | null = null;
@@ -4149,6 +4151,25 @@ class EldoriaClient {
       };
     }
 
+    // Node Search and Category Filter Listeners
+    const nodeSearch = document.getElementById('editor-node-search') as HTMLInputElement | null;
+    if (nodeSearch) {
+      nodeSearch.addEventListener('input', () => {
+        this.adminNodeSearchQuery = nodeSearch.value.trim().toLowerCase();
+        this.renderEditorNodes();
+      });
+    }
+
+    const pillBtns = document.querySelectorAll('#editor-node-type-filters .editor-pill-btn');
+    pillBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        pillBtns.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        this.adminNodeTypeFilter = btn.getAttribute('data-type') || 'all';
+        this.renderEditorNodes();
+      });
+    });
+
     // 6. Monster Form Setup
     const mobForm = document.getElementById('editor-monster-form') as HTMLFormElement | null;
     const btnAddMob = document.getElementById('btn-add-monster');
@@ -4364,20 +4385,97 @@ class EldoriaClient {
     if (!container) return;
     container.innerHTML = '';
 
-    const nodes = this.worldNodes.filter(n => n.type !== 'monster');
-    for (const n of nodes) {
+    const allNodes = this.worldNodes.filter(n => n.type !== 'monster');
+
+    // Update category pill counts
+    const countAll = allNodes.length;
+    const countMine = allNodes.filter(n => n.type === 'mine').length;
+    const countTree = allNodes.filter(n => n.type === 'tree').length;
+    const countWater = allNodes.filter(n => n.type === 'water').length;
+    const countFarm = allNodes.filter(n => n.type === 'farm').length;
+    const countForge = allNodes.filter(n => n.type === 'forge').length;
+    const countFire = allNodes.filter(n => n.type === 'fire').length;
+    const countHearth = allNodes.filter(n => n.type === 'hearth_counter').length;
+
+    const elCountAll = document.getElementById('count-node-all');
+    if (elCountAll) elCountAll.textContent = countAll.toString();
+    const elCountMine = document.getElementById('count-node-mine');
+    if (elCountMine) elCountMine.textContent = countMine.toString();
+    const elCountTree = document.getElementById('count-node-tree');
+    if (elCountTree) elCountTree.textContent = countTree.toString();
+    const elCountWater = document.getElementById('count-node-water');
+    if (elCountWater) elCountWater.textContent = countWater.toString();
+    const elCountFarm = document.getElementById('count-node-farm');
+    if (elCountFarm) elCountFarm.textContent = countFarm.toString();
+    const elCountForge = document.getElementById('count-node-forge');
+    if (elCountForge) elCountForge.textContent = countForge.toString();
+    const elCountFire = document.getElementById('count-node-fire');
+    if (elCountFire) elCountFire.textContent = countFire.toString();
+    const elCountHearth = document.getElementById('count-node-hearth');
+    if (elCountHearth) elCountHearth.textContent = countHearth.toString();
+
+    // Filter by type
+    let filtered = allNodes;
+    if (this.adminNodeTypeFilter !== 'all') {
+      filtered = filtered.filter(n => n.type === this.adminNodeTypeFilter);
+    }
+
+    // Filter by search query
+    if (this.adminNodeSearchQuery) {
+      const q = this.adminNodeSearchQuery;
+      filtered = filtered.filter(n =>
+        n.name.toLowerCase().includes(q) ||
+        n.type.toLowerCase().includes(q) ||
+        (n.recipeId && n.recipeId.toLowerCase().includes(q)) ||
+        `${n.x},${n.y}`.includes(q)
+      );
+    }
+
+    // Sort by distance to player (closest first)
+    if (this.player) {
+      const px = this.player.x;
+      const py = this.player.y;
+      filtered.sort((a, b) => {
+        const da = Math.hypot(a.x - px, a.y - py);
+        const db = Math.hypot(b.x - px, b.y - py);
+        return da - db;
+      });
+    }
+
+    if (filtered.length === 0) {
+      container.innerHTML = `<div style="padding: 16px; text-align: center; color: var(--text-dim); font-size: 0.72rem;">No resource nodes match the filter.</div>`;
+      return;
+    }
+
+    for (const n of filtered) {
       const card = document.createElement('div');
       card.className = 'editor-entity-card';
+      const dist = this.player ? Math.hypot(n.x - this.player.x, n.y - this.player.y) : null;
+      const distText = dist !== null ? `<span class="editor-dist-tag">${dist.toFixed(1)}t</span>` : '';
+      const recipeLabel = n.recipeId && RECIPES[n.recipeId] ? ` · ${RECIPES[n.recipeId].name}` : (n.recipeId ? ` · ${n.recipeId}` : '');
+
       card.innerHTML = `
         <div class="editor-entity-info">
-          <div class="editor-entity-title">${n.name}</div>
-          <div class="editor-entity-meta">${n.type} · (${n.x}, ${n.y}) ${n.recipeId ? `· ${n.recipeId}` : ''}</div>
+          <div class="editor-entity-title">
+            <span class="editor-entity-badge-icon badge-${n.type}">${n.type}</span>${n.name}${distText}
+          </div>
+          <div class="editor-entity-meta">(${n.x}, ${n.y})${recipeLabel}</div>
         </div>
         <div class="editor-entity-actions">
+          <button class="btn-micro-tp" title="Teleport to node (${n.x}, ${n.y})">TP</button>
           <button class="btn-micro-edit" data-id="${n.id}">Edit</button>
           <button class="btn-micro-del" data-id="${n.id}">Del</button>
         </div>
       `;
+
+      card.querySelector('.btn-micro-tp')!.addEventListener('click', () => {
+        this.sendWs({
+          type: 'ADMIN_TELEPORT',
+          x: n.x,
+          y: n.y,
+        });
+        this.showToast(`Teleported to ${n.name} (${n.x}, ${n.y})`);
+      });
 
       card.querySelector('.btn-micro-edit')!.addEventListener('click', () => {
         const form = document.getElementById('editor-node-form')!;
@@ -4409,16 +4507,29 @@ class EldoriaClient {
     for (const m of monsters) {
       const card = document.createElement('div');
       card.className = 'editor-entity-card';
+      const dist = this.player ? Math.hypot(m.x - this.player.x, m.y - this.player.y) : null;
+      const distText = dist !== null ? `<span class="editor-dist-tag">${dist.toFixed(1)}t</span>` : '';
+
       card.innerHTML = `
         <div class="editor-entity-info">
-          <div class="editor-entity-title">${m.name}</div>
+          <div class="editor-entity-title">${m.name}${distText}</div>
           <div class="editor-entity-meta">${m.monsterId || 'mire_rat'} · (${m.x}, ${m.y})</div>
         </div>
         <div class="editor-entity-actions">
+          <button class="btn-micro-tp" title="Teleport to spawn (${m.x}, ${m.y})">TP</button>
           <button class="btn-micro-edit" data-id="${m.id}">Edit</button>
           <button class="btn-micro-del" data-id="${m.id}">Del</button>
         </div>
       `;
+
+      card.querySelector('.btn-micro-tp')!.addEventListener('click', () => {
+        this.sendWs({
+          type: 'ADMIN_TELEPORT',
+          x: m.x,
+          y: m.y,
+        });
+        this.showToast(`Teleported to ${m.name} (${m.x}, ${m.y})`);
+      });
 
       card.querySelector('.btn-micro-edit')!.addEventListener('click', () => {
         const form = document.getElementById('editor-monster-form')!;
@@ -4467,16 +4578,29 @@ class EldoriaClient {
       const card = document.createElement('div');
       card.className = 'editor-entity-card';
       const questCount = (npc.questIds || []).length;
+      const dist = this.player ? Math.hypot(npc.x - this.player.x, npc.y - this.player.y) : null;
+      const distText = dist !== null ? `<span class="editor-dist-tag">${dist.toFixed(1)}t</span>` : '';
+
       card.innerHTML = `
         <div class="editor-entity-info">
-          <div class="editor-entity-title">${npc.name}</div>
+          <div class="editor-entity-title">${npc.name}${distText}</div>
           <div class="editor-entity-meta">${npc.role} · (${npc.x}, ${npc.y}) · ${npc.dialogue?.length || 0} line(s) · ${questCount} quest(s)</div>
         </div>
         <div class="editor-entity-actions">
+          <button class="btn-micro-tp" title="Teleport to NPC (${npc.x}, ${npc.y})">TP</button>
           <button class="btn-micro-edit" data-id="${npc.id}">Edit</button>
           <button class="btn-micro-del" data-id="${npc.id}">Del</button>
         </div>
       `;
+
+      card.querySelector('.btn-micro-tp')!.addEventListener('click', () => {
+        this.sendWs({
+          type: 'ADMIN_TELEPORT',
+          x: npc.x,
+          y: npc.y,
+        });
+        this.showToast(`Teleported to ${npc.name} (${npc.x}, ${npc.y})`);
+      });
 
       card.querySelector('.btn-micro-edit')!.addEventListener('click', () => {
         const form = document.getElementById('editor-npc-form')!;

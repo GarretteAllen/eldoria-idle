@@ -492,6 +492,23 @@
               </div>
             </form>
 
+            <!-- Filter & Search Toolbar -->
+            <div class="editor-filter-toolbar">
+              <div class="editor-search-box">
+                <input type="text" id="editor-node-search" class="editor-search-input" placeholder="Search nodes by name, type, recipe, coords..." />
+              </div>
+              <div class="editor-type-pills" id="editor-node-type-filters">
+                <button type="button" class="editor-pill-btn active" data-type="all">All <span class="pill-count" id="count-node-all">0</span></button>
+                <button type="button" class="editor-pill-btn" data-type="mine">Mine <span class="pill-count" id="count-node-mine">0</span></button>
+                <button type="button" class="editor-pill-btn" data-type="tree">Tree <span class="pill-count" id="count-node-tree">0</span></button>
+                <button type="button" class="editor-pill-btn" data-type="water">Fishing <span class="pill-count" id="count-node-water">0</span></button>
+                <button type="button" class="editor-pill-btn" data-type="farm">Farm <span class="pill-count" id="count-node-farm">0</span></button>
+                <button type="button" class="editor-pill-btn" data-type="forge">Forge <span class="pill-count" id="count-node-forge">0</span></button>
+                <button type="button" class="editor-pill-btn" data-type="fire">Fire <span class="pill-count" id="count-node-fire">0</span></button>
+                <button type="button" class="editor-pill-btn" data-type="hearth_counter">Bank <span class="pill-count" id="count-node-hearth">0</span></button>
+              </div>
+            </div>
+
             <div id="editor-nodes-list" class="editor-entities-list"></div>
           </div>
 
