@@ -192,7 +192,7 @@ export interface ActiveBuff {
 export interface WorldNode {
   id: string;
   name: string;
-  type: 'hearth_counter' | 'forge' | 'fire' | 'mine' | 'tree' | 'water' | 'farm' | 'monster' | 'boss_arena' | 'portal';
+  type: 'hearth_counter' | 'forge' | 'fire' | 'mine' | 'tree' | 'water' | 'farm' | 'monster' | 'boss_arena' | 'portal' | 'workbench' | 'cauldron' | 'monolith' | 'stall' | 'herb';
   x: number;
   y: number;
   recipeId?: string;

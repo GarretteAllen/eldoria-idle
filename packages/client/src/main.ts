@@ -75,7 +75,7 @@ class EldoriaClient {
   private pendingNpcTarget: NpcDefinition | null = null;
   private pendingMonsterTarget: WorldNodeDisplay | null = null;
   private pendingHearthTarget: WorldNodeDisplay | null = null;
-  private pendingStationTarget: { type: 'fire' | 'forge' | 'farm'; node: WorldNodeDisplay } | null = null;
+  private pendingStationTarget: { type: 'fire' | 'forge' | 'farm' | 'workbench' | 'cauldron' | 'monolith'; node: WorldNodeDisplay } | null = null;
   private selectedStationNode: WorldNodeDisplay | null = null;
   private activeCombatMonster: {
     id: string;
@@ -363,6 +363,60 @@ class EldoriaClient {
           return;
         }
 
+        // ARTISAN WORKBENCH: Crafting & Fletching
+        if (node.type === 'workbench') {
+          if (!this.player) return;
+          const dist = Math.hypot(this.player.x - node.x, this.player.y - node.y);
+          if (dist <= 1.5) {
+            this.pendingStationTarget = null;
+            this.selectedStationNode = node;
+            this.openSkillJobPopup('crafting');
+          } else {
+            this.pendingStationTarget = { type: 'workbench', node };
+            this.selectedStationNode = node;
+            const target = this.getAdjacentWalkableTile(node.x, node.y);
+            this.sendWs({ type: 'MOVE_TO', x: target.x, y: target.y });
+            this.showToast(`Walking to ${node.name}...`);
+          }
+          return;
+        }
+
+        // APOTHECARY CAULDRON: Alchemy
+        if (node.type === 'cauldron') {
+          if (!this.player) return;
+          const dist = Math.hypot(this.player.x - node.x, this.player.y - node.y);
+          if (dist <= 1.5) {
+            this.pendingStationTarget = null;
+            this.selectedStationNode = node;
+            this.openSkillJobPopup('alchemy');
+          } else {
+            this.pendingStationTarget = { type: 'cauldron', node };
+            this.selectedStationNode = node;
+            const target = this.getAdjacentWalkableTile(node.x, node.y);
+            this.sendWs({ type: 'MOVE_TO', x: target.x, y: target.y });
+            this.showToast(`Walking to ${node.name}...`);
+          }
+          return;
+        }
+
+        // AETHER MONOLITH: Attunement
+        if (node.type === 'monolith') {
+          if (!this.player) return;
+          const dist = Math.hypot(this.player.x - node.x, this.player.y - node.y);
+          if (dist <= 1.5) {
+            this.pendingStationTarget = null;
+            this.selectedStationNode = node;
+            this.openSkillJobPopup('attunement');
+          } else {
+            this.pendingStationTarget = { type: 'monolith', node };
+            this.selectedStationNode = node;
+            const target = this.getAdjacentWalkableTile(node.x, node.y);
+            this.sendWs({ type: 'MOVE_TO', x: target.x, y: target.y });
+            this.showToast(`Walking to ${node.name}...`);
+          }
+          return;
+        }
+
         if (node.recipeId) {
           const rec = RECIPES[node.recipeId];
           const dist = this.player ? Math.hypot(this.player.x - node.x, this.player.y - node.y) : 999;
@@ -635,14 +689,22 @@ class EldoriaClient {
           }
         }
 
-        // Check if arrived adjacent to clicked Firepit, Forge, or Farm Plot
+        // Check if arrived adjacent to clicked Firepit, Forge, Farm Plot, Workbench, Cauldron, or Monolith
         if (this.pendingStationTarget && this.player) {
           const dist = Math.hypot(this.player.x - this.pendingStationTarget.node.x, this.player.y - this.pendingStationTarget.node.y);
           if (dist <= 1.5) {
             const st = this.pendingStationTarget;
             this.pendingStationTarget = null;
             this.selectedStationNode = st.node;
-            this.openSkillJobPopup(st.type === 'fire' ? 'cooking' : (st.type === 'forge' ? 'smithing' : 'farming'));
+            const skillMap: Record<string, SkillType> = {
+              fire: 'cooking',
+              forge: 'smithing',
+              farm: 'farming',
+              workbench: 'crafting',
+              cauldron: 'alchemy',
+              monolith: 'attunement',
+            };
+            this.openSkillJobPopup(skillMap[st.type] || 'crafting');
           }
         }
         break;

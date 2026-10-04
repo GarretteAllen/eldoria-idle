@@ -1509,11 +1509,11 @@ export class WorldRenderer {
           fillStyle = 'rgba(49, 130, 206, 0.22)';
           strokeStyle = '#3182ce';
           cornerStyle = '#90cdf4';
-        } else if (node.type === 'forge' || node.type === 'fire') {
+        } else if (node.type === 'forge' || node.type === 'fire' || node.type === 'workbench' || node.type === 'cauldron' || node.type === 'monolith' || node.type === 'stall') {
           fillStyle = 'rgba(221, 107, 32, 0.25)';
           strokeStyle = '#dd6b20';
           cornerStyle = '#fbd38d';
-        } else if (node.type === 'farm') {
+        } else if (node.type === 'farm' || node.type === 'herb') {
           fillStyle = 'rgba(72, 187, 120, 0.22)';
           strokeStyle = '#48bb78';
           cornerStyle = '#c6f6d5';
@@ -1692,6 +1692,93 @@ export class WorldRenderer {
         }
       }
 
+      else if (node.type === 'workbench') {
+        ctx.fillStyle = 'rgba(214, 158, 46, 0.22)';
+        ctx.beginPath();
+        ctx.arc(px + TILE_SIZE / 2, py + TILE_SIZE / 2, 10, 0, Math.PI * 2);
+        ctx.fill();
+
+        if (this.workstationsImage && this.workstationsImage.complete) {
+          ctx.save();
+          ctx.imageSmoothingEnabled = false;
+          // Row 2, Col 1: Workbench
+          ctx.drawImage(this.workstationsImage, 16, 32, 16, 16, px, py, TILE_SIZE, TILE_SIZE);
+          ctx.restore();
+        }
+      }
+
+      else if (node.type === 'cauldron') {
+        const bubbleAura = Math.sin(this.animTick * 0.005 + node.x) * 1.5;
+        ctx.fillStyle = 'rgba(72, 187, 120, 0.25)';
+        ctx.beginPath();
+        ctx.arc(px + TILE_SIZE / 2, py + TILE_SIZE / 2, 9 + bubbleAura, 0, Math.PI * 2);
+        ctx.fill();
+
+        if (this.workstationsImage && this.workstationsImage.complete) {
+          ctx.save();
+          ctx.imageSmoothingEnabled = false;
+          // Row 2, Col 2: Apothecary Cauldron
+          ctx.drawImage(this.workstationsImage, 32, 32, 16, 16, px, py, TILE_SIZE, TILE_SIZE);
+          ctx.restore();
+        }
+      }
+
+      else if (node.type === 'monolith') {
+        const pulse = Math.sin(this.animTick * 0.004 + node.x * 2) * 2;
+        ctx.fillStyle = 'rgba(66, 153, 225, 0.28)';
+        ctx.beginPath();
+        ctx.arc(px + TILE_SIZE / 2, py + TILE_SIZE / 2, 10 + pulse, 0, Math.PI * 2);
+        ctx.fill();
+
+        if (this.workstationsImage && this.workstationsImage.complete) {
+          ctx.save();
+          ctx.imageSmoothingEnabled = false;
+          // Row 2, Col 3: Aether Monolith
+          ctx.drawImage(this.workstationsImage, 48, 32, 16, 16, px, py, TILE_SIZE, TILE_SIZE);
+          ctx.restore();
+        }
+      }
+
+      else if (node.type === 'stall') {
+        let stallCol = 0;
+        if (node.id.includes('produce') || node.recipeId?.includes('produce')) stallCol = 1;
+        else if (node.id.includes('silk') || node.recipeId?.includes('silk')) stallCol = 2;
+        else if (node.id.includes('gem') || node.recipeId?.includes('gem')) stallCol = 3;
+
+        ctx.fillStyle = 'rgba(237, 137, 54, 0.2)';
+        ctx.beginPath();
+        ctx.arc(px + TILE_SIZE / 2, py + TILE_SIZE / 2, 10, 0, Math.PI * 2);
+        ctx.fill();
+
+        if (this.workstationsImage && this.workstationsImage.complete) {
+          ctx.save();
+          ctx.imageSmoothingEnabled = false;
+          // Row 4: Market Stalls
+          ctx.drawImage(this.workstationsImage, stallCol * 16, 64, 16, 16, px, py, TILE_SIZE, TILE_SIZE);
+          ctx.restore();
+        }
+      }
+
+      else if (node.type === 'herb') {
+        let herbCol = 0;
+        if (node.id.includes('glowshroom') || node.recipeId?.includes('glowshroom')) herbCol = 1;
+        else if (node.id.includes('nightshade') || node.recipeId?.includes('nightshade')) herbCol = 2;
+        else if (node.id.includes('wyrmfrond') || node.recipeId?.includes('wyrmfrond') || node.id.includes('sunfire')) herbCol = 3;
+
+        ctx.fillStyle = 'rgba(72, 187, 120, 0.2)';
+        ctx.beginPath();
+        ctx.arc(px + TILE_SIZE / 2, py + TILE_SIZE / 2, 8, 0, Math.PI * 2);
+        ctx.fill();
+
+        if (this.workstationsImage && this.workstationsImage.complete) {
+          ctx.save();
+          ctx.imageSmoothingEnabled = false;
+          // Row 5: Wild Herb Sprites
+          ctx.drawImage(this.workstationsImage, herbCol * 16, 80, 16, 16, px, py, TILE_SIZE, TILE_SIZE);
+          ctx.restore();
+        }
+      }
+
       else {
         // Other gathering nodes (mines, trees, boss arena)
         const pulse = Math.sin(this.animTick * 0.003 + node.x * 2) * (isHearth ? 2.5 : 1.5);
@@ -1702,7 +1789,7 @@ export class WorldRenderer {
       }
 
       // Stylized nameplate badge
-      const defaultName = node.type === 'farm' ? 'Verdant Plot' : (node.type === 'fire' ? 'Campfire' : (node.type === 'forge' ? 'Forge' : 'Work Station'));
+      const defaultName = node.type === 'farm' ? 'Verdant Plot' : (node.type === 'fire' ? 'Campfire' : (node.type === 'forge' ? 'Forge' : (node.type === 'workbench' ? "Artisan's Workbench" : (node.type === 'cauldron' ? 'Apothecary Cauldron' : (node.type === 'monolith' ? 'Aether Monolith' : (node.type === 'stall' ? 'Market Stall' : (node.type === 'herb' ? 'Wild Herb' : 'Work Station')))))));
       const friendlyName = (node.name && !node.name.startsWith('node_')) ? node.name : defaultName;
       let text = friendlyName;
       const farmPlot = node.type === 'farm' ? this.localPlayer?.farmPlots?.[node.id] : null;

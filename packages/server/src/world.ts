@@ -1,7 +1,7 @@
 export interface WorldNode {
   id: string;
   name: string;
-  type: 'hearth_counter' | 'forge' | 'fire' | 'mine' | 'tree' | 'water' | 'farm' | 'monster' | 'boss_arena';
+  type: 'hearth_counter' | 'forge' | 'fire' | 'mine' | 'tree' | 'water' | 'farm' | 'monster' | 'boss_arena' | 'workbench' | 'cauldron' | 'monolith' | 'stall' | 'herb';
   x: number;
   y: number;
   recipeId?: string;
@@ -13,6 +13,22 @@ export const WORLD_NODES: WorldNode[] = [
   { id: 'hearth_bank', name: 'The Hearth Storage Counter', type: 'hearth_counter', x: 8, y: 22 },
   { id: 'hearth_forge', name: 'Ancestral Runeforge', type: 'forge', x: 6, y: 24 },
   { id: 'hearth_fire', name: 'Hearth Firepit', type: 'fire', x: 10, y: 24 },
+  { id: 'hearth_workbench', name: "Artisan's Workbench", type: 'workbench', x: 4, y: 22 },
+  { id: 'hearth_cauldron', name: 'Apothecary Cauldron', type: 'cauldron', x: 12, y: 22 },
+  { id: 'hearth_monolith', name: 'Aether Monolith', type: 'monolith', x: 14, y: 22 },
+
+  // --- Town Market Row (Thieving Stalls) ---
+  { id: 'stall_bakery', name: 'Bakery Stall', type: 'stall', x: 5, y: 20, recipeId: 'thieve_bakery' },
+  { id: 'stall_produce', name: "Farmer's Stall", type: 'stall', x: 7, y: 20, recipeId: 'thieve_produce' },
+  { id: 'stall_silk', name: "Silk Merchant's Stall", type: 'stall', x: 11, y: 20, recipeId: 'thieve_silk' },
+  { id: 'stall_gem', name: "Jeweler's Vault Stall", type: 'stall', x: 13, y: 20, recipeId: 'thieve_gem' },
+
+  // --- Wild Flora & Herb Patches (Herbalism) ---
+  { id: 'herb_silverleaf', name: 'Silverleaf Patch', type: 'herb', x: 10, y: 16, recipeId: 'gather_silverleaf' },
+  { id: 'herb_glowshroom', name: 'Glowshroom Cluster', type: 'herb', x: 2, y: 38, recipeId: 'gather_glowshroom' },
+  { id: 'herb_nightshade', name: 'Nightshade Bell', type: 'herb', x: 22, y: 16, recipeId: 'gather_nightshade' },
+  { id: 'herb_wyrmfrond', name: 'Wild Wyrmfrond', type: 'herb', x: 7, y: 39, recipeId: 'gather_wyrmfrond' },
+  { id: 'herb_sunfire', name: 'Sunfire Pods', type: 'herb', x: 15, y: 44, recipeId: 'gather_sunfire' },
 
   // --- Quarry (North - Level_3) ---
   { id: 'quarry_pyrite', name: 'Pyrite Deposit', type: 'mine', x: 6, y: 5, recipeId: 'mine_pyrite' },
