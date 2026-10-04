@@ -96,6 +96,8 @@ class EldoriaClient {
   private completedQuests: Set<string> = new Set();
 
   private levelUpTimer: any = null;
+  private lastToastText: string = '';
+  private lastToastTime: number = 0;
 
   constructor() {
     const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
@@ -812,9 +814,10 @@ class EldoriaClient {
         this.showLevelUpModal(msg.skill, msg.newLevel);
         break;
 
-      case 'NOTIFICATION':
-        this.showToast(msg.message);
-        if (msg.message && (msg.message.includes('Loot') || msg.message.includes('DROP') || msg.message.includes('Satchel') || msg.message.includes('Gold') || msg.message.includes('found'))) {
+      case 'NOTIFICATION': {
+        const isLoot = msg.message && (msg.message.includes('Loot') || msg.message.includes('DROP') || msg.message.includes('Satchel') || msg.message.includes('Gold') || msg.message.includes('found'));
+        this.showToast(msg.message, !isLoot);
+        if (isLoot) {
           this.appendChatMessage({
             time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
             senderName: 'Loot',
@@ -824,6 +827,7 @@ class EldoriaClient {
           this.updateQuestTracker();
         }
         break;
+      }
     }
   }
 
@@ -2490,7 +2494,7 @@ class EldoriaClient {
 
       line.innerHTML = `
         <span class="chat-time">${msg.time}</span>
-        ${msg.senderName ? `<span class="chat-sender" style="color:${chanColor};">${msg.senderName}${adminTag}:</span>` : ''}
+        ${adminTag ? `${adminTag} ` : ''}${msg.senderName ? `<span class="chat-sender" style="color:${chanColor};">${msg.senderName}:</span>` : ''}
         <span>${msg.text}</span>
       `;
       log.appendChild(line);
@@ -2958,6 +2962,21 @@ class EldoriaClient {
         if (e.key === 'Escape') {
           (activeEl as HTMLElement).blur();
         }
+        return;
+      }
+
+      // Enter key: Focus chat input
+      if (e.code === 'Enter') {
+        const chatIn = document.getElementById('chat-input') as HTMLInputElement | null;
+        if (chatIn) {
+          chatIn.focus();
+          e.preventDefault();
+          return;
+        }
+      }
+
+      // Ignore auto-repeated events for hotkeys/actions
+      if (e.repeat && !['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) {
         return;
       }
 
@@ -3884,12 +3903,45 @@ class EldoriaClient {
     document.getElementById('away-ok-btn')!.onclick = close;
   }
 
-  private showToast(msg: string) {
-    this.appendChatMessage({
-      channel: 'System',
-      senderName: 'Eldoria',
-      text: msg,
-    });
+  private showToast(msg: string, alsoLogToChat: boolean = false) {
+    if (!msg) return;
+    const now = Date.now();
+    // De-duplicate rapid duplicate toasts (prevents multi-trigger spam within 1.5s)
+    if (this.lastToastText === msg && now - this.lastToastTime < 1500) {
+      return;
+    }
+    this.lastToastText = msg;
+    this.lastToastTime = now;
+
+    // 1. Show floating non-intrusive on-screen toast
+    const container = document.getElementById('game-toast-container');
+    if (container) {
+      const toast = document.createElement('div');
+      toast.className = 'game-toast';
+      toast.innerHTML = `<span class="toast-dot"></span><span>${msg}</span>`;
+      container.appendChild(toast);
+
+      // Keep at most 3 toasts visible at once
+      while (container.children.length > 3) {
+        container.removeChild(container.firstChild!);
+      }
+
+      setTimeout(() => {
+        toast.classList.add('fade-out');
+        setTimeout(() => {
+          if (toast.parentElement) toast.remove();
+        }, 260);
+      }, 2400);
+    }
+
+    // 2. Only log to chat if explicitly flagged
+    if (alsoLogToChat) {
+      this.appendChatMessage({
+        channel: 'System',
+        senderName: 'Eldoria',
+        text: msg,
+      });
+    }
   }
 
   /* ========================================================

@@ -728,16 +728,17 @@ body, html {
 .chat-admin-badge {
   display: inline-flex;
   align-items: center;
-  gap: 2px;
+  gap: 3px;
   background: linear-gradient(135deg, #d69e2e, #b7791f);
   color: #1a0f05;
   font-weight: 800;
   font-size: 0.62rem;
-  padding: 0 4px;
-  border-radius: 2px;
+  padding: 1px 4px;
+  border-radius: 3px;
   margin-right: 4px;
   vertical-align: middle;
   text-shadow: 0 1px 0 rgba(255, 255, 255, 0.25);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
 }
 
 .chat-input-row {
@@ -763,6 +764,9 @@ body, html {
 #chat-input:focus {
   border-color: var(--gold-main);
   box-shadow: 0 0 0 2px rgba(223, 166, 55, 0.2);
+}
+#chat-input:focus::placeholder {
+  color: transparent;
 }
 .btn-chat-send {
   background: var(--btn-stop-bg);
@@ -2883,6 +2887,67 @@ body, html {
   border-radius: 4px;
   cursor: crosshair;
   image-rendering: pixelated;
+}
+
+/* ========================================================
+   13.5. FLOATING ACTION TOASTS (Clean, Non-Intrusive)
+   ======================================================== */
+.game-toast-container {
+  position: fixed;
+  top: 40px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  pointer-events: none;
+}
+
+.game-toast {
+  background: linear-gradient(135deg, rgba(28, 17, 9, 0.96) 0%, rgba(46, 28, 14, 0.96) 100%);
+  border: 1px solid var(--gold-bright);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.75), 0 0 10px rgba(223, 166, 55, 0.25);
+  border-radius: 6px;
+  padding: 6px 14px;
+  color: #fff5e6;
+  font-family: var(--font-ui);
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  backdrop-filter: blur(4px);
+  animation: gameToastSlideDown 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: opacity 0.25s ease, transform 0.25s ease;
+  pointer-events: auto;
+}
+
+.game-toast.fade-out {
+  opacity: 0;
+  transform: translateY(-8px);
+}
+
+.toast-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--gold-bright);
+  box-shadow: 0 0 6px var(--gold-bright);
+  flex-shrink: 0;
+}
+
+@keyframes gameToastSlideDown {
+  0% {
+    transform: translateY(-12px);
+    opacity: 0;
+  }
+  100% {
+    transform: translateY(0);
+    opacity: 1;
+  }
 }
 
 /* ========================================================
