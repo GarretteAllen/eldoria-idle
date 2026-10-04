@@ -815,16 +815,29 @@ class EldoriaClient {
         break;
 
       case 'NOTIFICATION': {
-        const isLoot = msg.message && (msg.message.includes('Loot') || msg.message.includes('DROP') || msg.message.includes('Satchel') || msg.message.includes('Gold') || msg.message.includes('found'));
-        this.showToast(msg.message, !isLoot);
+        const text = msg.message || '';
+        const isLoot = text.includes('Loot') || text.includes('DROP') || text.includes('Gold') || text.includes('found');
+        const isTravelOrTransient = /^(Traveling|Walking|Riding|Navigating|Returning|Hearth reached|Withdrew materials|Bag materials|Seeds depleted|Satchel full|Harvested|Sowed|Working|Gathering|Attacking|Ate)/i.test(text);
+
+        // Always show on-screen floating toast
+        this.showToast(text, false);
+
         if (isLoot) {
           this.appendChatMessage({
             time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
             senderName: 'Loot',
             channel: 'Loot',
-            text: msg.message,
+            text: text,
           });
           this.updateQuestTracker();
+        } else if (!isTravelOrTransient) {
+          // Only log major system, admin, or world alerts to chat
+          this.appendChatMessage({
+            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            senderName: 'System',
+            channel: 'System',
+            text: text,
+          });
         }
         break;
       }
