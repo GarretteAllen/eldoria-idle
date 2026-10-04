@@ -2132,6 +2132,34 @@ export class WorldRenderer {
           ctx.moveTo(tipX, tipY);
           ctx.quadraticCurveTo((tipX + bobberX) / 2 + 1, (tipY + bobberY) / 2 + 3, bobberX, bobberY - 2);
           ctx.stroke();
+        } else if (taskSkill === 'crafting' || taskSkill === 'smithing') {
+          // Artisan & Blacksmith Hammer: Rhythmic strike down onto the anvil/workbench!
+          const strikePhase = (this.animTick * 0.011 + (this.localPlayer?.x || 0)) % 1;
+          let hammerAngle = -0.25;
+          let hammerY = breatheBob;
+          let hammerX = 1;
+          if (strikePhase < 0.55) {
+            // Wind-up: raise hammer overhead
+            const p = strikePhase / 0.55;
+            hammerAngle = -0.25 - p * 0.45;
+            hammerY = breatheBob - Math.round(p * 2);
+          } else if (strikePhase < 0.75) {
+            // Downward strike blow onto workpiece!
+            const p = (strikePhase - 0.55) / 0.20;
+            hammerAngle = -0.70 + p * 1.35;
+            hammerY = breatheBob + Math.round(p * 3);
+            hammerX = 1 + Math.round(p * 2);
+          } else {
+            // Rebound from strike
+            const p = (strikePhase - 0.75) / 0.25;
+            hammerAngle = 0.65 - p * 0.90;
+            hammerY = breatheBob + Math.round((1 - p) * 1);
+            hammerX = 1;
+          }
+          const toolCoord = getSprite('tool_hammer');
+          if (toolCoord) {
+            drawLayer(toolCoord, hammerX, hammerY, hammerAngle);
+          }
         } else if (taskSkill === 'melee' || taskSkill === 'ranged' || taskSkill === 'magic') {
           const weapon = equipment?.weapon;
           const weaponId = weapon?.itemId || '';

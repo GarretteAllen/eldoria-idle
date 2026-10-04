@@ -89,6 +89,9 @@ export const PLAYER_EQUIPMENT_SPRITES: Record<string, EquipmentSpriteCoord> = {
   fishing_rod_willow: { col: 6, row: 6, slot: 'tool' },
   fishing_rod_oak: { col: 7, row: 6, slot: 'tool' },
   fishing_rod_yew: { col: 8, row: 6, slot: 'tool' },
+  tool_hammer: { col: 9, row: 6, slot: 'tool' },
+  crafting_hammer: { col: 9, row: 6, slot: 'tool' },
+  smithing_hammer: { col: 9, row: 6, slot: 'tool' },
 
 
   // Shields & Offhands (Row 7)
