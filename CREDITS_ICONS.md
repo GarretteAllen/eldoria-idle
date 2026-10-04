@@ -16,3 +16,8 @@ The item icons in Eldoria are sourced from the open-source pixel art community o
 3. **Mount & Farming Sprites**
    - Kenney Roguelike / RPG asset pack (burlap seed sacks, sprouts, and courser mount).
    - License: **CC0 1.0 Universal**.
+
+4. **Stones & Mined Ore Veins (16x16)**
+   - Author: **Senmou** (https://opengameart.org/content/various-stones-and-oregem-veins-16x16)
+   - License: **Creative Commons CC0 1.0 Universal (Public Domain Dedication)**
+   - Assets used: Natural mined stone boulders with embedded mineral veins (Pyrite, Galena, Cold Iron, Quicksilver, Nethercoal, Solar Aurum, Azurite, Starfall, Titan Shard).
