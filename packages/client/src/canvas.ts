@@ -1,4 +1,4 @@
-import { PlayerData, NpcDefinition, WorldNode, ITEMS, MONSTERS, MONSTER_SPRITES, PLAYER_EQUIPMENT_SPRITES, EquipmentSpriteCoord, EquipSlot, InventorySlot, isTileInAnyLevel } from '@eldoria/shared';
+import { PlayerData, NpcDefinition, WorldNode, ITEMS, MONSTER_SPRITES, PLAYER_EQUIPMENT_SPRITES, EquipmentSpriteCoord, EquipSlot, InventorySlot, isTileInAnyLevel } from '@eldoria/shared';
 import { StitchedWorld } from './ldtkLoader.js';
 
 export interface RemotePlayer {
@@ -37,6 +37,8 @@ export class WorldRenderer {
   private terrainCanvas: HTMLCanvasElement | null = null;
   private enemiesImage: HTMLImageElement | null = null;
   private playerEquipmentImage: HTMLImageElement | null = null;
+  private fishingBubblesImage: HTMLImageElement | null = null;
+  private workstationsImage: HTMLImageElement | null = null;
   private minimapCanvas: HTMLCanvasElement | null = null;
   private minimapCtx: CanvasRenderingContext2D | null = null;
 
@@ -276,6 +278,12 @@ export class WorldRenderer {
 
     this.playerEquipmentImage = new Image();
     this.playerEquipmentImage.src = '/maps/player_equipment.png';
+
+    this.fishingBubblesImage = new Image();
+    this.fishingBubblesImage.src = '/maps/fishing_bubbles.png';
+
+    this.workstationsImage = new Image();
+    this.workstationsImage.src = '/maps/workstations.png';
 
     this.resize();
     window.addEventListener('resize', () => this.resize());
@@ -1370,115 +1378,8 @@ export class WorldRenderer {
     ctx.restore();
   }
 
-  private drawMonsterZones() {
-    const { ctx } = this;
-    const monsterNodes = this.nodes.filter(n => n.type === 'monster');
-    if (monsterNodes.length === 0) return;
-
-    // Group monster nodes by monsterId, then partition by spatial proximity (<= 7 tiles)
-    const byMob = new Map<string, WorldNodeDisplay[]>();
-    for (const node of monsterNodes) {
-      const mobId = node.monsterId || 'mire_rat';
-      if (!byMob.has(mobId)) byMob.set(mobId, []);
-      byMob.get(mobId)!.push(node);
-    }
-
-    const clusters: { mobId: string; nodes: WorldNodeDisplay[] }[] = [];
-    for (const [mobId, nodes] of byMob.entries()) {
-      const visited = new Set<string>();
-      for (const node of nodes) {
-        if (visited.has(node.id)) continue;
-        const cluster: WorldNodeDisplay[] = [];
-        const queue: WorldNodeDisplay[] = [node];
-        visited.add(node.id);
-
-        while (queue.length > 0) {
-          const curr = queue.shift()!;
-          cluster.push(curr);
-          for (const other of nodes) {
-            if (!visited.has(other.id) && Math.hypot(curr.x - other.x, curr.y - other.y) <= 7) {
-              visited.add(other.id);
-              queue.push(other);
-            }
-          }
-        }
-        clusters.push({ mobId, nodes: cluster });
-      }
-    }
-
-    ctx.save();
-    for (const { mobId, nodes } of clusters) {
-      let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-      for (const n of nodes) {
-        if (n.x < minX) minX = n.x;
-        if (n.x > maxX) maxX = n.x;
-        if (n.y < minY) minY = n.y;
-        if (n.y > maxY) maxY = n.y;
-      }
-
-      const pad = 0.55;
-      const zx = Math.round((minX - pad) * TILE_SIZE);
-      const zy = Math.round((minY - pad) * TILE_SIZE);
-      const zw = Math.round((maxX - minX + 1 + pad * 2) * TILE_SIZE);
-      const zh = Math.round((maxY - minY + 1 + pad * 2) * TILE_SIZE);
-
-      // 1. Subtle territory ground tint
-      ctx.fillStyle = 'rgba(25, 12, 7, 0.35)';
-      ctx.beginPath();
-      ctx.roundRect(zx, zy, zw, zh, 8);
-      ctx.fill();
-
-      // 2. Dashed territory boundary
-      ctx.setLineDash([6, 6]);
-      ctx.strokeStyle = 'rgba(223, 166, 55, 0.35)';
-      ctx.lineWidth = 1.5;
-      ctx.stroke();
-      ctx.setLineDash([]);
-
-      // 3. Corner accents
-      const c = 8;
-      ctx.strokeStyle = '#dfa637';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(zx, zy + c); ctx.lineTo(zx, zy); ctx.lineTo(zx + c, zy);
-      ctx.moveTo(zx + zw - c, zy); ctx.lineTo(zx + zw, zy); ctx.lineTo(zx + zw, zy + c);
-      ctx.moveTo(zx, zy + zh - c); ctx.lineTo(zx, zy + zh); ctx.lineTo(zx + c, zy + zh);
-      ctx.moveTo(zx + zw - c, zy + zh); ctx.lineTo(zx + zw, zy + zh); ctx.lineTo(zx + zw, zy + zh - c);
-      ctx.stroke();
-
-      // 4. Territory Zone Header Badge
-      const mobDef = MONSTERS[mobId];
-      const zoneName = mobDef ? mobDef.zone : 'Wilderness';
-      const mobName = mobDef ? mobDef.name : nodes[0]?.name || mobId;
-      const mobLevel = mobDef ? mobDef.level : 1;
-      const label = `${zoneName} · ${mobName} (Lvl ${mobLevel})`;
-
-      ctx.font = '700 10.5px Inter, system-ui, sans-serif';
-      const labelW = ctx.measureText(label).width + 16;
-      const labelH = 18;
-      const labelX = zx + 8;
-      const labelY = zy - 10;
-
-      ctx.fillStyle = 'rgba(18, 10, 5, 0.92)';
-      ctx.strokeStyle = '#84613b';
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.roundRect(labelX, labelY, labelW, labelH, 4);
-      ctx.fill();
-      ctx.stroke();
-
-      ctx.fillStyle = '#ffd699';
-      ctx.textAlign = 'left';
-      ctx.fillText(label, labelX + 8, labelY + 13);
-    }
-    ctx.restore();
-  }
-
   private drawNodes() {
     const { ctx } = this;
-    // Draw monster territory zone boundaries under the nodes
-    this.drawMonsterZones();
-
     for (const node of this.nodes) {
       const px = node.x * TILE_SIZE;
       const py = node.y * TILE_SIZE;
@@ -1645,59 +1546,160 @@ export class WorldRenderer {
         ctx.stroke();
       }
 
-      if (node.type === 'farm') {
-        // Draw rich tilled soil ground patch
-        ctx.fillStyle = '#3a2312';
-        ctx.fillRect(px + 2, py + 2, TILE_SIZE - 4, TILE_SIZE - 4);
-        ctx.strokeStyle = '#5a3a1f';
-        ctx.lineWidth = 1;
-        ctx.strokeRect(px + 2, py + 2, TILE_SIZE - 4, TILE_SIZE - 4);
-
-        // Soil furrows
-        ctx.strokeStyle = '#27170a';
-        ctx.beginPath();
-        ctx.moveTo(px + 4, py + 10); ctx.lineTo(px + TILE_SIZE - 4, py + 10);
-        ctx.moveTo(px + 4, py + 18); ctx.lineTo(px + TILE_SIZE - 4, py + 18);
-        ctx.moveTo(px + 4, py + 26); ctx.lineTo(px + TILE_SIZE - 4, py + 26);
-        ctx.stroke();
-
-        const plot = this.localPlayer?.farmPlots?.[node.id];
-        if (plot && plot.status === 'ready') {
-          // Ready: glowing golden crop with harvest pulse
-          const harvestPulse = Math.sin(this.animTick * 0.008) * 2;
-          ctx.fillStyle = 'rgba(236, 201, 75, 0.4)';
-          ctx.beginPath();
-          ctx.arc(px + TILE_SIZE / 2, py + TILE_SIZE / 2, 8 + harvestPulse, 0, Math.PI * 2);
-          ctx.fill();
-
-          ctx.fillStyle = '#2f855a';
-          ctx.fillRect(px + TILE_SIZE / 2 - 2, py + 12, 4, 10);
-          ctx.fillStyle = '#f6e05e';
-          ctx.beginPath();
-          ctx.arc(px + TILE_SIZE / 2, py + 10, 5, 0, Math.PI * 2);
-          ctx.fill();
-        } else if (plot && plot.status === 'growing') {
-          // Growing: sprouting green seedling with mini progress bar
-          const pct = Math.min(1, plot.effectiveProgressSeconds / plot.baseDurationSeconds);
-          ctx.fillStyle = '#48bb78';
-          ctx.beginPath();
-          ctx.arc(px + TILE_SIZE / 2, py + TILE_SIZE / 2, 3 + pct * 3, 0, Math.PI * 2);
-          ctx.fill();
-
-          // Mini progress bar on the soil
-          const barW = TILE_SIZE - 8;
-          ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
-          ctx.fillRect(px + 4, py + TILE_SIZE - 7, barW, 4);
-          ctx.fillStyle = '#48bb78';
-          ctx.fillRect(px + 4, py + TILE_SIZE - 7, Math.round(barW * pct), 4);
+      // === FISHING NODES (WATER BUBBLES ANIMATION) ===
+      if (node.type === 'water') {
+        if (this.fishingBubblesImage && this.fishingBubblesImage.complete) {
+          const bubbleFrame = Math.floor((this.animTick * 0.006 + node.x * 3 + node.y * 7) % 8);
+          ctx.save();
+          ctx.imageSmoothingEnabled = false;
+          ctx.drawImage(
+            this.fishingBubblesImage,
+            bubbleFrame * 32,
+            0,
+            32,
+            32,
+            px,
+            py,
+            TILE_SIZE,
+            TILE_SIZE
+          );
+          ctx.restore();
         }
       }
 
-      const pulse = Math.sin(this.animTick * 0.003 + node.x * 2) * (isHearth ? 2.5 : 1.5);
-      ctx.fillStyle = isHearth ? 'rgba(223, 166, 55, 0.35)' : 'rgba(212, 175, 55, 0.2)';
-      ctx.beginPath();
-      ctx.arc(px + TILE_SIZE / 2, py + TILE_SIZE / 2, (isHearth ? 10 : 7) + pulse, 0, Math.PI * 2);
-      ctx.fill();
+      // === ORGANIC FARMING PLOTS (NO HARSH SQUARE BOXES) ===
+      else if (node.type === 'farm') {
+        const plot = this.localPlayer?.farmPlots?.[node.id];
+        let cropCol = 0; // 0 = empty tilled soil bed
+        let pct = 0;
+        if (plot && plot.status === 'growing') {
+          pct = Math.min(1, plot.effectiveProgressSeconds / plot.baseDurationSeconds);
+          cropCol = pct < 0.45 ? 1 : 2; // 1 = sprout, 2 = growing leafy plant
+        } else if (plot && plot.status === 'ready') {
+          cropCol = 3; // 3 = harvest-ready golden crop
+        }
+
+        if (this.workstationsImage && this.workstationsImage.complete) {
+          ctx.save();
+          ctx.imageSmoothingEnabled = false;
+          // Row 3: Organic Farm Plots
+          ctx.drawImage(
+            this.workstationsImage,
+            cropCol * 16,
+            48,
+            16,
+            16,
+            px,
+            py,
+            TILE_SIZE,
+            TILE_SIZE
+          );
+
+          // Golden harvest glow pulse if ready
+          if (plot && plot.status === 'ready') {
+            const harvestPulse = Math.sin(this.animTick * 0.008) * 2;
+            ctx.fillStyle = 'rgba(236, 201, 75, 0.35)';
+            ctx.beginPath();
+            ctx.arc(px + TILE_SIZE / 2, py + TILE_SIZE / 2, 9 + harvestPulse, 0, Math.PI * 2);
+            ctx.fill();
+          } else if (plot && plot.status === 'growing') {
+            // Sleek mini progress bar below the soil
+            const barW = TILE_SIZE - 10;
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.65)';
+            ctx.fillRect(px + 5, py + TILE_SIZE - 4, barW, 3);
+            ctx.fillStyle = '#48bb78';
+            ctx.fillRect(px + 5, py + TILE_SIZE - 4, Math.round(barW * pct), 3);
+          }
+          ctx.restore();
+        }
+      }
+
+      // === WORKSTATIONS (FORGE, FIREPIT, BANK COUNTER) ===
+      else if (node.type === 'forge') {
+        const fFrame = Math.floor((this.animTick * 0.005 + node.x * 2) % 4);
+        ctx.fillStyle = 'rgba(237, 137, 54, 0.22)';
+        ctx.beginPath();
+        ctx.arc(px + TILE_SIZE / 2, py + TILE_SIZE / 2, 10, 0, Math.PI * 2);
+        ctx.fill();
+
+        if (this.workstationsImage && this.workstationsImage.complete) {
+          ctx.save();
+          ctx.imageSmoothingEnabled = false;
+          // Row 0: Forge
+          ctx.drawImage(
+            this.workstationsImage,
+            fFrame * 16,
+            0,
+            16,
+            16,
+            px,
+            py,
+            TILE_SIZE,
+            TILE_SIZE
+          );
+          ctx.restore();
+        }
+      }
+
+      else if (node.type === 'fire') {
+        const fireFrame = Math.floor((this.animTick * 0.007 + node.x * 3) % 4);
+        ctx.fillStyle = 'rgba(246, 173, 85, 0.25)';
+        ctx.beginPath();
+        ctx.arc(px + TILE_SIZE / 2, py + TILE_SIZE / 2, 9, 0, Math.PI * 2);
+        ctx.fill();
+
+        if (this.workstationsImage && this.workstationsImage.complete) {
+          ctx.save();
+          ctx.imageSmoothingEnabled = false;
+          // Row 1: Campfire
+          ctx.drawImage(
+            this.workstationsImage,
+            fireFrame * 16,
+            16,
+            16,
+            16,
+            px,
+            py,
+            TILE_SIZE,
+            TILE_SIZE
+          );
+          ctx.restore();
+        }
+      }
+
+      else if (node.type === 'hearth_counter') {
+        ctx.fillStyle = 'rgba(223, 166, 55, 0.25)';
+        ctx.beginPath();
+        ctx.arc(px + TILE_SIZE / 2, py + TILE_SIZE / 2, 11, 0, Math.PI * 2);
+        ctx.fill();
+
+        if (this.workstationsImage && this.workstationsImage.complete) {
+          ctx.save();
+          ctx.imageSmoothingEnabled = false;
+          // Row 2, Col 0: Bank counter & vault
+          ctx.drawImage(
+            this.workstationsImage,
+            0,
+            32,
+            16,
+            16,
+            px,
+            py,
+            TILE_SIZE,
+            TILE_SIZE
+          );
+          ctx.restore();
+        }
+      }
+
+      else {
+        // Other gathering nodes (mines, trees, boss arena)
+        const pulse = Math.sin(this.animTick * 0.003 + node.x * 2) * (isHearth ? 2.5 : 1.5);
+        ctx.fillStyle = isHearth ? 'rgba(223, 166, 55, 0.35)' : 'rgba(212, 175, 55, 0.2)';
+        ctx.beginPath();
+        ctx.arc(px + TILE_SIZE / 2, py + TILE_SIZE / 2, (isHearth ? 10 : 7) + pulse, 0, Math.PI * 2);
+        ctx.fill();
+      }
 
       // Stylized nameplate badge
       const defaultName = node.type === 'farm' ? 'Verdant Plot' : (node.type === 'fire' ? 'Campfire' : (node.type === 'forge' ? 'Forge' : 'Work Station'));
