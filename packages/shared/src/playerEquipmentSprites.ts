@@ -92,6 +92,18 @@ export const PLAYER_EQUIPMENT_SPRITES: Record<string, EquipmentSpriteCoord> = {
   tool_hammer: { col: 9, row: 6, slot: 'tool' },
   crafting_hammer: { col: 9, row: 6, slot: 'tool' },
   smithing_hammer: { col: 9, row: 6, slot: 'tool' },
+  tool_knife: { col: 10, row: 6, slot: 'tool' },
+  fletching_knife: { col: 10, row: 6, slot: 'tool' },
+  tool_sickle: { col: 11, row: 6, slot: 'tool' },
+  herbalism_sickle: { col: 11, row: 6, slot: 'tool' },
+  tool_watering_can: { col: 12, row: 6, slot: 'tool' },
+  farming_can: { col: 12, row: 6, slot: 'tool' },
+  tool_flask: { col: 13, row: 6, slot: 'tool' },
+  alchemy_flask: { col: 13, row: 6, slot: 'tool' },
+  tool_skillet: { col: 14, row: 6, slot: 'tool' },
+  cooking_skillet: { col: 14, row: 6, slot: 'tool' },
+  tool_lockpick: { col: 15, row: 6, slot: 'tool' },
+  thieving_lockpick: { col: 15, row: 6, slot: 'tool' },
 
 
   // Shields & Offhands (Row 7)

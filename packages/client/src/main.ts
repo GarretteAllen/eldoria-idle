@@ -634,13 +634,35 @@ class EldoriaClient {
                 sound.play('woodcut');
                 this.renderer.spawnParticles(this.player.x, this.player.y, 6, 'wood');
               } else if (skill === 'fishing') {
+                sound.play('water');
                 this.renderer.spawnParticles(this.player.x, this.player.y, 6, 'water');
               } else if (skill === 'smithing') {
-                sound.play('mine');
-                this.renderer.spawnParticles(this.player.x, this.player.y, 8, 'ore');
+                sound.play('hammer');
+                this.renderer.spawnParticles(this.player.x, this.player.y, 8, 'spark');
+              } else if (skill === 'crafting') {
+                sound.play('hammer');
+                this.renderer.spawnParticles(this.player.x, this.player.y, 6, 'spark');
               } else if (skill === 'cooking') {
-                sound.play('eat');
-                this.renderer.spawnParticles(this.player.x, this.player.y, 5, 'ore');
+                sound.play('sizzle');
+                this.renderer.spawnParticles(this.player.x, this.player.y, 6, 'smoke');
+              } else if (skill === 'herbalism') {
+                sound.play('herb');
+                this.renderer.spawnParticles(this.player.x, this.player.y, 7, 'herb');
+              } else if (skill === 'thieving') {
+                sound.play('coin');
+                this.renderer.spawnParticles(this.player.x, this.player.y, 6, 'gold_crit');
+              } else if (skill === 'farming') {
+                sound.play('water');
+                this.renderer.spawnParticles(this.player.x, this.player.y, 6, 'water');
+              } else if (skill === 'fletching') {
+                sound.play('woodcut');
+                this.renderer.spawnParticles(this.player.x, this.player.y, 6, 'wood');
+              } else if (skill === 'alchemy') {
+                sound.play('arcane');
+                this.renderer.spawnParticles(this.player.x, this.player.y, 8, 'arcane');
+              } else if (skill === 'attunement') {
+                sound.play('arcane');
+                this.renderer.spawnParticles(this.player.x, this.player.y, 10, 'arcane');
               }
               this.updateQuestTracker();
             }

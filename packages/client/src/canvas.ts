@@ -152,7 +152,7 @@ export class WorldRenderer {
     shape: 'spark' | 'circle' | 'star' | 'splat';
   }> = [];
 
-  public spawnParticles(tileX: number, tileY: number, count: number, type: 'ore' | 'wood' | 'water' | 'blood' | 'gold_crit' | 'levelup') {
+  public spawnParticles(tileX: number, tileY: number, count: number, type: 'ore' | 'wood' | 'water' | 'blood' | 'gold_crit' | 'levelup' | 'herb' | 'spark' | 'smoke' | 'arcane') {
     const originX = tileX * TILE_SIZE + TILE_SIZE / 2;
     const originY = tileY * TILE_SIZE + TILE_SIZE / 2;
 
@@ -204,6 +204,30 @@ export class WorldRenderer {
         shape = 'star';
         gravity = 0.04;
         maxLife = 900 + Math.random() * 600;
+      } else if (type === 'spark') {
+        const colors = ['#ffd700', '#ff8c00', '#ffffff', '#ff4500'];
+        color = colors[Math.floor(Math.random() * colors.length)];
+        speed = 2.5 + Math.random() * 3;
+        shape = 'spark';
+        gravity = 0.14;
+      } else if (type === 'herb') {
+        const colors = ['#48bb78', '#68d391', '#9ae6b4', '#ecc94b', '#4ade80'];
+        color = colors[Math.floor(Math.random() * colors.length)];
+        speed = 1.0 + Math.random() * 1.8;
+        shape = 'circle';
+        gravity = 0.02;
+      } else if (type === 'smoke') {
+        const colors = ['#f7fafc', '#edf2f7', '#e2e8f0', '#cbd5e0'];
+        color = colors[Math.floor(Math.random() * colors.length)];
+        speed = 0.6 + Math.random() * 1.4;
+        shape = 'circle';
+        gravity = -0.04;
+      } else if (type === 'arcane') {
+        const colors = ['#38bdf8', '#818cf8', '#c084fc', '#f472b6', '#facc15'];
+        color = colors[Math.floor(Math.random() * colors.length)];
+        speed = 1.2 + Math.random() * 2.2;
+        shape = 'star';
+        gravity = -0.03;
       }
 
       this.particles.push({
@@ -2050,7 +2074,10 @@ export class WorldRenderer {
       // === DISMOUNTED / WALKING ON FOOT / WORKING / IDLE ===
       // Natural walking step bob when moving on foot, gentle breathing bob when standing
       const rawBob = isMoving ? Math.sin(this.animTick * 0.015) * 1.5 : Math.sin(this.animTick * 0.003) * 1.5;
-      const breatheBob = Math.round(rawBob);
+      let breatheBob = Math.round(rawBob);
+      if (taskSkill === 'thieving' || taskSkill === 'herbalism') {
+        breatheBob += 2; // Low sneaky hunch / foraging crouch stance
+      }
 
       // Ground shadow under player
       ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
@@ -2087,15 +2114,41 @@ export class WorldRenderer {
       if (taskSkill) {
         // Toolbelt tools are ONLY visible and animated when actively working on that skill!
         if (taskSkill === 'mining') {
-          const swing = Math.sin(this.animTick * 0.014) * 0.5;
+          const swingPhase = (this.animTick * 0.014 + (this.localPlayer?.x || 0)) % (Math.PI * 2);
+          const swing = Math.sin(swingPhase) * 0.55;
           const pickaxe = equipment?.tool_pickaxe || equipment?.tool;
           const toolCoord = getSprite(pickaxe?.itemId) || getSprite('rune_pickaxe_dawnburn');
           drawLayer(toolCoord, 0, breatheBob, swing);
+
+          // Impact stone spark chips at the bottom of the pick swing
+          if (swing > 0.45) {
+            ctx.save();
+            const sparkAlpha = (swing - 0.45) / 0.10;
+            ctx.fillStyle = '#ffd700';
+            ctx.globalAlpha = Math.min(1, sparkAlpha * 0.8);
+            ctx.fillRect(px + 8, py + 8, 2, 2);
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(px + 10, py + 6, 1.5, 1.5);
+            ctx.restore();
+          }
         } else if (taskSkill === 'woodcutting') {
-          const chop = Math.sin(this.animTick * 0.014) * 0.5;
+          const chopPhase = (this.animTick * 0.014 + (this.localPlayer?.x || 0)) % (Math.PI * 2);
+          const chop = Math.sin(chopPhase) * 0.55;
           const axe = equipment?.tool_axe || equipment?.tool;
           const toolCoord = getSprite(axe?.itemId) || getSprite('rune_axe_dawnburn');
           drawLayer(toolCoord, 0, breatheBob, chop);
+
+          // Woodchip flecks flying at the impact of the chop
+          if (chop > 0.45) {
+            ctx.save();
+            const chipAlpha = (chop - 0.45) / 0.10;
+            ctx.fillStyle = '#c28e5c';
+            ctx.globalAlpha = Math.min(1, chipAlpha * 0.8);
+            ctx.fillRect(px + 9, py + 6, 2, 2);
+            ctx.fillStyle = '#8b5a2b';
+            ctx.fillRect(px + 7, py + 9, 2, 1.5);
+            ctx.restore();
+          }
         } else if (taskSkill === 'fishing') {
           const rodTug = Math.sin(this.animTick * 0.007) * 0.18;
           const rod = equipment?.tool_rod || equipment?.tool;
@@ -2160,6 +2213,267 @@ export class WorldRenderer {
           if (toolCoord) {
             drawLayer(toolCoord, hammerX, hammerY, hammerAngle);
           }
+
+          // Fiery anvil / workbench strike impact sparks!
+          if (strikePhase >= 0.65 && strikePhase <= 0.80) {
+            const p = (strikePhase - 0.65) / 0.15;
+            const sparkAlpha = Math.max(0, 1 - p);
+            ctx.save();
+            ctx.globalAlpha = sparkAlpha;
+            const sparkColors = ['#ffd700', '#ff8c00', '#ffffff', '#ff4500'];
+            for (let s = 0; s < 4; s++) {
+              const sAngle = (s / 4) * Math.PI + (s % 2 === 0 ? 0.3 : -0.2);
+              const sDist = 2 + p * 9;
+              const sx = px + 6 + Math.cos(sAngle) * sDist;
+              const sy = py + 7 - Math.sin(sAngle) * sDist;
+              ctx.fillStyle = sparkColors[s % sparkColors.length];
+              ctx.fillRect(Math.round(sx), Math.round(sy), 2, 2);
+            }
+            ctx.restore();
+          }
+        } else if (taskSkill === 'fletching') {
+          // Whittling wooden shaft with carving knife
+          const fletchPhase = (this.animTick * 0.012 + (this.localPlayer?.x || 0)) % 1;
+          let knifeAngle = -0.35;
+          let knifeY = breatheBob - 1;
+          let knifeX = 2;
+
+          if (fletchPhase < 0.65) {
+            // Carving stroke smoothly down the shaft
+            const p = fletchPhase / 0.65;
+            knifeAngle = -0.35 + p * 0.20;
+            knifeY = breatheBob - 2 + Math.round(p * 5);
+            knifeX = 1 + Math.round(p * 2);
+          } else {
+            // Swift lift back to top
+            const p = (fletchPhase - 0.65) / 0.35;
+            knifeAngle = -0.15 - p * 0.20;
+            knifeY = breatheBob + 3 - Math.round(p * 5);
+            knifeX = 3 - Math.round(p * 2);
+          }
+
+          // Offhand ashwood shaft held steady
+          ctx.save();
+          ctx.strokeStyle = '#a0522d';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.moveTo(px + 1, py + breatheBob + 2);
+          ctx.lineTo(px + 7, py + breatheBob + 10);
+          ctx.stroke();
+          ctx.restore();
+
+          const knifeCoord = getSprite('tool_knife') || getSprite('tool_hammer');
+          if (knifeCoord) {
+            drawLayer(knifeCoord, knifeX, knifeY, knifeAngle);
+          }
+
+          // Curling wood shavings falling from carving stroke
+          if (fletchPhase > 0.45 && fletchPhase < 0.85) {
+            const p = (fletchPhase - 0.45) / 0.40;
+            ctx.save();
+            ctx.globalAlpha = Math.max(0, 1 - p * 0.8);
+            ctx.strokeStyle = '#d69e2e';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            const sx = px + 6 + p * 4;
+            const sy = py + breatheBob + 4 + p * 8;
+            ctx.arc(sx, sy, 1.5, 0, Math.PI);
+            ctx.stroke();
+            ctx.restore();
+          }
+        } else if (taskSkill === 'alchemy') {
+          // Swirling potion flask over the cauldron
+          const alchPhase = (this.animTick * 0.008 + (this.localPlayer?.x || 0)) % 1;
+          const flaskAngle = Math.sin(alchPhase * Math.PI * 2) * 0.22;
+          const flaskX = 3 + Math.round(Math.cos(alchPhase * Math.PI * 2) * 3);
+          const flaskY = breatheBob + Math.round(Math.sin(alchPhase * Math.PI * 2) * 2);
+
+          const flaskCoord = getSprite('tool_flask') || getSprite('tool_hammer');
+          if (flaskCoord) {
+            drawLayer(flaskCoord, flaskX, flaskY, flaskAngle);
+          }
+
+          // Luminous elixir motes & vapor rising from cauldron
+          ctx.save();
+          const moteColors = ['#c084fc', '#38bdf8', '#4ade80'];
+          for (let i = 0; i < 3; i++) {
+            const motePhase = (this.animTick * 0.003 + i * 0.33) % 1;
+            const moteX = px + 6 + Math.sin(this.animTick * 0.006 + i * 2) * 5;
+            const moteY = py + breatheBob + 4 - motePhase * 16;
+            const moteAlpha = Math.max(0, Math.sin(motePhase * Math.PI) * 0.75);
+            ctx.fillStyle = moteColors[i % moteColors.length];
+            ctx.globalAlpha = moteAlpha;
+            ctx.beginPath();
+            ctx.arc(moteX, moteY, 1.5, 0, Math.PI * 2);
+            ctx.fill();
+          }
+          ctx.restore();
+        } else if (taskSkill === 'cooking') {
+          // Cast iron skillet with rhythmic toss/flip over the fire
+          const cookPhase = (this.animTick * 0.01 + (this.localPlayer?.x || 0)) % 1;
+          let panAngle = 0;
+          let panY = breatheBob + 1;
+          let panX = 4;
+
+          if (cookPhase > 0.60 && cookPhase < 0.85) {
+            const p = (cookPhase - 0.60) / 0.25;
+            panAngle = -Math.sin(p * Math.PI) * 0.30;
+            panY = breatheBob + 1 - Math.round(Math.sin(p * Math.PI) * 3);
+          }
+
+          const skilletCoord = getSprite('tool_skillet') || getSprite('tool_hammer');
+          if (skilletCoord) {
+            drawLayer(skilletCoord, panX, panY, panAngle);
+          }
+
+          // Fragrant steam wisps curling up from the hot skillet
+          ctx.save();
+          for (let i = 0; i < 3; i++) {
+            const steamPhase = (this.animTick * 0.003 + i * 0.33) % 1;
+            const steamY = py + breatheBob + 2 - steamPhase * 14;
+            const steamX = px + 8 + Math.sin(this.animTick * 0.008 + i) * 4;
+            const steamAlpha = Math.max(0, (1 - steamPhase) * 0.40);
+            ctx.fillStyle = `rgba(240, 240, 255, ${steamAlpha})`;
+            ctx.beginPath();
+            ctx.arc(steamX, steamY, 1.5 + steamPhase * 2, 0, Math.PI * 2);
+            ctx.fill();
+          }
+          ctx.restore();
+        } else if (taskSkill === 'herbalism') {
+          // Crouching gather with crescent harvesting sickle
+          const herbPhase = (this.animTick * 0.01 + (this.localPlayer?.x || 0)) % 1;
+          let sickleAngle = -0.40;
+          let sickleX = 0;
+          let sickleY = breatheBob + 1;
+
+          if (herbPhase < 0.55) {
+            // Crescent reaping sweep across herb flora
+            const p = herbPhase / 0.55;
+            sickleAngle = -0.40 + p * 1.15;
+            sickleX = Math.round(p * 4);
+            sickleY = breatheBob + 1 + Math.round(p * 2);
+          } else {
+            // Return back
+            const p = (herbPhase - 0.55) / 0.45;
+            sickleAngle = 0.75 - p * 1.15;
+            sickleX = 4 - Math.round(p * 4);
+            sickleY = breatheBob + 3 - Math.round(p * 2);
+          }
+
+          const sickleCoord = getSprite('tool_sickle') || getSprite('tool_hammer');
+          if (sickleCoord) {
+            drawLayer(sickleCoord, sickleX, sickleY, sickleAngle);
+          }
+
+          // Delicate green leaf specks fluttering upward
+          ctx.save();
+          const leafColors = ['#4ade80', '#22c55e', '#86efac'];
+          for (let i = 0; i < 3; i++) {
+            const leafPhase = (this.animTick * 0.003 + i * 0.33) % 1;
+            const leafX = px + 7 + Math.sin(this.animTick * 0.007 + i) * 6;
+            const leafY = py + breatheBob + 7 - leafPhase * 12;
+            const leafAlpha = Math.max(0, Math.sin(leafPhase * Math.PI) * 0.70);
+            ctx.fillStyle = leafColors[i % leafColors.length];
+            ctx.globalAlpha = leafAlpha;
+            ctx.fillRect(Math.round(leafX), Math.round(leafY), 2, 2);
+          }
+          ctx.restore();
+        } else if (taskSkill === 'farming') {
+          // Watering crops with brass watering can
+          const farmPhase = (this.animTick * 0.009 + (this.localPlayer?.x || 0)) % 1;
+          const canAngle = 0.32 + Math.sin(farmPhase * Math.PI * 2) * 0.08;
+          const canX = 4;
+          const canY = breatheBob + 1;
+
+          const canCoord = getSprite('tool_watering_can') || getSprite('tool_hammer');
+          if (canCoord) {
+            drawLayer(canCoord, canX, canY, canAngle);
+          }
+
+          // Water droplets cascading onto crops with ground ripples
+          ctx.save();
+          for (let i = 0; i < 4; i++) {
+            const dropPhase = (this.animTick * 0.008 + i * 0.25) % 1;
+            const dropX = px + 10 + dropPhase * 7;
+            const dropY = py + breatheBob + dropPhase * dropPhase * 12;
+            const dropAlpha = Math.max(0, (1 - dropPhase) * 0.75);
+            ctx.fillStyle = `rgba(147, 197, 253, ${dropAlpha})`;
+            ctx.beginPath();
+            ctx.arc(dropX, dropY, 1.2, 0, Math.PI * 2);
+            ctx.fill();
+          }
+          const ripplePhase = (this.animTick * 0.003) % 1;
+          ctx.strokeStyle = `rgba(191, 219, 254, ${Math.max(0, (1 - ripplePhase) * 0.4)})`;
+          ctx.lineWidth = 0.8;
+          ctx.beginPath();
+          ctx.ellipse(px + 17, py + 12, 1 + ripplePhase * 4, (1 + ripplePhase * 4) * 0.4, 0, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.restore();
+        } else if (taskSkill === 'thieving') {
+          // Sneaky hunch pickpocketing / lockpicking
+          const thiefPhase = (this.animTick * 0.011 + (this.localPlayer?.x || 0)) % 1;
+          let pickAngle = -0.10;
+          let pickX = 2;
+          let pickY = breatheBob;
+
+          if (thiefPhase < 0.60) {
+            // Delicate lock probe vibration
+            pickAngle = -0.10 + Math.sin(this.animTick * 0.05) * 0.08;
+          } else if (thiefPhase < 0.80) {
+            // Swift pilfer reach!
+            const p = (thiefPhase - 0.60) / 0.20;
+            pickX = 2 + Math.round(p * 4);
+            pickAngle = 0.20;
+          } else {
+            // Quick concealment withdrawal
+            const p = (thiefPhase - 0.80) / 0.20;
+            pickX = 6 - Math.round(p * 4);
+          }
+
+          const lockpickCoord = getSprite('tool_lockpick') || getSprite('tool_hammer');
+          if (lockpickCoord) {
+            drawLayer(lockpickCoord, pickX, pickY, pickAngle);
+          }
+
+          // Subtle gleaming loot shimmer
+          ctx.save();
+          const glintPhase = (this.animTick * 0.004) % 1;
+          if (glintPhase > 0.65) {
+            const gAlpha = Math.sin(((glintPhase - 0.65) / 0.35) * Math.PI) * 0.85;
+            ctx.fillStyle = `rgba(253, 224, 71, ${gAlpha})`;
+            ctx.beginPath();
+            ctx.arc(px + 12, py + breatheBob + 3, 1.5, 0, Math.PI * 2);
+            ctx.fill();
+          }
+          ctx.restore();
+        } else if (taskSkill === 'attunement') {
+          // Arcane trance meditation channeling
+          // Soft vertical ethereal aura pillar
+          ctx.save();
+          const auraPulse = (Math.sin(this.animTick * 0.005) + 1) * 0.5;
+          const auraGrad = ctx.createLinearGradient(px, py + 12, px, py - 20);
+          auraGrad.addColorStop(0, `rgba(56, 189, 248, ${0.15 + auraPulse * 0.15})`);
+          auraGrad.addColorStop(1, 'rgba(168, 85, 247, 0)');
+          ctx.fillStyle = auraGrad;
+          ctx.beginPath();
+          ctx.ellipse(px, py + 4, 12, 18, 0, 0, Math.PI * 2);
+          ctx.fill();
+
+          // Orbiting ancient mystical runes
+          const runes = ['✧', '✦', 'ᛟ', 'ᚱ'];
+          ctx.font = 'bold 9px monospace, sans-serif';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          runes.forEach((rune, idx) => {
+            const runeAngle = this.animTick * 0.004 + (idx * Math.PI) / 2;
+            const rx = px + Math.cos(runeAngle) * 14;
+            const ry = py - 4 + Math.sin(runeAngle) * 6;
+            const depth = (Math.sin(runeAngle) + 1) * 0.5;
+            const rAlpha = 0.35 + depth * 0.55;
+            ctx.fillStyle = idx % 2 === 0 ? `rgba(56, 189, 248, ${rAlpha})` : `rgba(250, 204, 21, ${rAlpha})`;
+            ctx.fillText(rune, rx, ry);
+          });
+          ctx.restore();
         } else if (taskSkill === 'melee' || taskSkill === 'ranged' || taskSkill === 'magic') {
           const weapon = equipment?.weapon;
           const weaponId = weapon?.itemId || '';
