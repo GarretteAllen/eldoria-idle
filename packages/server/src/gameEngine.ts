@@ -39,6 +39,7 @@ export interface LiveMonsterInstance {
   currentHp: number;
   maxHp: number;
   respawnAtTick?: number;
+  nextMoveTick?: number;
 }
 
 interface ConnectedSession {
@@ -1843,7 +1844,80 @@ export class GameEngine {
           inst.y = tile.y;
           inst.currentHp = inst.maxHp;
           inst.respawnAtTick = undefined;
+          inst.nextMoveTick = this.tickCount + Math.floor(Math.random() * 8) + 4;
           monstersChanged = true;
+        }
+      }
+    }
+
+    // 0.5 Process Random Monster Movement Within Spawn Zones
+    const engagedMonsterIds = new Set<string>();
+    for (const session of this.sessions.values()) {
+      if (session.activeCombat?.nodeId) {
+        engagedMonsterIds.add(session.activeCombat.nodeId);
+      }
+      if (session.pendingCombat?.nodeId) {
+        engagedMonsterIds.add(session.pendingCombat.nodeId);
+      }
+    }
+
+    const collisions = storage.getCollisions();
+    const staticNodes = storage.getWorldNodes();
+    for (const sn of staticNodes) {
+      if (sn.type !== 'monster') {
+        occupied.add(`${sn.x},${sn.y}`);
+      }
+    }
+
+    const directions = [
+      { dx: 1, dy: 0 },
+      { dx: -1, dy: 0 },
+      { dx: 0, dy: 1 },
+      { dx: 0, dy: -1 },
+    ];
+
+    for (const inst of this.liveMonsters.values()) {
+      if (inst.currentHp <= 0 || inst.respawnAtTick) continue;
+      if (engagedMonsterIds.has(inst.id)) continue;
+
+      if (!inst.nextMoveTick) {
+        inst.nextMoveTick = this.tickCount + Math.floor(Math.random() * 8) + 4;
+        continue;
+      }
+
+      if (this.tickCount >= inst.nextMoveTick) {
+        // Schedule next wandering check in 3 - 7 seconds (5 - 11 ticks)
+        inst.nextMoveTick = this.tickCount + Math.floor(Math.random() * 7) + 5;
+
+        // 60% chance to wander 1 step, 40% chance to pause/idle
+        if (Math.random() < 0.6) {
+          const zone = zoneMap.get(inst.zoneId);
+          if (!zone) continue;
+
+          // Shuffle directions randomly
+          const shuffled = [...directions].sort(() => Math.random() - 0.5);
+          for (const dir of shuffled) {
+            const nx = inst.x + dir.dx;
+            const ny = inst.y + dir.dy;
+
+            // Must stay strictly within zone bounds
+            if (nx < zone.x || nx >= zone.x + zone.width || ny < zone.y || ny >= zone.y + zone.height) {
+              continue;
+            }
+
+            const key = `${nx},${ny}`;
+            if (collisions.has(key) || occupied.has(key)) {
+              continue;
+            }
+
+            // Valid step within zone!
+            occupied.delete(`${inst.x},${inst.y}`);
+            inst.x = nx;
+            inst.y = ny;
+            occupied.add(key);
+            monstersChanged = true;
+            break;
+          }
         }
       }
     }

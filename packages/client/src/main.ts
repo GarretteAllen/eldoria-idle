@@ -750,8 +750,10 @@ class EldoriaClient {
       case 'WORLD_NODES_UPDATE':
         this.worldNodes = msg.nodes || [];
         this.renderer.setNodes(this.worldNodes);
-        this.renderEditorNodes();
-        this.renderEditorMonsterZones();
+        if (this.activeDrawer === 'editor') {
+          this.renderEditorNodes();
+          this.renderEditorMonsterZones();
+        }
         break;
 
       case 'WORLD_MONSTER_ZONES_UPDATE':

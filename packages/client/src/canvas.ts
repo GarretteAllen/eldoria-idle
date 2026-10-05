@@ -33,6 +33,7 @@ export class WorldRenderer {
   private nodes: WorldNodeDisplay[] = [];
   private npcs: NpcDefinition[] = [];
   private collisions = new Set<string>();
+  private monsterVisuals = new Map<string, { x: number; y: number }>();
   private stitchedWorld: StitchedWorld | null = null;
   private terrainCanvas: HTMLCanvasElement | null = null;
   private enemiesImage: HTMLImageElement | null = null;
@@ -321,6 +322,12 @@ export class WorldRenderer {
 
   public setNodes(nodes: WorldNodeDisplay[]) {
     this.nodes = nodes;
+    const activeMobIds = new Set(nodes.filter(n => n.type === 'monster').map(n => n.id));
+    for (const id of this.monsterVisuals.keys()) {
+      if (!activeMobIds.has(id)) {
+        this.monsterVisuals.delete(id);
+      }
+    }
   }
 
   public setMonsterZones(_zones: MonsterSpawnZone[]) {
@@ -438,7 +445,14 @@ export class WorldRenderer {
 
       if (this.editorMode === 'none') {
         const isHoveringNpc = this.npcs.some(n => n.x === this.hoverTileX && n.y === this.hoverTileY);
-        const isHoveringNode = this.nodes.some(n => n.x === this.hoverTileX && n.y === this.hoverTileY);
+        const isHoveringNode = this.nodes.some(n => {
+          if (n.x === this.hoverTileX && n.y === this.hoverTileY) return true;
+          if (n.type === 'monster') {
+            const vis = this.monsterVisuals.get(n.id);
+            if (vis && Math.round(vis.x) === this.hoverTileX && Math.round(vis.y) === this.hoverTileY) return true;
+          }
+          return false;
+        });
         this.canvas.style.cursor = (isHoveringNpc || isHoveringNode) ? 'pointer' : 'default';
       } else if (this.editorMode === 'draw_zone') {
         this.canvas.style.cursor = 'crosshair';
@@ -514,8 +528,15 @@ export class WorldRenderer {
         return;
       }
 
-      // 3. Click Node (ONLY on the exact tile square of the Node)
-      const clickedNode = this.nodes.find(n => n.x === tileX && n.y === tileY);
+      // 3. Click Node (match exact tile or monster visual position)
+      const clickedNode = this.nodes.find(n => {
+        if (n.x === tileX && n.y === tileY) return true;
+        if (n.type === 'monster') {
+          const vis = this.monsterVisuals.get(n.id);
+          if (vis && Math.round(vis.x) === tileX && Math.round(vis.y) === tileY) return true;
+        }
+        return false;
+      });
       if (clickedNode && this.onNodeClick) {
         this.onNodeClick(clickedNode);
         return;
@@ -1529,11 +1550,32 @@ export class WorldRenderer {
 
       // === MONSTER / ENEMY NODES ===
       if (node.type === 'monster') {
+        let vis = this.monsterVisuals.get(node.id);
+        if (!vis) {
+          vis = { x: node.x, y: node.y };
+          this.monsterVisuals.set(node.id, vis);
+        } else {
+          const dx = node.x - vis.x;
+          const dy = node.y - vis.y;
+          if (Math.hypot(dx, dy) > 2.5) {
+            vis.x = node.x;
+            vis.y = node.y;
+          } else {
+            vis.x += dx * 0.16;
+            vis.y += dy * 0.16;
+          }
+        }
+
+        const px = vis.x * TILE_SIZE;
+        const py = vis.y * TILE_SIZE;
+
         const mobId = node.monsterId || 'mire_rat';
         const spriteCoord = MONSTER_SPRITES[mobId] || MONSTER_SPRITES['mire_rat'];
 
         // Red/Crimson combat hover outline feedback if hovered
-        if (this.hoverTileX === node.x && this.hoverTileY === node.y) {
+        const isHovered = (this.hoverTileX === node.x && this.hoverTileY === node.y) ||
+                          (Math.round(vis.x) === this.hoverTileX && Math.round(vis.y) === this.hoverTileY);
+        if (isHovered) {
           ctx.fillStyle = 'rgba(229, 62, 62, 0.2)';
           ctx.fillRect(px + 1, py + 1, TILE_SIZE - 2, TILE_SIZE - 2);
 
