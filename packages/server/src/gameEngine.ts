@@ -4024,6 +4024,8 @@ export class GameEngine {
       currentTask: s.player.currentTask
         ? ((s.player.currentTask.skill as string) === 'combat' ? this.getPlayerCombatStyle(s.player) : s.player.currentTask.skill)
         : null,
+      targetNodeX: s.player.currentTask?.targetNodeX,
+      targetNodeY: s.player.currentTask?.targetNodeY,
       bankingState: s.player.bankingState,
       equipment: s.player.equipment,
     }));

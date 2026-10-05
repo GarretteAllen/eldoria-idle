@@ -12,6 +12,8 @@ export interface RemotePlayer {
   currentTask: string | null;
   bankingState?: string;
   equipment?: Partial<Record<EquipSlot, InventorySlot>>;
+  targetNodeX?: number;
+  targetNodeY?: number;
 }
 
 export interface ChatBubble {
@@ -107,6 +109,7 @@ export class WorldRenderer {
     duration: number;
     style: 'melee' | 'ranged' | 'magic';
   }>();
+  public playerFacing = new Map<string, boolean>();
 
   public triggerPlayerAttack(style: 'melee' | 'ranged' | 'magic', playerId: string = 'self') {
     this.playerAttackAnims.set(playerId, {
@@ -680,9 +683,9 @@ export class WorldRenderer {
 
     // 7. Draw Other Players
     for (const remote of this.otherPlayers.values()) {
-      let remoteTargetX: number | undefined;
-      let remoteTargetY: number | undefined;
-      if (remote.currentTask) {
+      let remoteTargetX: number | undefined = remote.targetNodeX;
+      let remoteTargetY: number | undefined = remote.targetNodeY;
+      if (typeof remoteTargetX !== 'number' && remote.currentTask) {
         const matching = this.nodes.find(n => n.recipeId === remote.currentTask || n.monsterId === remote.currentTask);
         if (matching) {
           remoteTargetX = matching.x;
@@ -2204,20 +2207,29 @@ export class WorldRenderer {
     };
 
     // Calculate facing direction: face and point towards the target node/monster/waypoint!
-    let facingLeft = false;
+    const targetDx = typeof targetNodeX === 'number' ? targetNodeX - x : 0;
     const targetDy = typeof targetNodeY === 'number' ? targetNodeY - y : 0;
+    const facingKey = playerId || (isSelf ? 'self' : name);
+    let facingLeft = false;
 
     if (typeof targetNodeX === 'number' && typeof targetNodeY === 'number') {
-      const dx = targetNodeX - x;
-      if (Math.abs(dx) > 0.15) {
-        facingLeft = dx < 0;
+      if (Math.abs(targetDx) > 0.05) {
+        facingLeft = targetDx < 0;
+        this.playerFacing.set(facingKey, facingLeft);
+      } else {
+        facingLeft = this.playerFacing.get(facingKey) || false;
       }
     } else if (isMoving && isSelf && this.localPlayer && this.localPlayer.path && this.localPlayer.path.length > 0) {
       const nextStep = this.localPlayer.path[0];
       const dx = nextStep.x - x;
-      if (Math.abs(dx) > 0.15) {
+      if (Math.abs(dx) > 0.05) {
         facingLeft = dx < 0;
+        this.playerFacing.set(facingKey, facingLeft);
+      } else {
+        facingLeft = this.playerFacing.get(facingKey) || false;
       }
+    } else {
+      facingLeft = this.playerFacing.get(facingKey) || false;
     }
 
     // Mount is only active and visible while moving; dismount when idle, talking, working, or in combat
@@ -2324,6 +2336,10 @@ export class WorldRenderer {
 
       // 6. Weapon / Toolbelt Working Tool
       if (taskSkill) {
+        // Action side offset: positions active working tools & particle FX over to the side facing the node
+        const actX = 14;
+        const actY = Math.max(-5, Math.min(6, Math.round(targetDy * 4)));
+
         // Toolbelt tools are ONLY visible and animated when actively working on that skill!
         if (taskSkill === 'mining') {
           // Deliberate, rhythmic pickaxe swings (~1.2s per stroke)
@@ -2331,7 +2347,7 @@ export class WorldRenderer {
           const swing = Math.sin(swingPhase) * 0.55;
           const pickaxe = equipment?.tool_pickaxe || equipment?.tool;
           const toolCoord = getSprite(pickaxe?.itemId) || getSprite('rune_pickaxe_dawnburn');
-          drawLayer(toolCoord, 0, breatheBob, swing);
+          drawLayer(toolCoord, actX, breatheBob + actY, swing);
 
           // Impact stone spark chips at the bottom of the pick swing
           if (swing > 0.45) {
@@ -2339,9 +2355,9 @@ export class WorldRenderer {
             const sparkAlpha = (swing - 0.45) / 0.10;
             ctx.fillStyle = '#ffd700';
             ctx.globalAlpha = Math.min(1, sparkAlpha * 0.8);
-            ctx.fillRect(px + 8, py + 8, 2, 2);
+            ctx.fillRect(px + actX + 8, py + breatheBob + actY + 8, 2, 2);
             ctx.fillStyle = '#ffffff';
-            ctx.fillRect(px + 10, py + 6, 1.5, 1.5);
+            ctx.fillRect(px + actX + 10, py + breatheBob + actY + 6, 1.5, 1.5);
             ctx.restore();
           }
         } else if (taskSkill === 'woodcutting') {
@@ -2350,7 +2366,7 @@ export class WorldRenderer {
           const chop = Math.sin(chopPhase) * 0.55;
           const axe = equipment?.tool_axe || equipment?.tool;
           const toolCoord = getSprite(axe?.itemId) || getSprite('rune_axe_dawnburn');
-          drawLayer(toolCoord, 0, breatheBob, chop);
+          drawLayer(toolCoord, actX, breatheBob + actY, chop);
 
           // Woodchip flecks flying at the impact of the chop
           if (chop > 0.45) {
@@ -2358,9 +2374,9 @@ export class WorldRenderer {
             const chipAlpha = (chop - 0.45) / 0.10;
             ctx.fillStyle = '#c28e5c';
             ctx.globalAlpha = Math.min(1, chipAlpha * 0.8);
-            ctx.fillRect(px + 9, py + 6, 2, 2);
+            ctx.fillRect(px + actX + 9, py + breatheBob + actY + 6, 2, 2);
             ctx.fillStyle = '#8b5a2b';
-            ctx.fillRect(px + 7, py + 9, 2, 1.5);
+            ctx.fillRect(px + actX + 7, py + breatheBob + actY + 9, 2, 1.5);
             ctx.restore();
           }
         } else if (taskSkill === 'fishing') {
@@ -2368,12 +2384,12 @@ export class WorldRenderer {
           const rodTug = Math.sin(this.animTick * 0.0035) * 0.16;
           const rod = equipment?.tool_rod || equipment?.tool;
           const toolCoord = getSprite(rod?.itemId) || getSprite('fishing_rod_willow');
-          drawLayer(toolCoord, 0, breatheBob, rodTug);
+          drawLayer(toolCoord, actX - 2, breatheBob + actY, rodTug);
 
           // Subtle animated bobber & ripple in the water in front of player
           const bobberBob = Math.sin(this.animTick * 0.0035 + 1.2) * 1.8;
-          const bobberX = Math.round(px + 16);
-          const bobberY = Math.round(py + 16 + bobberBob);
+          const bobberX = Math.round(px + actX + 14);
+          const bobberY = Math.round(py + breatheBob + actY + 14 + bobberBob);
 
           // Expanding water ripple rings
           const ripplePhase = (this.animTick * 0.0012) % 1;
@@ -2395,8 +2411,8 @@ export class WorldRenderer {
           ctx.strokeStyle = 'rgba(255, 255, 255, 0.45)';
           ctx.lineWidth = 0.75;
           ctx.beginPath();
-          const tipX = px + 12 - Math.sin(rodTug) * 10;
-          const tipY = py - 8 + breatheBob + Math.cos(rodTug) * 4;
+          const tipX = px + actX + 10 - Math.sin(rodTug) * 10;
+          const tipY = py - 8 + breatheBob + actY + Math.cos(rodTug) * 4;
           ctx.moveTo(tipX, tipY);
           ctx.quadraticCurveTo((tipX + bobberX) / 2 + 1, (tipY + bobberY) / 2 + 3, bobberX, bobberY - 2);
           ctx.stroke();
@@ -2404,25 +2420,25 @@ export class WorldRenderer {
           // Artisan & Blacksmith Hammer: Deliberate, powerful rhythmic strikes (~1.18s per strike)
           const strikePhase = (this.animTick * 0.00085 + (this.localPlayer?.x || 0)) % 1;
           let hammerAngle = -0.25;
-          let hammerY = breatheBob;
-          let hammerX = 1;
+          let hammerY = breatheBob + actY;
+          let hammerX = actX;
           if (strikePhase < 0.55) {
             // Wind-up: deliberate raise overhead (~640ms)
             const p = strikePhase / 0.55;
             hammerAngle = -0.25 - p * 0.45;
-            hammerY = breatheBob - Math.round(p * 2);
+            hammerY = breatheBob + actY - Math.round(p * 2);
           } else if (strikePhase < 0.72) {
             // Downward strike impact blow onto anvil/workbench (~200ms)
             const p = (strikePhase - 0.55) / 0.17;
             hammerAngle = -0.70 + p * 1.35;
-            hammerY = breatheBob + Math.round(p * 3);
-            hammerX = 1 + Math.round(p * 2);
+            hammerY = breatheBob + actY + Math.round(p * 3);
+            hammerX = actX + Math.round(p * 2);
           } else {
             // Natural recoil and settle back to ready (~330ms)
             const p = (strikePhase - 0.72) / 0.28;
             hammerAngle = 0.65 - p * 0.90;
-            hammerY = breatheBob + Math.round((1 - p) * 1);
-            hammerX = 1;
+            hammerY = breatheBob + actY + Math.round((1 - p) * 1);
+            hammerX = actX;
           }
           const toolCoord = getSprite('tool_hammer');
           if (toolCoord) {
@@ -2439,8 +2455,8 @@ export class WorldRenderer {
             for (let s = 0; s < 4; s++) {
               const sAngle = (s / 4) * Math.PI + (s % 2 === 0 ? 0.3 : -0.2);
               const sDist = 2 + p * 9;
-              const sx = px + 6 + Math.cos(sAngle) * sDist;
-              const sy = py + 7 - Math.sin(sAngle) * sDist;
+              const sx = px + actX + 6 + Math.cos(sAngle) * sDist;
+              const sy = py + breatheBob + actY + 7 - Math.sin(sAngle) * sDist;
               ctx.fillStyle = sparkColors[s % sparkColors.length];
               ctx.fillRect(Math.round(sx), Math.round(sy), 2, 2);
             }
@@ -2450,21 +2466,21 @@ export class WorldRenderer {
           // Whittling wooden shaft with carving knife (~1.18s per stroke)
           const fletchPhase = (this.animTick * 0.00085 + (this.localPlayer?.x || 0)) % 1;
           let knifeAngle = -0.35;
-          let knifeY = breatheBob - 1;
-          let knifeX = 2;
+          let knifeY = breatheBob + actY - 1;
+          let knifeX = actX + 1;
 
           if (fletchPhase < 0.65) {
             // Carving stroke smoothly down the shaft (~760ms)
             const p = fletchPhase / 0.65;
             knifeAngle = -0.35 + p * 0.20;
-            knifeY = breatheBob - 2 + Math.round(p * 5);
-            knifeX = 1 + Math.round(p * 2);
+            knifeY = breatheBob + actY - 2 + Math.round(p * 5);
+            knifeX = actX + Math.round(p * 2);
           } else {
             // Swift lift back to top (~410ms)
             const p = (fletchPhase - 0.65) / 0.35;
             knifeAngle = -0.15 - p * 0.20;
-            knifeY = breatheBob + 3 - Math.round(p * 5);
-            knifeX = 3 - Math.round(p * 2);
+            knifeY = breatheBob + actY + 3 - Math.round(p * 5);
+            knifeX = actX + 2 - Math.round(p * 2);
           }
 
           // Offhand ashwood shaft held steady
@@ -2472,8 +2488,8 @@ export class WorldRenderer {
           ctx.strokeStyle = '#a0522d';
           ctx.lineWidth = 2;
           ctx.beginPath();
-          ctx.moveTo(px + 1, py + breatheBob + 2);
-          ctx.lineTo(px + 7, py + breatheBob + 10);
+          ctx.moveTo(px + actX, py + breatheBob + actY + 2);
+          ctx.lineTo(px + actX + 6, py + breatheBob + actY + 10);
           ctx.stroke();
           ctx.restore();
 
@@ -2490,8 +2506,8 @@ export class WorldRenderer {
             ctx.strokeStyle = '#d69e2e';
             ctx.lineWidth = 1;
             ctx.beginPath();
-            const sx = px + 6 + p * 4;
-            const sy = py + breatheBob + 4 + p * 8;
+            const sx = px + actX + 5 + p * 4;
+            const sy = py + breatheBob + actY + 4 + p * 8;
             ctx.arc(sx, sy, 1.5, 0, Math.PI);
             ctx.stroke();
             ctx.restore();
@@ -2500,8 +2516,8 @@ export class WorldRenderer {
           // Swirling potion flask over the cauldron (~0.95s per circular swirl)
           const alchPhase = (this.animTick * 0.00105 + (this.localPlayer?.x || 0)) % 1;
           const flaskAngle = Math.sin(alchPhase * Math.PI * 2) * 0.20;
-          const flaskX = 3 + Math.round(Math.cos(alchPhase * Math.PI * 2) * 2.5);
-          const flaskY = breatheBob + Math.round(Math.sin(alchPhase * Math.PI * 2) * 1.8);
+          const flaskX = actX + 2 + Math.round(Math.cos(alchPhase * Math.PI * 2) * 2.5);
+          const flaskY = breatheBob + actY + Math.round(Math.sin(alchPhase * Math.PI * 2) * 1.8);
 
           const flaskCoord = getSprite('tool_flask') || getSprite('tool_hammer');
           if (flaskCoord) {
@@ -2513,8 +2529,8 @@ export class WorldRenderer {
           const moteColors = ['#c084fc', '#38bdf8', '#4ade80'];
           for (let i = 0; i < 3; i++) {
             const motePhase = (this.animTick * 0.0015 + i * 0.33) % 1;
-            const moteX = px + 6 + Math.sin(this.animTick * 0.003 + i * 2) * 4;
-            const moteY = py + breatheBob + 4 - motePhase * 16;
+            const moteX = px + actX + 6 + Math.sin(this.animTick * 0.003 + i * 2) * 4;
+            const moteY = py + breatheBob + actY + 4 - motePhase * 16;
             const moteAlpha = Math.max(0, Math.sin(motePhase * Math.PI) * 0.75);
             ctx.fillStyle = moteColors[i % moteColors.length];
             ctx.globalAlpha = moteAlpha;
@@ -2527,8 +2543,8 @@ export class WorldRenderer {
           // Cast iron skillet with continuous, smooth rhythmic sauté swirl (~1.26s)
           const cookCycle = this.animTick * 0.005 + (this.localPlayer?.x || 0);
           const panAngle = Math.sin(cookCycle) * 0.10;
-          const panX = 1 + Math.cos(cookCycle) * 1.5;
-          const panY = breatheBob + Math.sin(cookCycle * 2) * 0.8;
+          const panX = actX + Math.cos(cookCycle) * 1.5;
+          const panY = breatheBob + actY + Math.sin(cookCycle * 2) * 0.8;
 
           const skilletCoord = getSprite('tool_skillet') || getSprite('tool_hammer');
           if (skilletCoord) {
@@ -2539,9 +2555,9 @@ export class WorldRenderer {
           ctx.save();
           for (let i = 0; i < 3; i++) {
             const steamPhase = (this.animTick * 0.0018 + i * 0.33) % 1;
-            const steamY = py + breatheBob - 2 - steamPhase * 16;
+            const steamY = py + breatheBob + actY - 2 - steamPhase * 16;
             const curl = Math.sin(steamPhase * Math.PI * 2 + i) * 3;
-            const steamX = px + 6 + curl;
+            const steamX = px + actX + 6 + curl;
             const steamAlpha = Math.sin(steamPhase * Math.PI) * 0.45;
             const steamR = 1.2 + steamPhase * 2.2;
             ctx.fillStyle = `rgba(240, 245, 255, ${steamAlpha})`;
@@ -2554,21 +2570,21 @@ export class WorldRenderer {
           // Crouching gather with crescent harvesting sickle (~1.25s per reap)
           const herbPhase = (this.animTick * 0.0008 + (this.localPlayer?.x || 0)) % 1;
           let sickleAngle = -0.40;
-          let sickleX = 0;
-          let sickleY = breatheBob + 1;
+          let sickleX = actX - 1;
+          let sickleY = breatheBob + actY + 1;
 
           if (herbPhase < 0.55) {
             // Crescent reaping sweep across herb flora (~680ms)
             const p = herbPhase / 0.55;
             sickleAngle = -0.40 + p * 1.15;
-            sickleX = Math.round(p * 4);
-            sickleY = breatheBob + 1 + Math.round(p * 2);
+            sickleX = actX - 1 + Math.round(p * 4);
+            sickleY = breatheBob + actY + 1 + Math.round(p * 2);
           } else {
             // Smooth return back (~570ms)
             const p = (herbPhase - 0.55) / 0.45;
             sickleAngle = 0.75 - p * 1.15;
-            sickleX = 4 - Math.round(p * 4);
-            sickleY = breatheBob + 3 - Math.round(p * 2);
+            sickleX = actX + 3 - Math.round(p * 4);
+            sickleY = breatheBob + actY + 3 - Math.round(p * 2);
           }
 
           const sickleCoord = getSprite('tool_sickle') || getSprite('tool_hammer');
@@ -2581,8 +2597,8 @@ export class WorldRenderer {
           const leafColors = ['#4ade80', '#22c55e', '#86efac'];
           for (let i = 0; i < 3; i++) {
             const leafPhase = (this.animTick * 0.0015 + i * 0.33) % 1;
-            const leafX = px + 7 + Math.sin(this.animTick * 0.003 + i) * 5;
-            const leafY = py + breatheBob + 7 - leafPhase * 12;
+            const leafX = px + actX + 7 + Math.sin(this.animTick * 0.003 + i) * 5;
+            const leafY = py + breatheBob + actY + 7 - leafPhase * 12;
             const leafAlpha = Math.max(0, Math.sin(leafPhase * Math.PI) * 0.70);
             ctx.fillStyle = leafColors[i % leafColors.length];
             ctx.globalAlpha = leafAlpha;
@@ -2593,8 +2609,8 @@ export class WorldRenderer {
           // Watering crops with brass watering can (~1.21s per cycle)
           const farmCycle = this.animTick * 0.0052 + (this.localPlayer?.x || 0);
           const canAngle = 0.32 + Math.sin(farmCycle) * 0.08;
-          const canX = 4;
-          const canY = breatheBob + 1;
+          const canX = actX + 2;
+          const canY = breatheBob + actY + 1;
 
           const canCoord = getSprite('tool_watering_can') || getSprite('tool_hammer');
           if (canCoord) {
@@ -2605,8 +2621,8 @@ export class WorldRenderer {
           ctx.save();
           for (let i = 0; i < 4; i++) {
             const dropPhase = (this.animTick * 0.003 + i * 0.25) % 1;
-            const dropX = px + 10 + dropPhase * 7;
-            const dropY = py + breatheBob + dropPhase * dropPhase * 12;
+            const dropX = px + actX + 8 + dropPhase * 7;
+            const dropY = py + breatheBob + actY + dropPhase * dropPhase * 12;
             const dropAlpha = Math.max(0, (1 - dropPhase) * 0.75);
             ctx.fillStyle = `rgba(147, 197, 253, ${dropAlpha})`;
             ctx.beginPath();
@@ -2617,7 +2633,7 @@ export class WorldRenderer {
           ctx.strokeStyle = `rgba(191, 219, 254, ${Math.max(0, (1 - ripplePhase) * 0.4)})`;
           ctx.lineWidth = 0.8;
           ctx.beginPath();
-          ctx.ellipse(px + 17, py + 12, 1 + ripplePhase * 4, (1 + ripplePhase * 4) * 0.4, 0, 0, Math.PI * 2);
+          ctx.ellipse(px + actX + 15, py + breatheBob + actY + 12, 1 + ripplePhase * 4, (1 + ripplePhase * 4) * 0.4, 0, 0, Math.PI * 2);
           ctx.stroke();
           ctx.restore();
         } else if (taskSkill === 'thieving') {
@@ -2625,8 +2641,8 @@ export class WorldRenderer {
           const thiefCycle = 2400;
           const thiefPhase = ((this.animTick + (this.localPlayer?.x || 0) * 120) % thiefCycle) / thiefCycle;
 
-          const shoulderX = px + 4;
-          const shoulderY = py - 2 + breatheBob;
+          const shoulderX = px + actX - 8;
+          const shoulderY = py - 2 + breatheBob + actY;
           const vertReach = Math.max(-5, Math.min(5, Math.round(targetDy * 4)));
 
           let handX = shoulderX + 4;
@@ -2642,18 +2658,18 @@ export class WorldRenderer {
             // 2. Smooth stealth reach forward into stall/pocket (912ms - 1680ms)
             const p = (thiefPhase - 0.38) / 0.32;
             const ease = 1 - Math.pow(1 - p, 3);
-            handX = shoulderX + 4 + Math.round(ease * 9);
+            handX = shoulderX + 4 + Math.round(ease * 12);
             handY = shoulderY + 4 - Math.round(ease * (2 - vertReach));
           } else if (thiefPhase < 0.84) {
             // 3. The Snatch & Grab: fingers pinch/clench tight onto loot! (1680ms - 2016ms)
             isGrabbing = true;
-            handX = shoulderX + 13;
+            handX = shoulderX + 16;
             handY = shoulderY + 2 + vertReach;
           } else {
             // 4. Swift concealment retraction back into cloak (2016ms - 2400ms)
             const p = (thiefPhase - 0.84) / 0.16;
             const retractEase = p * p;
-            handX = shoulderX + 13 - Math.round(retractEase * 9);
+            handX = shoulderX + 16 - Math.round(retractEase * 12);
             handY = shoulderY + 2 + vertReach - Math.round(retractEase * (vertReach - 2));
           }
 
@@ -2766,27 +2782,28 @@ export class WorldRenderer {
           const attack = playerId ? this.playerAttackAnims.get(playerId) : null;
           const isAttacking = Boolean(attack && (now - attack.startTime < attack.duration));
           const progress = isAttacking ? Math.min(1, Math.max(0, (now - attack!.startTime) / attack!.duration)) : 0;
+          const combatX = 6;
 
           if (isBow) {
             // Ranged Bow: Held ready between attacks; draws string back and snaps forward only when attacking!
             const weaponCoord = getSprite(weapon?.itemId) || getSprite('ashwood_shortbow');
             let drawAngle = -0.05;
-            let drawX = 0;
+            let drawX = combatX;
             if (isAttacking) {
               if (progress < 0.6) {
                 // Draw bow back
                 const p = progress / 0.6;
                 drawAngle = -0.05 - p * 0.28;
-                drawX = -Math.round(p * 2);
+                drawX = combatX - Math.round(p * 2);
               } else if (progress < 0.8) {
                 // Snap release forward
                 const p = (progress - 0.6) / 0.2;
                 drawAngle = -0.33 + p * 0.35;
-                drawX = 1 - Math.round(p * 1);
+                drawX = combatX + 1 - Math.round(p * 1);
               } else {
                 // Return to rest
                 drawAngle = -0.05;
-                drawX = 0;
+                drawX = combatX;
               }
             }
             if (weaponCoord) {
@@ -2797,7 +2814,7 @@ export class WorldRenderer {
             const weaponCoord = getSprite(weapon?.itemId) || getSprite('ashwood_staff');
             let castTilt = -0.08;
             let castY = breatheBob;
-            let castX = 0;
+            let castX = combatX;
             if (isAttacking) {
               if (progress < 0.45) {
                 // Raise high overhead to gather arcane energy
@@ -2809,13 +2826,13 @@ export class WorldRenderer {
                 const p = (progress - 0.45) / 0.3;
                 castTilt = -0.40 + p * 0.52;
                 castY = breatheBob - 3 + Math.round(p * 3);
-                castX = Math.round(p * 2);
+                castX = combatX + Math.round(p * 2);
               } else {
                 // Settle back to neutral
                 const p = (progress - 0.75) / 0.25;
                 castTilt = 0.12 - p * 0.20;
                 castY = breatheBob;
-                castX = Math.round((1 - p) * 2);
+                castX = combatX + Math.round((1 - p) * 2);
               }
             }
             if (weaponCoord) {
@@ -2825,23 +2842,23 @@ export class WorldRenderer {
             // Melee Blade: Held at ready side guard; winds up and executes power slash strike only when attacking!
             const weaponCoord = getSprite(weapon?.itemId) || getSprite('blade_iron');
             let slashAngle = -0.15;
-            let slashX = 0;
+            let slashX = combatX;
             if (isAttacking) {
               if (progress < 0.25) {
                 // Wind-up: pull back
                 const p = progress / 0.25;
                 slashAngle = -0.15 - p * 0.35;
-                slashX = -Math.round(p * 1);
+                slashX = combatX - Math.round(p * 1);
               } else if (progress < 0.65) {
                 // Power slash strike across target
                 const p = (progress - 0.25) / 0.4;
                 slashAngle = -0.50 + p * 1.25;
-                slashX = Math.round((p - 0.5) * 3);
+                slashX = combatX + Math.round((p - 0.5) * 4);
               } else {
                 // Return to ready guard
                 const p = (progress - 0.65) / 0.35;
                 slashAngle = 0.75 - p * 0.90;
-                slashX = 0;
+                slashX = combatX;
               }
             }
             if (weaponCoord) {
@@ -2853,7 +2870,7 @@ export class WorldRenderer {
           const toolCoord = getSprite(genericTool?.itemId);
           if (toolCoord) {
             const swing = Math.sin(this.animTick * 0.012) * 0.35;
-            drawLayer(toolCoord, 0, breatheBob, swing);
+            drawLayer(toolCoord, actX, breatheBob + actY, swing);
           }
         }
       } else {
