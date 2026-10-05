@@ -163,7 +163,8 @@ export const ITEMS: Record<string, ItemDefinition> = {
   primordial_shield: { id: 'primordial_shield', name: 'Primordial Shield', category: 'armour', tier: 6, slot: 'shield', equipReq: { skill: 'melee', level: 99 }, baseStats: { strength: 43, defence: 46 }, vendorFloorPrice: 6500 },
 
   // --- Quivers (Ranged Offhand) ---
-  pelt_quiver: { id: 'pelt_quiver', name: 'Pelt Quiver', category: 'armour', tier: 1, slot: 'shield', equipReq: { skill: 'ranged', level: 1 }, baseStats: { accuracy: 2, strength: 1 }, vendorFloorPrice: 15 },
+  leather_quiver: { id: 'leather_quiver', name: 'Leather Quiver', category: 'armour', tier: 1, slot: 'shield', equipReq: { skill: 'ranged', level: 1 }, baseStats: { accuracy: 2, strength: 1 }, vendorFloorPrice: 15 },
+  pelt_quiver: { id: 'leather_quiver', name: 'Leather Quiver', category: 'armour', tier: 1, slot: 'shield', equipReq: { skill: 'ranged', level: 1 }, baseStats: { accuracy: 2, strength: 1 }, vendorFloorPrice: 15 },
   bogskin_quiver: { id: 'bogskin_quiver', name: 'Bogskin Quiver', category: 'armour', tier: 2, slot: 'shield', equipReq: { skill: 'ranged', level: 15 }, baseStats: { accuracy: 4, strength: 3 }, vendorFloorPrice: 45 },
   chitin_quiver: { id: 'chitin_quiver', name: 'Chitin Quiver', category: 'armour', tier: 3, slot: 'shield', equipReq: { skill: 'ranged', level: 30 }, baseStats: { accuracy: 7, strength: 5 }, vendorFloorPrice: 150 },
   fur_quiver: { id: 'fur_quiver', name: 'Fur Quiver', category: 'armour', tier: 5, slot: 'shield', equipReq: { skill: 'ranged', level: 60 }, baseStats: { accuracy: 11, strength: 8 }, vendorFloorPrice: 500 },
@@ -177,7 +178,8 @@ export const ITEMS: Record<string, ItemDefinition> = {
 
   // --- Heavy Plate Armours (Body) ---
   tunic_cloth: { id: 'tunic_cloth', name: 'Adventurer Tunic', category: 'armour', tier: 1, slot: 'body', baseStats: { defence: 2 }, vendorFloorPrice: 5 },
-  pelt_jerkin: { id: 'pelt_jerkin', name: 'Leather Tunic', category: 'armour', tier: 1, slot: 'body', baseStats: { defence: 4 }, vendorFloorPrice: 20 },
+  leather_tunic: { id: 'leather_tunic', name: 'Leather Tunic', category: 'armour', tier: 1, slot: 'body', baseStats: { defence: 4 }, vendorFloorPrice: 20 },
+  pelt_jerkin: { id: 'leather_tunic', name: 'Leather Tunic', category: 'armour', tier: 1, slot: 'body', baseStats: { defence: 4 }, vendorFloorPrice: 20 },
   dawnburn_plate: { id: 'dawnburn_plate', name: 'Dawnburn Plate', category: 'armour', tier: 1, slot: 'body', equipReq: { skill: 'melee', level: 1 }, baseStats: { accuracy: 2, defence: 6 }, vendorFloorPrice: 30 },
   cold_iron_plate: { id: 'cold_iron_plate', name: 'Cold Iron Plate', category: 'armour', tier: 2, slot: 'body', equipReq: { skill: 'melee', level: 15 }, baseStats: { accuracy: 5, defence: 14 }, vendorFloorPrice: 90 },
   steel_plate: { id: 'steel_plate', name: 'Steel Plate', category: 'armour', tier: 3, slot: 'body', equipReq: { skill: 'melee', level: 30 }, baseStats: { accuracy: 8, defence: 24 }, vendorFloorPrice: 300 },

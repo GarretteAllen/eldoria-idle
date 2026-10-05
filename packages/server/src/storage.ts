@@ -3,7 +3,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import Database from 'better-sqlite3';
-import { PlayerData, SkillType, WorldNode, NpcDefinition, QuestDefinition, MonsterSpawnZone, getLevelFromXp, ItemDefinition, ITEMS, LevelBounds, parseLdtkLevelBounds, isTileInAnyLevel } from '@eldoria/shared';
+import { PlayerData, SkillType, WorldNode, NpcDefinition, QuestDefinition, MonsterSpawnZone, getLevelFromXp, ItemDefinition, ITEMS, LevelBounds, parseLdtkLevelBounds, isTileInAnyLevel, InventorySlot } from '@eldoria/shared';
 import { WORLD_NODES as DEFAULT_WORLD_NODES } from './world.js';
 
 export const DEFAULT_MONSTER_ZONES: MonsterSpawnZone[] = [
@@ -559,11 +559,26 @@ class StorageManager {
     for (const row of itemRows) {
       try {
         const item = JSON.parse(row.data) as ItemDefinition;
+        if (item.id === 'pelt_jerkin') {
+          item.id = 'leather_tunic';
+          item.name = 'Leather Tunic';
+          this.stmtDeleteItem.run('pelt_jerkin');
+          this.stmtUpsertItem.run('leather_tunic', JSON.stringify(item));
+        } else if (item.id === 'pelt_quiver') {
+          item.id = 'leather_quiver';
+          item.name = 'Leather Quiver';
+          this.stmtDeleteItem.run('pelt_quiver');
+          this.stmtUpsertItem.run('leather_quiver', JSON.stringify(item));
+        }
         this.itemsCache[item.id] = item;
       } catch (e) {
         console.error(`Failed to parse item ${row.id}`, e);
       }
     }
+    if (this.itemsCache['pelt_jerkin']) this.itemsCache['pelt_jerkin'].name = 'Leather Tunic';
+    if (this.itemsCache['leather_tunic']) this.itemsCache['leather_tunic'].name = 'Leather Tunic';
+    if (this.itemsCache['pelt_quiver']) this.itemsCache['pelt_quiver'].name = 'Leather Quiver';
+    if (this.itemsCache['leather_quiver']) this.itemsCache['leather_quiver'].name = 'Leather Quiver';
   }
 
   public checkpoint() {
@@ -631,6 +646,27 @@ class StorageManager {
         if (typeof player.bankReturnTask.completedQuantity !== 'number') {
           player.bankReturnTask.completedQuantity = 0;
         }
+      }
+      // Migrate legacy item and recipe IDs
+      const migrateSlot = (slot: InventorySlot) => {
+        if (!slot) return;
+        if (slot.itemId === 'pelt_jerkin') slot.itemId = 'leather_tunic';
+        if (slot.itemId === 'pelt_quiver') slot.itemId = 'leather_quiver';
+      };
+      if (player.inventory) player.inventory.forEach(migrateSlot);
+      if (player.storage) player.storage.forEach(migrateSlot);
+      if (player.overflowTray) player.overflowTray.forEach(migrateSlot);
+      if (player.equipment) {
+        if (player.equipment.body?.itemId === 'pelt_jerkin') player.equipment.body.itemId = 'leather_tunic';
+        if (player.equipment.shield?.itemId === 'pelt_quiver') player.equipment.shield.itemId = 'leather_quiver';
+      }
+      if (player.currentTask) {
+        if (player.currentTask.recipeId === 'craft_pelt_jerkin') player.currentTask.recipeId = 'craft_leather_tunic';
+        if (player.currentTask.recipeId === 'fletch_pelt_quiver') player.currentTask.recipeId = 'fletch_leather_quiver';
+      }
+      if (player.bankReturnTask) {
+        if (player.bankReturnTask.recipeId === 'craft_pelt_jerkin') player.bankReturnTask.recipeId = 'craft_leather_tunic';
+        if (player.bankReturnTask.recipeId === 'fletch_pelt_quiver') player.bankReturnTask.recipeId = 'fletch_leather_quiver';
       }
       return player;
     } catch (err) {
@@ -1206,6 +1242,8 @@ class StorageManager {
   }
 
   public getItem(id: string): ItemDefinition | undefined {
+    if (id === 'pelt_jerkin') return this.itemsCache['leather_tunic'] || this.itemsCache['pelt_jerkin'] || ITEMS['leather_tunic'] || ITEMS['pelt_jerkin'];
+    if (id === 'pelt_quiver') return this.itemsCache['leather_quiver'] || this.itemsCache['pelt_quiver'] || ITEMS['leather_quiver'] || ITEMS['pelt_quiver'];
     return this.itemsCache[id] || ITEMS[id];
   }
 

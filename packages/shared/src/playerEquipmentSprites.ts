@@ -20,6 +20,7 @@ export const PLAYER_EQUIPMENT_SPRITES: Record<string, EquipmentSpriteCoord> = {
 
   // Body Armor (Row 1)
   tunic_cloth: { col: 0, row: 1, slot: 'body' },
+  leather_tunic: { col: 1, row: 1, slot: 'body' },
   pelt_jerkin: { col: 1, row: 1, slot: 'body' },
   dawnburn_plate: { col: 2, row: 1, slot: 'body' },
   cold_iron_plate: { col: 3, row: 1, slot: 'body' },
@@ -113,6 +114,7 @@ export const PLAYER_EQUIPMENT_SPRITES: Record<string, EquipmentSpriteCoord> = {
   azurite_shield: { col: 3, row: 7, slot: 'shield' },
   astralite_shield: { col: 4, row: 7, slot: 'shield' },
   primordial_shield: { col: 5, row: 7, slot: 'shield' },
+  leather_quiver: { col: 6, row: 7, slot: 'shield' },
   pelt_quiver: { col: 6, row: 7, slot: 'shield' },
   bogskin_quiver: { col: 6, row: 7, slot: 'shield' },
   chitin_quiver: { col: 6, row: 7, slot: 'shield' },

@@ -1101,13 +1101,24 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     xp: 15,
     intervalSeconds: 2.5,
   },
-  fletch_pelt_quiver: {
-    id: 'fletch_pelt_quiver',
+  fletch_leather_quiver: {
+    id: 'fletch_leather_quiver',
     skill: 'fletching',
     levelReq: 5,
-    name: 'Pelt Quiver',
+    name: 'Leather Quiver',
     inputs: [{ itemId: 'mire_rat_pelt', quantity: 2 }, { itemId: 'ashwood_timber', quantity: 1 }],
-    outputItemId: 'pelt_quiver',
+    outputItemId: 'leather_quiver',
+    outputQuantity: 1,
+    xp: 20,
+    intervalSeconds: 2.8,
+  },
+  fletch_pelt_quiver: {
+    id: 'fletch_leather_quiver',
+    skill: 'fletching',
+    levelReq: 5,
+    name: 'Leather Quiver',
+    inputs: [{ itemId: 'mire_rat_pelt', quantity: 2 }, { itemId: 'ashwood_timber', quantity: 1 }],
+    outputItemId: 'leather_quiver',
     outputQuantity: 1,
     xp: 20,
     intervalSeconds: 2.8,
@@ -1386,13 +1397,24 @@ export const RECIPES: Record<string, RecipeDefinition> = {
   // ========================================================
   // 11. CRAFTING (Tailoring, Leatherworking & Gemcutting)
   // ========================================================
-  craft_pelt_jerkin: {
-    id: 'craft_pelt_jerkin',
+  craft_leather_tunic: {
+    id: 'craft_leather_tunic',
     skill: 'crafting',
     levelReq: 1,
     name: 'Leather Tunic',
     inputs: [{ itemId: 'mire_rat_pelt', quantity: 3 }],
-    outputItemId: 'pelt_jerkin',
+    outputItemId: 'leather_tunic',
+    outputQuantity: 1,
+    xp: 15,
+    intervalSeconds: 2.5,
+  },
+  craft_pelt_jerkin: {
+    id: 'craft_leather_tunic',
+    skill: 'crafting',
+    levelReq: 1,
+    name: 'Leather Tunic',
+    inputs: [{ itemId: 'mire_rat_pelt', quantity: 3 }],
+    outputItemId: 'leather_tunic',
     outputQuantity: 1,
     xp: 15,
     intervalSeconds: 2.5,
