@@ -582,24 +582,24 @@
             <div id="editor-nodes-list" class="editor-entities-list"></div>
           </div>
 
-          <!-- TAB 2: MONSTERS -->
+          <!-- TAB 2: MONSTERS (SPAWN ZONES) -->
           <div id="tab-content-monsters" class="editor-tab-content hidden">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-              <span style="font-size: 0.75rem; color: var(--gold-main); font-weight: 700;">Monster Hunting Nodes</span>
-              <button id="btn-add-monster" class="btn-oak" style="font-size: 0.7rem; padding: 2px 6px;">+ Add Spawner</button>
+              <span style="font-size: 0.75rem; color: var(--gold-main); font-weight: 700;">Monster Spawn Zones</span>
+              <button id="btn-add-monster-zone" class="btn-oak" style="font-size: 0.7rem; padding: 2px 6px;">+ Add Spawn Zone</button>
             </div>
 
-            <form id="editor-monster-form" class="editor-form-box hidden">
-              <input type="hidden" id="monster-form-id" />
+            <form id="editor-monster-zone-form" class="editor-form-box hidden">
+              <input type="hidden" id="monster-zone-form-id" />
               <div class="form-row">
-                <label>Name:</label>
-                <input type="text" id="monster-form-name" required placeholder="Burrow name" />
+                <label>Zone Name:</label>
+                <input type="text" id="monster-zone-form-name" required placeholder="e.g. Murkwarrens Nest" />
               </div>
               <div class="form-row">
-                <label>Monster ID:</label>
-                <select id="monster-form-mobid">
+                <label>Monster Type:</label>
+                <select id="monster-zone-form-mobid">
                   <option value="mire_rat">Mire-Rat (Lv 2)</option>
-                  <option value="stone_carapace">Stone Carapace (Lv 3)</option>
+                  <option value="stone_carapace">Stone Carapace (Lv 3 - Slate Crab)</option>
                   <option value="fen_creeper">Fen Creeper (Lv 5)</option>
                   <option value="mire_ghoul">Mire Ghoul (Lv 8)</option>
                   <option value="carrion_scarab">Carrion Scarab (Lv 12)</option>
@@ -627,22 +627,42 @@
               </div>
               <div class="form-row-2col">
                 <div>
-                  <label>X:</label>
-                  <input type="number" id="monster-form-x" step="any" required />
+                  <label>X (Tile):</label>
+                  <input type="number" id="monster-zone-form-x" required />
                 </div>
                 <div>
-                  <label>Y:</label>
-                  <input type="number" id="monster-form-y" step="any" required />
+                  <label>Y (Tile):</label>
+                  <input type="number" id="monster-zone-form-y" required />
                 </div>
               </div>
-              <button type="button" id="btn-pick-monster-coord" class="btn-oak" style="width: 100%; margin-top: 4px;">Select Coordinates on Map</button>
+              <div class="form-row-2col">
+                <div>
+                  <label>Width (Tiles):</label>
+                  <input type="number" id="monster-zone-form-width" min="1" max="100" required />
+                </div>
+                <div>
+                  <label>Height (Tiles):</label>
+                  <input type="number" id="monster-zone-form-height" min="1" max="100" required />
+                </div>
+              </div>
+              <div class="form-row-2col">
+                <div>
+                  <label>Max Spawns:</label>
+                  <input type="number" id="monster-zone-form-max" min="1" max="25" value="4" required />
+                </div>
+                <div>
+                  <label>Respawn (Sec):</label>
+                  <input type="number" id="monster-zone-form-respawn" min="1" max="300" value="6" required />
+                </div>
+              </div>
+              <button type="button" id="btn-drag-monster-zone" class="btn-oak" style="width: 100%; margin-top: 4px;">Drag Zone Area on Map</button>
               <div style="display: flex; gap: 6px; margin-top: 8px;">
-                <button type="submit" class="btn-start" style="flex: 1;">Save Monster</button>
-                <button type="button" id="btn-cancel-monster" class="btn-stop" style="flex: 1;">Cancel</button>
+                <button type="submit" class="btn-start" style="flex: 1;">Save Spawn Zone</button>
+                <button type="button" id="btn-cancel-monster-zone" class="btn-stop" style="flex: 1;">Cancel</button>
               </div>
             </form>
 
-            <div id="editor-monsters-list" class="editor-entities-list"></div>
+            <div id="editor-monster-zones-list" class="editor-entities-list"></div>
           </div>
 
           <!-- TAB 3: NPCS -->

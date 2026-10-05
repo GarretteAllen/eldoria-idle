@@ -1,4 +1,4 @@
-import { PlayerData, NpcDefinition, WorldNode, ITEMS, MONSTER_SPRITES, PLAYER_EQUIPMENT_SPRITES, EquipmentSpriteCoord, EquipSlot, InventorySlot, isTileInAnyLevel } from '@eldoria/shared';
+import { PlayerData, NpcDefinition, WorldNode, MonsterSpawnZone, ITEMS, MONSTER_SPRITES, PLAYER_EQUIPMENT_SPRITES, EquipmentSpriteCoord, EquipSlot, InventorySlot, isTileInAnyLevel } from '@eldoria/shared';
 import { StitchedWorld } from './ldtkLoader.js';
 
 export interface RemotePlayer {
@@ -33,6 +33,7 @@ export class WorldRenderer {
   private nodes: WorldNodeDisplay[] = [];
   private npcs: NpcDefinition[] = [];
   private collisions = new Set<string>();
+  private monsterZones: MonsterSpawnZone[] = [];
   private stitchedWorld: StitchedWorld | null = null;
   private terrainCanvas: HTMLCanvasElement | null = null;
   private enemiesImage: HTMLImageElement | null = null;
@@ -43,10 +44,14 @@ export class WorldRenderer {
   private minimapCtx: CanvasRenderingContext2D | null = null;
 
   // Editor states
-  public editorMode: 'none' | 'place_node' | 'place_npc' | 'paint_collision' | 'erase_collision' = 'none';
+  public editorMode: 'none' | 'place_node' | 'place_npc' | 'paint_collision' | 'erase_collision' | 'draw_zone' = 'none';
   public showCollisions = false;
+  public showEditorZones = false;
   private hoverTileX = 0;
   private hoverTileY = 0;
+  private zoneDragStart: { x: number; y: number } | null = null;
+  private zoneDragCur: { x: number; y: number } | null = null;
+  public onZoneDrawn?: (zone: { x: number; y: number; width: number; height: number }) => void;
 
   // Zoom level (1.0 = default 1:1 view, 0.55 = maximum zoom out)
   private zoom = 1.0;
@@ -320,6 +325,10 @@ export class WorldRenderer {
     this.nodes = nodes;
   }
 
+  public setMonsterZones(zones: MonsterSpawnZone[]) {
+    this.monsterZones = zones;
+  }
+
   public setNpcs(npcs: NpcDefinition[]) {
     this.npcs = npcs;
   }
@@ -424,6 +433,8 @@ export class WorldRenderer {
             this.collisions.delete(key);
             this.onCollisionToggled?.(this.hoverTileX, this.hoverTileY, false);
           }
+        } else if (this.editorMode === 'draw_zone' && this.zoneDragStart) {
+          this.zoneDragCur = { x: this.hoverTileX, y: this.hoverTileY };
         }
       }
 
@@ -431,18 +442,41 @@ export class WorldRenderer {
         const isHoveringNpc = this.npcs.some(n => n.x === this.hoverTileX && n.y === this.hoverTileY);
         const isHoveringNode = this.nodes.some(n => n.x === this.hoverTileX && n.y === this.hoverTileY);
         this.canvas.style.cursor = (isHoveringNpc || isHoveringNode) ? 'pointer' : 'default';
+      } else if (this.editorMode === 'draw_zone') {
+        this.canvas.style.cursor = 'crosshair';
       }
     });
 
     this.canvas.addEventListener('mousedown', () => {
       isMouseDown = true;
+      if (this.editorMode === 'draw_zone') {
+        this.zoneDragStart = { x: this.hoverTileX, y: this.hoverTileY };
+        this.zoneDragCur = { x: this.hoverTileX, y: this.hoverTileY };
+      }
     });
 
     window.addEventListener('mouseup', () => {
+      if (isMouseDown && this.editorMode === 'draw_zone' && this.zoneDragStart) {
+        const startX = this.zoneDragStart.x;
+        const startY = this.zoneDragStart.y;
+        const curX = this.zoneDragCur ? this.zoneDragCur.x : startX;
+        const curY = this.zoneDragCur ? this.zoneDragCur.y : startY;
+        const minX = Math.min(startX, curX);
+        const minY = Math.min(startY, curY);
+        const width = Math.max(1, Math.abs(curX - startX) + 1);
+        const height = Math.max(1, Math.abs(curY - startY) + 1);
+        this.zoneDragStart = null;
+        this.zoneDragCur = null;
+        this.editorMode = 'none';
+        this.onZoneDrawn?.({ x: minX, y: minY, width, height });
+      }
       isMouseDown = false;
     });
 
     this.canvas.addEventListener('click', (e) => {
+      if (this.editorMode === 'draw_zone') {
+        return;
+      }
       const rect = this.canvas.getBoundingClientRect();
       const scaleX = rect.width > 0 ? this.canvas.width / rect.width : 1;
       const scaleY = rect.height > 0 ? this.canvas.height / rect.height : 1;
@@ -607,6 +641,9 @@ export class WorldRenderer {
 
     // 2. Draw Collisions Overlay (if active or editing)
     this.drawCollisions();
+
+    // 2.5 Draw Monster Spawn Zones
+    this.drawMonsterZones();
 
     // 3. Draw Planned Path Trail
     this.drawPathTrail();
@@ -1217,6 +1254,88 @@ export class WorldRenderer {
     ctx.restore();
   }
 
+  private drawMonsterZones() {
+    if (!this.showEditorZones && this.editorMode !== 'draw_zone') return;
+    const { ctx } = this;
+    ctx.save();
+
+    for (const zone of this.monsterZones) {
+      const zx = zone.x * TILE_SIZE;
+      const zy = zone.y * TILE_SIZE;
+      const zw = zone.width * TILE_SIZE;
+      const zh = zone.height * TILE_SIZE;
+
+      ctx.fillStyle = 'rgba(239, 68, 68, 0.08)';
+      ctx.fillRect(zx, zy, zw, zh);
+
+      ctx.strokeStyle = 'rgba(239, 68, 68, 0.75)';
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([4, 4]);
+      ctx.strokeRect(zx + 0.5, zy + 0.5, zw - 1, zh - 1);
+      ctx.setLineDash([]);
+
+      // Label badge
+      const label = `${zone.name} (${zone.monsterId} x${zone.maxMonsters})`;
+      ctx.font = 'bold 10px Inter, system-ui, sans-serif';
+      const textW = ctx.measureText(label).width;
+      ctx.fillStyle = 'rgba(20, 8, 8, 0.88)';
+      ctx.strokeStyle = '#ef4444';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.roundRect(zx + 4, zy + 4, textW + 10, 18, 3);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = '#fecaca';
+      ctx.textAlign = 'left';
+      ctx.fillText(label, zx + 9, zy + 16);
+    }
+
+    // Active zone dragging preview
+    if (this.editorMode === 'draw_zone' && this.zoneDragStart) {
+      const startX = this.zoneDragStart.x;
+      const startY = this.zoneDragStart.y;
+      const curX = this.zoneDragCur ? this.zoneDragCur.x : startX;
+      const curY = this.zoneDragCur ? this.zoneDragCur.y : startY;
+      const minX = Math.min(startX, curX);
+      const minY = Math.min(startY, curY);
+      const w = Math.abs(curX - startX) + 1;
+      const h = Math.abs(curY - startY) + 1;
+
+      const px = minX * TILE_SIZE;
+      const py = minY * TILE_SIZE;
+      const pw = w * TILE_SIZE;
+      const ph = h * TILE_SIZE;
+
+      ctx.fillStyle = 'rgba(248, 113, 113, 0.22)';
+      ctx.fillRect(px, py, pw, ph);
+
+      ctx.strokeStyle = '#ef4444';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([6, 4]);
+      ctx.strokeRect(px, py, pw, ph);
+      ctx.setLineDash([]);
+
+      // Dimensions tag
+      const info = `Zone: ${w}x${h} tiles (${minX}, ${minY})`;
+      ctx.font = 'bold 11px monospace';
+      const infoW = ctx.measureText(info).width;
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.95)';
+      ctx.strokeStyle = '#ef4444';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.roundRect(px + 4, py - 24 > 0 ? py - 24 : py + 4, infoW + 12, 20, 4);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = '#fef08a';
+      ctx.textAlign = 'left';
+      ctx.fillText(info, px + 10, py - 24 > 0 ? py - 10 : py + 18);
+    }
+
+    ctx.restore();
+  }
+
   private drawEditorOverlay() {
     if (this.editorMode === 'none') return;
     const { ctx } = this;
@@ -1472,24 +1591,40 @@ export class WorldRenderer {
         // Idle breathing / bobbing animation
         const idleBob = Math.sin(this.animTick * 0.004 + node.x * 2) * 1.5;
 
-        // Shadow under the enemy sprite
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
-        ctx.beginPath();
-        ctx.ellipse(px + TILE_SIZE / 2, py + TILE_SIZE - 2, 9, 4, 0, 0, Math.PI * 2);
-        ctx.fill();
-
         // Check if monster was recently struck (flinch recoil & red flash) - ONLY for this specific node!
         const lastHit = this.monsterHitFlashes.get(node.id) || 0;
         const flinchElapsed = performance.now() - lastHit;
         const isFlinching = flinchElapsed < 160;
         const flinchX = isFlinching ? Math.sin(flinchElapsed * 0.12) * 3 : 0;
 
+        // Size scaling & recolor support
+        const sizeMultiplier = spriteCoord?.size || 1.0;
+        const renderW = Math.round(TILE_SIZE * sizeMultiplier);
+        const renderH = Math.round(TILE_SIZE * sizeMultiplier);
+        // Anchor to bottom of tile so large monsters grow upward & outward horizontally
+        const drawX = Math.round(px + (TILE_SIZE - renderW) / 2 + flinchX);
+        const drawY = Math.round(py + TILE_SIZE - renderH + idleBob);
+
+        // Shadow under the enemy sprite - scale with sizeMultiplier
+        const shadowRadius = Math.round(9 * Math.min(sizeMultiplier, 1.8));
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+        ctx.beginPath();
+        ctx.ellipse(px + TILE_SIZE / 2, py + TILE_SIZE - 2, shadowRadius, Math.round(shadowRadius * 0.45), 0, 0, Math.PI * 2);
+        ctx.fill();
+
         // Render the 2D pixel-art sprite matching the tileset
         if (this.enemiesImage && this.enemiesImage.complete) {
           ctx.save();
           ctx.imageSmoothingEnabled = false;
+          let filter = '';
+          if (spriteCoord?.recolor?.filter) {
+            filter = spriteCoord.recolor.filter;
+          }
           if (isFlinching) {
-            ctx.filter = 'brightness(1.5) sepia(1) hue-rotate(-50deg) saturate(3)';
+            filter = (filter ? filter + ' ' : '') + 'brightness(1.5) sepia(1) hue-rotate(-50deg) saturate(3)';
+          }
+          if (filter) {
+            ctx.filter = filter;
           }
           ctx.drawImage(
             this.enemiesImage,
@@ -1497,22 +1632,22 @@ export class WorldRenderer {
             spriteCoord.row * 16,
             16,
             16,
-            px + flinchX,
-            py + idleBob,
-            TILE_SIZE,
-            TILE_SIZE
+            drawX,
+            drawY,
+            renderW,
+            renderH
           );
           ctx.restore();
         }
 
-        // Stylized Enemy nameplate badge overhead
+        // Stylized Enemy nameplate badge overhead - dynamically moved up based on sprite height!
         const text = node.name;
         ctx.font = '700 10px Inter, system-ui, sans-serif';
         const textWidth = ctx.measureText(text).width;
         const badgeW = textWidth + 14;
         const badgeH = 16;
         const badgeX = px + TILE_SIZE / 2 - badgeW / 2;
-        const badgeY = py - 8;
+        const badgeY = Math.round(drawY - badgeH - 3);
 
         ctx.fillStyle = 'rgba(28, 12, 12, 0.9)';
         ctx.strokeStyle = '#9b2c2c';

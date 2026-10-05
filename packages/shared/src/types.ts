@@ -144,6 +144,22 @@ export interface MonsterDefinition {
     itemId: string;
     chance: number;
   };
+  size?: number;
+  recolor?: {
+    filter?: string;
+  };
+}
+
+export interface MonsterSpawnZone {
+  id: string;
+  name: string;
+  monsterId: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  maxMonsters: number;
+  respawnSeconds?: number;
 }
 
 export interface WorldBossDefinition {
@@ -202,6 +218,7 @@ export interface WorldNode {
   targetX?: number;
   targetY?: number;
   targetLabel?: string;
+  zoneId?: string;
 }
 
 export interface NpcDefinition {

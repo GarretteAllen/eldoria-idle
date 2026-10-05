@@ -6,6 +6,8 @@ import {
   ITEMS,
   MONSTERS,
   WORLD_BOSSES,
+  WorldNode,
+  MonsterSpawnZone,
   getLevelFromXp,
   getJobSpeedMultiplier,
   rollRarity,
@@ -27,6 +29,18 @@ import {
 } from '@eldoria/shared';
 import { storage } from './storage.js';
 
+export interface LiveMonsterInstance {
+  id: string;
+  zoneId: string;
+  monsterId: string;
+  name: string;
+  x: number;
+  y: number;
+  currentHp: number;
+  maxHp: number;
+  respawnAtTick?: number;
+}
+
 interface ConnectedSession {
   ws: WebSocket;
   player: PlayerData;
@@ -34,12 +48,13 @@ interface ConnectedSession {
   moveAccumulator: number;
   pendingTask: { recipeId: string; targetX: number; targetY: number; quantity?: number; nodeX?: number; nodeY?: number } | null;
   pendingDeposit?: { itemId: string; rarity?: string; plus?: number; quantity?: number } | null;
-  pendingCombat?: { monsterId: string; targetX: number; targetY: number; nodeId?: string } | null;
+  pendingCombat?: { monsterId: string; targetX: number; targetY: number; nodeId?: string; zoneId?: string } | null;
   activeCombat?: {
     monsterId: string;
     targetX: number;
     targetY: number;
     nodeId?: string;
+    zoneId?: string;
     currentHp: number;
     maxHp: number;
     playerSwingTicks: number;
@@ -51,6 +66,7 @@ interface ConnectedSession {
 export class GameEngine {
   private sessions = new Map<string, ConnectedSession>();
   private tickCount = 0;
+  private liveMonsters = new Map<string, LiveMonsterInstance>();
 
   // World Boss State
   private activeBoss: {
@@ -63,7 +79,135 @@ export class GameEngine {
 
   constructor() {
     this.spawnWorldBoss();
+    this.initMonsterZones();
     setInterval(() => this.tick(), TICK_MS);
+  }
+
+  public initMonsterZones() {
+    const zones = storage.getMonsterZones();
+    const activeZoneIds = new Set(zones.map(z => z.id));
+
+    // Remove instances belonging to removed zones
+    for (const [id, inst] of this.liveMonsters.entries()) {
+      if (!activeZoneIds.has(inst.zoneId)) {
+        this.liveMonsters.delete(id);
+      }
+    }
+
+    const occupied = new Set<string>();
+    for (const inst of this.liveMonsters.values()) {
+      if (inst.currentHp > 0 && !inst.respawnAtTick) {
+        occupied.add(`${inst.x},${inst.y}`);
+      }
+    }
+
+    for (const zone of zones) {
+      const def = MONSTERS[zone.monsterId];
+      if (!def) continue;
+
+      const targetCount = Math.max(1, Math.min(20, zone.maxMonsters || 3));
+      for (let i = 0; i < targetCount; i++) {
+        const instId = `${zone.id}_m${i}`;
+        const existing = this.liveMonsters.get(instId);
+        if (!existing) {
+          const tile = this.findWalkableTileInZone(zone, occupied);
+          occupied.add(`${tile.x},${tile.y}`);
+          this.liveMonsters.set(instId, {
+            id: instId,
+            zoneId: zone.id,
+            monsterId: zone.monsterId,
+            name: def.name,
+            x: tile.x,
+            y: tile.y,
+            currentHp: def.hp,
+            maxHp: def.hp,
+          });
+        }
+      }
+
+      // If zone capacity was lowered, trim excess
+      for (let i = targetCount; i < 20; i++) {
+        const instId = `${zone.id}_m${i}`;
+        this.liveMonsters.delete(instId);
+      }
+    }
+  }
+
+  public findWalkableTileInZone(zone: MonsterSpawnZone, occupiedCoords: Set<string>): { x: number; y: number } {
+    const collisions = storage.getCollisions();
+    const candidates: Array<{ x: number; y: number }> = [];
+    const minX = zone.x;
+    const maxX = zone.x + Math.max(1, zone.width) - 1;
+    const minY = zone.y;
+    const maxY = zone.y + Math.max(1, zone.height) - 1;
+
+    for (let tx = minX; tx <= maxX; tx++) {
+      for (let ty = minY; ty <= maxY; ty++) {
+        const key = `${tx},${ty}`;
+        if (!collisions.has(key) && !occupiedCoords.has(key)) {
+          candidates.push({ x: tx, y: ty });
+        }
+      }
+    }
+
+    if (candidates.length > 0) {
+      const idx = Math.floor(Math.random() * candidates.length);
+      return candidates[idx];
+    }
+
+    // Fallback: pick any non-colliding tile in the zone
+    for (let tx = minX; tx <= maxX; tx++) {
+      for (let ty = minY; ty <= maxY; ty++) {
+        if (!collisions.has(`${tx},${ty}`)) {
+          return { x: tx, y: ty };
+        }
+      }
+    }
+
+    return { x: zone.x, y: zone.y };
+  }
+
+  public getActiveMonsterNodes(): WorldNode[] {
+    const list: WorldNode[] = [];
+    for (const inst of this.liveMonsters.values()) {
+      if (inst.currentHp > 0 && !inst.respawnAtTick) {
+        list.push({
+          id: inst.id,
+          name: inst.name,
+          type: 'monster',
+          x: inst.x,
+          y: inst.y,
+          monsterId: inst.monsterId,
+          zoneId: inst.zoneId,
+        });
+      }
+    }
+    return list;
+  }
+
+  public getAllWorldNodes(): WorldNode[] {
+    const staticNodes = storage.getWorldNodes().filter(n => n.type !== 'monster');
+    const monsterNodes = this.getActiveMonsterNodes();
+    return [...staticNodes, ...monsterNodes];
+  }
+
+  public findNearestAliveMonsterInZone(playerX: number, playerY: number, zoneId?: string, monsterId?: string): LiveMonsterInstance | null {
+    let nearest: LiveMonsterInstance | null = null;
+    let minDist = Infinity;
+
+    for (const inst of this.liveMonsters.values()) {
+      if (inst.currentHp <= 0 || inst.respawnAtTick) continue;
+      if (zoneId && inst.zoneId !== zoneId) continue;
+      if (monsterId && inst.monsterId !== monsterId) continue;
+
+      const d = Math.hypot(inst.x - playerX, inst.y - playerY);
+      if (d < minDist) {
+        minDist = d;
+        nearest = inst;
+      }
+    }
+
+    return nearest;
   }
 
   public registerConnection(ws: WebSocket, playerId: string) {
@@ -238,7 +382,8 @@ export class GameEngine {
       boss: this.getBossSummary(),
       catchUp: catchUpSummary,
       onlineCount: this.sessions.size,
-      nodes: storage.getWorldNodes(),
+      nodes: this.getAllWorldNodes(),
+      monsterZones: storage.getMonsterZones(),
       npcs: storage.getNpcs(),
       quests: storage.getQuests(),
       collisions: Array.from(storage.getCollisions()),
@@ -770,7 +915,7 @@ export class GameEngine {
         }
         if (msg.node && msg.node.id) {
           storage.upsertWorldNode(msg.node);
-          this.broadcast({ type: 'WORLD_NODES_UPDATE', nodes: storage.getWorldNodes() });
+          this.broadcast({ type: 'WORLD_NODES_UPDATE', nodes: this.getAllWorldNodes() });
           this.send(session.ws, {
             type: 'NOTIFICATION',
             message: `Node "${msg.node.name}" saved at (${msg.node.x}, ${msg.node.y}).`
@@ -786,13 +931,50 @@ export class GameEngine {
         const deleteNodeId = msg.nodeId || msg.id;
         if (deleteNodeId) {
           storage.deleteWorldNode(deleteNodeId);
-          this.broadcast({ type: 'WORLD_NODES_UPDATE', nodes: storage.getWorldNodes() });
+          this.broadcast({ type: 'WORLD_NODES_UPDATE', nodes: this.getAllWorldNodes() });
           this.send(session.ws, {
             type: 'NOTIFICATION',
             message: `Node ${deleteNodeId} deleted.`
           });
         }
         break;
+
+      case 'ADMIN_SAVE_MONSTER_ZONE': {
+        if (player.role !== 'admin') {
+          this.send(session.ws, { type: 'NOTIFICATION', message: 'Admin privileges required.' });
+          break;
+        }
+        if (msg.zone && msg.zone.id) {
+          storage.upsertMonsterZone(msg.zone);
+          this.initMonsterZones();
+          this.broadcast({ type: 'WORLD_MONSTER_ZONES_UPDATE', monsterZones: storage.getMonsterZones() });
+          this.broadcast({ type: 'WORLD_NODES_UPDATE', nodes: this.getAllWorldNodes() });
+          this.send(session.ws, {
+            type: 'NOTIFICATION',
+            message: `Monster Zone "${msg.zone.name}" saved.`
+          });
+        }
+        break;
+      }
+
+      case 'ADMIN_DELETE_MONSTER_ZONE': {
+        if (player.role !== 'admin') {
+          this.send(session.ws, { type: 'NOTIFICATION', message: 'Admin privileges required.' });
+          break;
+        }
+        const zoneId = msg.zoneId || msg.id;
+        if (zoneId) {
+          storage.deleteMonsterZone(zoneId);
+          this.initMonsterZones();
+          this.broadcast({ type: 'WORLD_MONSTER_ZONES_UPDATE', monsterZones: storage.getMonsterZones() });
+          this.broadcast({ type: 'WORLD_NODES_UPDATE', nodes: this.getAllWorldNodes() });
+          this.send(session.ws, {
+            type: 'NOTIFICATION',
+            message: `Monster Zone deleted.`
+          });
+        }
+        break;
+      }
 
       case 'ADMIN_TELEPORT': {
         if (player.role !== 'admin') {
@@ -1639,6 +1821,55 @@ export class GameEngine {
   private tick() {
     this.tickCount++;
 
+    // 0. Process Monster Respawns in Active Zones
+    let monstersChanged = false;
+    const occupied = new Set<string>();
+    for (const inst of this.liveMonsters.values()) {
+      if (inst.currentHp > 0 && !inst.respawnAtTick) {
+        occupied.add(`${inst.x},${inst.y}`);
+      }
+    }
+
+    const zones = storage.getMonsterZones();
+    const zoneMap = new Map(zones.map(z => [z.id, z]));
+
+    for (const inst of this.liveMonsters.values()) {
+      if (inst.respawnAtTick && this.tickCount >= inst.respawnAtTick) {
+        const zone = zoneMap.get(inst.zoneId);
+        if (zone) {
+          const tile = this.findWalkableTileInZone(zone, occupied);
+          occupied.add(`${tile.x},${tile.y}`);
+          inst.x = tile.x;
+          inst.y = tile.y;
+          inst.currentHp = inst.maxHp;
+          inst.respawnAtTick = undefined;
+          monstersChanged = true;
+        }
+      }
+    }
+
+    if (monstersChanged) {
+      this.broadcast({ type: 'WORLD_NODES_UPDATE', nodes: this.getAllWorldNodes() });
+    }
+
+    // Auto-engage alive monsters for idle combat sessions in cleared zones
+    for (const session of this.sessions.values()) {
+      const { player } = session;
+      if (player.currentTask && (player.currentTask.skill === 'melee' || player.currentTask.skill === 'ranged' || player.currentTask.skill === 'magic' || (player.currentTask.skill as string) === 'combat')) {
+        if (!session.activeCombat && !session.pendingCombat && !player.isMoving && player.bankingState === 'idle') {
+          const targetMob = this.findNearestAliveMonsterInZone(player.x, player.y, undefined, player.currentTask.recipeId);
+          if (targetMob && Math.hypot(player.x - targetMob.x, player.y - targetMob.y) <= 12) {
+            this.handleStartCombat(session, {
+              monsterId: targetMob.monsterId,
+              targetX: targetMob.x,
+              targetY: targetMob.y,
+              nodeId: targetMob.id,
+            });
+          }
+        }
+      }
+    }
+
     // Process movement and tasks for all active sessions
     for (const [id, session] of this.sessions.entries()) {
       const { player, ws } = session;
@@ -1720,7 +1951,7 @@ export class GameEngine {
             // Arrived adjacent to target monster!
             const pending = session.pendingCombat;
             session.pendingCombat = null;
-            this.startCombatSession(session, pending.monsterId, pending.targetX, pending.targetY, pending.nodeId);
+            this.startCombatSession(session, pending.monsterId, pending.targetX, pending.targetY, pending.nodeId, pending.zoneId);
           } else if (session.pendingTask) {
             // Arrived at target work node
             const rec = RECIPES[session.pendingTask.recipeId];
@@ -2636,7 +2867,20 @@ export class GameEngine {
 
     const targetX = typeof msg.targetX === 'number' ? msg.targetX : player.x;
     const targetY = typeof msg.targetY === 'number' ? msg.targetY : player.y;
-    const dist = Math.hypot(player.x - targetX, player.y - targetY);
+
+    // Resolve target live monster instance if possible
+    let mobInst = msg.nodeId ? this.liveMonsters.get(msg.nodeId) : undefined;
+    if (!mobInst) {
+      mobInst = Array.from(this.liveMonsters.values()).find(
+        m => m.currentHp > 0 && m.x === targetX && m.y === targetY
+      );
+    }
+    const effectiveNodeId = mobInst ? mobInst.id : msg.nodeId;
+    const effectiveZoneId = mobInst ? mobInst.zoneId : undefined;
+    const actualTargetX = mobInst ? mobInst.x : targetX;
+    const actualTargetY = mobInst ? mobInst.y : targetY;
+
+    const dist = Math.hypot(player.x - actualTargetX, player.y - actualTargetY);
 
     // Cancel any pending work/banking tasks
     player.bankingState = 'idle';
@@ -2646,20 +2890,20 @@ export class GameEngine {
     const maxRange = this.getCombatMaxRange(player);
     if (dist > maxRange) {
       // Find closest walkable tile within range (stop 1 tile before enemy for melee, or at range for bow/staff)
-      const adj = this.getAdjacentWalkableTile(player.x, player.y, targetX, targetY);
+      const adj = this.getAdjacentWalkableTile(player.x, player.y, actualTargetX, actualTargetY);
       const path = this.findPathWithCollisions(player.x, player.y, adj.x, adj.y);
       player.targetX = adj.x;
       player.targetY = adj.y;
       player.path = path;
       player.isMoving = path.length > 0;
-      session.pendingCombat = { monsterId, targetX, targetY, nodeId: msg.nodeId };
+      session.pendingCombat = { monsterId, targetX: actualTargetX, targetY: actualTargetY, nodeId: effectiveNodeId, zoneId: effectiveZoneId };
       session.activeCombat = null;
       this.send(ws, { type: 'PLAYER_UPDATE', player });
       this.broadcastWorldState();
     } else {
       // Already within attack range — begin combat immediately
       session.pendingCombat = null;
-      this.startCombatSession(session, monsterId, targetX, targetY, msg.nodeId);
+      this.startCombatSession(session, monsterId, actualTargetX, actualTargetY, effectiveNodeId, effectiveZoneId);
     }
   }
 
@@ -2708,46 +2952,58 @@ export class GameEngine {
     return { x: targetX, y: targetY + 1 };
   }
 
-  private resumeCombatSession(session: ConnectedSession, monsterId: string, targetX: number, targetY: number, nodeId?: string) {
+  private resumeCombatSession(session: ConnectedSession, monsterId: string, targetX: number, targetY: number, nodeId?: string, zoneId?: string) {
     const monsterDef = MONSTERS[monsterId];
     if (!monsterDef) return;
 
-    let effectiveNodeId = nodeId;
-    if (!effectiveNodeId) {
-      const match = storage.getWorldNodes().find(n => n.type === 'monster' && n.x === targetX && n.y === targetY);
-      effectiveNodeId = match ? match.id : `mob_${targetX}_${targetY}`;
+    let mobInst = nodeId ? this.liveMonsters.get(nodeId) : undefined;
+    if (!mobInst) {
+      mobInst = Array.from(this.liveMonsters.values()).find(
+        m => m.currentHp > 0 && m.x === targetX && m.y === targetY
+      );
     }
+
+    const effectiveNodeId = mobInst ? mobInst.id : nodeId || `mob_${targetX}_${targetY}`;
+    const effectiveZoneId = zoneId || (mobInst ? mobInst.zoneId : undefined);
 
     session.activeCombat = {
       monsterId,
-      targetX,
-      targetY,
+      targetX: mobInst ? mobInst.x : targetX,
+      targetY: mobInst ? mobInst.y : targetY,
       nodeId: effectiveNodeId,
-      currentHp: monsterDef.hp,
-      maxHp: monsterDef.hp,
+      zoneId: effectiveZoneId,
+      currentHp: mobInst ? mobInst.currentHp : monsterDef.hp,
+      maxHp: mobInst ? mobInst.maxHp : monsterDef.hp,
       playerSwingTicks: 0,
       monsterSwingTicks: 0,
     };
   }
 
-  private startCombatSession(session: ConnectedSession, monsterId: string, targetX: number, targetY: number, nodeId?: string) {
+  private startCombatSession(session: ConnectedSession, monsterId: string, targetX: number, targetY: number, nodeId?: string, zoneId?: string) {
     const { player, ws } = session;
     const monsterDef = MONSTERS[monsterId];
     if (!monsterDef) return;
 
-    let effectiveNodeId = nodeId;
-    if (!effectiveNodeId) {
-      const match = storage.getWorldNodes().find(n => n.type === 'monster' && n.x === targetX && n.y === targetY);
-      effectiveNodeId = match ? match.id : `mob_${targetX}_${targetY}`;
+    let mobInst = nodeId ? this.liveMonsters.get(nodeId) : undefined;
+    if (!mobInst) {
+      mobInst = Array.from(this.liveMonsters.values()).find(
+        m => m.currentHp > 0 && m.x === targetX && m.y === targetY
+      );
     }
+
+    const effectiveNodeId = mobInst ? mobInst.id : nodeId || `mob_${targetX}_${targetY}`;
+    const effectiveZoneId = zoneId || (mobInst ? mobInst.zoneId : undefined);
+    const actualTargetX = mobInst ? mobInst.x : targetX;
+    const actualTargetY = mobInst ? mobInst.y : targetY;
 
     session.activeCombat = {
       monsterId,
-      targetX,
-      targetY,
+      targetX: actualTargetX,
+      targetY: actualTargetY,
       nodeId: effectiveNodeId,
-      currentHp: monsterDef.hp,
-      maxHp: monsterDef.hp,
+      zoneId: effectiveZoneId,
+      currentHp: mobInst ? mobInst.currentHp : monsterDef.hp,
+      maxHp: mobInst ? mobInst.maxHp : monsterDef.hp,
       playerSwingTicks: 0,
       monsterSwingTicks: 0,
     };
@@ -2759,15 +3015,14 @@ export class GameEngine {
       startedAtTick: this.tickCount,
       targetQuantity: Infinity,
       completedQuantity: 0,
-      targetNodeX: targetX,
-      targetNodeY: targetY,
+      targetNodeX: actualTargetX,
+      targetNodeY: actualTargetY,
       targetNodeId: effectiveNodeId,
     };
 
     storage.savePlayer(player);
     storage.checkpoint();
     this.send(ws, { type: 'PLAYER_UPDATE', player });
-    this.broadcastWorldState();
   }
 
   private processCombatCycle(session: ConnectedSession) {
@@ -2908,32 +3163,45 @@ export class GameEngine {
           return;
         }
 
-        // Respawn for continuous idle combat!
-        combat.currentHp = combat.maxHp;
-        combat.playerSwingTicks = 0;
-        combat.monsterSwingTicks = 0;
         if (player.currentTask) {
           player.currentTask.completedQuantity++;
         }
+
+        // Set live monster instance dead and schedule respawn in zone
+        let mobInst = combat.nodeId ? this.liveMonsters.get(combat.nodeId) : undefined;
+        if (!mobInst) {
+          mobInst = Array.from(this.liveMonsters.values()).find(
+            m => m.x === combat.targetX && m.y === combat.targetY
+          );
+        }
+
+        if (mobInst) {
+          mobInst.currentHp = 0;
+          const zone = storage.getMonsterZones().find(z => z.id === mobInst!.zoneId);
+          const respawnSec = zone?.respawnSeconds || 5;
+          mobInst.respawnAtTick = this.tickCount + Math.max(3, Math.round(respawnSec * 1.67));
+        }
+
         storage.savePlayer(player);
-        this.broadcast({
-          type: 'COMBAT_HIT',
-          target: 'monster',
-          attackerId: player.id,
-          damage: 0,
-          combatStyle,
-          monsterId: monsterDef.id,
-          monsterName: monsterDef.name,
-          monsterHp: combat.maxHp,
-          monsterMaxHp: combat.maxHp,
-          nodeId: combat.nodeId,
-          playerX: player.x,
-          playerY: player.y,
-          targetX: combat.targetX,
-          targetY: combat.targetY,
-          isRespawn: true,
-        });
-        this.send(ws, { type: 'PLAYER_UPDATE', player });
+        this.broadcast({ type: 'WORLD_NODES_UPDATE', nodes: this.getAllWorldNodes() });
+
+        // Search for next alive monster in the zone to hunt
+        const nextMob = this.findNearestAliveMonsterInZone(player.x, player.y, combat.zoneId || mobInst?.zoneId, monsterDef.id);
+        if (nextMob) {
+          this.handleStartCombat(session, {
+            monsterId: nextMob.monsterId,
+            targetX: nextMob.x,
+            targetY: nextMob.y,
+            nodeId: nextMob.id,
+          });
+        } else {
+          session.activeCombat = null;
+          this.send(ws, {
+            type: 'NOTIFICATION',
+            message: `Defeated ${monsterDef.name}! Waiting for enemies in zone...`,
+          });
+          this.send(ws, { type: 'PLAYER_UPDATE', player });
+        }
         return;
       }
     }

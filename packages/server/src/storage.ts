@@ -3,8 +3,16 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import Database from 'better-sqlite3';
-import { PlayerData, SkillType, WorldNode, NpcDefinition, QuestDefinition, getLevelFromXp, ItemDefinition, ITEMS, LevelBounds, parseLdtkLevelBounds, isTileInAnyLevel } from '@eldoria/shared';
+import { PlayerData, SkillType, WorldNode, NpcDefinition, QuestDefinition, MonsterSpawnZone, getLevelFromXp, ItemDefinition, ITEMS, LevelBounds, parseLdtkLevelBounds, isTileInAnyLevel } from '@eldoria/shared';
 import { WORLD_NODES as DEFAULT_WORLD_NODES } from './world.js';
+
+export const DEFAULT_MONSTER_ZONES: MonsterSpawnZone[] = [
+  { id: 'zone_murkwarrens', name: 'The Murkwarrens', monsterId: 'mire_rat', x: 2, y: 43, width: 4, height: 4, maxMonsters: 3, respawnSeconds: 5 },
+  { id: 'zone_cragridge', name: 'Cragridge', monsterId: 'stone_carapace', x: 7, y: 43, width: 4, height: 4, maxMonsters: 3, respawnSeconds: 5 },
+  { id: 'zone_dread_marsh', name: 'Dread Marsh', monsterId: 'fen_creeper', x: 11, y: 43, width: 4, height: 4, maxMonsters: 3, respawnSeconds: 5 },
+  { id: 'zone_blackbog', name: 'Blackbog', monsterId: 'mire_ghoul', x: 16, y: 43, width: 4, height: 4, maxMonsters: 3, respawnSeconds: 5 },
+  { id: 'zone_sunken_barrow', name: 'Sunken Barrow', monsterId: 'carrion_scarab', x: 20, y: 43, width: 4, height: 4, maxMonsters: 3, respawnSeconds: 5 },
+];
 
 function getProjectRoot(): string {
   let curr = path.dirname(fileURLToPath(import.meta.url));
@@ -215,7 +223,11 @@ class StorageManager {
   private stmtGetItems: Database.Statement;
   private stmtUpsertItem: Database.Statement;
   private stmtDeleteItem: Database.Statement;
+  private stmtGetMonsterZones: Database.Statement;
+  private stmtUpsertMonsterZone: Database.Statement;
+  private stmtDeleteMonsterZone: Database.Statement;
   private itemsCache: Record<string, ItemDefinition> = {};
+  private monsterZonesCache: MonsterSpawnZone[] = [];
 
   constructor() {
     if (!fs.existsSync(DATA_DIR)) {
@@ -295,6 +307,13 @@ class StorageManager {
     );
     this.stmtDeleteItem = this.db.prepare('DELETE FROM items WHERE id = ?');
 
+    this.stmtGetMonsterZones = this.db.prepare('SELECT data FROM monster_zones');
+    this.stmtUpsertMonsterZone = this.db.prepare(
+      `INSERT INTO monster_zones (id, data) VALUES (?, ?)
+       ON CONFLICT(id) DO UPDATE SET data = excluded.data`
+    );
+    this.stmtDeleteMonsterZone = this.db.prepare('DELETE FROM monster_zones WHERE id = ?');
+
     // Run automatic migration from legacy json files if upgrading
     this.migrateLegacyJson();
 
@@ -339,6 +358,11 @@ class StorageManager {
       CREATE TABLE IF NOT EXISTS world_nodes (
         id TEXT PRIMARY KEY,
         type TEXT NOT NULL,
+        data TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS monster_zones (
+        id TEXT PRIMARY KEY,
         data TEXT NOT NULL
       );
 
@@ -491,6 +515,19 @@ class StorageManager {
       this.saveCollisions(cols);
     }
 
+    // Monster Spawn Zones
+    const zoneCount = (this.db.prepare('SELECT COUNT(*) as count FROM monster_zones').get() as { count: number }).count;
+    if (zoneCount === 0) {
+      const zonesJson = path.join(DATA_DIR, 'monster_zones.json');
+      let zones = DEFAULT_MONSTER_ZONES;
+      if (fs.existsSync(zonesJson)) {
+        try {
+          zones = JSON.parse(fs.readFileSync(zonesJson, 'utf-8'));
+        } catch {}
+      }
+      this.saveMonsterZones(zones);
+    }
+
     this.stmtSetMeta.run('world_seeded', 'true');
     this.checkpoint();
   }
@@ -499,6 +536,10 @@ class StorageManager {
     // World nodes
     const nodeRows = this.stmtGetWorldNodes.all() as Array<{ data: string }>;
     this.nodesCache = nodeRows.map(r => JSON.parse(r.data));
+
+    // Monster Spawn Zones
+    const zoneRows = this.stmtGetMonsterZones.all() as Array<{ data: string }>;
+    this.monsterZonesCache = zoneRows.map(r => JSON.parse(r.data));
 
     // NPCs
     const npcRows = this.stmtGetNpcs.all() as Array<{ data: string }>;
@@ -970,6 +1011,43 @@ class StorageManager {
     this.stmtDeleteWorldNode.run(nodeId);
     this.checkpoint();
     this.syncJsonFile('world_nodes.json', this.nodesCache);
+  }
+
+  // --- Monster Spawn Zones ---
+  public getMonsterZones(): MonsterSpawnZone[] {
+    return this.monsterZonesCache;
+  }
+
+  public saveMonsterZones(zones: MonsterSpawnZone[]) {
+    this.monsterZonesCache = zones;
+    const tx = this.db.transaction(() => {
+      this.db.prepare('DELETE FROM monster_zones').run();
+      for (const z of zones) {
+        this.stmtUpsertMonsterZone.run(z.id, JSON.stringify(z));
+      }
+    });
+    tx();
+    this.checkpoint();
+    this.syncJsonFile('monster_zones.json', this.monsterZonesCache);
+  }
+
+  public upsertMonsterZone(zone: MonsterSpawnZone) {
+    const idx = this.monsterZonesCache.findIndex(z => z.id === zone.id);
+    if (idx >= 0) {
+      this.monsterZonesCache[idx] = zone;
+    } else {
+      this.monsterZonesCache.push(zone);
+    }
+    this.stmtUpsertMonsterZone.run(zone.id, JSON.stringify(zone));
+    this.checkpoint();
+    this.syncJsonFile('monster_zones.json', this.monsterZonesCache);
+  }
+
+  public deleteMonsterZone(zoneId: string) {
+    this.monsterZonesCache = this.monsterZonesCache.filter(z => z.id !== zoneId);
+    this.stmtDeleteMonsterZone.run(zoneId);
+    this.checkpoint();
+    this.syncJsonFile('monster_zones.json', this.monsterZonesCache);
   }
 
   // --- NPCs ---

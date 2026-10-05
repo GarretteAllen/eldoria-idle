@@ -13,6 +13,7 @@ import {
   isItemStackable,
   getItemMaxStack,
   isTileInAnyLevel,
+  MonsterSpawnZone,
 } from '@eldoria/shared';
 import { WorldRenderer, WorldNodeDisplay, TILE_SIZE } from './canvas.js';
 import { loadLdtkWorld } from './ldtkLoader.js';
@@ -52,6 +53,7 @@ class EldoriaClient {
   private worldNodes: WorldNodeDisplay[] = [];
   private npcs: NpcDefinition[] = [];
   private quests: QuestDefinition[] = [];
+  private monsterZones: MonsterSpawnZone[] = [];
 
   // Deep Vein UI State
   private activeDrawer: 'skills' | 'inventory' | 'equipment' | 'storage' | 'editor' = 'skills';
@@ -456,7 +458,7 @@ class EldoriaClient {
           this.worldNodes = nodesRes.nodes;
           this.renderer.setNodes(this.worldNodes);
           this.renderEditorNodes();
-          this.renderEditorMonsters();
+          this.renderEditorMonsterZones();
         }
         if (npcsRes && npcsRes.npcs) {
           this.npcs = npcsRes.npcs;
@@ -587,7 +589,12 @@ class EldoriaClient {
           this.worldNodes = msg.nodes;
           this.renderer.setNodes(this.worldNodes);
           this.renderEditorNodes();
-          this.renderEditorMonsters();
+          this.renderEditorMonsterZones();
+        }
+        if (msg.monsterZones) {
+          this.monsterZones = msg.monsterZones;
+          this.renderer.setMonsterZones(this.monsterZones);
+          this.renderEditorMonsterZones();
         }
         if (msg.npcs) {
           this.npcs = msg.npcs;
@@ -744,7 +751,13 @@ class EldoriaClient {
         this.worldNodes = msg.nodes || [];
         this.renderer.setNodes(this.worldNodes);
         this.renderEditorNodes();
-        this.renderEditorMonsters();
+        this.renderEditorMonsterZones();
+        break;
+
+      case 'WORLD_MONSTER_ZONES_UPDATE':
+        this.monsterZones = msg.monsterZones || [];
+        this.renderer.setMonsterZones(this.monsterZones);
+        this.renderEditorMonsterZones();
         break;
 
       case 'NPCS_UPDATE':
@@ -1005,7 +1018,7 @@ class EldoriaClient {
     this.renderStorageModal();
     if (this.activeDrawer === 'editor') {
       this.renderEditorNodes();
-      this.renderEditorMonsters();
+      this.renderEditorMonsterZones();
     }
 
     // If popup is open, update its display
@@ -4434,13 +4447,13 @@ class EldoriaClient {
         }
         this.showToast(`Node coordinates set: (${tx}, ${ty})`);
       } else if (this.activeEditorTab === 'monsters') {
-        const xIn = document.getElementById('monster-form-x') as HTMLInputElement | null;
-        const yIn = document.getElementById('monster-form-y') as HTMLInputElement | null;
+        const xIn = document.getElementById('monster-zone-form-x') as HTMLInputElement | null;
+        const yIn = document.getElementById('monster-zone-form-y') as HTMLInputElement | null;
         if (xIn && yIn) {
           xIn.value = tx.toString();
           yIn.value = ty.toString();
         }
-        this.showToast(`Monster coordinates set: (${tx}, ${ty})`);
+        this.showToast(`Zone coordinates set: (${tx}, ${ty})`);
       } else if (this.activeEditorTab === 'npcs') {
         const xIn = document.getElementById('npc-form-x') as HTMLInputElement | null;
         const yIn = document.getElementById('npc-form-y') as HTMLInputElement | null;
@@ -4451,6 +4464,22 @@ class EldoriaClient {
         this.showToast(`NPC coordinates set: (${tx}, ${ty})`);
       }
       this.renderer.editorMode = 'none';
+    };
+
+    this.renderer.onZoneDrawn = (zone: { x: number; y: number; width: number; height: number }) => {
+      const form = document.getElementById('editor-monster-zone-form');
+      if (form) form.classList.remove('hidden');
+      const xIn = document.getElementById('monster-zone-form-x') as HTMLInputElement | null;
+      const yIn = document.getElementById('monster-zone-form-y') as HTMLInputElement | null;
+      const wIn = document.getElementById('monster-zone-form-width') as HTMLInputElement | null;
+      const hIn = document.getElementById('monster-zone-form-height') as HTMLInputElement | null;
+      if (xIn && yIn && wIn && hIn) {
+        xIn.value = zone.x.toString();
+        yIn.value = zone.y.toString();
+        wIn.value = zone.width.toString();
+        hIn.value = zone.height.toString();
+      }
+      this.showToast(`Spawn zone area defined: ${zone.width}x${zone.height} at (${zone.x}, ${zone.y})`);
     };
 
     // 4. Collision Tools
@@ -4686,44 +4715,53 @@ class EldoriaClient {
       });
     });
 
-    // 6. Monster Form Setup
-    const mobForm = document.getElementById('editor-monster-form') as HTMLFormElement | null;
-    const btnAddMob = document.getElementById('btn-add-monster');
-    const btnCancelMob = document.getElementById('btn-cancel-monster');
-    const btnPickMob = document.getElementById('btn-pick-monster-coord');
+    // 6. Monster Zone Form Setup
+    const zoneForm = document.getElementById('editor-monster-zone-form') as HTMLFormElement | null;
+    const btnAddZone = document.getElementById('btn-add-monster-zone');
+    const btnCancelZone = document.getElementById('btn-cancel-monster-zone');
+    const btnDragZone = document.getElementById('btn-drag-monster-zone');
 
-    if (btnAddMob && mobForm) {
-      btnAddMob.onclick = () => {
-        mobForm.classList.remove('hidden');
-        (document.getElementById('monster-form-id') as HTMLInputElement).value = '';
-        (document.getElementById('monster-form-name') as HTMLInputElement).value = '';
-        (document.getElementById('monster-form-x') as HTMLInputElement).value = '4';
-        (document.getElementById('monster-form-y') as HTMLInputElement).value = '44';
+    if (btnAddZone && zoneForm) {
+      btnAddZone.onclick = () => {
+        zoneForm.classList.remove('hidden');
+        (document.getElementById('monster-zone-form-id') as HTMLInputElement).value = '';
+        (document.getElementById('monster-zone-form-name') as HTMLInputElement).value = '';
+        (document.getElementById('monster-zone-form-x') as HTMLInputElement).value = (this.player ? Math.floor(this.player.x) : 4).toString();
+        (document.getElementById('monster-zone-form-y') as HTMLInputElement).value = (this.player ? Math.floor(this.player.y) : 44).toString();
+        (document.getElementById('monster-zone-form-width') as HTMLInputElement).value = '10';
+        (document.getElementById('monster-zone-form-height') as HTMLInputElement).value = '10';
+        (document.getElementById('monster-zone-form-max') as HTMLInputElement).value = '4';
+        (document.getElementById('monster-zone-form-respawn') as HTMLInputElement).value = '6';
       };
     }
-    if (btnCancelMob && mobForm) {
-      btnCancelMob.onclick = () => mobForm.classList.add('hidden');
+    if (btnCancelZone && zoneForm) {
+      btnCancelZone.onclick = () => zoneForm.classList.add('hidden');
     }
-    if (btnPickMob) {
-      btnPickMob.onclick = () => {
-        this.renderer.editorMode = 'place_node';
-        this.showToast('Click anywhere on the map to set monster coordinates...');
+    if (btnDragZone) {
+      btnDragZone.onclick = () => {
+        this.renderer.editorMode = 'draw_zone';
+        this.showToast('Click and drag across the map to define the spawn zone rectangle...');
       };
     }
-    if (mobForm) {
-      mobForm.onsubmit = (e) => {
+    if (zoneForm) {
+      zoneForm.onsubmit = (e) => {
         e.preventDefault();
-        const id = (document.getElementById('monster-form-id') as HTMLInputElement).value || `mob_${Date.now()}`;
-        const name = (document.getElementById('monster-form-name') as HTMLInputElement).value.trim();
-        const monsterId = (document.getElementById('monster-form-mobid') as HTMLSelectElement).value;
-        const x = parseInt((document.getElementById('monster-form-x') as HTMLInputElement).value, 10);
-        const y = parseInt((document.getElementById('monster-form-y') as HTMLInputElement).value, 10);
+        const id = (document.getElementById('monster-zone-form-id') as HTMLInputElement).value || `zone_${Date.now()}`;
+        const name = (document.getElementById('monster-zone-form-name') as HTMLInputElement).value.trim();
+        const monsterId = (document.getElementById('monster-zone-form-mobid') as HTMLSelectElement).value;
+        const x = parseInt((document.getElementById('monster-zone-form-x') as HTMLInputElement).value, 10);
+        const y = parseInt((document.getElementById('monster-zone-form-y') as HTMLInputElement).value, 10);
+        const width = parseInt((document.getElementById('monster-zone-form-width') as HTMLInputElement).value, 10);
+        const height = parseInt((document.getElementById('monster-zone-form-height') as HTMLInputElement).value, 10);
+        const maxMonsters = parseInt((document.getElementById('monster-zone-form-max') as HTMLInputElement).value, 10);
+        const respawnSeconds = parseInt((document.getElementById('monster-zone-form-respawn') as HTMLInputElement).value, 10);
 
         this.sendWs({
-          type: 'ADMIN_SAVE_NODE',
-          node: { id, name, type: 'monster', monsterId, x, y },
+          type: 'ADMIN_SAVE_MONSTER_ZONE',
+          zone: { id, name, monsterId, x, y, width, height, maxMonsters, respawnSeconds },
         });
-        mobForm.classList.add('hidden');
+        zoneForm.classList.add('hidden');
+        this.showToast(`Saved monster spawn zone "${name}"`);
       };
     }
 
@@ -4836,6 +4874,13 @@ class EldoriaClient {
 
     if (tab === 'items') {
       this.renderEditorItems();
+    }
+
+    if (tab === 'monsters') {
+      this.renderer.showEditorZones = true;
+      this.renderEditorMonsterZones();
+    } else {
+      this.renderer.showEditorZones = false;
     }
 
     if (tab === 'collisions') {
@@ -5026,52 +5071,58 @@ class EldoriaClient {
     }
   }
 
-  private renderEditorMonsters() {
-    const container = document.getElementById('editor-monsters-list');
+  private renderEditorMonsterZones() {
+    const container = document.getElementById('editor-monster-zones-list');
     if (!container) return;
     container.innerHTML = '';
 
-    const monsters = this.worldNodes.filter(n => n.type === 'monster');
-    for (const m of monsters) {
+    for (const z of this.monsterZones) {
       const card = document.createElement('div');
       card.className = 'editor-entity-card';
-      const dist = this.player ? Math.hypot(m.x - this.player.x, m.y - this.player.y) : null;
+      const centerX = Math.floor(z.x + z.width / 2);
+      const centerY = Math.floor(z.y + z.height / 2);
+      const dist = this.player ? Math.hypot(centerX - this.player.x, centerY - this.player.y) : null;
       const distText = dist !== null ? `<span class="editor-dist-tag">${dist.toFixed(1)}t</span>` : '';
+      const activeCount = this.worldNodes.filter(n => n.type === 'monster' && n.zoneId === z.id).length;
 
       card.innerHTML = `
         <div class="editor-entity-info">
-          <div class="editor-entity-title">${m.name}${distText}</div>
-          <div class="editor-entity-meta">${m.monsterId || 'mire_rat'} · (${m.x}, ${m.y})</div>
+          <div class="editor-entity-title">${z.name}${distText}</div>
+          <div class="editor-entity-meta">${z.monsterId} · (${z.x}, ${z.y}) [${z.width}x${z.height}] · ${activeCount}/${z.maxMonsters} active · ${z.respawnSeconds}s cd</div>
         </div>
         <div class="editor-entity-actions">
-          <button class="btn-micro-tp" title="Teleport to spawn (${m.x}, ${m.y})">TP</button>
-          <button class="btn-micro-edit" data-id="${m.id}">Edit</button>
-          <button class="btn-micro-del" data-id="${m.id}">Del</button>
+          <button class="btn-micro-tp" title="Teleport to center (${centerX}, ${centerY})">TP</button>
+          <button class="btn-micro-edit" data-id="${z.id}">Edit</button>
+          <button class="btn-micro-del" data-id="${z.id}">Del</button>
         </div>
       `;
 
       card.querySelector('.btn-micro-tp')!.addEventListener('click', () => {
         this.sendWs({
           type: 'ADMIN_TELEPORT',
-          x: m.x,
-          y: m.y,
+          x: centerX,
+          y: centerY,
         });
-        this.showToast(`Teleported to ${m.name} (${m.x}, ${m.y})`);
+        this.showToast(`Teleported to ${z.name} (${centerX}, ${centerY})`);
       });
 
       card.querySelector('.btn-micro-edit')!.addEventListener('click', () => {
-        const form = document.getElementById('editor-monster-form')!;
+        const form = document.getElementById('editor-monster-zone-form')!;
         form.classList.remove('hidden');
-        (document.getElementById('monster-form-id') as HTMLInputElement).value = m.id;
-        (document.getElementById('monster-form-name') as HTMLInputElement).value = m.name;
-        (document.getElementById('monster-form-mobid') as HTMLSelectElement).value = m.monsterId || 'mire_rat';
-        (document.getElementById('monster-form-x') as HTMLInputElement).value = m.x.toString();
-        (document.getElementById('monster-form-y') as HTMLInputElement).value = m.y.toString();
+        (document.getElementById('monster-zone-form-id') as HTMLInputElement).value = z.id;
+        (document.getElementById('monster-zone-form-name') as HTMLInputElement).value = z.name;
+        (document.getElementById('monster-zone-form-mobid') as HTMLSelectElement).value = z.monsterId;
+        (document.getElementById('monster-zone-form-x') as HTMLInputElement).value = z.x.toString();
+        (document.getElementById('monster-zone-form-y') as HTMLInputElement).value = z.y.toString();
+        (document.getElementById('monster-zone-form-width') as HTMLInputElement).value = z.width.toString();
+        (document.getElementById('monster-zone-form-height') as HTMLInputElement).value = z.height.toString();
+        (document.getElementById('monster-zone-form-max') as HTMLInputElement).value = z.maxMonsters.toString();
+        (document.getElementById('monster-zone-form-respawn') as HTMLInputElement).value = (z.respawnSeconds ?? 6).toString();
       });
 
       card.querySelector('.btn-micro-del')!.addEventListener('click', () => {
-        if (confirm(`Delete monster spawn "${m.name}"?`)) {
-          this.sendWs({ type: 'ADMIN_DELETE_NODE', nodeId: m.id, id: m.id });
+        if (confirm(`Delete monster spawn zone "${z.name}"?`)) {
+          this.sendWs({ type: 'ADMIN_DELETE_MONSTER_ZONE', zoneId: z.id });
         }
       });
 
