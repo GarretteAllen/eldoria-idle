@@ -844,6 +844,7 @@ class EldoriaClient {
           if (msg.isRespawn && targetKey) {
             this.renderer.monsterHpMap.set(targetKey, { currentHp: msg.monsterMaxHp, maxHp: msg.monsterMaxHp });
           } else if (msg.monsterHp !== undefined && msg.monsterHp <= 0) {
+            sound.play('kill');
             sound.play('coin');
             this.renderer.addDeathEffect(targetX, targetY);
             this.renderer.spawnParticles(targetX, targetY, 15, 'gold_crit');
@@ -883,7 +884,7 @@ class EldoriaClient {
           }
 
           if (dmg > 0) {
-            sound.play('impact');
+            sound.play(isMe ? 'hurt' : 'impact');
             this.renderer.addFloatingText(px, py, `-${dmg}`, 'damage');
             this.renderer.spawnParticles(px, py, 4, 'blood');
             this.renderer.triggerCameraShake(2);
@@ -2296,6 +2297,7 @@ class EldoriaClient {
   private openStorageModal() {
     const modal = document.getElementById('deepvein-storage-modal');
     if (!modal) return;
+    sound.play('chest');
     modal.classList.remove('hidden');
     this.renderStorageModal();
   }
@@ -2746,15 +2748,132 @@ class EldoriaClient {
   }
 
   private setupSoundAndMinimap() {
+    // Preload authentic game audio buffers
+    sound.preloadCommonSounds();
+
     const soundBtn = document.getElementById('btn-sound-toggle');
-    if (soundBtn) {
-      soundBtn.onclick = () => {
-        const enabled = sound.toggle();
-        soundBtn.innerHTML = enabled ? ICONS.soundOn : ICONS.soundOff;
-        soundBtn.classList.toggle('muted', !enabled);
-        this.showToast(enabled ? 'Procedural Sound Enabled' : 'Sound Muted');
+    const popover = document.getElementById('sound-settings-popover');
+    const popoverClose = document.getElementById('btn-sound-popover-close');
+    const headerIcon = document.getElementById('sound-header-icon');
+    const muteCheckbox = document.getElementById('sound-mute-checkbox') as HTMLInputElement | null;
+    const statusBadge = document.getElementById('sound-status-badge');
+    const masterSlider = document.getElementById('sound-master-slider') as HTMLInputElement | null;
+    const masterVal = document.getElementById('sound-master-val');
+    const sfxSlider = document.getElementById('sound-sfx-slider') as HTMLInputElement | null;
+    const sfxVal = document.getElementById('sound-sfx-val');
+
+    if (headerIcon) headerIcon.innerHTML = ICONS.soundOn;
+
+    // Toggle popover visibility on sound button click
+    if (soundBtn && popover) {
+      soundBtn.onclick = (e) => {
+        e.stopPropagation();
+        popover.classList.toggle('hidden');
+        if (!popover.classList.contains('hidden')) {
+          sound.preloadCommonSounds();
+        }
+      };
+
+      // Right-click or shift-click on button does quick mute toggle
+      soundBtn.oncontextmenu = (e) => {
+        e.preventDefault();
+        sound.toggle();
       };
     }
+
+    if (popoverClose && popover) {
+      popoverClose.onclick = (e) => {
+        e.stopPropagation();
+        popover.classList.add('hidden');
+      };
+    }
+
+    // Close popover when clicking anywhere outside
+    window.addEventListener('click', (e) => {
+      if (popover && !popover.classList.contains('hidden')) {
+        const target = e.target as HTMLElement;
+        if (!popover.contains(target) && target !== soundBtn && !soundBtn?.contains(target)) {
+          popover.classList.add('hidden');
+        }
+      }
+    });
+
+    // Master Mute Checkbox
+    if (muteCheckbox) {
+      muteCheckbox.checked = sound.enabled;
+      muteCheckbox.onchange = () => {
+        sound.setEnabled(muteCheckbox.checked);
+      };
+    }
+
+    // Master Volume Slider
+    if (masterSlider) {
+      masterSlider.value = Math.round(sound.masterVolume * 100).toString();
+      if (masterVal) masterVal.textContent = `${Math.round(sound.masterVolume * 100)}%`;
+      masterSlider.oninput = () => {
+        const v = parseInt(masterSlider.value) / 100;
+        sound.setMasterVolume(v);
+        if (masterVal) masterVal.textContent = `${Math.round(v * 100)}%`;
+      };
+    }
+
+    // SFX Volume Slider
+    if (sfxSlider) {
+      sfxSlider.value = Math.round(sound.sfxVolume * 100).toString();
+      if (sfxVal) sfxVal.textContent = `${Math.round(sound.sfxVolume * 100)}%`;
+      sfxSlider.oninput = () => {
+        const v = parseInt(sfxSlider.value) / 100;
+        sound.setSfxVolume(v);
+        if (sfxVal) sfxVal.textContent = `${Math.round(v * 100)}%`;
+      };
+    }
+
+    // Presets
+    document.querySelectorAll('.btn-sound-preset').forEach((btn) => {
+      const b = btn as HTMLButtonElement;
+      b.onclick = () => {
+        const m = parseInt(b.dataset.master || '65') / 100;
+        const s = parseInt(b.dataset.sfx || '85') / 100;
+        if (m === 0) {
+          sound.setEnabled(false);
+        } else {
+          sound.setEnabled(true);
+          sound.setMasterVolume(m);
+          sound.setSfxVolume(s);
+        }
+        sound.play('click');
+      };
+    });
+
+    // Test Soundboard
+    document.querySelectorAll('.btn-sound-test').forEach((btn) => {
+      const b = btn as HTMLButtonElement;
+      b.onclick = (e) => {
+        e.stopPropagation();
+        const soundKey = b.dataset.sound || 'click';
+        sound.play(soundKey);
+      };
+    });
+
+    // Reactive listener syncing SoundManager state with UI
+    const updateUIState = (master: number, sfx: number, enabled: boolean) => {
+      if (soundBtn) {
+        soundBtn.innerHTML = enabled ? ICONS.soundOn : ICONS.soundOff;
+        soundBtn.classList.toggle('muted', !enabled);
+      }
+      if (muteCheckbox) muteCheckbox.checked = enabled;
+      if (statusBadge) {
+        statusBadge.textContent = enabled ? 'Active' : 'Muted';
+        statusBadge.className = enabled ? 'badge-status-on' : 'badge-status-off';
+      }
+      if (masterSlider) masterSlider.value = Math.round(master * 100).toString();
+      if (masterVal) masterVal.textContent = `${Math.round(master * 100)}%`;
+      if (sfxSlider) sfxSlider.value = Math.round(sfx * 100).toString();
+      if (sfxVal) sfxVal.textContent = `${Math.round(sfx * 100)}%`;
+    };
+
+    sound.onVolumeChange(updateUIState);
+    updateUIState(sound.masterVolume, sound.sfxVolume, sound.enabled);
 
     const minimapBtn = document.getElementById('btn-minimap-toggle');
     const minimapCard = document.getElementById('minimap-card');

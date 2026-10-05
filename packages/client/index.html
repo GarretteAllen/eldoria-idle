@@ -69,7 +69,68 @@
             <span id="top-player-name">Wanderer</span>
           </div>
 
-          <button id="btn-sound-toggle" class="top-util-btn" title="Toggle Sound FX"></button>
+          <div class="sound-control-wrapper" style="position: relative;">
+            <button id="btn-sound-toggle" class="top-util-btn" title="Audio Controls & Volume"></button>
+            <div id="sound-settings-popover" class="sound-settings-popover dark-oak-panel hidden">
+              <div class="sound-popover-header">
+                <div style="display: flex; align-items: center; gap: 6px;">
+                  <span id="sound-header-icon" class="svg-icon-inline icon-sm"></span>
+                  <span style="font-weight: 700; color: var(--gold-bright); font-size: 0.82rem;">Audio Controls</span>
+                </div>
+                <button id="btn-sound-popover-close" class="icon-btn-micro" title="Close" style="background:none; border:none; color:#a0aec0; cursor:pointer;">✕</button>
+              </div>
+
+              <!-- Master Mute Toggle -->
+              <div class="sound-row-toggle">
+                <label style="font-size: 0.78rem; font-weight: 600; color: #e2e8f0; display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                  <input type="checkbox" id="sound-mute-checkbox" checked style="accent-color: #ecc94b; cursor: pointer;" />
+                  <span>Master Audio</span>
+                </label>
+                <span id="sound-status-badge" class="badge-status-on">Active</span>
+              </div>
+
+              <!-- Master Volume Slider -->
+              <div class="sound-slider-group">
+                <div class="sound-slider-label">
+                  <span>Master Volume</span>
+                  <span id="sound-master-val">65%</span>
+                </div>
+                <input type="range" id="sound-master-slider" min="0" max="100" value="65" class="sound-slider" />
+              </div>
+
+              <!-- SFX Volume Slider -->
+              <div class="sound-slider-group">
+                <div class="sound-slider-label">
+                  <span>Effects & Skills</span>
+                  <span id="sound-sfx-val">85%</span>
+                </div>
+                <input type="range" id="sound-sfx-slider" min="0" max="100" value="85" class="sound-slider" />
+              </div>
+
+              <!-- Presets -->
+              <div class="sound-presets-row">
+                <button type="button" class="btn-sound-preset" data-master="0" data-sfx="0">Mute</button>
+                <button type="button" class="btn-sound-preset" data-master="30" data-sfx="50">Quiet</button>
+                <button type="button" class="btn-sound-preset" data-master="65" data-sfx="85">Default</button>
+                <button type="button" class="btn-sound-preset" data-master="100" data-sfx="100">Max</button>
+              </div>
+
+              <!-- Test Soundboard -->
+              <div class="sound-test-section">
+                <div style="font-size: 0.65rem; color: #a0aec0; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px;">Test Sounds</div>
+                <div class="sound-test-grid">
+                  <button type="button" class="btn-sound-test" data-sound="hammer">⚒ Anvil</button>
+                  <button type="button" class="btn-sound-test" data-sound="mining">⛏ Mining</button>
+                  <button type="button" class="btn-sound-test" data-sound="woodcut">🪓 Chop</button>
+                  <button type="button" class="btn-sound-test" data-sound="slash">⚔ Slash</button>
+                  <button type="button" class="btn-sound-test" data-sound="bow">🏹 Bow</button>
+                  <button type="button" class="btn-sound-test" data-sound="splash">🌊 Water</button>
+                  <button type="button" class="btn-sound-test" data-sound="coin">🪙 Coin</button>
+                  <button type="button" class="btn-sound-test" data-sound="levelup">🎺 Fanfare</button>
+                </div>
+              </div>
+            </div>
+          </div>
           <button id="btn-minimap-toggle" class="top-util-btn" title="Toggle Realm Radar"></button>
           <button id="btn-worldmap-toggle" class="top-util-btn" title="Open World Atlas [M]"></button>
 
