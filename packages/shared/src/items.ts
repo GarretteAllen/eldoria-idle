@@ -177,7 +177,7 @@ export const ITEMS: Record<string, ItemDefinition> = {
 
   // --- Heavy Plate Armours (Body) ---
   tunic_cloth: { id: 'tunic_cloth', name: 'Adventurer Tunic', category: 'armour', tier: 1, slot: 'body', baseStats: { defence: 2 }, vendorFloorPrice: 5 },
-  pelt_jerkin: { id: 'pelt_jerkin', name: 'Pelt Jerkin', category: 'armour', tier: 1, slot: 'body', baseStats: { defence: 4 }, vendorFloorPrice: 20 },
+  pelt_jerkin: { id: 'pelt_jerkin', name: 'Leather Tunic', category: 'armour', tier: 1, slot: 'body', baseStats: { defence: 4 }, vendorFloorPrice: 20 },
   dawnburn_plate: { id: 'dawnburn_plate', name: 'Dawnburn Plate', category: 'armour', tier: 1, slot: 'body', equipReq: { skill: 'melee', level: 1 }, baseStats: { accuracy: 2, defence: 6 }, vendorFloorPrice: 30 },
   cold_iron_plate: { id: 'cold_iron_plate', name: 'Cold Iron Plate', category: 'armour', tier: 2, slot: 'body', equipReq: { skill: 'melee', level: 15 }, baseStats: { accuracy: 5, defence: 14 }, vendorFloorPrice: 90 },
   steel_plate: { id: 'steel_plate', name: 'Steel Plate', category: 'armour', tier: 3, slot: 'body', equipReq: { skill: 'melee', level: 30 }, baseStats: { accuracy: 8, defence: 24 }, vendorFloorPrice: 300 },

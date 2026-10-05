@@ -2358,16 +2358,47 @@ export class GameEngine {
     let count = 0;
     const keep: InventorySlot[] = [];
 
+    const targetTask = session.pendingTask || player.bankReturnTask;
+    const activeRecipe = targetTask?.recipeId ? RECIPES[targetTask.recipeId] : null;
+    const isCombatWork = Boolean(targetTask && (MONSTERS[targetTask.recipeId] || ('skill' in targetTask && targetTask.skill && ['melee', 'ranged', 'magic'].includes(targetTask.skill))));
+
+    let combatFoodKept = 0;
+    const targetFoodStock = 15;
+
     for (const slot of player.inventory) {
-      const def = ITEMS[slot.itemId];
-      if (def?.category === 'tool' || def?.category === 'steed' || def?.category === 'weapon' || def?.category === 'armour' || def?.category === 'cooked_food' || ((def?.baseStats?.healing || 0) > 0)) {
+      const def = storage.getItem(slot.itemId) || ITEMS[slot.itemId];
+
+      // Steeds in inventory are kept (mounts are companions, not cargo)
+      if (def?.category === 'steed') {
         keep.push(slot);
         continue;
       }
 
+      // Tools in inventory (e.g. pickaxe, axe, rod) are kept UNLESS this tool is the active recipe's crafted output
+      if (def?.category === 'tool') {
+        if (!activeRecipe || activeRecipe.outputItemId !== slot.itemId) {
+          keep.push(slot);
+          continue;
+        }
+      }
+
+      // Combat sustenance: if returning to combat, keep up to targetFoodStock (15) rations in inventory
+      let depositQty = slot.quantity;
+      if (isCombatWork && (def?.category === 'cooked_food' || ((def?.baseStats?.healing || 0) > 0))) {
+        if (combatFoodKept < targetFoodStock) {
+          const toKeep = Math.min(slot.quantity, targetFoodStock - combatFoodKept);
+          combatFoodKept += toKeep;
+          keep.push({ ...slot, quantity: toKeep });
+          depositQty = slot.quantity - toKeep;
+          if (depositQty <= 0) {
+            continue;
+          }
+        }
+      }
+
       // Move into Hearth storage respecting bank stacking rules
       const maxStorage = player.storageSlotsMax || 75;
-      const res = addItemToSlots(player.storage, maxStorage, slot.itemId, slot.quantity, slot.rarity, slot.plus, def, 'bank');
+      const res = addItemToSlots(player.storage, maxStorage, slot.itemId, depositQty, slot.rarity, slot.plus, def, 'bank');
       count += res.added;
       if (res.remainder > 0) {
         if (!player.overflowTray) player.overflowTray = [];
@@ -2406,7 +2437,6 @@ export class GameEngine {
     player.currentHp = maxHp;
 
     // Check if target task (pendingTask or bankReturnTask) has inputs: withdraw from storage before heading to work!
-    const targetTask = session.pendingTask || player.bankReturnTask;
     if (targetTask) {
       const rec = RECIPES[targetTask.recipeId];
       if (rec && rec.inputs && rec.inputs.length > 0) {
@@ -2437,11 +2467,61 @@ export class GameEngine {
             type: 'NOTIFICATION',
             message: `Withdrew materials from Hearth for ${rec.name}. Riding to work...`
           });
+        } else {
+          // Cannot withdraw from storage. Check if satchel still has enough inputs.
+          const hasInputsInInv = rec.inputs.every(inp => player.inventory.some(s => s.itemId === inp.itemId && s.quantity >= inp.quantity));
+          if (!hasInputsInInv) {
+            // Out of materials in both inventory and storage! Stop here at the Hearth, do not return to work!
+            player.bankReturnTask = null;
+            session.pendingTask = null;
+            player.bankingState = 'idle';
+            this.send(ws, {
+              type: 'NOTIFICATION',
+              message: count > 0
+                ? `Hearth reached! Deposited ${count} spoils. Out of materials in vault for ${rec.name}. Task halted.`
+                : `Out of materials in Hearth vault for ${rec.name}. Task halted.`
+            });
+            storage.savePlayer(player);
+            storage.checkpoint();
+            this.send(ws, { type: 'PLAYER_UPDATE', player });
+            this.broadcastWorldState();
+            return;
+          }
+        }
+      }
+
+      // Check if output can fit in satchel (e.g. if Hearth storage was full and items couldn't be deposited)
+      if (rec && rec.outputItemId !== 'gold' && !player.dropWhenFull) {
+        const outDef = storage.getItem(rec.outputItemId) || ITEMS[rec.outputItemId];
+        const simulatedInv = player.inventory.map(s => ({ ...s }));
+        if (rec.inputs?.length > 0) {
+          for (const inp of rec.inputs) {
+            const slot = simulatedInv.find(s => s.itemId === inp.itemId);
+            if (slot) slot.quantity -= inp.quantity;
+          }
+        }
+        const cleanedInv = simulatedInv.filter(s => s.quantity > 0);
+        const testRes = addItemToSlots(cleanedInv, 28, rec.outputItemId, rec.outputQuantity, 'plain', 0, outDef, 'inventory');
+        if (testRes.remainder > 0) {
+          // Satchel cannot hold output even after banking (e.g. Hearth storage is full)!
+          player.bankReturnTask = null;
+          session.pendingTask = null;
+          player.bankingState = 'idle';
+          this.send(ws, {
+            type: 'NOTIFICATION',
+            message: count > 0
+              ? `Hearth reached! Deposited ${count} items, but satchel remains full. Task halted.`
+              : `Hearth vault is full! Unable to deposit spoils. Task halted.`
+          });
+          storage.savePlayer(player);
+          storage.checkpoint();
+          this.send(ws, { type: 'PLAYER_UPDATE', player });
+          this.broadcastWorldState();
+          return;
         }
       }
 
       // Restock combat provisions from bank AT the Hearth before heading back to the fight
-      const isCombatWork = Boolean(MONSTERS[targetTask.recipeId] || ('skill' in targetTask && targetTask.skill && ['melee', 'ranged', 'magic'].includes(targetTask.skill)));
       if (isCombatWork) {
         let carriedFoodCount = 0;
         for (const slot of player.inventory) {

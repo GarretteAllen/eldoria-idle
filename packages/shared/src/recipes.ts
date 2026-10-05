@@ -1390,7 +1390,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     id: 'craft_pelt_jerkin',
     skill: 'crafting',
     levelReq: 1,
-    name: 'Pelt Jerkin',
+    name: 'Leather Tunic',
     inputs: [{ itemId: 'mire_rat_pelt', quantity: 3 }],
     outputItemId: 'pelt_jerkin',
     outputQuantity: 1,
