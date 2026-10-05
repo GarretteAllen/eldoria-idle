@@ -109,6 +109,31 @@ export class GameEngine {
       storage.savePlayer(player);
     }
 
+    // Auto-migrate any legacy 'gold' items in inventory or storage into the player's coin pouch
+    let migratedGold = 0;
+    if (player.inventory && player.inventory.length > 0) {
+      player.inventory = player.inventory.filter(slot => {
+        if (slot.itemId === 'gold') {
+          migratedGold += slot.quantity || 1;
+          return false;
+        }
+        return true;
+      });
+    }
+    if (player.storage && player.storage.length > 0) {
+      player.storage = player.storage.filter(slot => {
+        if (slot.itemId === 'gold') {
+          migratedGold += slot.quantity || 1;
+          return false;
+        }
+        return true;
+      });
+    }
+    if (migratedGold > 0) {
+      player.gold = (player.gold || 0) + migratedGold;
+      storage.savePlayer(player);
+    }
+
     player.lastActiveTimestamp = Date.now();
     this.catchUpFarmPlots(player);
     player.moveSpeedTilesPerTick = calculatePlayerMoveSpeed(player);
@@ -1981,34 +2006,43 @@ export class GameEngine {
     }
 
     // Add output item
-    const rarity = rollRarity(1.0);
-    const outDef = storage.getItem(recipe.outputItemId) || ITEMS[recipe.outputItemId];
-    const addRes = addItemToSlots(player.inventory, 28, recipe.outputItemId, recipe.outputQuantity, rarity, 0, outDef, 'inventory');
+    if (recipe.outputItemId === 'gold') {
+      const coinAmt = recipe.outputQuantity || 1;
+      player.gold = (player.gold || 0) + coinAmt;
+      this.send(ws, {
+        type: 'NOTIFICATION',
+        message: `Pilfered +${coinAmt} Gold into your coin pouch!`
+      });
+    } else {
+      const rarity = rollRarity(1.0);
+      const outDef = storage.getItem(recipe.outputItemId) || ITEMS[recipe.outputItemId];
+      const addRes = addItemToSlots(player.inventory, 28, recipe.outputItemId, recipe.outputQuantity, rarity, 0, outDef, 'inventory');
 
-    if (addRes.remainder > 0) {
-      // Inventory is full! Check auto-banking vs drop
-      if (player.dropWhenFull) {
-        this.send(ws, { type: 'NOTIFICATION', message: `Satchel full! Discarded ${outDef?.name || 'spoils'}.` });
-      } else {
-        // Trigger Autonomous Banking Run to the Hearth!
-        player.bankReturnTask = { ...player.currentTask! };
-        player.currentTask = null;
-        player.bankingState = 'walking_to_bank';
+      if (addRes.remainder > 0) {
+        // Inventory is full! Check auto-banking vs drop
+        if (player.dropWhenFull) {
+          this.send(ws, { type: 'NOTIFICATION', message: `Satchel full! Discarded ${outDef?.name || 'spoils'}.` });
+        } else {
+          // Trigger Autonomous Banking Run to the Hearth!
+          player.bankReturnTask = { ...player.currentTask! };
+          player.currentTask = null;
+          player.bankingState = 'walking_to_bank';
 
-        const hearth = this.getHearthLocation(player.x, player.y);
-        const path = this.findPathWithCollisions(player.x, player.y, hearth.x, hearth.y);
-        player.targetX = hearth.x;
-        player.targetY = hearth.y;
-        player.path = path;
-        player.isMoving = path.length > 0;
+          const hearth = this.getHearthLocation(player.x, player.y);
+          const path = this.findPathWithCollisions(player.x, player.y, hearth.x, hearth.y);
+          player.targetX = hearth.x;
+          player.targetY = hearth.y;
+          player.path = path;
+          player.isMoving = path.length > 0;
 
-        this.send(ws, {
-          type: 'NOTIFICATION',
-          message: `Satchel full (28/28)! Riding to the Hearth to bank resources... (${path.length} tiles)`
-        });
-        this.send(ws, { type: 'PLAYER_UPDATE', player });
-        this.broadcastWorldState();
-        return;
+          this.send(ws, {
+            type: 'NOTIFICATION',
+            message: `Satchel full (28/28)! Riding to the Hearth to bank resources... (${path.length} tiles)`
+          });
+          this.send(ws, { type: 'PLAYER_UPDATE', player });
+          this.broadcastWorldState();
+          return;
+        }
       }
     }
 
@@ -2032,16 +2066,39 @@ export class GameEngine {
     if (recipe.rareFinds) {
       for (const rf of recipe.rareFinds) {
         if (Math.random() < rf.chance) {
-          const rfItem = storage.getItem(rf.itemId) || ITEMS[rf.itemId];
-          addItemToSlots(player.inventory, 28, rf.itemId, 1, 'plain', 0, rfItem, 'inventory');
-          const isThief = recipe.skill === 'thieving';
-          this.send(ws, {
-            type: 'NOTIFICATION',
-            message: isThief
-              ? `Rare swipe! Pocketed bonus ${rfItem?.name || rf.itemId}!`
-              : `Bonus yield! Discovered ${rfItem?.name || rf.itemId}!`
-          });
+          if (rf.itemId === 'gold') {
+            player.gold = (player.gold || 0) + 1;
+            this.send(ws, {
+              type: 'NOTIFICATION',
+              message: `Rare swipe! Snatched +1 Gold into your coin pouch!`
+            });
+          } else {
+            const rfItem = storage.getItem(rf.itemId) || ITEMS[rf.itemId];
+            addItemToSlots(player.inventory, 28, rf.itemId, 1, 'plain', 0, rfItem, 'inventory');
+            const isThief = recipe.skill === 'thieving';
+            this.send(ws, {
+              type: 'NOTIFICATION',
+              message: isThief
+                ? `Rare swipe! Pocketed bonus ${rfItem?.name || rf.itemId}!`
+                : `Bonus yield! Discovered ${rfItem?.name || rf.itemId}!`
+            });
+          }
         }
+      }
+    }
+
+    // Ensure any stray gold item in inventory is swept into coin pouch
+    if (player.inventory && player.inventory.some(s => s.itemId === 'gold')) {
+      let swept = 0;
+      player.inventory = player.inventory.filter(s => {
+        if (s.itemId === 'gold') {
+          swept += s.quantity || 1;
+          return false;
+        }
+        return true;
+      });
+      if (swept > 0) {
+        player.gold = (player.gold || 0) + swept;
       }
     }
 
@@ -2916,6 +2973,10 @@ export class GameEngine {
   }
 
   private giveLootItem(player: PlayerData, itemId: string, quantity: number = 1) {
+    if (itemId === 'gold') {
+      player.gold = (player.gold || 0) + quantity;
+      return;
+    }
     const rarity = rollRarity(1.0);
     const itemDef = storage.getItem(itemId);
     const res = addItemToSlots(player.inventory, 28, itemId, quantity, rarity, 0, itemDef, 'inventory');

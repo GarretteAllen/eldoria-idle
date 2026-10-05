@@ -292,13 +292,17 @@ export function simulateOfflineCatchUp(
     }
 
     // Add output item
-    const outputItem = ITEMS[recipe.outputItemId];
-    if (outputItem) {
-      const rarity = rollRarity(1.0);
-      const existingSlot = player.inventory.find(s => s.itemId === recipe.outputItemId && s.rarity === rarity && s.plus === 0);
-      if (existingSlot) {
-        existingSlot.quantity += recipe.outputQuantity;
-      } else if (player.inventory.length < 28) {
+    if (recipe.outputItemId === 'gold') {
+      player.gold = (player.gold || 0) + recipe.outputQuantity;
+      summary.itemsGained['gold'] = (summary.itemsGained['gold'] || 0) + recipe.outputQuantity;
+    } else {
+      const outputItem = ITEMS[recipe.outputItemId];
+      if (outputItem) {
+        const rarity = rollRarity(1.0);
+        const existingSlot = player.inventory.find(s => s.itemId === recipe.outputItemId && s.rarity === rarity && s.plus === 0);
+        if (existingSlot) {
+          existingSlot.quantity += recipe.outputQuantity;
+        } else if (player.inventory.length < 28) {
         player.inventory.push({
           itemId: recipe.outputItemId,
           quantity: recipe.outputQuantity,
@@ -339,6 +343,7 @@ export function simulateOfflineCatchUp(
 
       summary.itemsGained[recipe.outputItemId] = (summary.itemsGained[recipe.outputItemId] || 0) + recipe.outputQuantity;
     }
+  }
 
     totalXp += recipe.xp;
     executed++;
