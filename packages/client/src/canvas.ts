@@ -2409,41 +2409,110 @@ export class WorldRenderer {
           ctx.stroke();
           ctx.restore();
         } else if (taskSkill === 'thieving') {
-          // Sneaky hunch pickpocketing / lockpicking (~1.18s per deliberate pick attempt)
-          const thiefPhase = (this.animTick * 0.00085 + (this.localPlayer?.x || 0)) % 1;
-          let pickAngle = -0.10;
-          let pickX = 2;
-          let pickY = breatheBob;
+          // Sneaky hunch pickpocketing: deliberate reaching hand & grasping fingers (~2.4s per cycle)
+          const thiefCycle = 2400;
+          const thiefPhase = ((this.animTick + (this.localPlayer?.x || 0) * 120) % thiefCycle) / thiefCycle;
 
-          if (thiefPhase < 0.60) {
-            // Delicate lock probe vibration (~700ms)
-            pickAngle = -0.10 + Math.sin(this.animTick * 0.015) * 0.06;
-          } else if (thiefPhase < 0.78) {
-            // Swift pilfer reach! (~210ms)
-            const p = (thiefPhase - 0.60) / 0.18;
-            pickX = 2 + Math.round(p * 4);
-            pickAngle = 0.20;
+          const shoulderX = px + 4;
+          const shoulderY = py - 2 + breatheBob;
+
+          let handX = shoulderX + 4;
+          let handY = shoulderY + 4;
+          let isGrabbing = false;
+
+          if (thiefPhase < 0.38) {
+            // 1. Tense lurking & poised creeping (0ms - 912ms)
+            const fingerTremble = Math.sin(this.animTick * 0.012) * 0.6;
+            handX = shoulderX + 4 + fingerTremble;
+            handY = shoulderY + 4;
+          } else if (thiefPhase < 0.70) {
+            // 2. Smooth stealth reach forward into stall/pocket (912ms - 1680ms)
+            const p = (thiefPhase - 0.38) / 0.32;
+            const ease = 1 - Math.pow(1 - p, 3);
+            handX = shoulderX + 4 + Math.round(ease * 9);
+            handY = shoulderY + 4 - Math.round(ease * 2);
+          } else if (thiefPhase < 0.84) {
+            // 3. The Snatch & Grab: fingers pinch/clench tight onto loot! (1680ms - 2016ms)
+            isGrabbing = true;
+            handX = shoulderX + 13;
+            handY = shoulderY + 2;
           } else {
-            // Quick concealment withdrawal (~260ms)
-            const p = (thiefPhase - 0.78) / 0.22;
-            pickX = 6 - Math.round(p * 4);
+            // 4. Swift concealment retraction back into cloak (2016ms - 2400ms)
+            const p = (thiefPhase - 0.84) / 0.16;
+            const retractEase = p * p;
+            handX = shoulderX + 13 - Math.round(retractEase * 9);
+            handY = shoulderY + 2 + Math.round(retractEase * 2);
           }
 
-          const lockpickCoord = getSprite('tool_lockpick') || getSprite('tool_hammer');
-          if (lockpickCoord) {
-            drawLayer(lockpickCoord, pickX, pickY, pickAngle);
-          }
+          // Elbow calculation for natural joint bend
+          const elbowX = Math.round(shoulderX + (handX - shoulderX) * 0.45);
+          const elbowY = Math.round(shoulderY + (handY - shoulderY) * 0.45 + 1.5);
+          const wristX = Math.round(handX - 2);
+          const wristY = Math.round(handY);
 
-          // Subtle gleaming loot shimmer
           ctx.save();
-          const glintPhase = (this.animTick * 0.002) % 1;
-          if (glintPhase > 0.65) {
-            const gAlpha = Math.sin(((glintPhase - 0.65) / 0.35) * Math.PI) * 0.85;
-            ctx.fillStyle = `rgba(253, 224, 71, ${gAlpha})`;
-            ctx.beginPath();
-            ctx.arc(px + 12, py + breatheBob + 3, 1.5, 0, Math.PI * 2);
-            ctx.fill();
+
+          // 1. Rogue Sleeve / Arm Segment (connecting shoulder to wrist)
+          ctx.strokeStyle = '#2d3748'; // dark rogue slate leather
+          ctx.lineWidth = 2.2;
+          ctx.lineCap = 'round';
+          ctx.lineJoin = 'round';
+          ctx.beginPath();
+          ctx.moveTo(shoulderX, shoulderY);
+          ctx.lineTo(elbowX, elbowY);
+          ctx.lineTo(wristX, wristY);
+          ctx.stroke();
+
+          // Highlight ridge along upper forearm
+          ctx.strokeStyle = '#4a5568';
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(shoulderX, shoulderY - 0.5);
+          ctx.lineTo(elbowX, elbowY - 0.5);
+          ctx.lineTo(wristX, wristY - 0.5);
+          ctx.stroke();
+
+          // 2. Leather Glove Cuff at wrist
+          ctx.fillStyle = '#4a2810';
+          ctx.fillRect(wristX - 1, wristY - 1, 2, 2);
+
+          // 3. Palm & Nimble Hand
+          ctx.fillStyle = '#d49b6a'; // skin base tone
+          ctx.fillRect(handX - 1, handY - 1, 2, 2);
+          ctx.fillStyle = '#f5d0a9'; // skin highlight
+          ctx.fillRect(handX - 1, handY - 1, 2, 1);
+
+          // 4. Animated Fingers & Grabbed Loot
+          if (isGrabbing) {
+            // Closed grasping fist / pinching fingertips
+            ctx.fillStyle = '#b27b4d';
+            ctx.fillRect(handX + 1, handY - 1, 2, 2);
+            ctx.fillStyle = '#f5d0a9';
+            ctx.fillRect(handX + 1, handY - 1, 2, 1);
+
+            // Stolen gold coin / prize pinched in hand
+            ctx.fillStyle = '#eab308';
+            ctx.fillRect(handX + 2, handY, 2, 2);
+            ctx.fillStyle = '#fef08a';
+            ctx.fillRect(handX + 2, handY, 1, 1);
+
+            // Brilliant snatch glint sparkle!
+            const grabPulse = Math.sin((thiefPhase - 0.70) / 0.14 * Math.PI);
+            ctx.fillStyle = `rgba(255, 255, 255, ${0.7 + grabPulse * 0.3})`;
+            ctx.fillRect(handX + 3, handY - 1, 1.5, 1.5);
+            ctx.fillStyle = `rgba(250, 204, 21, ${grabPulse * 0.8})`;
+            ctx.fillRect(handX + 5, handY - 2, 1, 1);
+            ctx.fillRect(handX + 4, handY + 2, 1, 1);
+          } else {
+            // Open, dexterous creeping fingers reaching out
+            ctx.fillStyle = '#f5d0a9'; // upper index finger
+            ctx.fillRect(handX + 1, handY - 2, 2, 1);
+            ctx.fillStyle = '#d49b6a'; // lower thumb / fingers
+            ctx.fillRect(handX + 1, handY, 2, 1);
+            ctx.fillStyle = '#8d5b30'; // crease shadow
+            ctx.fillRect(handX + 1, handY - 1, 1, 1);
           }
+
           ctx.restore();
         } else if (taskSkill === 'attunement') {
           // Arcane trance meditation channeling

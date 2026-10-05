@@ -2034,9 +2034,12 @@ export class GameEngine {
         if (Math.random() < rf.chance) {
           const rfItem = storage.getItem(rf.itemId) || ITEMS[rf.itemId];
           addItemToSlots(player.inventory, 28, rf.itemId, 1, 'plain', 0, rfItem, 'inventory');
+          const isThief = recipe.skill === 'thieving';
           this.send(ws, {
             type: 'NOTIFICATION',
-            message: `Bonus yield! Discovered ${rfItem?.name || rf.itemId}!`
+            message: isThief
+              ? `Rare swipe! Pocketed bonus ${rfItem?.name || rf.itemId}!`
+              : `Bonus yield! Discovered ${rfItem?.name || rf.itemId}!`
           });
         }
       }

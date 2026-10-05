@@ -903,8 +903,8 @@ class EldoriaClient {
 
       case 'NOTIFICATION': {
         const text = msg.message || '';
-        const isLoot = text.includes('Loot') || text.includes('DROP') || text.includes('Gold') || text.includes('found');
-        const isTravelOrTransient = /^(Traveling|Walking|Riding|Navigating|Returning|Hearth reached|Withdrew materials|Bag materials|Seeds depleted|Satchel full|Harvested|Sowed|Working|Gathering|Attacking|Ate)/i.test(text);
+        const isLoot = text.includes('Loot') || text.includes('DROP') || text.includes('Rare swipe') || (text.includes('found') && !text.includes('not found')) || /^Raid reward:.*Gold/i.test(text);
+        const isTravelOrTransient = /^(Traveling|Walking|Riding|Navigating|Returning|Hearth reached|Withdrew materials|Bag materials|Seeds depleted|Satchel full|Harvested|Sowed|Working|Gathering|Attacking|Ate|Bonus yield)/i.test(text);
 
         // Always show on-screen floating toast
         this.showToast(text, false);
