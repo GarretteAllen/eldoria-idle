@@ -2114,7 +2114,8 @@ export class WorldRenderer {
       if (taskSkill) {
         // Toolbelt tools are ONLY visible and animated when actively working on that skill!
         if (taskSkill === 'mining') {
-          const swingPhase = (this.animTick * 0.014 + (this.localPlayer?.x || 0)) % (Math.PI * 2);
+          // Deliberate, rhythmic pickaxe swings (~1.2s per stroke)
+          const swingPhase = (this.animTick * 0.005 + (this.localPlayer?.x || 0)) % (Math.PI * 2);
           const swing = Math.sin(swingPhase) * 0.55;
           const pickaxe = equipment?.tool_pickaxe || equipment?.tool;
           const toolCoord = getSprite(pickaxe?.itemId) || getSprite('rune_pickaxe_dawnburn');
@@ -2132,7 +2133,8 @@ export class WorldRenderer {
             ctx.restore();
           }
         } else if (taskSkill === 'woodcutting') {
-          const chopPhase = (this.animTick * 0.014 + (this.localPlayer?.x || 0)) % (Math.PI * 2);
+          // Deliberate timber chops (~1.2s per chop)
+          const chopPhase = (this.animTick * 0.005 + (this.localPlayer?.x || 0)) % (Math.PI * 2);
           const chop = Math.sin(chopPhase) * 0.55;
           const axe = equipment?.tool_axe || equipment?.tool;
           const toolCoord = getSprite(axe?.itemId) || getSprite('rune_axe_dawnburn');
@@ -2150,18 +2152,19 @@ export class WorldRenderer {
             ctx.restore();
           }
         } else if (taskSkill === 'fishing') {
-          const rodTug = Math.sin(this.animTick * 0.007) * 0.18;
+          // Relaxed water bobbing & gentle line tension
+          const rodTug = Math.sin(this.animTick * 0.0035) * 0.16;
           const rod = equipment?.tool_rod || equipment?.tool;
           const toolCoord = getSprite(rod?.itemId) || getSprite('fishing_rod_willow');
           drawLayer(toolCoord, 0, breatheBob, rodTug);
 
           // Subtle animated bobber & ripple in the water in front of player
-          const bobberBob = Math.sin(this.animTick * 0.007 + 1.2) * 2;
+          const bobberBob = Math.sin(this.animTick * 0.0035 + 1.2) * 1.8;
           const bobberX = Math.round(px + 16);
           const bobberY = Math.round(py + 16 + bobberBob);
 
           // Expanding water ripple rings
-          const ripplePhase = (this.animTick * 0.002) % 1;
+          const ripplePhase = (this.animTick * 0.0012) % 1;
           const rippleR = 2 + ripplePhase * 6;
           const rippleAlpha = Math.max(0, (1 - ripplePhase) * 0.45);
           ctx.strokeStyle = `rgba(180, 230, 255, ${rippleAlpha})`;
@@ -2186,25 +2189,25 @@ export class WorldRenderer {
           ctx.quadraticCurveTo((tipX + bobberX) / 2 + 1, (tipY + bobberY) / 2 + 3, bobberX, bobberY - 2);
           ctx.stroke();
         } else if (taskSkill === 'crafting' || taskSkill === 'smithing') {
-          // Artisan & Blacksmith Hammer: Rhythmic strike down onto the anvil/workbench!
-          const strikePhase = (this.animTick * 0.011 + (this.localPlayer?.x || 0)) % 1;
+          // Artisan & Blacksmith Hammer: Deliberate, powerful rhythmic strikes (~1.18s per strike)
+          const strikePhase = (this.animTick * 0.00085 + (this.localPlayer?.x || 0)) % 1;
           let hammerAngle = -0.25;
           let hammerY = breatheBob;
           let hammerX = 1;
           if (strikePhase < 0.55) {
-            // Wind-up: raise hammer overhead
+            // Wind-up: deliberate raise overhead (~640ms)
             const p = strikePhase / 0.55;
             hammerAngle = -0.25 - p * 0.45;
             hammerY = breatheBob - Math.round(p * 2);
-          } else if (strikePhase < 0.75) {
-            // Downward strike blow onto workpiece!
-            const p = (strikePhase - 0.55) / 0.20;
+          } else if (strikePhase < 0.72) {
+            // Downward strike impact blow onto anvil/workbench (~200ms)
+            const p = (strikePhase - 0.55) / 0.17;
             hammerAngle = -0.70 + p * 1.35;
             hammerY = breatheBob + Math.round(p * 3);
             hammerX = 1 + Math.round(p * 2);
           } else {
-            // Rebound from strike
-            const p = (strikePhase - 0.75) / 0.25;
+            // Natural recoil and settle back to ready (~330ms)
+            const p = (strikePhase - 0.72) / 0.28;
             hammerAngle = 0.65 - p * 0.90;
             hammerY = breatheBob + Math.round((1 - p) * 1);
             hammerX = 1;
@@ -2214,9 +2217,9 @@ export class WorldRenderer {
             drawLayer(toolCoord, hammerX, hammerY, hammerAngle);
           }
 
-          // Fiery anvil / workbench strike impact sparks!
-          if (strikePhase >= 0.65 && strikePhase <= 0.80) {
-            const p = (strikePhase - 0.65) / 0.15;
+          // Fiery anvil / workbench strike impact sparks bursting on strike impact!
+          if (strikePhase >= 0.65 && strikePhase <= 0.78) {
+            const p = (strikePhase - 0.65) / 0.13;
             const sparkAlpha = Math.max(0, 1 - p);
             ctx.save();
             ctx.globalAlpha = sparkAlpha;
@@ -2232,20 +2235,20 @@ export class WorldRenderer {
             ctx.restore();
           }
         } else if (taskSkill === 'fletching') {
-          // Whittling wooden shaft with carving knife
-          const fletchPhase = (this.animTick * 0.012 + (this.localPlayer?.x || 0)) % 1;
+          // Whittling wooden shaft with carving knife (~1.18s per stroke)
+          const fletchPhase = (this.animTick * 0.00085 + (this.localPlayer?.x || 0)) % 1;
           let knifeAngle = -0.35;
           let knifeY = breatheBob - 1;
           let knifeX = 2;
 
           if (fletchPhase < 0.65) {
-            // Carving stroke smoothly down the shaft
+            // Carving stroke smoothly down the shaft (~760ms)
             const p = fletchPhase / 0.65;
             knifeAngle = -0.35 + p * 0.20;
             knifeY = breatheBob - 2 + Math.round(p * 5);
             knifeX = 1 + Math.round(p * 2);
           } else {
-            // Swift lift back to top
+            // Swift lift back to top (~410ms)
             const p = (fletchPhase - 0.65) / 0.35;
             knifeAngle = -0.15 - p * 0.20;
             knifeY = breatheBob + 3 - Math.round(p * 5);
@@ -2282,23 +2285,23 @@ export class WorldRenderer {
             ctx.restore();
           }
         } else if (taskSkill === 'alchemy') {
-          // Swirling potion flask over the cauldron
-          const alchPhase = (this.animTick * 0.008 + (this.localPlayer?.x || 0)) % 1;
-          const flaskAngle = Math.sin(alchPhase * Math.PI * 2) * 0.22;
-          const flaskX = 3 + Math.round(Math.cos(alchPhase * Math.PI * 2) * 3);
-          const flaskY = breatheBob + Math.round(Math.sin(alchPhase * Math.PI * 2) * 2);
+          // Swirling potion flask over the cauldron (~0.95s per circular swirl)
+          const alchPhase = (this.animTick * 0.00105 + (this.localPlayer?.x || 0)) % 1;
+          const flaskAngle = Math.sin(alchPhase * Math.PI * 2) * 0.20;
+          const flaskX = 3 + Math.round(Math.cos(alchPhase * Math.PI * 2) * 2.5);
+          const flaskY = breatheBob + Math.round(Math.sin(alchPhase * Math.PI * 2) * 1.8);
 
           const flaskCoord = getSprite('tool_flask') || getSprite('tool_hammer');
           if (flaskCoord) {
             drawLayer(flaskCoord, flaskX, flaskY, flaskAngle);
           }
 
-          // Luminous elixir motes & vapor rising from cauldron
+          // Luminous elixir motes & vapor rising gracefully from cauldron
           ctx.save();
           const moteColors = ['#c084fc', '#38bdf8', '#4ade80'];
           for (let i = 0; i < 3; i++) {
-            const motePhase = (this.animTick * 0.003 + i * 0.33) % 1;
-            const moteX = px + 6 + Math.sin(this.animTick * 0.006 + i * 2) * 5;
+            const motePhase = (this.animTick * 0.0015 + i * 0.33) % 1;
+            const moteX = px + 6 + Math.sin(this.animTick * 0.003 + i * 2) * 4;
             const moteY = py + breatheBob + 4 - motePhase * 16;
             const moteAlpha = Math.max(0, Math.sin(motePhase * Math.PI) * 0.75);
             ctx.fillStyle = moteColors[i % moteColors.length];
@@ -2309,7 +2312,7 @@ export class WorldRenderer {
           }
           ctx.restore();
         } else if (taskSkill === 'cooking') {
-          // Cast iron skillet with continuous, smooth rhythmic sauté swirl
+          // Cast iron skillet with continuous, smooth rhythmic sauté swirl (~1.26s)
           const cookCycle = this.animTick * 0.005 + (this.localPlayer?.x || 0);
           const panAngle = Math.sin(cookCycle) * 0.10;
           const panX = 1 + Math.cos(cookCycle) * 1.5;
@@ -2336,20 +2339,20 @@ export class WorldRenderer {
           }
           ctx.restore();
         } else if (taskSkill === 'herbalism') {
-          // Crouching gather with crescent harvesting sickle
-          const herbPhase = (this.animTick * 0.01 + (this.localPlayer?.x || 0)) % 1;
+          // Crouching gather with crescent harvesting sickle (~1.25s per reap)
+          const herbPhase = (this.animTick * 0.0008 + (this.localPlayer?.x || 0)) % 1;
           let sickleAngle = -0.40;
           let sickleX = 0;
           let sickleY = breatheBob + 1;
 
           if (herbPhase < 0.55) {
-            // Crescent reaping sweep across herb flora
+            // Crescent reaping sweep across herb flora (~680ms)
             const p = herbPhase / 0.55;
             sickleAngle = -0.40 + p * 1.15;
             sickleX = Math.round(p * 4);
             sickleY = breatheBob + 1 + Math.round(p * 2);
           } else {
-            // Return back
+            // Smooth return back (~570ms)
             const p = (herbPhase - 0.55) / 0.45;
             sickleAngle = 0.75 - p * 1.15;
             sickleX = 4 - Math.round(p * 4);
@@ -2361,12 +2364,12 @@ export class WorldRenderer {
             drawLayer(sickleCoord, sickleX, sickleY, sickleAngle);
           }
 
-          // Delicate green leaf specks fluttering upward
+          // Delicate green leaf specks fluttering upward gently
           ctx.save();
           const leafColors = ['#4ade80', '#22c55e', '#86efac'];
           for (let i = 0; i < 3; i++) {
-            const leafPhase = (this.animTick * 0.003 + i * 0.33) % 1;
-            const leafX = px + 7 + Math.sin(this.animTick * 0.007 + i) * 6;
+            const leafPhase = (this.animTick * 0.0015 + i * 0.33) % 1;
+            const leafX = px + 7 + Math.sin(this.animTick * 0.003 + i) * 5;
             const leafY = py + breatheBob + 7 - leafPhase * 12;
             const leafAlpha = Math.max(0, Math.sin(leafPhase * Math.PI) * 0.70);
             ctx.fillStyle = leafColors[i % leafColors.length];
@@ -2375,9 +2378,9 @@ export class WorldRenderer {
           }
           ctx.restore();
         } else if (taskSkill === 'farming') {
-          // Watering crops with brass watering can
-          const farmPhase = (this.animTick * 0.009 + (this.localPlayer?.x || 0)) % 1;
-          const canAngle = 0.32 + Math.sin(farmPhase * Math.PI * 2) * 0.08;
+          // Watering crops with brass watering can (~1.21s per cycle)
+          const farmCycle = this.animTick * 0.0052 + (this.localPlayer?.x || 0);
+          const canAngle = 0.32 + Math.sin(farmCycle) * 0.08;
           const canX = 4;
           const canY = breatheBob + 1;
 
@@ -2389,7 +2392,7 @@ export class WorldRenderer {
           // Water droplets cascading onto crops with ground ripples
           ctx.save();
           for (let i = 0; i < 4; i++) {
-            const dropPhase = (this.animTick * 0.008 + i * 0.25) % 1;
+            const dropPhase = (this.animTick * 0.003 + i * 0.25) % 1;
             const dropX = px + 10 + dropPhase * 7;
             const dropY = py + breatheBob + dropPhase * dropPhase * 12;
             const dropAlpha = Math.max(0, (1 - dropPhase) * 0.75);
@@ -2398,7 +2401,7 @@ export class WorldRenderer {
             ctx.arc(dropX, dropY, 1.2, 0, Math.PI * 2);
             ctx.fill();
           }
-          const ripplePhase = (this.animTick * 0.003) % 1;
+          const ripplePhase = (this.animTick * 0.0015) % 1;
           ctx.strokeStyle = `rgba(191, 219, 254, ${Math.max(0, (1 - ripplePhase) * 0.4)})`;
           ctx.lineWidth = 0.8;
           ctx.beginPath();
@@ -2406,23 +2409,23 @@ export class WorldRenderer {
           ctx.stroke();
           ctx.restore();
         } else if (taskSkill === 'thieving') {
-          // Sneaky hunch pickpocketing / lockpicking
-          const thiefPhase = (this.animTick * 0.011 + (this.localPlayer?.x || 0)) % 1;
+          // Sneaky hunch pickpocketing / lockpicking (~1.18s per deliberate pick attempt)
+          const thiefPhase = (this.animTick * 0.00085 + (this.localPlayer?.x || 0)) % 1;
           let pickAngle = -0.10;
           let pickX = 2;
           let pickY = breatheBob;
 
           if (thiefPhase < 0.60) {
-            // Delicate lock probe vibration
-            pickAngle = -0.10 + Math.sin(this.animTick * 0.05) * 0.08;
-          } else if (thiefPhase < 0.80) {
-            // Swift pilfer reach!
-            const p = (thiefPhase - 0.60) / 0.20;
+            // Delicate lock probe vibration (~700ms)
+            pickAngle = -0.10 + Math.sin(this.animTick * 0.015) * 0.06;
+          } else if (thiefPhase < 0.78) {
+            // Swift pilfer reach! (~210ms)
+            const p = (thiefPhase - 0.60) / 0.18;
             pickX = 2 + Math.round(p * 4);
             pickAngle = 0.20;
           } else {
-            // Quick concealment withdrawal
-            const p = (thiefPhase - 0.80) / 0.20;
+            // Quick concealment withdrawal (~260ms)
+            const p = (thiefPhase - 0.78) / 0.22;
             pickX = 6 - Math.round(p * 4);
           }
 
@@ -2433,7 +2436,7 @@ export class WorldRenderer {
 
           // Subtle gleaming loot shimmer
           ctx.save();
-          const glintPhase = (this.animTick * 0.004) % 1;
+          const glintPhase = (this.animTick * 0.002) % 1;
           if (glintPhase > 0.65) {
             const gAlpha = Math.sin(((glintPhase - 0.65) / 0.35) * Math.PI) * 0.85;
             ctx.fillStyle = `rgba(253, 224, 71, ${gAlpha})`;
@@ -2446,7 +2449,7 @@ export class WorldRenderer {
           // Arcane trance meditation channeling
           // Soft vertical ethereal aura pillar
           ctx.save();
-          const auraPulse = (Math.sin(this.animTick * 0.005) + 1) * 0.5;
+          const auraPulse = (Math.sin(this.animTick * 0.0025) + 1) * 0.5;
           const auraGrad = ctx.createLinearGradient(px, py + 12, px, py - 20);
           auraGrad.addColorStop(0, `rgba(56, 189, 248, ${0.15 + auraPulse * 0.15})`);
           auraGrad.addColorStop(1, 'rgba(168, 85, 247, 0)');
@@ -2455,13 +2458,13 @@ export class WorldRenderer {
           ctx.ellipse(px, py + 4, 12, 18, 0, 0, Math.PI * 2);
           ctx.fill();
 
-          // Orbiting ancient mystical runes
+          // Orbiting ancient mystical runes (smooth celestial rotation)
           const runes = ['✧', '✦', 'ᛟ', 'ᚱ'];
           ctx.font = 'bold 9px monospace, sans-serif';
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
           runes.forEach((rune, idx) => {
-            const runeAngle = this.animTick * 0.004 + (idx * Math.PI) / 2;
+            const runeAngle = this.animTick * 0.0018 + (idx * Math.PI) / 2;
             const rx = px + Math.cos(runeAngle) * 14;
             const ry = py - 4 + Math.sin(runeAngle) * 6;
             const depth = (Math.sin(runeAngle) + 1) * 0.5;
