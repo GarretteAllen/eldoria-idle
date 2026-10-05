@@ -39,6 +39,7 @@ export const ITEMS: Record<string, ItemDefinition> = {
   abyssal_mawshark: { id: 'abyssal_mawshark', name: 'Abyssal Mawshark', category: 'raw_food', tier: 6, vendorFloorPrice: 320 },
 
   // --- Cooked Provisions ---
+  crusty_bread: { id: 'crusty_bread', name: 'Crusty Bread', category: 'cooked_food', tier: 1, vendorFloorPrice: 4, baseStats: { healing: 6 } },
   smoked_prawn: { id: 'smoked_prawn', name: 'Smoked Prawn', category: 'cooked_food', tier: 1, vendorFloorPrice: 4, baseStats: { healing: 4 } },
   crisped_minnow: { id: 'crisped_minnow', name: 'Crisped Minnow', category: 'cooked_food', tier: 1, vendorFloorPrice: 6, baseStats: { healing: 7 } },
   seared_trout: { id: 'seared_trout', name: 'Seared Trout', category: 'cooked_food', tier: 2, vendorFloorPrice: 14, baseStats: { healing: 14 } },
