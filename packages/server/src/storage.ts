@@ -57,7 +57,7 @@ function resolveDataDir(): string {
 
 const DATA_DIR = resolveDataDir();
 const DB_FILE = path.join(DATA_DIR, 'eldoria.db');
-console.log(`🗄️ SQLite Database: ${DB_FILE}`);
+console.log(`[Database] SQLite Database: ${DB_FILE}`);
 
 export interface AccountRecord {
   id: string;
@@ -413,7 +413,7 @@ class StorageManager {
           }
         });
         tx();
-        console.log(`📦 SQLite: Migrated legacy players from players.json`);
+        console.log(`[Migration] SQLite: Migrated legacy players from players.json`);
       } catch (err) {
         console.error('Failed to migrate players.json', err);
       }
@@ -442,7 +442,7 @@ class StorageManager {
           }
         });
         tx();
-        console.log(`📦 SQLite: Migrated legacy accounts from accounts.json`);
+        console.log(`[Migration] SQLite: Migrated legacy accounts from accounts.json`);
       } catch (err) {
         console.error('Failed to migrate accounts.json', err);
       }
@@ -461,7 +461,7 @@ class StorageManager {
     const existingAccounts = (this.db.prepare('SELECT COUNT(*) as count FROM accounts').get() as { count: number }).count;
     const existingPlayers = (this.db.prepare('SELECT COUNT(*) as count FROM players').get() as { count: number }).count;
     if (existingAccounts > 0 || existingPlayers > 0) {
-      console.log('📦 SQLite: Active world detected. Preserving custom NPCs, nodes, and quests without overwriting.');
+      console.log('[World] SQLite: Active world detected. Preserving custom NPCs, nodes, and quests without overwriting.');
       this.stmtSetMeta.run('world_seeded', 'true');
       this.checkpoint();
       return;
@@ -1142,7 +1142,7 @@ class StorageManager {
         if (fs.existsSync(p)) {
           const raw = JSON.parse(fs.readFileSync(p, 'utf-8'));
           this.levelBounds = parseLdtkLevelBounds(raw.levels);
-          console.log(`🗺️ Loaded ${this.levelBounds.length} LDtk map boundaries for void collision blocking.`);
+          console.log(`[World] Loaded ${this.levelBounds.length} LDtk map boundaries for void collision blocking.`);
           break;
         }
       }

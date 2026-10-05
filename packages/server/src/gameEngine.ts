@@ -409,7 +409,7 @@ export class GameEngine {
   }
 
   public shutdown() {
-    console.log(`💾 Saving ${this.sessions.size} active player session(s)...`);
+    console.log(`[Save] Saving ${this.sessions.size} active player session(s)...`);
     for (const session of this.sessions.values()) {
       session.player.lastActiveTimestamp = Date.now();
       storage.savePlayer(session.player);
@@ -2172,7 +2172,7 @@ export class GameEngine {
 
     for (const slot of player.inventory) {
       const def = ITEMS[slot.itemId];
-      if (def?.category === 'tool' || def?.category === 'steed' || def?.category === 'weapon') {
+      if (def?.category === 'tool' || def?.category === 'steed' || def?.category === 'weapon' || def?.category === 'armour' || def?.category === 'cooked_food' || ((def?.baseStats?.healing || 0) > 0)) {
         keep.push(slot);
         continue;
       }
@@ -2197,6 +2197,10 @@ export class GameEngine {
     }
 
     player.inventory = keep;
+
+    // Resting at Hearth restores health
+    const maxHp = player.skills.hitpoints?.level || 10;
+    player.currentHp = maxHp;
 
     // Check if target task (pendingTask or bankReturnTask) has inputs: withdraw from storage before heading to work!
     const targetTask = session.pendingTask || player.bankReturnTask;
@@ -2232,6 +2236,49 @@ export class GameEngine {
             type: 'NOTIFICATION',
             message: `Withdrew materials from Hearth for ${rec.name}. Riding to work...`
           });
+        }
+      }
+
+      // Restock combat provisions from bank AT the Hearth before heading back to the fight
+      const isCombatWork = Boolean(MONSTERS[targetTask.recipeId] || ('skill' in targetTask && targetTask.skill && ['melee', 'ranged', 'magic'].includes(targetTask.skill)));
+      if (isCombatWork) {
+        let carriedFoodCount = 0;
+        for (const slot of player.inventory) {
+          const d = ITEMS[slot.itemId];
+          if (d && (d.category === 'cooked_food' || ((d.baseStats?.healing || 0) > 0))) {
+            carriedFoodCount += slot.quantity;
+          }
+        }
+        const targetStock = 15;
+        if (carriedFoodCount < targetStock) {
+          const targetFoodId = player.selectedFoodItemId;
+          let storageIdx = -1;
+          if (targetFoodId) {
+            storageIdx = player.storage.findIndex(s => s.itemId === targetFoodId && s.quantity > 0);
+          }
+          if (storageIdx === -1) {
+            storageIdx = player.storage.findIndex(s => {
+              const d = ITEMS[s.itemId];
+              return s.quantity > 0 && d && (d.category === 'cooked_food' || ((d.baseStats?.healing || 0) > 0));
+            });
+          }
+          if (storageIdx >= 0) {
+            const sSlot = player.storage[storageIdx];
+            const foodDef = ITEMS[sSlot.itemId];
+            const needed = targetStock - carriedFoodCount;
+            const toTake = Math.min(needed, sSlot.quantity);
+            const res = addItemToSlots(player.inventory, 28, sSlot.itemId, toTake, sSlot.rarity, sSlot.plus, foodDef, 'inventory');
+            if (res.added > 0) {
+              sSlot.quantity -= res.added;
+              if (sSlot.quantity <= 0) {
+                player.storage.splice(storageIdx, 1);
+              }
+              this.send(ws, {
+                type: 'NOTIFICATION',
+                message: `Provisioned ${res.added}x ${foodDef?.name || 'Food'} from Hearth bank for combat.`,
+              });
+            }
+          }
         }
       }
     }
@@ -3066,8 +3113,12 @@ export class GameEngine {
     };
   }
 
-  private ensureCombatFoodFromBank(session: ConnectedSession) {
+  private ensureCombatFoodFromBankAtHearth(session: ConnectedSession) {
     const { player, ws } = session;
+    const hearth = this.getHearthLocation(player.x, player.y);
+    const distToHearth = Math.hypot(player.x - hearth.x, player.y - hearth.y);
+    if (distToHearth > 1.5) return; // Must be at the Hearth! Never remotely withdraw!
+
     const targetFoodItemId = player.selectedFoodItemId;
 
     // Check how many food items player currently carries in inventory
@@ -3083,7 +3134,6 @@ export class GameEngine {
       }
     }
 
-    // Target a reserve of 15 rations in satchel for combat
     const targetStock = 15;
     if (carriedFoodCount >= targetStock) return;
     const needed = targetStock - carriedFoodCount;
@@ -3106,41 +3156,23 @@ export class GameEngine {
     const toWithdraw = Math.min(needed, storageSlot.quantity);
     if (toWithdraw <= 0) return;
 
-    // Check if can stack with existing slot in inventory
-    const existingInvSlot = player.inventory.find(
-      s => s.itemId === storageSlot.itemId && (s.rarity || 'plain') === (storageSlot.rarity || 'plain') && (s.plus || 0) === (storageSlot.plus || 0)
-    );
-
-    if (existingInvSlot) {
-      existingInvSlot.quantity += toWithdraw;
-      storageSlot.quantity -= toWithdraw;
+    // Add to satchel respecting inventory unstackable rules (1 slot per food item)
+    const res = addItemToSlots(player.inventory, 28, storageSlot.itemId, toWithdraw, storageSlot.rarity, storageSlot.plus, foodDef, 'inventory');
+    if (res.added > 0) {
+      storageSlot.quantity -= res.added;
       if (storageSlot.quantity <= 0) {
         player.storage.splice(storageIdx, 1);
       }
       this.send(ws, {
         type: 'NOTIFICATION',
-        message: `Supplied ${toWithdraw}x ${foodDef?.name || 'Food'} from bank into satchel.`,
+        message: `Withdrew ${res.added}x ${foodDef?.name || 'Food'} from Hearth bank for combat.`,
       });
-    } else if (player.inventory.length < 28) {
-      player.inventory.push({
-        itemId: storageSlot.itemId,
-        quantity: toWithdraw,
-        rarity: storageSlot.rarity,
-        plus: storageSlot.plus,
-      });
-      storageSlot.quantity -= toWithdraw;
-      if (storageSlot.quantity <= 0) {
-        player.storage.splice(storageIdx, 1);
-      }
-      this.send(ws, {
-        type: 'NOTIFICATION',
-        message: `Supplied ${toWithdraw}x ${foodDef?.name || 'Food'} from bank into satchel.`,
-      });
+      storage.savePlayer(player);
+      this.send(ws, { type: 'PLAYER_UPDATE', player });
     }
   }
 
   private startCombatSession(session: ConnectedSession, monsterId: string, targetX: number, targetY: number, nodeId?: string, zoneId?: string) {
-    this.ensureCombatFoodFromBank(session);
     const { player, ws } = session;
     const monsterDef = MONSTERS[monsterId];
     if (!monsterDef) return;
@@ -3436,29 +3468,43 @@ export class GameEngine {
           }
         }
 
-        // 2. If inventory has no food, consume directly from bank storage
+        // If satchel has no food, retreat to Hearth to restock rather than remotely eating from bank
         if (!eatenSlot) {
-          if (player.selectedFoodItemId) {
-            const bankIdx = player.storage.findIndex(s => s.itemId === player.selectedFoodItemId && s.quantity > 0);
-            if (bankIdx >= 0) {
-              eatenSlot = player.storage[bankIdx];
-              eatenSlot.quantity--;
-              if (eatenSlot.quantity <= 0) player.storage.splice(bankIdx, 1);
-              isFromBank = true;
-            }
-          }
-          if (!eatenSlot) {
-            const bankIdx = player.storage.findIndex(s => {
-              const def = ITEMS[s.itemId];
-              return s.quantity > 0 && def && (def.category === 'cooked_food' || ((def.baseStats?.healing || 0) > 0));
+          const hasBankFood = player.storage.some(s => {
+            if (s.quantity <= 0) return false;
+            if (player.selectedFoodItemId) return s.itemId === player.selectedFoodItemId;
+            const def = ITEMS[s.itemId];
+            return def && (def.category === 'cooked_food' || ((def.baseStats?.healing || 0) > 0));
+          });
+
+          player.bankReturnTask = { ...player.currentTask!, standX: player.x, standY: player.y };
+          player.currentTask = null;
+          session.activeCombat = null;
+          player.bankingState = 'walking_to_bank';
+          const hearth = this.getHearthLocation(player.x, player.y);
+          const path = this.findPathWithCollisions(player.x, player.y, hearth.x, hearth.y);
+          player.targetX = hearth.x;
+          player.targetY = hearth.y;
+          player.path = path;
+          player.isMoving = path.length > 0;
+
+          if (hasBankFood) {
+            this.send(ws, {
+              type: 'NOTIFICATION',
+              message: `Out of rations! Returning to Hearth to bank spoils and restock sustenance...`,
             });
-            if (bankIdx >= 0) {
-              eatenSlot = player.storage[bankIdx];
-              eatenSlot.quantity--;
-              if (eatenSlot.quantity <= 0) player.storage.splice(bankIdx, 1);
-              isFromBank = true;
-            }
+          } else {
+            player.bankReturnTask = null;
+            this.send(ws, {
+              type: 'NOTIFICATION',
+              message: `Out of rations and vault is empty! Retreating to Hearth for safety.`,
+            });
           }
+
+          storage.savePlayer(player);
+          this.send(ws, { type: 'PLAYER_UPDATE', player });
+          this.broadcastWorldState();
+          return;
         }
 
         if (eatenSlot) {
@@ -3492,14 +3538,13 @@ export class GameEngine {
             currentHp: player.currentHp,
             maxHp,
             foodName: foodDef?.name || 'Food',
-            fromBank: isFromBank,
             playerX: player.x,
             playerY: player.y,
           });
 
           this.send(ws, {
             type: 'NOTIFICATION',
-            message: `Ate ${foodDef?.name || 'Food'}${isFromBank ? ' (from bank)' : ''} (+${heal} HP, now ${player.currentHp}/${maxHp})`,
+            message: `Ate ${foodDef?.name || 'Food'} (+${heal} HP, now ${player.currentHp}/${maxHp})`,
           });
           storage.savePlayer(player);
           this.send(ws, { type: 'PLAYER_UPDATE', player });

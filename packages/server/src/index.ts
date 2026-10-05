@@ -177,7 +177,7 @@ wss.on('connection', (ws: WebSocket, req) => {
 });
 
 const handleGracefulShutdown = (signal: string) => {
-  console.log(`🛑 Received ${signal}, shutting down gracefully...`);
+  console.log(`[Shutdown] Received ${signal}, shutting down gracefully...`);
   try {
     gameEngine.shutdown();
   } catch (err) {
@@ -190,5 +190,5 @@ process.on('SIGINT', () => handleGracefulShutdown('SIGINT'));
 process.on('SIGTERM', () => handleGracefulShutdown('SIGTERM'));
 
 server.listen(PORT, HOST, () => {
-  console.log(`⚔️ Eldoria Idle Server listening on http://${HOST}:${PORT}`);
+  console.log(`[Server] Eldoria Idle Server listening on http://${HOST}:${PORT}`);
 });
