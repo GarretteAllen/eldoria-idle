@@ -1348,9 +1348,39 @@ export class GameEngine {
 
         if (farmingSkill.level > oldLevel) {
           this.send(session.ws, {
+            type: 'LEVEL_UP',
+            skill: 'farming',
+            newLevel: farmingSkill.level,
+          });
+          this.send(session.ws, {
             type: 'NOTIFICATION',
             message: `Congratulations! Your Farming skill advanced to Level ${farmingSkill.level}!`
           });
+        }
+
+        // If harvested crop is an herb, also award proportional Herbalism XP per unit
+        const isManualHerb = ['silverleaf', 'glowshroom', 'nightshade_bell', 'bramble_mandrake', 'wyrmfrond', 'sunfire_pepper'].includes(plot.cropId || '');
+        if (isManualHerb) {
+          const herbRecipe = RECIPES[`gather_${plot.cropId}`];
+          const herbPerUnitXp = herbRecipe?.xp || 3;
+          const herbXpGained = herbPerUnitXp * yieldQty;
+          const herbalismSkill = player.skills.herbalism || { xp: 0, level: 1 };
+          const oldHerbLevel = herbalismSkill.level;
+          herbalismSkill.xp += herbXpGained;
+          herbalismSkill.level = getLevelFromXp(herbalismSkill.xp);
+          player.skills.herbalism = herbalismSkill;
+
+          if (herbalismSkill.level > oldHerbLevel) {
+            this.send(session.ws, {
+              type: 'LEVEL_UP',
+              skill: 'herbalism',
+              newLevel: herbalismSkill.level,
+            });
+            this.send(session.ws, {
+              type: 'NOTIFICATION',
+              message: `Congratulations! Your Herbalism skill advanced to Level ${herbalismSkill.level}!`
+            });
+          }
         }
 
         delete player.farmPlots[plotId];
@@ -2821,11 +2851,15 @@ export class GameEngine {
         });
       }
 
-      // If the harvested crop is an herb, also award Herbalism XP!
+      // If the harvested crop is an herb, award proportional Herbalism XP per unit harvested
       if (isHerb) {
+        const herbRecipe = RECIPES[`gather_${produceItemId}`];
+        const herbPerUnitXp = herbRecipe?.xp || 3;
+        const herbXpGained = herbPerUnitXp * yieldQty;
+
         const herbalismSkill = player.skills.herbalism || { xp: 0, level: 1 };
         const oldHerbLevel = herbalismSkill.level;
-        herbalismSkill.xp += xpEarned;
+        herbalismSkill.xp += herbXpGained;
         herbalismSkill.level = getLevelFromXp(herbalismSkill.xp);
         player.skills.herbalism = herbalismSkill;
 
@@ -3022,9 +3056,40 @@ export class GameEngine {
     this.activeBoss.currentHp = Math.max(0, this.activeBoss.currentHp - hit);
     this.activeBoss.damageDealt[player.id] = (this.activeBoss.damageDealt[player.id] || 0) + hit;
 
-    // Grant melee / combat xp
-    player.skills.melee.xp += hit;
-    player.skills.melee.level = getLevelFromXp(player.skills.melee.xp);
+    // Grant combat style and hitpoints xp based on equipped weapon
+    const combatStyle = this.getPlayerCombatStyle(player);
+    const styleXp = hit * 4;
+    const hpXp = Math.max(1, Math.floor(hit * 1.33));
+
+    const oldStyleLevel = player.skills[combatStyle].level;
+    player.skills[combatStyle].xp += styleXp;
+    player.skills[combatStyle].level = getLevelFromXp(player.skills[combatStyle].xp);
+    if (player.skills[combatStyle].level > oldStyleLevel) {
+      this.send(ws, {
+        type: 'LEVEL_UP',
+        skill: combatStyle,
+        newLevel: player.skills[combatStyle].level,
+      });
+      this.send(ws, {
+        type: 'NOTIFICATION',
+        message: `Congratulations! Your ${combatStyle.toUpperCase()} skill advanced to Level ${player.skills[combatStyle].level}!`,
+      });
+    }
+
+    const oldHpLevel = player.skills.hitpoints.level;
+    player.skills.hitpoints.xp = Math.max(1154, (player.skills.hitpoints.xp || 1154) + hpXp);
+    player.skills.hitpoints.level = Math.max(10, getLevelFromXp(player.skills.hitpoints.xp));
+    if (player.skills.hitpoints.level > oldHpLevel) {
+      this.send(ws, {
+        type: 'LEVEL_UP',
+        skill: 'hitpoints',
+        newLevel: player.skills.hitpoints.level,
+      });
+      this.send(ws, {
+        type: 'NOTIFICATION',
+        message: `Congratulations! Your Hitpoints advanced to Level ${player.skills.hitpoints.level}!`,
+      });
+    }
 
     this.send(ws, {
       type: 'BOSS_HIT',
@@ -3051,13 +3116,27 @@ export class GameEngine {
     for (const [playerId, dmg] of Object.entries(this.activeBoss.damageDealt)) {
       const session = this.sessions.get(playerId);
       if (session) {
-        // Pool of 5,000 gold + 40 anima
+        // Pool of 5,000 gold + 40 anima + 5,000 boss kill XP pool
         const goldReward = Math.max(100, Math.floor(5000 * (dmg / this.activeBoss.maxHp)));
+        const killXpReward = Math.max(50, Math.floor(5000 * (dmg / this.activeBoss.maxHp)));
         session.player.gold += goldReward;
         session.player.anima += 40;
+
+        const style = this.getPlayerCombatStyle(session.player);
+        const oldLvl = session.player.skills[style].level;
+        session.player.skills[style].xp += killXpReward;
+        session.player.skills[style].level = getLevelFromXp(session.player.skills[style].xp);
+        if (session.player.skills[style].level > oldLvl) {
+          this.send(session.ws, {
+            type: 'LEVEL_UP',
+            skill: style,
+            newLevel: session.player.skills[style].level,
+          });
+        }
+
         this.send(session.ws, {
           type: 'NOTIFICATION',
-          message: `Raid reward: +${goldReward} Gold, +40 Anima!`,
+          message: `Raid reward: +${goldReward} Gold, +40 Anima, +${killXpReward} ${style.toUpperCase()} XP!`,
         });
         this.send(session.ws, { type: 'PLAYER_UPDATE', player: session.player });
       }

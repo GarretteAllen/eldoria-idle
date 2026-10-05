@@ -68,21 +68,20 @@ export const FARMING_CROPS: Record<string, FarmingCropDefinition> = {
     cropId: 'nightshade_bell',
     name: 'Nightshade Bell',
     levelReq: 45,
-    baseDurationSeconds: 1800, // 30 minutes (15m online)
-    xp: 850, // High XP method!
+    baseDurationSeconds: 1500, // 25 minutes (12.5m online)
+    xp: 580,
     minYield: 4,
     maxYield: 8,
     seedReturnChance: 0.35,
-    isHighXpMethod: true,
-    description: 'Potent nocturnal flora requiring prolonged patient growth. High Farming XP method.',
+    description: 'Potent nocturnal flora requiring patient growth. Essential reagent for potent decoctions.',
   },
   bramble_mandrake_seed: {
     seedId: 'bramble_mandrake_seed',
     cropId: 'bramble_mandrake',
     name: 'Bramble Mandrake',
     levelReq: 55,
-    baseDurationSeconds: 1500, // 25 minutes (12.5m online)
-    xp: 680,
+    baseDurationSeconds: 1800, // 30 minutes (15m online)
+    xp: 880,
     minYield: 5,
     maxYield: 8,
     seedReturnChance: 0.35,
@@ -93,21 +92,20 @@ export const FARMING_CROPS: Record<string, FarmingCropDefinition> = {
     cropId: 'wyrmfrond',
     name: 'Wyrmfrond',
     levelReq: 70,
-    baseDurationSeconds: 2700, // 45 minutes (22.5m online)
-    xp: 1950, // Colossal High XP method!
+    baseDurationSeconds: 2400, // 40 minutes (20m online)
+    xp: 1400,
     minYield: 5,
     maxYield: 9,
     seedReturnChance: 0.3,
-    isHighXpMethod: true,
-    description: 'Legendary draconic fern that drinks primal aether. Generates colossal Farming XP.',
+    description: 'Legendary draconic fern that drinks primal aether. Revered by master apothecaries.',
   },
   nether_gourd_seed: {
     seedId: 'nether_gourd_seed',
     cropId: 'nether_gourd',
     name: 'Nether Gourd',
     levelReq: 80,
-    baseDurationSeconds: 2400, // 40 minutes (20m online)
-    xp: 1550,
+    baseDurationSeconds: 2700, // 45 minutes (22.5m online)
+    xp: 1900,
     minYield: 6,
     maxYield: 10,
     seedReturnChance: 0.3,
@@ -119,7 +117,7 @@ export const FARMING_CROPS: Record<string, FarmingCropDefinition> = {
     name: 'Sunfire Pepper',
     levelReq: 90,
     baseDurationSeconds: 3600, // 60 minutes (30m online)
-    xp: 3600,
+    xp: 2600,
     minYield: 6,
     maxYield: 12,
     seedReturnChance: 0.25,

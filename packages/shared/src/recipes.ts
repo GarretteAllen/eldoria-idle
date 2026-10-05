@@ -273,7 +273,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     ],
     outputItemId: 'dawnburn_ingot',
     outputQuantity: 1,
-    xp: 6,
+    xp: 5,
     intervalSeconds: 2.4,
   },
   smelt_cold_iron_ingot: {
@@ -298,7 +298,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     ],
     outputItemId: 'steel_ingot',
     outputQuantity: 1,
-    xp: 35,
+    xp: 20,
     intervalSeconds: 2.4,
   },
   smelt_azurite_ingot: {
@@ -312,7 +312,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     ],
     outputItemId: 'azurite_ingot',
     outputQuantity: 1,
-    xp: 108,
+    xp: 50,
     intervalSeconds: 2.4,
   },
   smelt_astralite_ingot: {
@@ -326,7 +326,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     ],
     outputItemId: 'astralite_ingot',
     outputQuantity: 1,
-    xp: 253,
+    xp: 110,
     intervalSeconds: 2.4,
   },
 
@@ -339,7 +339,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     inputs: [{ itemId: 'dawnburn_ingot', quantity: 2 }],
     outputItemId: 'dawnburn_blade',
     outputQuantity: 1,
-    xp: 25,
+    xp: 15,
     intervalSeconds: 3.0,
   },
   forge_cold_iron_blade: {
@@ -350,7 +350,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     inputs: [{ itemId: 'cold_iron_ingot', quantity: 2 }],
     outputItemId: 'cold_iron_blade',
     outputQuantity: 1,
-    xp: 60,
+    xp: 30,
     intervalSeconds: 3.4,
   },
   forge_steel_blade: {
@@ -361,7 +361,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     inputs: [{ itemId: 'steel_ingot', quantity: 2 }],
     outputItemId: 'steel_blade',
     outputQuantity: 1,
-    xp: 140,
+    xp: 70,
     intervalSeconds: 4.0,
   },
   forge_azurite_blade: {
@@ -372,7 +372,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     inputs: [{ itemId: 'azurite_ingot', quantity: 2 }],
     outputItemId: 'azurite_blade',
     outputQuantity: 1,
-    xp: 380,
+    xp: 160,
     intervalSeconds: 4.8,
   },
   forge_astralite_blade: {
@@ -383,7 +383,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     inputs: [{ itemId: 'astralite_ingot', quantity: 2 }],
     outputItemId: 'astralite_blade',
     outputQuantity: 1,
-    xp: 950,
+    xp: 320,
     intervalSeconds: 5.6,
   },
   forge_dawnburn_greatsword: {
@@ -394,7 +394,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     inputs: [{ itemId: 'dawnburn_ingot', quantity: 3 }],
     outputItemId: 'dawnburn_greatsword',
     outputQuantity: 1,
-    xp: 40,
+    xp: 25,
     intervalSeconds: 3.6,
   },
   forge_cold_iron_greatsword: {
@@ -405,7 +405,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     inputs: [{ itemId: 'cold_iron_ingot', quantity: 3 }],
     outputItemId: 'cold_iron_greatsword',
     outputQuantity: 1,
-    xp: 95,
+    xp: 45,
     intervalSeconds: 4.0,
   },
   forge_steel_greatsword: {
@@ -416,7 +416,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     inputs: [{ itemId: 'steel_ingot', quantity: 3 }],
     outputItemId: 'steel_greatsword',
     outputQuantity: 1,
-    xp: 200,
+    xp: 100,
     intervalSeconds: 4.6,
   },
   forge_azurite_greatsword: {
@@ -427,7 +427,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     inputs: [{ itemId: 'azurite_ingot', quantity: 3 }],
     outputItemId: 'azurite_greatsword',
     outputQuantity: 1,
-    xp: 520,
+    xp: 220,
     intervalSeconds: 5.4,
   },
   forge_astralite_greatsword: {
@@ -438,7 +438,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     inputs: [{ itemId: 'astralite_ingot', quantity: 3 }],
     outputItemId: 'astralite_greatsword',
     outputQuantity: 1,
-    xp: 1200,
+    xp: 450,
     intervalSeconds: 6.2,
   },
   forge_dawnburn_shield: {
@@ -449,7 +449,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     inputs: [{ itemId: 'dawnburn_ingot', quantity: 2 }],
     outputItemId: 'dawnburn_shield',
     outputQuantity: 1,
-    xp: 30,
+    xp: 18,
     intervalSeconds: 3.2,
   },
   forge_cold_iron_shield: {
@@ -460,7 +460,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     inputs: [{ itemId: 'cold_iron_ingot', quantity: 2 }],
     outputItemId: 'cold_iron_shield',
     outputQuantity: 1,
-    xp: 80,
+    xp: 35,
     intervalSeconds: 3.6,
   },
   forge_steel_shield: {
@@ -471,7 +471,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     inputs: [{ itemId: 'steel_ingot', quantity: 2 }],
     outputItemId: 'steel_shield',
     outputQuantity: 1,
-    xp: 170,
+    xp: 75,
     intervalSeconds: 4.2,
   },
   forge_azurite_shield: {
@@ -482,7 +482,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     inputs: [{ itemId: 'azurite_ingot', quantity: 2 }],
     outputItemId: 'azurite_shield',
     outputQuantity: 1,
-    xp: 450,
+    xp: 170,
     intervalSeconds: 5.0,
   },
   forge_astralite_shield: {
@@ -493,7 +493,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     inputs: [{ itemId: 'astralite_ingot', quantity: 2 }],
     outputItemId: 'astralite_shield',
     outputQuantity: 1,
-    xp: 1050,
+    xp: 340,
     intervalSeconds: 6.0,
   },
   forge_dawnburn_helm: {
@@ -504,7 +504,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     inputs: [{ itemId: 'dawnburn_ingot', quantity: 2 }],
     outputItemId: 'dawnburn_helm',
     outputQuantity: 1,
-    xp: 35,
+    xp: 20,
     intervalSeconds: 3.2,
   },
   forge_steel_helm: {
@@ -515,7 +515,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     inputs: [{ itemId: 'steel_ingot', quantity: 2 }],
     outputItemId: 'steel_helm',
     outputQuantity: 1,
-    xp: 180,
+    xp: 80,
     intervalSeconds: 4.2,
   },
   forge_azurite_helm: {
@@ -526,7 +526,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     inputs: [{ itemId: 'azurite_ingot', quantity: 2 }],
     outputItemId: 'azurite_helm',
     outputQuantity: 1,
-    xp: 480,
+    xp: 180,
     intervalSeconds: 5.0,
   },
   forge_astralite_helm: {
@@ -537,7 +537,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     inputs: [{ itemId: 'astralite_ingot', quantity: 2 }],
     outputItemId: 'astralite_helm',
     outputQuantity: 1,
-    xp: 1100,
+    xp: 360,
     intervalSeconds: 6.0,
   },
   forge_dawnburn_plate: {
@@ -548,7 +548,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     inputs: [{ itemId: 'dawnburn_ingot', quantity: 5 }],
     outputItemId: 'dawnburn_plate',
     outputQuantity: 1,
-    xp: 70,
+    xp: 45,
     intervalSeconds: 4.5,
   },
   forge_cold_iron_plate: {
@@ -559,7 +559,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     inputs: [{ itemId: 'cold_iron_ingot', quantity: 5 }],
     outputItemId: 'cold_iron_plate',
     outputQuantity: 1,
-    xp: 160,
+    xp: 75,
     intervalSeconds: 5.0,
   },
   forge_steel_plate: {
@@ -570,7 +570,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     inputs: [{ itemId: 'steel_ingot', quantity: 5 }],
     outputItemId: 'steel_plate',
     outputQuantity: 1,
-    xp: 320,
+    xp: 160,
     intervalSeconds: 5.5,
   },
   forge_azurite_plate: {
@@ -581,7 +581,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     inputs: [{ itemId: 'azurite_ingot', quantity: 5 }],
     outputItemId: 'azurite_plate',
     outputQuantity: 1,
-    xp: 800,
+    xp: 360,
     intervalSeconds: 6.5,
   },
   forge_astralite_plate: {
@@ -592,7 +592,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     inputs: [{ itemId: 'astralite_ingot', quantity: 5 }],
     outputItemId: 'astralite_plate',
     outputQuantity: 1,
-    xp: 1800,
+    xp: 700,
     intervalSeconds: 7.5,
   },
   forge_dawnburn_legs: {
@@ -603,7 +603,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     inputs: [{ itemId: 'dawnburn_ingot', quantity: 3 }],
     outputItemId: 'dawnburn_legs',
     outputQuantity: 1,
-    xp: 50,
+    xp: 30,
     intervalSeconds: 3.8,
   },
   forge_cold_iron_legs: {
@@ -614,7 +614,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     inputs: [{ itemId: 'cold_iron_ingot', quantity: 3 }],
     outputItemId: 'cold_iron_legs',
     outputQuantity: 1,
-    xp: 110,
+    xp: 50,
     intervalSeconds: 4.2,
   },
   forge_steel_legs: {
@@ -625,7 +625,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     inputs: [{ itemId: 'steel_ingot', quantity: 3 }],
     outputItemId: 'steel_legs',
     outputQuantity: 1,
-    xp: 240,
+    xp: 100,
     intervalSeconds: 4.8,
   },
   forge_azurite_legs: {
@@ -636,7 +636,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     inputs: [{ itemId: 'azurite_ingot', quantity: 3 }],
     outputItemId: 'azurite_legs',
     outputQuantity: 1,
-    xp: 600,
+    xp: 230,
     intervalSeconds: 5.8,
   },
   forge_astralite_legs: {
@@ -647,7 +647,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     inputs: [{ itemId: 'astralite_ingot', quantity: 3 }],
     outputItemId: 'astralite_legs',
     outputQuantity: 1,
-    xp: 1400,
+    xp: 460,
     intervalSeconds: 6.8,
   },
   forge_pickaxe_cold_iron: {
@@ -658,7 +658,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     inputs: [{ itemId: 'cold_iron_ingot', quantity: 2 }, { itemId: 'whispering_oak', quantity: 1 }],
     outputItemId: 'rune_pickaxe_cold_iron',
     outputQuantity: 1,
-    xp: 120,
+    xp: 50,
     intervalSeconds: 4.0,
   },
   forge_pickaxe_steel: {
@@ -669,7 +669,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     inputs: [{ itemId: 'steel_ingot', quantity: 2 }, { itemId: 'weeping_willow', quantity: 1 }],
     outputItemId: 'rune_pickaxe_steel',
     outputQuantity: 1,
-    xp: 250,
+    xp: 95,
     intervalSeconds: 4.5,
   },
   forge_pickaxe_azurite: {
@@ -680,7 +680,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     inputs: [{ itemId: 'azurite_ingot', quantity: 2 }, { itemId: 'bloodwood_timber', quantity: 1 }],
     outputItemId: 'rune_pickaxe_azurite',
     outputQuantity: 1,
-    xp: 650,
+    xp: 220,
     intervalSeconds: 5.5,
   },
   forge_pickaxe_astralite: {
@@ -691,7 +691,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     inputs: [{ itemId: 'astralite_ingot', quantity: 2 }, { itemId: 'starlight_timber', quantity: 1 }],
     outputItemId: 'rune_pickaxe_astralite',
     outputQuantity: 1,
-    xp: 1500,
+    xp: 450,
     intervalSeconds: 6.5,
   },
   forge_axe_cold_iron: {
@@ -702,7 +702,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     inputs: [{ itemId: 'cold_iron_ingot', quantity: 2 }, { itemId: 'whispering_oak', quantity: 1 }],
     outputItemId: 'rune_axe_cold_iron',
     outputQuantity: 1,
-    xp: 120,
+    xp: 50,
     intervalSeconds: 4.0,
   },
   forge_axe_steel: {
@@ -713,7 +713,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     inputs: [{ itemId: 'steel_ingot', quantity: 2 }, { itemId: 'weeping_willow', quantity: 1 }],
     outputItemId: 'rune_axe_steel',
     outputQuantity: 1,
-    xp: 250,
+    xp: 95,
     intervalSeconds: 4.5,
   },
   forge_axe_azurite: {
@@ -724,7 +724,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     inputs: [{ itemId: 'azurite_ingot', quantity: 2 }, { itemId: 'bloodwood_timber', quantity: 1 }],
     outputItemId: 'rune_axe_azurite',
     outputQuantity: 1,
-    xp: 650,
+    xp: 220,
     intervalSeconds: 5.5,
   },
   forge_axe_astralite: {
@@ -735,7 +735,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     inputs: [{ itemId: 'astralite_ingot', quantity: 2 }, { itemId: 'starlight_timber', quantity: 1 }],
     outputItemId: 'rune_axe_astralite',
     outputQuantity: 1,
-    xp: 1500,
+    xp: 450,
     intervalSeconds: 6.5,
   },
 
@@ -894,7 +894,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     inputs: [{ itemId: 'nightshade_seed', quantity: 1 }],
     outputItemId: 'nightshade_bell',
     outputQuantity: 6,
-    xp: 850,
+    xp: 580,
     intervalSeconds: 7.0,
     rareFinds: [{ itemId: 'nightshade_seed', chance: 0.35 }],
   },
@@ -906,7 +906,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     inputs: [{ itemId: 'bramble_mandrake_seed', quantity: 1 }],
     outputItemId: 'bramble_mandrake',
     outputQuantity: 6,
-    xp: 680,
+    xp: 880,
     intervalSeconds: 6.0,
     rareFinds: [{ itemId: 'bramble_mandrake_seed', chance: 0.35 }],
   },
@@ -918,7 +918,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     inputs: [{ itemId: 'wyrmfrond_seed', quantity: 1 }],
     outputItemId: 'wyrmfrond',
     outputQuantity: 7,
-    xp: 1950,
+    xp: 1400,
     intervalSeconds: 8.5,
     rareFinds: [{ itemId: 'wyrmfrond_seed', chance: 0.3 }],
   },
@@ -930,7 +930,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     inputs: [{ itemId: 'nether_gourd_seed', quantity: 1 }],
     outputItemId: 'nether_gourd',
     outputQuantity: 8,
-    xp: 1550,
+    xp: 1900,
     intervalSeconds: 7.5,
     rareFinds: [{ itemId: 'nether_gourd_seed', chance: 0.3 }],
   },
@@ -942,7 +942,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     inputs: [{ itemId: 'sunfire_pod', quantity: 1 }],
     outputItemId: 'sunfire_pepper',
     outputQuantity: 9,
-    xp: 3600,
+    xp: 2600,
     intervalSeconds: 10.0,
     rareFinds: [{ itemId: 'sunfire_pod', chance: 0.25 }],
   },
@@ -1098,7 +1098,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     inputs: [{ itemId: 'ashwood_timber', quantity: 2 }],
     outputItemId: 'ashwood_shortbow',
     outputQuantity: 1,
-    xp: 25,
+    xp: 15,
     intervalSeconds: 2.5,
   },
   fletch_pelt_quiver: {
@@ -1109,7 +1109,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     inputs: [{ itemId: 'mire_rat_pelt', quantity: 2 }, { itemId: 'ashwood_timber', quantity: 1 }],
     outputItemId: 'pelt_quiver',
     outputQuantity: 1,
-    xp: 35,
+    xp: 20,
     intervalSeconds: 2.8,
   },
   fletch_oak_shortbow: {
@@ -1120,7 +1120,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     inputs: [{ itemId: 'whispering_oak', quantity: 2 }],
     outputItemId: 'oak_shortbow',
     outputQuantity: 1,
-    xp: 60,
+    xp: 35,
     intervalSeconds: 3.2,
   },
   fletch_bogskin_quiver: {
@@ -1131,7 +1131,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     inputs: [{ itemId: 'bogling_hide', quantity: 2 }, { itemId: 'whispering_oak', quantity: 1 }],
     outputItemId: 'bogskin_quiver',
     outputQuantity: 1,
-    xp: 90,
+    xp: 55,
     intervalSeconds: 3.5,
   },
   fletch_willow_shortbow: {
@@ -1142,7 +1142,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     inputs: [{ itemId: 'weeping_willow', quantity: 2 }],
     outputItemId: 'willow_shortbow',
     outputQuantity: 1,
-    xp: 130,
+    xp: 70,
     intervalSeconds: 3.8,
   },
   fletch_chitin_quiver: {
@@ -1153,7 +1153,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     inputs: [{ itemId: 'crypt_carapace', quantity: 2 }, { itemId: 'weeping_willow', quantity: 1 }],
     outputItemId: 'chitin_quiver',
     outputQuantity: 1,
-    xp: 180,
+    xp: 110,
     intervalSeconds: 4.0,
   },
   fletch_bloodwood_shortbow: {
@@ -1164,7 +1164,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     inputs: [{ itemId: 'bloodwood_timber', quantity: 2 }],
     outputItemId: 'bloodwood_shortbow',
     outputQuantity: 1,
-    xp: 240,
+    xp: 130,
     intervalSeconds: 4.5,
   },
   fletch_ghostwood_shortbow: {
@@ -1175,7 +1175,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     inputs: [{ itemId: 'ghostwood_timber', quantity: 2 }],
     outputItemId: 'ghostwood_shortbow',
     outputQuantity: 1,
-    xp: 420,
+    xp: 240,
     intervalSeconds: 5.0,
   },
   fletch_starlight_shortbow: {
@@ -1186,7 +1186,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     inputs: [{ itemId: 'starlight_timber', quantity: 2 }, { itemId: 'anima', quantity: 1 }],
     outputItemId: 'starlight_shortbow',
     outputQuantity: 1,
-    xp: 850,
+    xp: 420,
     intervalSeconds: 6.0,
   },
 
@@ -1199,7 +1199,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     inputs: [{ itemId: 'ashwood_timber', quantity: 2 }],
     outputItemId: 'ashwood_staff',
     outputQuantity: 1,
-    xp: 20,
+    xp: 15,
     intervalSeconds: 2.6,
   },
   fletch_oak_staff: {
@@ -1210,7 +1210,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     inputs: [{ itemId: 'whispering_oak', quantity: 2 }],
     outputItemId: 'oak_staff',
     outputQuantity: 1,
-    xp: 55,
+    xp: 35,
     intervalSeconds: 3.2,
   },
   fletch_willow_staff: {
@@ -1221,7 +1221,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     inputs: [{ itemId: 'weeping_willow', quantity: 2 }],
     outputItemId: 'willow_staff',
     outputQuantity: 1,
-    xp: 120,
+    xp: 70,
     intervalSeconds: 3.8,
   },
   fletch_bloodwood_staff: {
@@ -1232,7 +1232,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     inputs: [{ itemId: 'bloodwood_timber', quantity: 2 }],
     outputItemId: 'bloodwood_staff',
     outputQuantity: 1,
-    xp: 260,
+    xp: 130,
     intervalSeconds: 4.5,
   },
   fletch_ghostwood_staff: {
@@ -1243,7 +1243,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     inputs: [{ itemId: 'ghostwood_timber', quantity: 2 }],
     outputItemId: 'ghostwood_staff',
     outputQuantity: 1,
-    xp: 550,
+    xp: 260,
     intervalSeconds: 5.2,
   },
   fletch_starlight_staff: {
@@ -1254,7 +1254,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     inputs: [{ itemId: 'starlight_timber', quantity: 2 }, { itemId: 'anima', quantity: 1 }],
     outputItemId: 'starlight_staff',
     outputQuantity: 1,
-    xp: 1100,
+    xp: 450,
     intervalSeconds: 6.2,
   },
   fletch_willow_rod: {
@@ -1265,7 +1265,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     inputs: [{ itemId: 'weeping_willow', quantity: 1 }],
     outputItemId: 'fishing_rod_willow',
     outputQuantity: 1,
-    xp: 35,
+    xp: 20,
     intervalSeconds: 3.0,
   },
   fletch_oak_rod: {
@@ -1276,7 +1276,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     inputs: [{ itemId: 'whispering_oak', quantity: 1 }],
     outputItemId: 'fishing_rod_oak',
     outputQuantity: 1,
-    xp: 100,
+    xp: 60,
     intervalSeconds: 3.8,
   },
   fletch_yew_rod: {
@@ -1287,7 +1287,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     inputs: [{ itemId: 'ghostwood_timber', quantity: 1 }],
     outputItemId: 'fishing_rod_yew',
     outputQuantity: 1,
-    xp: 350,
+    xp: 160,
     intervalSeconds: 4.6,
   },
 
@@ -1302,7 +1302,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     inputs: [{ itemId: 'silverleaf', quantity: 1 }, { itemId: 'pyrite_ore', quantity: 1 }],
     outputItemId: 'artisans_draught',
     outputQuantity: 1,
-    xp: 30,
+    xp: 15,
     intervalSeconds: 2.8,
   },
   brew_zephyr_phial: {
@@ -1313,7 +1313,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     inputs: [{ itemId: 'silverleaf', quantity: 2 }, { itemId: 'galena_ore', quantity: 1 }],
     outputItemId: 'zephyr_phial',
     outputQuantity: 1,
-    xp: 75,
+    xp: 35,
     intervalSeconds: 3.2,
   },
   brew_predators_elixir: {
@@ -1324,7 +1324,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     inputs: [{ itemId: 'glowshroom', quantity: 2 }, { itemId: 'cold_iron_ore', quantity: 1 }],
     outputItemId: 'predators_elixir',
     outputQuantity: 1,
-    xp: 150,
+    xp: 70,
     intervalSeconds: 3.8,
   },
   brew_restorative_draught: {
@@ -1335,7 +1335,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     inputs: [{ itemId: 'nightshade_bell', quantity: 2 }, { itemId: 'nethercoal', quantity: 1 }],
     outputItemId: 'restorative_draught',
     outputQuantity: 1,
-    xp: 280,
+    xp: 130,
     intervalSeconds: 4.5,
   },
   brew_warmasters_draught: {
@@ -1346,7 +1346,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     inputs: [{ itemId: 'nightshade_bell', quantity: 2 }, { itemId: 'solar_aurum_ore', quantity: 1 }],
     outputItemId: 'warmasters_draught',
     outputQuantity: 1,
-    xp: 480,
+    xp: 220,
     intervalSeconds: 5.2,
   },
   brew_celerity_flask: {
@@ -1357,7 +1357,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     inputs: [{ itemId: 'wyrmfrond', quantity: 2 }, { itemId: 'quicksilver_ore', quantity: 2 }],
     outputItemId: 'celerity_flask',
     outputQuantity: 1,
-    xp: 800,
+    xp: 360,
     intervalSeconds: 6.0,
   },
   brew_eldervault_elixir: {
@@ -1368,7 +1368,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     inputs: [{ itemId: 'wyrmfrond', quantity: 2 }, { itemId: 'azurite_ore', quantity: 1 }, { itemId: 'anima', quantity: 1 }],
     outputItemId: 'elixir_of_the_eldervault',
     outputQuantity: 1,
-    xp: 1400,
+    xp: 520,
     intervalSeconds: 7.0,
   },
   brew_abyssal_gold: {
@@ -1379,7 +1379,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     inputs: [{ itemId: 'sunfire_pepper', quantity: 2 }, { itemId: 'starfall_ore', quantity: 1 }, { itemId: 'anima', quantity: 2 }],
     outputItemId: 'abyssal_gold_phial',
     outputQuantity: 1,
-    xp: 2800,
+    xp: 750,
     intervalSeconds: 8.5,
   },
 
@@ -1394,7 +1394,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     inputs: [{ itemId: 'mire_rat_pelt', quantity: 3 }],
     outputItemId: 'pelt_jerkin',
     outputQuantity: 1,
-    xp: 24,
+    xp: 15,
     intervalSeconds: 2.5,
   },
   craft_leather_chaps: {
@@ -1405,7 +1405,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     inputs: [{ itemId: 'mire_rat_pelt', quantity: 2 }],
     outputItemId: 'leather_chaps',
     outputQuantity: 1,
-    xp: 32,
+    xp: 20,
     intervalSeconds: 2.8,
   },
   craft_linen_grimoire: {
@@ -1416,7 +1416,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     inputs: [{ itemId: 'homespun_bolt', quantity: 2 }, { itemId: 'ashwood_timber', quantity: 1 }],
     outputItemId: 'linen_grimoire',
     outputQuantity: 1,
-    xp: 50,
+    xp: 30,
     intervalSeconds: 3.0,
   },
   craft_cut_celestial_gem: {
@@ -1427,7 +1427,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     inputs: [{ itemId: 'uncut_celestial_gem', quantity: 1 }],
     outputItemId: 'cut_celestial_gem',
     outputQuantity: 1,
-    xp: 95,
+    xp: 60,
     intervalSeconds: 3.2,
   },
   craft_silk_grimoire: {
@@ -1438,7 +1438,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     inputs: [{ itemId: 'silk_bolt', quantity: 2 }, { itemId: 'whispering_oak', quantity: 1 }],
     outputItemId: 'silk_grimoire',
     outputQuantity: 1,
-    xp: 160,
+    xp: 95,
     intervalSeconds: 3.8,
   },
   craft_gilded_grimoire: {
@@ -1449,7 +1449,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     inputs: [{ itemId: 'gilded_bolt', quantity: 2 }, { itemId: 'cut_celestial_gem', quantity: 1 }],
     outputItemId: 'gilded_grimoire',
     outputQuantity: 1,
-    xp: 380,
+    xp: 220,
     intervalSeconds: 4.8,
   },
   craft_voidweave_grimoire: {
@@ -1460,7 +1460,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     inputs: [{ itemId: 'voidweave_bolt', quantity: 2 }, { itemId: 'anima', quantity: 1 }],
     outputItemId: 'voidweave_grimoire',
     outputQuantity: 1,
-    xp: 950,
+    xp: 480,
     intervalSeconds: 6.2,
   },
 
@@ -1475,7 +1475,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     inputs: [{ itemId: 'ashwood_timber', quantity: 2 }, { itemId: 'pyrite_ore', quantity: 1 }],
     outputItemId: 'ashwood_staff',
     outputQuantity: 1,
-    xp: 28,
+    xp: 15,
     intervalSeconds: 2.8,
   },
   attune_oak_staff: {
@@ -1486,7 +1486,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     inputs: [{ itemId: 'whispering_oak', quantity: 2 }, { itemId: 'galena_ore', quantity: 1 }],
     outputItemId: 'oak_staff',
     outputQuantity: 1,
-    xp: 70,
+    xp: 35,
     intervalSeconds: 3.2,
   },
   attune_willow_staff: {
@@ -1497,7 +1497,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     inputs: [{ itemId: 'weeping_willow', quantity: 2 }, { itemId: 'cold_iron_ore', quantity: 1 }],
     outputItemId: 'willow_staff',
     outputQuantity: 1,
-    xp: 140,
+    xp: 70,
     intervalSeconds: 3.8,
   },
   attune_bloodwood_staff: {
@@ -1508,7 +1508,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     inputs: [{ itemId: 'bloodwood_timber', quantity: 2 }, { itemId: 'solar_aurum_ore', quantity: 1 }],
     outputItemId: 'bloodwood_staff',
     outputQuantity: 1,
-    xp: 260,
+    xp: 130,
     intervalSeconds: 4.5,
   },
   attune_ghostwood_staff: {
@@ -1519,7 +1519,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     inputs: [{ itemId: 'ghostwood_timber', quantity: 2 }, { itemId: 'cut_celestial_gem', quantity: 1 }],
     outputItemId: 'ghostwood_staff',
     outputQuantity: 1,
-    xp: 450,
+    xp: 220,
     intervalSeconds: 5.2,
   },
   attune_starlight_staff: {
@@ -1530,7 +1530,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     inputs: [{ itemId: 'starlight_timber', quantity: 2 }, { itemId: 'anima', quantity: 1 }],
     outputItemId: 'starlight_staff',
     outputQuantity: 1,
-    xp: 900,
+    xp: 420,
     intervalSeconds: 6.2,
   },
   attune_ward_scroll: {
@@ -1541,7 +1541,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     inputs: [{ itemId: 'anima', quantity: 2 }, { itemId: 'voidweave_bolt', quantity: 1 }],
     outputItemId: 'ward_scroll',
     outputQuantity: 1,
-    xp: 1800,
+    xp: 650,
     intervalSeconds: 7.5,
   },
 };
