@@ -463,11 +463,14 @@ export class GameEngine {
             targetY = adj.y;
             nodeX = mNode.x;
             nodeY = mNode.y;
-          } else if (storage.isCollidable(targetX, targetY)) {
-            // If destination tile is collidable (e.g. water or obstacle), resolve adjacent walkable tile
-            const adj = this.getAdjacentWalkableTile(player.x, player.y, targetX, targetY);
-            targetX = adj.x;
-            targetY = adj.y;
+          } else {
+            // For any node interaction, ensure destination is an adjacent walkable tile outside the node!
+            const isNodeTile = typeof nodeX === 'number' && typeof nodeY === 'number' && (targetX === nodeX && targetY === nodeY);
+            if (isNodeTile || storage.isCollidable(targetX, targetY)) {
+              const adj = this.getAdjacentWalkableTile(player.x, player.y, nodeX ?? targetX, nodeY ?? targetY);
+              targetX = adj.x;
+              targetY = adj.y;
+            }
           }
 
           // Check if crafting recipe needs inputs not in bag
@@ -548,6 +551,8 @@ export class GameEngine {
             completedQuantity: 0,
             targetNodeX: nodeX,
             targetNodeY: nodeY,
+            standX: targetX,
+            standY: targetY,
           };
           player.pendingTask = null;
           session.ticksInTask = 0;
@@ -1698,6 +1703,8 @@ export class GameEngine {
                   completedQuantity: 0,
                   targetNodeX: session.pendingTask.nodeX ?? session.pendingTask.targetX,
                   targetNodeY: session.pendingTask.nodeY ?? session.pendingTask.targetY,
+                  standX: player.x,
+                  standY: player.y,
                 };
                 session.ticksInTask = 0;
                 this.send(ws, {
@@ -1727,6 +1734,8 @@ export class GameEngine {
                 completedQuantity: 0,
                 targetNodeX: session.pendingTask.nodeX ?? session.pendingTask.targetX,
                 targetNodeY: session.pendingTask.nodeY ?? session.pendingTask.targetY,
+                standX: player.x,
+                standY: player.y,
               };
               session.ticksInTask = 0;
               this.send(ws, {
@@ -1910,18 +1919,42 @@ export class GameEngine {
     }
 
     // Walk back to previous task node or pending target node!
-    let destX = player.bankReturnTask ? player.bankReturnTask.targetNodeX : (session.pendingTask ? session.pendingTask.targetX : undefined);
-    let destY = player.bankReturnTask ? player.bankReturnTask.targetNodeY : (session.pendingTask ? session.pendingTask.targetY : undefined);
+    let destX: number | undefined;
+    let destY: number | undefined;
 
-    if (typeof destX === 'number' && typeof destY === 'number') {
-      if (storage.isCollidable(destX, destY)) {
-        const adj = this.getAdjacentWalkableTile(player.x, player.y, destX, destY);
+    if (player.bankReturnTask) {
+      const nodeX = player.bankReturnTask.targetNodeX;
+      const nodeY = player.bankReturnTask.targetNodeY;
+      const isStandOnNode = typeof nodeX === 'number' && typeof nodeY === 'number' && player.bankReturnTask.standX === nodeX && player.bankReturnTask.standY === nodeY;
+      if (!isStandOnNode && typeof player.bankReturnTask.standX === 'number' && typeof player.bankReturnTask.standY === 'number' && !storage.isCollidable(player.bankReturnTask.standX, player.bankReturnTask.standY)) {
+        destX = player.bankReturnTask.standX;
+        destY = player.bankReturnTask.standY;
+      } else if (typeof nodeX === 'number' && typeof nodeY === 'number') {
+        const adj = this.getAdjacentWalkableTile(player.x, player.y, nodeX, nodeY);
         destX = adj.x;
         destY = adj.y;
+      } else if (player.bankReturnTask.recipeId) {
+        const matching = storage.getWorldNodes().find(n => n.recipeId === player.bankReturnTask!.recipeId);
+        if (matching) {
+          const adj = this.getAdjacentWalkableTile(player.x, player.y, matching.x, matching.y);
+          destX = adj.x;
+          destY = adj.y;
+        }
       }
+    } else if (session.pendingTask) {
+      const nodeX = session.pendingTask.nodeX ?? session.pendingTask.targetX;
+      const nodeY = session.pendingTask.nodeY ?? session.pendingTask.targetY;
+      const adj = this.getAdjacentWalkableTile(player.x, player.y, nodeX, nodeY);
+      destX = adj.x;
+      destY = adj.y;
+    }
+
+    if (typeof destX === 'number' && typeof destY === 'number') {
       player.bankingState = 'returning_to_work';
       const path = this.findPathWithCollisions(player.x, player.y, destX, destY);
       player.path = path;
+      player.targetX = destX;
+      player.targetY = destY;
       player.isMoving = path.length > 0;
       this.send(ws, {
         type: 'NOTIFICATION',
@@ -1973,7 +2006,7 @@ export class GameEngine {
 
         if (hasInStorage) {
           // Autonomous run to Hearth to bank products & fetch materials!
-          player.bankReturnTask = { ...player.currentTask! };
+          player.bankReturnTask = { ...player.currentTask!, standX: player.x, standY: player.y };
           player.currentTask = null;
           player.bankingState = 'walking_to_bank';
           const hearth = this.getHearthLocation(player.x, player.y);
@@ -2024,7 +2057,7 @@ export class GameEngine {
           this.send(ws, { type: 'NOTIFICATION', message: `Satchel full! Discarded ${outDef?.name || 'spoils'}.` });
         } else {
           // Trigger Autonomous Banking Run to the Hearth!
-          player.bankReturnTask = { ...player.currentTask! };
+          player.bankReturnTask = { ...player.currentTask!, standX: player.x, standY: player.y };
           player.currentTask = null;
           player.bankingState = 'walking_to_bank';
 
@@ -2184,7 +2217,7 @@ export class GameEngine {
           this.send(ws, { type: 'NOTIFICATION', message: `Satchel full! Discarded excess harvest.` });
         } else {
           // Autonomous banking run to Hearth
-          player.bankReturnTask = { ...player.currentTask! };
+          player.bankReturnTask = { ...player.currentTask!, standX: player.x, standY: player.y };
           player.currentTask = null;
           player.bankingState = 'walking_to_bank';
           const hearth = this.getHearthLocation(player.x, player.y);
@@ -2347,7 +2380,7 @@ export class GameEngine {
           // No seeds in inventory! Check if seeds exist in storage to bank & fetch
           const hasInStorage = player.storage.some(s => s.itemId === seedId && s.quantity > 0);
           if (hasInStorage) {
-            player.bankReturnTask = { ...player.currentTask! };
+            player.bankReturnTask = { ...player.currentTask!, standX: player.x, standY: player.y };
             player.currentTask = null;
             player.bankingState = 'walking_to_bank';
             const hearth = this.getHearthLocation(player.x, player.y);
@@ -2633,23 +2666,46 @@ export class GameEngine {
   private getAdjacentWalkableTile(playerX: number, playerY: number, targetX: number, targetY: number): { x: number; y: number } {
     const collisions = storage.getCollisions();
     const candidates = [
-      { x: targetX, y: targetY + 1 },
-      { x: targetX, y: targetY - 1 },
-      { x: targetX + 1, y: targetY },
-      { x: targetX - 1, y: targetY },
-      { x: targetX + 1, y: targetY + 1 },
-      { x: targetX - 1, y: targetY + 1 },
-      { x: targetX + 1, y: targetY - 1 },
-      { x: targetX - 1, y: targetY - 1 },
+      // Cardinal directions first (closest, best looking for node interaction animations!)
+      { x: targetX, y: targetY + 1, cardinal: true },
+      { x: targetX, y: targetY - 1, cardinal: true },
+      { x: targetX + 1, y: targetY, cardinal: true },
+      { x: targetX - 1, y: targetY, cardinal: true },
+      // Diagonal corners
+      { x: targetX + 1, y: targetY + 1, cardinal: false },
+      { x: targetX - 1, y: targetY + 1, cardinal: false },
+      { x: targetX + 1, y: targetY - 1, cardinal: false },
+      { x: targetX - 1, y: targetY - 1, cardinal: false },
     ].filter(pt => !collisions.has(`${pt.x},${pt.y}`));
 
     if (candidates.length > 0) {
-      candidates.sort((a, b) =>
-        Math.hypot(a.x - playerX, a.y - playerY) - Math.hypot(b.x - playerX, b.y - playerY)
-      );
-      return candidates[0];
+      candidates.sort((a, b) => {
+        const distA = Math.hypot(a.x - playerX, a.y - playerY);
+        const distB = Math.hypot(b.x - playerX, b.y - playerY);
+        if (Math.abs(distA - distB) < 0.25) {
+          if (a.cardinal && !b.cardinal) return -1;
+          if (!a.cardinal && b.cardinal) return 1;
+        }
+        return distA - distB;
+      });
+      return { x: candidates[0].x, y: candidates[0].y };
     }
-    return { x: targetX, y: targetY };
+
+    // Secondary fallback: distance-2 perimeter around target
+    for (let dx = -2; dx <= 2; dx++) {
+      for (let dy = -2; dy <= 2; dy++) {
+        if (Math.abs(dx) === 2 || Math.abs(dy) === 2) {
+          const nx = targetX + dx;
+          const ny = targetY + dy;
+          if (!collisions.has(`${nx},${ny}`)) {
+            return { x: nx, y: ny };
+          }
+        }
+      }
+    }
+
+    // Extreme fallback: 1 step outside the node, never on top of the node!
+    return { x: targetX, y: targetY + 1 };
   }
 
   private resumeCombatSession(session: ConnectedSession, monsterId: string, targetX: number, targetY: number, nodeId?: string) {
@@ -2832,7 +2888,7 @@ export class GameEngine {
 
         // Check if satchel full
         if (player.inventory.length >= 28) {
-          player.bankReturnTask = { ...player.currentTask! };
+          player.bankReturnTask = { ...player.currentTask!, standX: player.x, standY: player.y };
           player.currentTask = null;
           session.activeCombat = null;
           player.bankingState = 'walking_to_bank';

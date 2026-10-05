@@ -163,6 +163,8 @@ export interface ActiveTask {
   targetNodeX?: number;
   targetNodeY?: number;
   targetNodeId?: string;
+  standX?: number;
+  standY?: number;
 }
 
 export interface QueuedTask {

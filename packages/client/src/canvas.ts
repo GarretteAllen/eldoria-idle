@@ -622,6 +622,15 @@ export class WorldRenderer {
 
     // 7. Draw Other Players
     for (const remote of this.otherPlayers.values()) {
+      let remoteTargetX: number | undefined;
+      let remoteTargetY: number | undefined;
+      if (remote.currentTask) {
+        const matching = this.nodes.find(n => n.recipeId === remote.currentTask || n.monsterId === remote.currentTask);
+        if (matching) {
+          remoteTargetX = matching.x;
+          remoteTargetY = matching.y;
+        }
+      }
       this.drawPlayer(
         remote.x,
         remote.y,
@@ -634,7 +643,9 @@ export class WorldRenderer {
         undefined,
         remote.role === 'admin',
         remote.equipment,
-        remote.id
+        remote.id,
+        remoteTargetX,
+        remoteTargetY
       );
     }
 
@@ -644,6 +655,26 @@ export class WorldRenderer {
       const currentTaskSkill = this.localPlayer.currentTask
         ? ((this.localPlayer.currentTask.skill as string) === 'combat' ? this.getPlayerCombatStyle(this.localPlayer) : this.localPlayer.currentTask.skill)
         : null;
+
+      let targetNodeX: number | undefined;
+      let targetNodeY: number | undefined;
+
+      if (this.localPlayer.currentTask) {
+        targetNodeX = this.localPlayer.currentTask.targetNodeX;
+        targetNodeY = this.localPlayer.currentTask.targetNodeY;
+      }
+      if (targetNodeX === undefined && this.localPlayer.pendingTask) {
+        targetNodeX = this.localPlayer.pendingTask.nodeX ?? this.localPlayer.pendingTask.targetX;
+        targetNodeY = this.localPlayer.pendingTask.nodeY ?? this.localPlayer.pendingTask.targetY;
+      }
+      if (targetNodeX === undefined && this.localPlayer.currentTask) {
+        const recId = this.localPlayer.currentTask.recipeId;
+        const matching = this.nodes.find(n => n.recipeId === recId || n.monsterId === recId);
+        if (matching) {
+          targetNodeX = matching.x;
+          targetNodeY = matching.y;
+        }
+      }
 
       this.drawPlayer(
         this.visualX,
@@ -657,7 +688,9 @@ export class WorldRenderer {
         this.localPlayer.moveSpeedTilesPerTick,
         this.localPlayer.role === 'admin',
         this.localPlayer.equipment,
-        this.localPlayer.id
+        this.localPlayer.id,
+        targetNodeX,
+        targetNodeY
       );
     }
 
@@ -1941,13 +1974,13 @@ export class WorldRenderer {
     moveSpeed?: number,
     isAdmin: boolean = false,
     equipment?: Partial<Record<EquipSlot, InventorySlot>>,
-    playerId?: string
+    playerId?: string,
+    targetNodeX?: number,
+    targetNodeY?: number
   ) {
     const { ctx } = this;
     const px = x * TILE_SIZE + TILE_SIZE / 2;
     const py = y * TILE_SIZE + TILE_SIZE / 2;
-
-    ctx.save();
 
     // Helper to resolve an equipment sprite from an itemId or key
     const getSprite = (key?: string): EquipmentSpriteCoord | undefined => {
@@ -2008,8 +2041,33 @@ export class WorldRenderer {
       ctx.restore();
     };
 
+    // Calculate facing direction: face and point towards the target node/monster/waypoint!
+    let facingLeft = false;
+    const targetDy = typeof targetNodeY === 'number' ? targetNodeY - y : 0;
+
+    if (typeof targetNodeX === 'number' && typeof targetNodeY === 'number') {
+      const dx = targetNodeX - x;
+      if (Math.abs(dx) > 0.15) {
+        facingLeft = dx < 0;
+      }
+    } else if (isMoving && isSelf && this.localPlayer && this.localPlayer.path && this.localPlayer.path.length > 0) {
+      const nextStep = this.localPlayer.path[0];
+      const dx = nextStep.x - x;
+      if (Math.abs(dx) > 0.15) {
+        facingLeft = dx < 0;
+      }
+    }
+
     // Mount is only active and visible while moving; dismount when idle, talking, working, or in combat
     const isMounted = Boolean(equipment && equipment.steed && isMoving && !taskSkill);
+
+    // Save context and apply horizontal flip so animations, weapons, and tools point directly towards the target!
+    ctx.save();
+    if (facingLeft) {
+      ctx.translate(px, py);
+      ctx.scale(-1, 1);
+      ctx.translate(-px, -py);
+    }
 
     if (isMounted) {
       // === MOUNTED GALLOPING ON STEED ===
@@ -2061,14 +2119,6 @@ export class WorldRenderer {
       const weaponCoord = getSprite(equipment?.weapon?.itemId);
       if (weaponCoord) {
         drawLayer(weaponCoord, 0, riderY);
-      }
-
-      // Speed Tag
-      if (moveSpeed) {
-        ctx.font = '8px Inter, sans-serif';
-        ctx.fillStyle = '#48bb78';
-        ctx.textAlign = 'center';
-        ctx.fillText(`${moveSpeed.toFixed(1)} t/t`, px, py + 24);
       }
     } else {
       // === DISMOUNTED / WALKING ON FOOT / WORKING / IDLE ===
@@ -2415,6 +2465,7 @@ export class WorldRenderer {
 
           const shoulderX = px + 4;
           const shoulderY = py - 2 + breatheBob;
+          const vertReach = Math.max(-5, Math.min(5, Math.round(targetDy * 4)));
 
           let handX = shoulderX + 4;
           let handY = shoulderY + 4;
@@ -2430,18 +2481,18 @@ export class WorldRenderer {
             const p = (thiefPhase - 0.38) / 0.32;
             const ease = 1 - Math.pow(1 - p, 3);
             handX = shoulderX + 4 + Math.round(ease * 9);
-            handY = shoulderY + 4 - Math.round(ease * 2);
+            handY = shoulderY + 4 - Math.round(ease * (2 - vertReach));
           } else if (thiefPhase < 0.84) {
             // 3. The Snatch & Grab: fingers pinch/clench tight onto loot! (1680ms - 2016ms)
             isGrabbing = true;
             handX = shoulderX + 13;
-            handY = shoulderY + 2;
+            handY = shoulderY + 2 + vertReach;
           } else {
             // 4. Swift concealment retraction back into cloak (2016ms - 2400ms)
             const p = (thiefPhase - 0.84) / 0.16;
             const retractEase = p * p;
             handX = shoulderX + 13 - Math.round(retractEase * 9);
-            handY = shoulderY + 2 + Math.round(retractEase * 2);
+            handY = shoulderY + 2 + vertReach - Math.round(retractEase * (vertReach - 2));
           }
 
           // Elbow calculation for natural joint bend
@@ -2652,6 +2703,16 @@ export class WorldRenderer {
       }
     }
 
+    ctx.restore();
+
+    // Speed Tag (rendered unflipped so text is always crisp and readable)
+    if (isMounted && moveSpeed) {
+      ctx.font = '8px Inter, sans-serif';
+      ctx.fillStyle = '#48bb78';
+      ctx.textAlign = 'center';
+      ctx.fillText(`${moveSpeed.toFixed(1)} t/t`, px, py + 24);
+    }
+
     // Overhead Name & Title & Badges Positioning
     // Shifted upwards cleanly so names never obscure player heads, tall helmets, or mounts!
     const nameBaseY = isMounted ? py - 43 : py - 24;
@@ -2703,9 +2764,6 @@ export class WorldRenderer {
       ctx.fillStyle = '#cbd5e0';
       ctx.fillText(`"${title}"`, px, titleY);
     }
-
-    ctx.restore();
-
   }
 
   private drawChatBubbles() {
