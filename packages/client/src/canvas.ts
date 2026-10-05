@@ -2292,7 +2292,10 @@ export class WorldRenderer {
       // 7. Weapon (in front of horse and leg)
       const weaponCoord = getSprite(equipment?.weapon?.itemId);
       if (weaponCoord) {
-        drawLayer(weaponCoord, 0, riderY);
+        const isBow = Boolean((weaponCoord.row === 5 && weaponCoord.col < 6) || equipment?.weapon?.itemId?.includes('bow'));
+        const bowOffX = isBow ? 5 : 0;
+        const bowOffY = isBow ? 5 : 0;
+        drawLayer(weaponCoord, bowOffX, riderY + bowOffY);
       }
     } else {
       // === DISMOUNTED / WALKING ON FOOT / WORKING / IDLE ===
@@ -2807,7 +2810,7 @@ export class WorldRenderer {
               }
             }
             if (weaponCoord) {
-              drawLayer(weaponCoord, drawX, breatheBob, drawAngle);
+              drawLayer(weaponCoord, drawX, breatheBob + 5, drawAngle);
             }
           } else if (isStaff) {
             // Magic Staff: Held upright; raises overhead and casts forward burst only when attacking!
@@ -2877,7 +2880,10 @@ export class WorldRenderer {
         // When IDLE, WALKING, or STANDING: ONLY draw weapon if weapon is equipped! Tools on toolbelt are invisible!
         const weaponCoord = getSprite(equipment?.weapon?.itemId);
         if (weaponCoord) {
-          drawLayer(weaponCoord, 0, breatheBob);
+          const isBow = Boolean((weaponCoord.row === 5 && weaponCoord.col < 6) || equipment?.weapon?.itemId?.includes('bow'));
+          const bowOffX = isBow ? 5 : 0;
+          const bowOffY = isBow ? 5 : 0;
+          drawLayer(weaponCoord, bowOffX, breatheBob + bowOffY);
         }
       }
     }
