@@ -310,6 +310,7 @@ export interface PlayerData {
   } | null;
   taskQueue: QueuedTask[];
   eatsAtHpPercent: number; // e.g. 50
+  selectedFoodItemId?: string | null;
   currentHp: number;
   lastActiveTimestamp: number;
 }

@@ -114,6 +114,7 @@ class EldoriaClient {
     this.setupSkillJobPopup();
     this.setupModals();
     this.setupStorageModal();
+    this.setupCombatSustenance();
     this.setupAdminEditor();
     this.setupSoundAndMinimap();
     this.setupWorldMapModal();
@@ -829,33 +830,15 @@ class EldoriaClient {
               this.renderer.addFloatingText(targetX, targetY, `CRIT! -${dmg}`, 'crit');
               this.renderer.spawnParticles(targetX, targetY, 8, 'gold_crit');
               this.renderer.triggerCameraShake(4);
-              this.appendChatMessage({
-                time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                senderName: 'Combat',
-                channel: 'Combat',
-                text: `[CRITICAL HIT] Dealt ${dmg} damage to ${msg.monsterName || 'target'}!`,
-              });
             } else {
               this.renderer.addFloatingText(targetX, targetY, `-${dmg}`, 'damage');
               this.renderer.spawnParticles(targetX, targetY, 5, 'blood');
               this.renderer.triggerCameraShake(1.5);
-              this.appendChatMessage({
-                time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                senderName: 'Combat',
-                channel: 'Combat',
-                text: `Struck ${msg.monsterName || 'target'} for ${dmg} damage.`,
-              });
             }
             if (targetKey) this.renderer.triggerMonsterFlinch(targetKey);
           } else if (!msg.isRespawn) {
             sound.play('splash');
             this.renderer.addFloatingText(targetX, targetY, '0', 'splash');
-            this.appendChatMessage({
-              time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-              senderName: 'Combat',
-              channel: 'Combat',
-              text: `Missed strike on ${msg.monsterName || 'target'}.`,
-            });
           }
 
           if (msg.isRespawn && targetKey) {
@@ -911,6 +894,21 @@ class EldoriaClient {
           }
         }
         break;
+
+      case 'COMBAT_HEAL': {
+        const isMe = !msg.playerId || msg.playerId === this.player?.id;
+        const px = typeof msg.playerX === 'number' ? msg.playerX : (this.player?.x ?? 0);
+        const py = typeof msg.playerY === 'number' ? msg.playerY : (this.player?.y ?? 0);
+        if (isMe && this.player) {
+          if (typeof msg.currentHp === 'number') this.player.currentHp = msg.currentHp;
+          this.updateCombatHud();
+        }
+        if (typeof msg.heal === 'number' && msg.heal > 0) {
+          this.renderer.addFloatingText(px, py, `+${msg.heal}`, 'heal');
+          this.renderer.spawnParticles(px, py, 7, 'herb');
+        }
+        break;
+      }
 
       case 'LEVEL_UP':
         this.showLevelUpModal(msg.skill, msg.newLevel);
@@ -1112,6 +1110,15 @@ class EldoriaClient {
       if (styleIconEl.innerHTML !== svg) {
         styleIconEl.innerHTML = svg;
       }
+    }
+
+    const autoEatEl = document.getElementById('combat-hud-autoeat-text');
+    if (autoEatEl) {
+      const eatPct = this.player.eatsAtHpPercent ?? 50;
+      const foodName = this.player.selectedFoodItemId && ITEMS[this.player.selectedFoodItemId]
+        ? ITEMS[this.player.selectedFoodItemId].name
+        : 'Any Food';
+      autoEatEl.textContent = `${eatPct}% HP (${foodName})`;
     }
   }
 
@@ -2231,6 +2238,138 @@ class EldoriaClient {
     }
   }
 
+  private setupCombatSustenance() {
+    const slider = document.getElementById('combat-eat-hp-slider') as HTMLInputElement | null;
+    const valText = document.getElementById('combat-eat-hp-val');
+    if (slider) {
+      slider.oninput = () => {
+        if (valText) valText.textContent = `${slider.value}%`;
+      };
+      slider.onchange = () => {
+        const val = parseInt(slider.value, 10);
+        if (!isNaN(val)) {
+          this.setCombatFoodSettings(val, undefined);
+        }
+      };
+    }
+
+    const foodSelect = document.getElementById('combat-food-select') as HTMLSelectElement | null;
+    if (foodSelect) {
+      foodSelect.onchange = () => {
+        this.setCombatFoodSettings(undefined, foodSelect.value || null);
+      };
+    }
+
+    const combatHudAutoEat = document.getElementById('combat-hud-autoeat');
+    if (combatHudAutoEat) {
+      combatHudAutoEat.onclick = () => {
+        this.switchDrawer('equipment');
+      };
+    }
+  }
+
+  private setCombatFoodSettings(eatsAtHpPercent?: number, selectedFoodItemId?: string | null) {
+    if (!this.player) return;
+    if (typeof eatsAtHpPercent === 'number' && !isNaN(eatsAtHpPercent)) {
+      this.player.eatsAtHpPercent = Math.max(10, Math.min(95, Math.round(eatsAtHpPercent)));
+    }
+    if (selectedFoodItemId !== undefined) {
+      this.player.selectedFoodItemId = selectedFoodItemId && selectedFoodItemId.trim().length > 0 ? selectedFoodItemId.trim() : null;
+    }
+    this.sendWs({
+      type: 'SET_COMBAT_FOOD_SETTINGS',
+      eatsAtHpPercent: this.player.eatsAtHpPercent,
+      selectedFoodItemId: this.player.selectedFoodItemId,
+    });
+    this.syncCombatFoodControls();
+    this.updateCombatHud();
+  }
+
+  private populateFoodSelect(selectEl: HTMLSelectElement | null, currentSelectedId?: string | null) {
+    if (!selectEl || !this.player) return;
+    const currentVal = currentSelectedId !== undefined ? (currentSelectedId || '') : (this.player.selectedFoodItemId || '');
+
+    const foodMap = new Map<string, { id: string; name: string; heal: number; bankCount: number; invCount: number }>();
+
+    for (const slot of this.player.storage) {
+      const def = ITEMS[slot.itemId];
+      if (def && (def.category === 'cooked_food' || ((def.baseStats?.healing || 0) > 0))) {
+        const entry = foodMap.get(slot.itemId) || {
+          id: slot.itemId,
+          name: def.name,
+          heal: def.baseStats?.healing || 5,
+          bankCount: 0,
+          invCount: 0,
+        };
+        entry.bankCount += slot.quantity;
+        foodMap.set(slot.itemId, entry);
+      }
+    }
+
+    for (const slot of this.player.inventory) {
+      const def = ITEMS[slot.itemId];
+      if (def && (def.category === 'cooked_food' || ((def.baseStats?.healing || 0) > 0))) {
+        const entry = foodMap.get(slot.itemId) || {
+          id: slot.itemId,
+          name: def.name,
+          heal: def.baseStats?.healing || 5,
+          bankCount: 0,
+          invCount: 0,
+        };
+        entry.invCount += slot.quantity;
+        foodMap.set(slot.itemId, entry);
+      }
+    }
+
+    if (currentVal && !foodMap.has(currentVal) && ITEMS[currentVal]) {
+      foodMap.set(currentVal, {
+        id: currentVal,
+        name: ITEMS[currentVal].name,
+        heal: ITEMS[currentVal].baseStats?.healing || 5,
+        bankCount: 0,
+        invCount: 0,
+      });
+    }
+
+    selectEl.innerHTML = `<option value="">Any Available Cooked Food</option>`;
+    const sorted = Array.from(foodMap.values()).sort((a, b) => b.heal - a.heal);
+    for (const f of sorted) {
+      const opt = document.createElement('option');
+      opt.value = f.id;
+      let countStr = '';
+      if (f.bankCount > 0 && f.invCount > 0) countStr = ` (${f.bankCount} in bank, ${f.invCount} in bag)`;
+      else if (f.bankCount > 0) countStr = ` (${f.bankCount} in bank)`;
+      else if (f.invCount > 0) countStr = ` (${f.invCount} in bag)`;
+      else countStr = ` (0 in bank)`;
+      opt.textContent = `${f.name} (+${f.heal} HP)${countStr}`;
+      if (f.id === currentVal) opt.selected = true;
+      selectEl.appendChild(opt);
+    }
+    if (!currentVal) {
+      selectEl.value = '';
+    }
+  }
+
+  private syncCombatFoodControls() {
+    if (!this.player) return;
+    const pct = this.player.eatsAtHpPercent ?? 50;
+    const foodId = this.player.selectedFoodItemId || '';
+
+    const slider = document.getElementById('combat-eat-hp-slider') as HTMLInputElement | null;
+    const valText = document.getElementById('combat-eat-hp-val');
+    const select1 = document.getElementById('combat-food-select') as HTMLSelectElement | null;
+
+    const modalPct = document.getElementById('dv-combat-eat-pct') as HTMLInputElement | null;
+    const select2 = document.getElementById('dv-combat-food-select') as HTMLSelectElement | null;
+
+    if (slider && document.activeElement !== slider) slider.value = pct.toString();
+    if (valText) valText.textContent = `${pct}%`;
+    if (modalPct && document.activeElement !== modalPct) modalPct.value = pct.toString();
+
+    this.populateFoodSelect(select1, foodId);
+    this.populateFoodSelect(select2, foodId);
+  }
+
   private renderEquipmentDrawer() {
     if (!this.player) return;
 
@@ -2256,6 +2395,9 @@ class EldoriaClient {
     if (strEl) strEl.textContent = totalStr.toString();
     if (defEl) defEl.textContent = totalDef.toString();
     if (maxhitEl) maxhitEl.textContent = maxHit.toString();
+
+    // Sync Auto-Eat Sustenance settings
+    this.syncCombatFoodControls();
 
     // 2. Render Worn Combat & Attire Equipment
     const container = document.getElementById('equipment-slots')!;
@@ -2517,6 +2659,24 @@ class EldoriaClient {
       };
     }
 
+    // Vault Combat Sustenance controls
+    const dvEatPct = document.getElementById('dv-combat-eat-pct') as HTMLInputElement | null;
+    if (dvEatPct) {
+      dvEatPct.onchange = () => {
+        const val = parseInt(dvEatPct.value, 10);
+        if (!isNaN(val)) {
+          this.setCombatFoodSettings(val, undefined);
+        }
+      };
+    }
+
+    const dvFoodSelect = document.getElementById('dv-combat-food-select') as HTMLSelectElement | null;
+    if (dvFoodSelect) {
+      dvFoodSelect.onchange = () => {
+        this.setCombatFoodSettings(undefined, dvFoodSelect.value || null);
+      };
+    }
+
     // Home depot / Deposit all buttons
     const btnHomeDepot = document.getElementById('dv-btn-home-depot');
     if (btnHomeDepot) {
@@ -2593,6 +2753,9 @@ class EldoriaClient {
       const canAfford = (this.player.gold || 0) >= 1000;
       btnBuy.style.opacity = canAfford ? '1' : '0.6';
     }
+
+    // Sync vault combat sustenance controls
+    this.syncCombatFoodControls();
 
     const storageGrid = document.getElementById('dv-storage-grid');
     if (storageGrid) {

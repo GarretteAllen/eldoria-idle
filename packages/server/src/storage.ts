@@ -737,6 +737,7 @@ class StorageManager {
       },
       taskQueue: [],
       eatsAtHpPercent: 50,
+      selectedFoodItemId: null,
       currentHp: 10,
       lastActiveTimestamp: Date.now(),
     };
@@ -790,6 +791,7 @@ class StorageManager {
       },
       taskQueue: [],
       eatsAtHpPercent: 50,
+      selectedFoodItemId: null,
       currentHp: 10,
       lastActiveTimestamp: Date.now(),
     };

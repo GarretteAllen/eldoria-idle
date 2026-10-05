@@ -773,6 +773,19 @@ export class GameEngine {
         this.handleSellAllJunk(session);
         break;
 
+      case 'SET_COMBAT_FOOD_SETTINGS':
+        if (typeof msg.eatsAtHpPercent === 'number' && !isNaN(msg.eatsAtHpPercent)) {
+          player.eatsAtHpPercent = Math.max(10, Math.min(95, Math.round(msg.eatsAtHpPercent)));
+        }
+        if (msg.selectedFoodItemId !== undefined) {
+          player.selectedFoodItemId = (typeof msg.selectedFoodItemId === 'string' && msg.selectedFoodItemId.trim().length > 0)
+            ? msg.selectedFoodItemId.trim()
+            : null;
+        }
+        storage.savePlayer(player);
+        this.send(session.ws, { type: 'PLAYER_UPDATE', player });
+        break;
+
       case 'CHAT':
         if (typeof msg.text === 'string' && msg.text.trim().length > 0) {
           const trimmed = msg.text.trim();
@@ -3053,7 +3066,81 @@ export class GameEngine {
     };
   }
 
+  private ensureCombatFoodFromBank(session: ConnectedSession) {
+    const { player, ws } = session;
+    const targetFoodItemId = player.selectedFoodItemId;
+
+    // Check how many food items player currently carries in inventory
+    let carriedFoodCount = 0;
+    for (const slot of player.inventory) {
+      if (targetFoodItemId) {
+        if (slot.itemId === targetFoodItemId) carriedFoodCount += slot.quantity;
+      } else {
+        const def = ITEMS[slot.itemId];
+        if (def && (def.category === 'cooked_food' || ((def.baseStats?.healing || 0) > 0))) {
+          carriedFoodCount += slot.quantity;
+        }
+      }
+    }
+
+    // Target a reserve of 15 rations in satchel for combat
+    const targetStock = 15;
+    if (carriedFoodCount >= targetStock) return;
+    const needed = targetStock - carriedFoodCount;
+
+    // Find food in bank storage
+    let storageIdx = -1;
+    if (targetFoodItemId) {
+      storageIdx = player.storage.findIndex(s => s.itemId === targetFoodItemId && s.quantity > 0);
+    }
+    if (storageIdx === -1) {
+      storageIdx = player.storage.findIndex(s => {
+        const def = ITEMS[s.itemId];
+        return s.quantity > 0 && def && (def.category === 'cooked_food' || ((def.baseStats?.healing || 0) > 0));
+      });
+    }
+    if (storageIdx === -1) return; // No food in bank
+
+    const storageSlot = player.storage[storageIdx];
+    const foodDef = ITEMS[storageSlot.itemId];
+    const toWithdraw = Math.min(needed, storageSlot.quantity);
+    if (toWithdraw <= 0) return;
+
+    // Check if can stack with existing slot in inventory
+    const existingInvSlot = player.inventory.find(
+      s => s.itemId === storageSlot.itemId && (s.rarity || 'plain') === (storageSlot.rarity || 'plain') && (s.plus || 0) === (storageSlot.plus || 0)
+    );
+
+    if (existingInvSlot) {
+      existingInvSlot.quantity += toWithdraw;
+      storageSlot.quantity -= toWithdraw;
+      if (storageSlot.quantity <= 0) {
+        player.storage.splice(storageIdx, 1);
+      }
+      this.send(ws, {
+        type: 'NOTIFICATION',
+        message: `Supplied ${toWithdraw}x ${foodDef?.name || 'Food'} from bank into satchel.`,
+      });
+    } else if (player.inventory.length < 28) {
+      player.inventory.push({
+        itemId: storageSlot.itemId,
+        quantity: toWithdraw,
+        rarity: storageSlot.rarity,
+        plus: storageSlot.plus,
+      });
+      storageSlot.quantity -= toWithdraw;
+      if (storageSlot.quantity <= 0) {
+        player.storage.splice(storageIdx, 1);
+      }
+      this.send(ws, {
+        type: 'NOTIFICATION',
+        message: `Supplied ${toWithdraw}x ${foodDef?.name || 'Food'} from bank into satchel.`,
+      });
+    }
+  }
+
   private startCombatSession(session: ConnectedSession, monsterId: string, targetX: number, targetY: number, nodeId?: string, zoneId?: string) {
+    this.ensureCombatFoodFromBank(session);
     const { player, ws } = session;
     const monsterDef = MONSTERS[monsterId];
     if (!monsterDef) return;
@@ -3325,21 +3412,97 @@ export class GameEngine {
       const maxHp = player.skills.hitpoints?.level || 10;
       const eatThreshold = (maxHp * (player.eatsAtHpPercent || 50)) / 100;
       if (player.currentHp <= eatThreshold) {
-        const foodIdx = player.inventory.findIndex(s => {
-          const def = ITEMS[s.itemId];
-          return def && (def.category === 'cooked_food' || ((def.baseStats?.healing || 0) > 0));
-        });
-        if (foodIdx >= 0) {
-          const foodSlot = player.inventory[foodIdx];
-          const foodDef = ITEMS[foodSlot.itemId];
-          const heal = foodDef.baseStats?.healing || 5;
+        let eatenSlot: InventorySlot | null = null;
+        let isFromBank = false;
+
+        // 1. Try finding specified or any cooked food in inventory
+        if (player.selectedFoodItemId) {
+          const invIdx = player.inventory.findIndex(s => s.itemId === player.selectedFoodItemId && s.quantity > 0);
+          if (invIdx >= 0) {
+            eatenSlot = player.inventory[invIdx];
+            eatenSlot.quantity--;
+            if (eatenSlot.quantity <= 0) player.inventory.splice(invIdx, 1);
+          }
+        }
+        if (!eatenSlot) {
+          const invIdx = player.inventory.findIndex(s => {
+            const def = ITEMS[s.itemId];
+            return s.quantity > 0 && def && (def.category === 'cooked_food' || ((def.baseStats?.healing || 0) > 0));
+          });
+          if (invIdx >= 0) {
+            eatenSlot = player.inventory[invIdx];
+            eatenSlot.quantity--;
+            if (eatenSlot.quantity <= 0) player.inventory.splice(invIdx, 1);
+          }
+        }
+
+        // 2. If inventory has no food, consume directly from bank storage
+        if (!eatenSlot) {
+          if (player.selectedFoodItemId) {
+            const bankIdx = player.storage.findIndex(s => s.itemId === player.selectedFoodItemId && s.quantity > 0);
+            if (bankIdx >= 0) {
+              eatenSlot = player.storage[bankIdx];
+              eatenSlot.quantity--;
+              if (eatenSlot.quantity <= 0) player.storage.splice(bankIdx, 1);
+              isFromBank = true;
+            }
+          }
+          if (!eatenSlot) {
+            const bankIdx = player.storage.findIndex(s => {
+              const def = ITEMS[s.itemId];
+              return s.quantity > 0 && def && (def.category === 'cooked_food' || ((def.baseStats?.healing || 0) > 0));
+            });
+            if (bankIdx >= 0) {
+              eatenSlot = player.storage[bankIdx];
+              eatenSlot.quantity--;
+              if (eatenSlot.quantity <= 0) player.storage.splice(bankIdx, 1);
+              isFromBank = true;
+            }
+          }
+        }
+
+        if (eatenSlot) {
+          const foodDef = ITEMS[eatenSlot.itemId];
+          const heal = foodDef?.baseStats?.healing || 5;
           player.currentHp = Math.min(maxHp, player.currentHp + heal);
-          foodSlot.quantity--;
-          if (foodSlot.quantity <= 0) player.inventory.splice(foodIdx, 1);
+
+          // Uncommon+ food gives Satiated Fury buff (+25% strike)
+          if (eatenSlot.rarity && eatenSlot.rarity !== 'plain') {
+            const durations: Record<string, number> = {
+              uncommon: 2 * 60 * 1000,
+              rare: 10 * 60 * 1000,
+              epic: 3 * 3600 * 1000,
+              legendary: 24 * 3600 * 1000,
+            };
+            const durationMs = durations[eatenSlot.rarity] || (2 * 60 * 1000);
+            if (!player.activeBuffs) player.activeBuffs = [];
+            player.activeBuffs.push({
+              id: 'satiated_fury',
+              name: 'Satiated Fury (+25% Strike)',
+              type: 'food_damage',
+              value: 0.25,
+              expiresAt: Date.now() + durationMs,
+            });
+          }
+
+          this.broadcast({
+            type: 'COMBAT_HEAL',
+            playerId: player.id,
+            heal,
+            currentHp: player.currentHp,
+            maxHp,
+            foodName: foodDef?.name || 'Food',
+            fromBank: isFromBank,
+            playerX: player.x,
+            playerY: player.y,
+          });
+
           this.send(ws, {
             type: 'NOTIFICATION',
-            message: `Ate ${foodDef.name} (+${heal} HP, now ${player.currentHp}/${maxHp})`,
+            message: `Ate ${foodDef?.name || 'Food'}${isFromBank ? ' (from bank)' : ''} (+${heal} HP, now ${player.currentHp}/${maxHp})`,
           });
+          storage.savePlayer(player);
+          this.send(ws, { type: 'PLAYER_UPDATE', player });
         }
       }
 
