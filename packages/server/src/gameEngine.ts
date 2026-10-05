@@ -61,6 +61,7 @@ interface ConnectedSession {
     playerSwingTicks: number;
     monsterSwingTicks: number;
   } | null;
+  lastBossAttackTime?: number;
 }
 
 
@@ -529,8 +530,8 @@ export class GameEngine {
               nodeX = forgeNode.x;
               nodeY = forgeNode.y;
             }
-          } else if (rec.skill === 'farming' || rec.skill === 'herbalism') {
-            // Farming and Herbalism take place at a Farm Plot
+          } else if (rec.skill === 'farming') {
+            // Farming takes place at a Farm Plot
             const farmNodes = storage.getWorldNodes().filter(n => n.type === 'farm');
             if (farmNodes.length === 0) {
               this.send(session.ws, {
@@ -616,6 +617,26 @@ export class GameEngine {
               const adj = this.getAdjacentWalkableTile(player.x, player.y, nodeX ?? targetX, nodeY ?? targetY);
               targetX = adj.x;
               targetY = adj.y;
+            }
+          }
+
+          const isGathering = ['mining', 'woodcutting', 'fishing', 'herbalism'].includes(rec.skill);
+          if (isGathering) {
+            const worldNodes = this.getAllWorldNodes();
+            const matchingNode = worldNodes.find(n =>
+              (n.recipeId === rec.id ||
+               (rec.skill === 'mining' && n.type === 'mine') ||
+               (rec.skill === 'woodcutting' && n.type === 'tree') ||
+               (rec.skill === 'fishing' && n.type === 'water') ||
+               (rec.skill === 'herbalism' && n.type === 'herb')) &&
+              Math.hypot(n.x - nodeX, n.y - nodeY) <= 3.0
+            );
+            if (!matchingNode) {
+              this.send(session.ws, {
+                type: 'NOTIFICATION',
+                message: `No valid ${rec.name} resource node found at that location.`
+              });
+              break;
             }
           }
 
@@ -1349,8 +1370,9 @@ export class GameEngine {
         player.farmPlots = player.farmPlots || {};
         const hasSeeds = player.inventory.some(s => s.itemId.includes('seed') || s.itemId.includes('spore') || s.itemId.includes('pod')) ||
                          player.storage.some(s => s.itemId.includes('seed') || s.itemId.includes('spore') || s.itemId.includes('pod'));
-        if (hasSeeds) {
-          this.send(session.ws, { type: 'NOTIFICATION', message: 'You already possess agricultural seeds in your satchel or storage.' });
+        const hasPlots = Object.keys(player.farmPlots).length > 0;
+        if (hasSeeds || hasPlots) {
+          this.send(session.ws, { type: 'NOTIFICATION', message: 'You already possess agricultural seeds or have active crops planted.' });
           break;
         }
         this.addItemToPlayer(session, 'earthtuber_seed', 3);
@@ -1368,6 +1390,55 @@ export class GameEngine {
         const quests = storage.getQuests();
         const quest = quests.find(q => q.id === questId);
         if (!quest) break;
+
+        if (!player.completedQuests) player.completedQuests = [];
+        if (player.completedQuests.includes(questId)) {
+          this.send(session.ws, { type: 'NOTIFICATION', message: 'You have already claimed this quest reward.' });
+          break;
+        }
+
+        // Validate quest objective requirements
+        if (quest.objective) {
+          if (quest.objective.type === 'kill') {
+            const kills = player.questProgress?.[quest.id] || 0;
+            if (kills < quest.objective.count) {
+              this.send(session.ws, {
+                type: 'NOTIFICATION',
+                message: `Objective incomplete: Defeated ${kills}/${quest.objective.count} ${quest.objective.targetId}.`
+              });
+              break;
+            }
+          } else if (quest.objective.type === 'gather') {
+            const reqItem = quest.objective.targetId;
+            const reqCount = quest.objective.count;
+            let countInInv = 0;
+            for (const slot of player.inventory) {
+              if (slot.itemId === reqItem) countInInv += slot.quantity;
+            }
+            if (countInInv < reqCount) {
+              this.send(session.ws, {
+                type: 'NOTIFICATION',
+                message: `Objective incomplete: Need ${reqCount}x ${ITEMS[reqItem]?.name || reqItem} in your satchel.`
+              });
+              break;
+            }
+
+            // Deduct gathered items from inventory
+            let toDeduct = reqCount;
+            for (let i = player.inventory.length - 1; i >= 0; i--) {
+              const slot = player.inventory[i];
+              if (slot.itemId === reqItem) {
+                const take = Math.min(slot.quantity, toDeduct);
+                slot.quantity -= take;
+                toDeduct -= take;
+                if (slot.quantity <= 0) player.inventory.splice(i, 1);
+                if (toDeduct <= 0) break;
+              }
+            }
+          }
+        }
+
+        player.completedQuests.push(questId);
 
         const goldReward = quest.reward.gold || 0;
         if (goldReward > 0) {
@@ -1398,6 +1469,10 @@ export class GameEngine {
         }
 
         storage.savePlayer(player);
+        this.send(session.ws, {
+          type: 'NOTIFICATION',
+          message: `Quest Completed: "${quest.title || quest.id}"! Rewards claimed.`
+        });
         this.send(session.ws, { type: 'PLAYER_UPDATE', player });
         break;
       }
@@ -1436,16 +1511,23 @@ export class GameEngine {
       }
     }
 
-    // Remove from inventory
-    player.inventory.splice(invIndex, 1);
-
     // Unequip currently worn in that slot if any
     const existing = player.equipment[targetSlot];
-    if (existing) {
-      player.inventory.push(existing);
+
+    // Remove 1 item from inventory
+    if (slot.quantity > 1) {
+      slot.quantity--;
+      player.equipment[targetSlot] = { ...slot, quantity: 1 };
+    } else {
+      player.inventory.splice(invIndex, 1);
+      player.equipment[targetSlot] = slot;
     }
 
-    player.equipment[targetSlot] = slot;
+    if (existing) {
+      const existingDef = storage.getItem(existing.itemId) || ITEMS[existing.itemId];
+      addItemToSlots(player.inventory, 28, existing.itemId, existing.quantity || 1, existing.rarity, existing.plus, existingDef, 'inventory');
+    }
+
     player.moveSpeedTilesPerTick = calculatePlayerMoveSpeed(player);
 
     storage.savePlayer(player);
@@ -1616,8 +1698,15 @@ export class GameEngine {
     if (!slot) return;
     const def = storage.getItem(slot.itemId) || ITEMS[slot.itemId];
 
-    const qtyToTake = (typeof requestedQty === 'number' && requestedQty > 0)
-      ? Math.min(slot.quantity, requestedQty)
+    let validQty: number | undefined = undefined;
+    if (typeof requestedQty === 'number') {
+      if (!Number.isFinite(requestedQty) || requestedQty <= 0) return;
+      validQty = Math.floor(requestedQty);
+      if (validQty <= 0) return;
+    }
+
+    const qtyToTake = (typeof validQty === 'number')
+      ? Math.min(slot.quantity, validQty)
       : slot.quantity;
 
     const res = addItemToSlots(player.inventory, 28, slot.itemId, qtyToTake, slot.rarity, slot.plus, def, 'inventory');
@@ -1692,8 +1781,15 @@ export class GameEngine {
     }
 
     const maxSlots = player.storageSlotsMax || 75;
-    const qtyToTake = (typeof requestedQty === 'number' && requestedQty > 0)
-      ? Math.min(slot.quantity, requestedQty)
+    let validDepositQty: number | undefined = undefined;
+    if (typeof requestedQty === 'number') {
+      if (!Number.isFinite(requestedQty) || requestedQty <= 0) return;
+      validDepositQty = Math.floor(requestedQty);
+      if (validDepositQty <= 0) return;
+    }
+
+    const qtyToTake = (typeof validDepositQty === 'number')
+      ? Math.min(slot.quantity, validDepositQty)
       : slot.quantity;
 
     const res = addItemToSlots(player.storage, maxSlots, slot.itemId, qtyToTake, slot.rarity, slot.plus, def, 'bank');
@@ -1771,13 +1867,31 @@ export class GameEngine {
 
   private handleSellItem(session: ConnectedSession, inventoryIndex: number, requestedQty?: number) {
     const { player, ws } = session;
+    const hearth = this.getHearthLocation(player.x, player.y);
+    const distToHearth = Math.hypot(player.x - hearth.x, player.y - hearth.y);
+    const nearbyNpc = storage.getNpcs().some(n => Math.hypot(player.x - n.x, player.y - n.y) <= 3.5);
+    if (distToHearth > 3.5 && !nearbyNpc) {
+      this.send(ws, {
+        type: 'NOTIFICATION',
+        message: 'Must be at the Hearth Counter or near a Merchant NPC to sell items.'
+      });
+      return;
+    }
+
     const slot = player.inventory[inventoryIndex];
     if (!slot) return;
     const def = ITEMS[slot.itemId];
     const unitPrice = def?.vendorFloorPrice || 1;
 
-    const qtyToSell = (typeof requestedQty === 'number' && requestedQty > 0)
-      ? Math.min(slot.quantity, requestedQty)
+    let validSellQty: number | undefined = undefined;
+    if (typeof requestedQty === 'number') {
+      if (!Number.isFinite(requestedQty) || requestedQty <= 0) return;
+      validSellQty = Math.floor(requestedQty);
+      if (validSellQty <= 0) return;
+    }
+
+    const qtyToSell = (typeof validSellQty === 'number')
+      ? Math.min(slot.quantity, validSellQty)
       : slot.quantity;
 
     slot.quantity -= qtyToSell;
@@ -1799,6 +1913,17 @@ export class GameEngine {
 
   private handleSellAllJunk(session: ConnectedSession) {
     const { player, ws } = session;
+    const hearth = this.getHearthLocation(player.x, player.y);
+    const distToHearth = Math.hypot(player.x - hearth.x, player.y - hearth.y);
+    const nearbyNpc = storage.getNpcs().some(n => Math.hypot(player.x - n.x, player.y - n.y) <= 3.5);
+    if (distToHearth > 3.5 && !nearbyNpc) {
+      this.send(ws, {
+        type: 'NOTIFICATION',
+        message: 'Must be at the Hearth Counter or near a Merchant NPC to sell items.'
+      });
+      return;
+    }
+
     let totalGold = 0;
     let soldCount = 0;
     const keep: typeof player.inventory = [];
@@ -2182,6 +2307,7 @@ export class GameEngine {
       const res = addItemToSlots(player.storage, maxStorage, slot.itemId, slot.quantity, slot.rarity, slot.plus, def, 'bank');
       count += res.added;
       if (res.remainder > 0) {
+        if (!player.overflowTray) player.overflowTray = [];
         // Move to overflow tray (up to 10 types)
         const traySlot = player.overflowTray.find(s => s.itemId === slot.itemId && s.rarity === slot.rarity && s.plus === slot.plus);
         if (traySlot && isItemStackable(def, 'bank')) {
@@ -2194,6 +2320,20 @@ export class GameEngine {
           keep.push({ itemId: slot.itemId, quantity: res.remainder, rarity: slot.rarity, plus: slot.plus });
         }
       }
+    }
+
+    // Attempt to clear overflow tray into bank storage if bank space was freed
+    if (player.overflowTray && player.overflowTray.length > 0) {
+      const maxStorage = player.storageSlotsMax || 75;
+      const remainingTray: InventorySlot[] = [];
+      for (const tSlot of player.overflowTray) {
+        const tDef = storage.getItem(tSlot.itemId) || ITEMS[tSlot.itemId];
+        const res = addItemToSlots(player.storage, maxStorage, tSlot.itemId, tSlot.quantity, tSlot.rarity, tSlot.plus, tDef, 'bank');
+        if (res.remainder > 0) {
+          remainingTray.push({ ...tSlot, quantity: res.remainder });
+        }
+      }
+      player.overflowTray = remainingTray;
     }
 
     player.inventory = keep;
@@ -2223,12 +2363,10 @@ export class GameEngine {
           for (const inp of rec.inputs) {
             const sSlot = player.storage.find(s => s.itemId === inp.itemId)!;
             const toTake = Math.min(sSlot.quantity, inp.quantity * Math.max(1, batches));
-            sSlot.quantity -= toTake;
-            const invSlot = player.inventory.find(s => s.itemId === inp.itemId && s.rarity === 'plain');
-            if (invSlot) {
-              invSlot.quantity += toTake;
-            } else {
-              player.inventory.push({ itemId: inp.itemId, quantity: toTake, rarity: 'plain', plus: 0 });
+            const inpDef = storage.getItem(inp.itemId) || ITEMS[inp.itemId];
+            const res = addItemToSlots(player.inventory, 28, inp.itemId, toTake, 'plain', 0, inpDef, 'inventory');
+            if (res.added > 0) {
+              sSlot.quantity -= res.added;
             }
           }
           player.storage = player.storage.filter(s => s.quantity > 0);
@@ -2344,13 +2482,46 @@ export class GameEngine {
   }
 
   private executeTaskCycle(session: ConnectedSession, recipe: RecipeDefinition) {
-    if (recipe.skill === 'farming' || recipe.skill === 'herbalism') {
+    if (recipe.skill === 'farming') {
       this.executeFarmingTaskCycle(session, recipe);
       return;
     }
 
     const { player, ws } = session;
     const task = player.currentTask!;
+
+    // Pre-check if crafted output can fit in satchel before consuming materials
+    if (recipe.outputItemId !== 'gold' && !player.dropWhenFull) {
+      const outDef = storage.getItem(recipe.outputItemId) || ITEMS[recipe.outputItemId];
+      const simulatedInv = player.inventory.map(s => ({ ...s }));
+      if (recipe.inputs?.length > 0) {
+        for (const inp of recipe.inputs) {
+          const slot = simulatedInv.find(s => s.itemId === inp.itemId);
+          if (slot) slot.quantity -= inp.quantity;
+        }
+      }
+      const cleanedInv = simulatedInv.filter(s => s.quantity > 0);
+      const testRes = addItemToSlots(cleanedInv, 28, recipe.outputItemId, recipe.outputQuantity, 'plain', 0, outDef, 'inventory');
+      if (testRes.remainder > 0) {
+        // Output cannot fit! Head to bank before consuming materials!
+        player.bankReturnTask = { ...player.currentTask!, standX: player.x, standY: player.y };
+        player.currentTask = null;
+        player.bankingState = 'walking_to_bank';
+        const hearth = this.getHearthLocation(player.x, player.y);
+        const path = this.findPathWithCollisions(player.x, player.y, hearth.x, hearth.y);
+        player.targetX = hearth.x;
+        player.targetY = hearth.y;
+        player.path = path;
+        player.isMoving = path.length > 0;
+        this.send(ws, {
+          type: 'NOTIFICATION',
+          message: `Satchel full (28/28)! Riding to the Hearth to bank resources... (${path.length} tiles)`
+        });
+        this.send(ws, { type: 'PLAYER_UPDATE', player });
+        this.broadcastWorldState();
+        return;
+      }
+    }
 
     // Deduct inputs
     if (recipe.inputs?.length > 0) {
@@ -2567,6 +2738,27 @@ export class GameEngine {
     const readyPlotNode = clusterPlots.find(p => player.farmPlots![p.id]?.status === 'ready');
     if (readyPlotNode) {
       const plot = player.farmPlots[readyPlotNode.id];
+
+      // Pre-check if bag is completely full before harvesting
+      if (player.inventory.length >= 28 && !player.dropWhenFull) {
+        player.bankReturnTask = { ...player.currentTask!, standX: player.x, standY: player.y };
+        player.currentTask = null;
+        player.bankingState = 'walking_to_bank';
+        const hearth = this.getHearthLocation(player.x, player.y);
+        const path = this.findPathWithCollisions(player.x, player.y, hearth.x, hearth.y);
+        player.targetX = hearth.x;
+        player.targetY = hearth.y;
+        player.path = path;
+        player.isMoving = path.length > 0;
+        this.send(ws, {
+          type: 'NOTIFICATION',
+          message: `Satchel full before harvest! Riding to the Hearth to bank crops... (${path.length} tiles)`
+        });
+        this.send(ws, { type: 'PLAYER_UPDATE', player });
+        this.broadcastWorldState();
+        return;
+      }
+
       const minYield = plot.minYield || cropDef?.minYield || 3;
       const maxYield = plot.maxYield || cropDef?.maxYield || 5;
       const yieldQty = Math.floor(Math.random() * (maxYield - minYield + 1)) + minYield;
@@ -2576,28 +2768,16 @@ export class GameEngine {
       const produceDef = storage.getItem(produceItemId) || ITEMS[produceItemId];
       const rarity = rollRarity(1.0);
 
+      // Delete plot immediately so it can never be duplicate-harvested
+      delete player.farmPlots[readyPlotNode.id];
+
       const addRes = addItemToSlots(player.inventory, 28, produceItemId, yieldQty, rarity, 0, produceDef, 'inventory');
       if (addRes.remainder > 0) {
         if (player.dropWhenFull) {
           this.send(ws, { type: 'NOTIFICATION', message: `Satchel full! Discarded excess harvest.` });
         } else {
-          // Autonomous banking run to Hearth
-          player.bankReturnTask = { ...player.currentTask!, standX: player.x, standY: player.y };
-          player.currentTask = null;
-          player.bankingState = 'walking_to_bank';
-          const hearth = this.getHearthLocation(player.x, player.y);
-          const path = this.findPathWithCollisions(player.x, player.y, hearth.x, hearth.y);
-          player.targetX = hearth.x;
-          player.targetY = hearth.y;
-          player.path = path;
-          player.isMoving = path.length > 0;
-          this.send(ws, {
-            type: 'NOTIFICATION',
-            message: `Satchel full during harvest! Riding to the Hearth to bank crops... (${path.length} tiles)`
-          });
-          this.send(ws, { type: 'PLAYER_UPDATE', player });
-          this.broadcastWorldState();
-          return;
+          if (!player.overflowTray) player.overflowTray = [];
+          player.overflowTray.push({ itemId: produceItemId, quantity: addRes.remainder, rarity, plus: 0 });
         }
       }
 
@@ -2662,14 +2842,28 @@ export class GameEngine {
         }
       }
 
-      delete player.farmPlots[readyPlotNode.id];
-
       const cropName = produceDef?.name || plot.cropName;
       const xpLabel = isHerb ? `(+${xpEarned} Farming & Herbalism XP)` : `(+${xpEarned} Farming XP)`;
       this.send(ws, {
         type: 'NOTIFICATION',
         message: `Harvested ${yieldQty}x ${cropName}${seedReturn ? ' + 1 bonus seed' : ''}! ${xpLabel}`
       });
+
+      if (addRes.remainder > 0 && !player.dropWhenFull) {
+        player.bankReturnTask = { ...player.currentTask!, standX: player.x, standY: player.y };
+        player.currentTask = null;
+        player.bankingState = 'walking_to_bank';
+        const hearth = this.getHearthLocation(player.x, player.y);
+        const path = this.findPathWithCollisions(player.x, player.y, hearth.x, hearth.y);
+        player.targetX = hearth.x;
+        player.targetY = hearth.y;
+        player.path = path;
+        player.isMoving = path.length > 0;
+        this.send(ws, {
+          type: 'NOTIFICATION',
+          message: `Satchel full during harvest! Riding to the Hearth to bank crops... (${path.length} tiles)`
+        });
+      }
 
       storage.savePlayer(player);
       this.send(ws, { type: 'PLAYER_UPDATE', player });
@@ -2804,6 +2998,25 @@ export class GameEngine {
   private handleBossAttack(session: ConnectedSession) {
     if (!this.activeBoss) return;
     const { player, ws } = session;
+
+    if (player.currentHp <= 0) return;
+
+    // Rate limit attack frequency (minimum 1.8s between strikes)
+    const now = Date.now();
+    if (session.lastBossAttackTime && now - session.lastBossAttackTime < 1800) {
+      return;
+    }
+    session.lastBossAttackTime = now;
+
+    // Proximity check: must be near the Boss Arena
+    const arenaNode = storage.getWorldNodes().find(n => n.type === 'boss_arena');
+    if (arenaNode) {
+      const dist = Math.hypot(player.x - arenaNode.x, player.y - arenaNode.y);
+      if (dist > 18) {
+        this.send(ws, { type: 'NOTIFICATION', message: 'You are too far from the Boss Arena to strike.' });
+        return;
+      }
+    }
 
     const hit = Math.floor(10 + Math.random() * 25);
     this.activeBoss.currentHp = Math.max(0, this.activeBoss.currentHp - hit);
@@ -3598,10 +3811,11 @@ export class GameEngine {
   }
 
   private progressKillQuests(player: PlayerData, monsterId: string) {
+    if (!player.questProgress) player.questProgress = {};
     const quests = storage.getQuests();
     for (const q of quests) {
       if (q.objective && q.objective.type === 'kill' && q.objective.targetId === monsterId) {
-        // Player kill quest progress
+        player.questProgress[q.id] = (player.questProgress[q.id] || 0) + 1;
       }
     }
   }

@@ -1,6 +1,6 @@
 import { Rarity, RARITY_CHANCES, getSteedWalkSpeedBonus } from './constants.js';
 import { getLevelFromXp, getJobSpeedMultiplier } from './levels.js';
-import { ITEMS } from './items.js';
+import { ITEMS, addItemToSlots } from './items.js';
 import { RECIPES } from './recipes.js';
 import { PlayerData, InventorySlot, RecipeDefinition } from './types.js';
 
@@ -299,51 +299,31 @@ export function simulateOfflineCatchUp(
       const outputItem = ITEMS[recipe.outputItemId];
       if (outputItem) {
         const rarity = rollRarity(1.0);
-        const existingSlot = player.inventory.find(s => s.itemId === recipe.outputItemId && s.rarity === rarity && s.plus === 0);
-        if (existingSlot) {
-          existingSlot.quantity += recipe.outputQuantity;
-        } else if (player.inventory.length < 28) {
-        player.inventory.push({
-          itemId: recipe.outputItemId,
-          quantity: recipe.outputQuantity,
-          rarity,
-          plus: 0,
-        });
-      } else {
-        // Inventory full -> Divert to storage or overflow tray
-        summary.overflowOccurred = true;
-        const storageSlot = player.storage.find(s => s.itemId === recipe.outputItemId && s.rarity === rarity && s.plus === 0);
-        if (storageSlot) {
-          storageSlot.quantity += recipe.outputQuantity;
-        } else if (player.storage.length < player.storageSlotsMax) {
-          player.storage.push({
-            itemId: recipe.outputItemId,
-            quantity: recipe.outputQuantity,
-            rarity,
-            plus: 0,
-          });
-        } else {
-          // Divert to Overflow Tray (up to 10 slots)
-          const traySlot = player.overflowTray.find(s => s.itemId === recipe.outputItemId && s.rarity === rarity && s.plus === 0);
-          if (traySlot) {
-            traySlot.quantity += recipe.outputQuantity;
-          } else if (player.overflowTray.length < 10) {
-            player.overflowTray.push({
-              itemId: recipe.outputItemId,
-              quantity: recipe.outputQuantity,
-              rarity,
-              plus: 0,
-            });
-          } else {
-            // Both inventory, storage, and overflow tray full -> Halt task
-            break;
+        const invRes = addItemToSlots(player.inventory, 28, recipe.outputItemId, recipe.outputQuantity, rarity, 0, outputItem, 'inventory');
+        if (invRes.remainder > 0) {
+          summary.overflowOccurred = true;
+          const maxStorage = player.storageSlotsMax || 75;
+          const bankRes = addItemToSlots(player.storage, maxStorage, recipe.outputItemId, invRes.remainder, rarity, 0, outputItem, 'bank');
+          if (bankRes.remainder > 0) {
+            if (!player.overflowTray) player.overflowTray = [];
+            const traySlot = player.overflowTray.find(s => s.itemId === recipe.outputItemId && s.rarity === rarity && s.plus === 0);
+            if (traySlot) {
+              traySlot.quantity += bankRes.remainder;
+            } else if (player.overflowTray.length < 10) {
+              player.overflowTray.push({
+                itemId: recipe.outputItemId,
+                quantity: bankRes.remainder,
+                rarity,
+                plus: 0,
+              });
+            } else {
+              break;
+            }
           }
         }
+        summary.itemsGained[recipe.outputItemId] = (summary.itemsGained[recipe.outputItemId] || 0) + recipe.outputQuantity;
       }
-
-      summary.itemsGained[recipe.outputItemId] = (summary.itemsGained[recipe.outputItemId] || 0) + recipe.outputQuantity;
     }
-  }
 
     totalXp += recipe.xp;
     executed++;

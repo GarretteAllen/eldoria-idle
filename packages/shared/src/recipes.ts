@@ -948,14 +948,14 @@ export const RECIPES: Record<string, RecipeDefinition> = {
   },
 
   // ========================================================
-  // 7. HERBALISM (Cultivation of Medicinal & Arcane Flora)
+  // 7. HERBALISM (Wild Foraging of Medicinal & Arcane Flora)
   // ========================================================
   gather_silverleaf: {
     id: 'gather_silverleaf',
     skill: 'herbalism',
     levelReq: 1,
     name: 'Silverleaf',
-    inputs: [{ itemId: 'silverleaf_seed', quantity: 1 }],
+    inputs: [],
     outputItemId: 'silverleaf',
     outputQuantity: 4,
     xp: 95,
@@ -967,7 +967,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     skill: 'herbalism',
     levelReq: 20,
     name: 'Glowshroom',
-    inputs: [{ itemId: 'glowshroom_spore', quantity: 1 }],
+    inputs: [],
     outputItemId: 'glowshroom',
     outputQuantity: 5,
     xp: 180,
@@ -979,7 +979,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     skill: 'herbalism',
     levelReq: 45,
     name: 'Nightshade Bell',
-    inputs: [{ itemId: 'nightshade_seed', quantity: 1 }],
+    inputs: [],
     outputItemId: 'nightshade_bell',
     outputQuantity: 6,
     xp: 850,
@@ -991,7 +991,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     skill: 'herbalism',
     levelReq: 55,
     name: 'Bramble Mandrake',
-    inputs: [{ itemId: 'bramble_mandrake_seed', quantity: 1 }],
+    inputs: [],
     outputItemId: 'bramble_mandrake',
     outputQuantity: 6,
     xp: 680,
@@ -1003,7 +1003,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     skill: 'herbalism',
     levelReq: 70,
     name: 'Wyrmfrond',
-    inputs: [{ itemId: 'wyrmfrond_seed', quantity: 1 }],
+    inputs: [],
     outputItemId: 'wyrmfrond',
     outputQuantity: 7,
     xp: 1950,
@@ -1015,7 +1015,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     skill: 'herbalism',
     levelReq: 90,
     name: 'Sunfire Pepper',
-    inputs: [{ itemId: 'sunfire_pod', quantity: 1 }],
+    inputs: [],
     outputItemId: 'sunfire_pepper',
     outputQuantity: 9,
     xp: 3600,

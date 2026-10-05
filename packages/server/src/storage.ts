@@ -609,6 +609,12 @@ class StorageManager {
       if (!player.farmPlots) {
         player.farmPlots = {};
       }
+      if (!player.completedQuests) {
+        player.completedQuests = [];
+      }
+      if (!player.questProgress) {
+        player.questProgress = {};
+      }
       // Ensure targetQuantity is restored as Infinity if null (from JSON serialization)
       if (player.currentTask) {
         player.currentTask.targetQuantity = (typeof player.currentTask.targetQuantity === 'number' && player.currentTask.targetQuantity > 0)
@@ -740,6 +746,8 @@ class StorageManager {
       selectedFoodItemId: null,
       currentHp: 10,
       lastActiveTimestamp: Date.now(),
+      completedQuests: [],
+      questProgress: {},
     };
 
     this.savePlayer(newPlayer);
@@ -794,6 +802,8 @@ class StorageManager {
       selectedFoodItemId: null,
       currentHp: 10,
       lastActiveTimestamp: Date.now(),
+      completedQuests: [],
+      questProgress: {},
     };
 
     this.savePlayer(newPlayer);

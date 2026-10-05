@@ -3505,6 +3505,13 @@ class EldoriaClient {
     const listEl = document.getElementById('quest-tracker-list');
     if (!listEl) return;
 
+    if (this.player?.completedQuests) {
+      for (const qid of this.player.completedQuests) {
+        this.completedQuests.add(qid);
+        this.acceptedQuests.delete(qid);
+      }
+    }
+
     if (this.acceptedQuests.size === 0) {
       listEl.innerHTML = `<div style="font-size:0.68rem; color:var(--parchment-sub); font-style:italic;">No active bounties. Speak to NPCs in town to embark on quests!</div>`;
       return;
@@ -3526,11 +3533,7 @@ class EldoriaClient {
           }, 0);
         }
       } else if (quest.objective.type === 'kill') {
-        if (this.player?.currentTask?.recipeId === quest.objective.targetId) {
-          current = this.player.currentTask.completedQuantity || 0;
-        } else {
-          current = Math.min(target, (this.player?.currentTask?.completedQuantity || 0));
-        }
+        current = this.player?.questProgress?.[quest.id] || (this.player?.currentTask?.recipeId === quest.objective.targetId ? this.player.currentTask.completedQuantity || 0 : 0);
       }
 
       current = Math.min(target, current);
@@ -5076,9 +5079,14 @@ class EldoriaClient {
       tree: ['woodcutting'],
       mine: ['mining'],
       water: ['fishing'],
+      herb: ['herbalism'],
       forge: ['smithing'],
       fire: ['cooking'],
       farm: ['farming'],
+      workbench: ['crafting', 'fletching'],
+      cauldron: ['alchemy'],
+      monolith: ['attunement'],
+      stall: ['thieving'],
       hearth_counter: [],
     };
 
@@ -5116,6 +5124,7 @@ class EldoriaClient {
     const countTree = allNodes.filter(n => n.type === 'tree').length;
     const countWater = allNodes.filter(n => n.type === 'water').length;
     const countFarm = allNodes.filter(n => n.type === 'farm').length;
+    const countHerb = allNodes.filter(n => n.type === 'herb').length;
     const countForge = allNodes.filter(n => n.type === 'forge').length;
     const countFire = allNodes.filter(n => n.type === 'fire').length;
     const countWorkbench = allNodes.filter(n => n.type === 'workbench').length;
@@ -5134,6 +5143,8 @@ class EldoriaClient {
     if (elCountWater) elCountWater.textContent = countWater.toString();
     const elCountFarm = document.getElementById('count-node-farm');
     if (elCountFarm) elCountFarm.textContent = countFarm.toString();
+    const elCountHerb = document.getElementById('count-node-herb');
+    if (elCountHerb) elCountHerb.textContent = countHerb.toString();
     const elCountForge = document.getElementById('count-node-forge');
     if (elCountForge) elCountForge.textContent = countForge.toString();
     const elCountFire = document.getElementById('count-node-fire');
