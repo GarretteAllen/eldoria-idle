@@ -196,7 +196,9 @@ export function getItemIconSvg(itemId: string, _category?: string): string {
   if (!itemId) {
     return toColoredSvg(Package, '#b45309', 'dv-slot-svg');
   }
-  const safeId = itemId.trim().toLowerCase();
-  return `<img src="/icons/items/${safeId}.png" class="dv-slot-svg item-icon-img" alt="${safeId}" loading="lazy" onerror="this.onerror=null;this.style.display='none';" />`;
+  let safeId = itemId.trim().toLowerCase();
+  if (safeId === 'pelt_jerkin') safeId = 'leather_tunic';
+  if (safeId === 'pelt_quiver') safeId = 'leather_quiver';
+  return `<img src="/icons/items/${safeId}.png" class="dv-slot-svg item-icon-img" alt="${safeId}" loading="lazy" onerror="if(!this.dataset.triedFallback){this.dataset.triedFallback='true';if('${safeId}'==='leather_tunic'){this.src='/icons/items/pelt_jerkin.png';return;}if('${safeId}'==='leather_quiver'){this.src='/icons/items/pelt_quiver.png';return;}}this.onerror=null;this.style.display='none';" />`;
 }
 
