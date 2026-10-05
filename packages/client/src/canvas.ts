@@ -1978,9 +1978,9 @@ export class WorldRenderer {
 
       const drawX = Math.round(px - TILE_SIZE / 2 + offX);
       const drawY = Math.round(py - TILE_SIZE / 2 + offY);
-      if (rotation !== undefined && rotation !== 0) {
+      if (rotation !== undefined) {
         ctx.translate(Math.round(px + offX), Math.round(py + offY));
-        ctx.rotate(rotation);
+        if (rotation !== 0) ctx.rotate(rotation);
         ctx.drawImage(
           this.playerEquipmentImage,
           coord.col * 16,
@@ -2309,33 +2309,29 @@ export class WorldRenderer {
           }
           ctx.restore();
         } else if (taskSkill === 'cooking') {
-          // Cast iron skillet with rhythmic toss/flip over the fire
-          const cookPhase = (this.animTick * 0.01 + (this.localPlayer?.x || 0)) % 1;
-          let panAngle = 0;
-          let panY = breatheBob + 1;
-          let panX = 4;
-
-          if (cookPhase > 0.60 && cookPhase < 0.85) {
-            const p = (cookPhase - 0.60) / 0.25;
-            panAngle = -Math.sin(p * Math.PI) * 0.30;
-            panY = breatheBob + 1 - Math.round(Math.sin(p * Math.PI) * 3);
-          }
+          // Cast iron skillet with continuous, smooth rhythmic sauté swirl
+          const cookCycle = this.animTick * 0.005 + (this.localPlayer?.x || 0);
+          const panAngle = Math.sin(cookCycle) * 0.10;
+          const panX = 1 + Math.cos(cookCycle) * 1.5;
+          const panY = breatheBob + Math.sin(cookCycle * 2) * 0.8;
 
           const skilletCoord = getSprite('tool_skillet') || getSprite('tool_hammer');
           if (skilletCoord) {
             drawLayer(skilletCoord, panX, panY, panAngle);
           }
 
-          // Fragrant steam wisps curling up from the hot skillet
+          // Gentle laminar steam wisps gracefully curling upward
           ctx.save();
           for (let i = 0; i < 3; i++) {
-            const steamPhase = (this.animTick * 0.003 + i * 0.33) % 1;
-            const steamY = py + breatheBob + 2 - steamPhase * 14;
-            const steamX = px + 8 + Math.sin(this.animTick * 0.008 + i) * 4;
-            const steamAlpha = Math.max(0, (1 - steamPhase) * 0.40);
-            ctx.fillStyle = `rgba(240, 240, 255, ${steamAlpha})`;
+            const steamPhase = (this.animTick * 0.0018 + i * 0.33) % 1;
+            const steamY = py + breatheBob - 2 - steamPhase * 16;
+            const curl = Math.sin(steamPhase * Math.PI * 2 + i) * 3;
+            const steamX = px + 6 + curl;
+            const steamAlpha = Math.sin(steamPhase * Math.PI) * 0.45;
+            const steamR = 1.2 + steamPhase * 2.2;
+            ctx.fillStyle = `rgba(240, 245, 255, ${steamAlpha})`;
             ctx.beginPath();
-            ctx.arc(steamX, steamY, 1.5 + steamPhase * 2, 0, Math.PI * 2);
+            ctx.arc(steamX, steamY, steamR, 0, Math.PI * 2);
             ctx.fill();
           }
           ctx.restore();
