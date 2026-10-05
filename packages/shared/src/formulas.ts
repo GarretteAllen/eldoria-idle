@@ -2,7 +2,8 @@ import { Rarity, RARITY_CHANCES, getSteedWalkSpeedBonus } from './constants.js';
 import { getLevelFromXp, getJobSpeedMultiplier } from './levels.js';
 import { ITEMS, addItemToSlots } from './items.js';
 import { RECIPES } from './recipes.js';
-import { PlayerData, InventorySlot, RecipeDefinition } from './types.js';
+import { MONSTERS } from './monsters.js';
+import { PlayerData, InventorySlot, RecipeDefinition, MonsterDefinition } from './types.js';
 
 /**
  * Calculates effective move speed in tiles per 600ms tick.
@@ -229,7 +230,101 @@ export function simulateOfflineCatchUp(
   }
 
   const recipe: RecipeDefinition | undefined = RECIPES[player.currentTask.recipeId];
-  if (!recipe) return summary;
+  const monster: MonsterDefinition | undefined = MONSTERS[player.currentTask.recipeId];
+  if (!recipe && !monster) return summary;
+
+  if (monster) {
+    const combatStyle = (player.currentTask.skill === 'ranged' || player.currentTask.skill === 'magic')
+      ? player.currentTask.skill
+      : 'melee';
+    const combatLvl = player.skills[combatStyle]?.level || 1;
+    const weaponItem = player.equipment?.weapon ? ITEMS[player.equipment.weapon.itemId] : undefined;
+    const strBonus = weaponItem?.baseStats?.strength || 0;
+    const avgHit = Math.max(1, Math.floor((combatLvl + strBonus) / 10) + 1);
+    const swingsToKill = Math.ceil(monster.hp / avgHit);
+    const swingSec = weaponItem?.baseStats?.swingSpeedSeconds || (combatStyle === 'ranged' ? 1.8 : combatStyle === 'magic' ? 3.6 : 2.4);
+    const killSec = Math.max(2.4, swingsToKill * swingSec);
+
+    const rawTarget = player.currentTask.targetQuantity;
+    const targetQuantity = (typeof rawTarget === 'number' && rawTarget > 0) ? rawTarget : Infinity;
+    const remainingTarget = targetQuantity === Infinity
+      ? Infinity
+      : Math.max(0, targetQuantity - (player.currentTask.completedQuantity || 0));
+    const potentialKills = Math.floor(cappedElapsed / killSec);
+    const killsToExecute = Math.min(potentialKills, remainingTarget);
+
+    if (killsToExecute <= 0) return summary;
+
+    let executed = 0;
+    let totalStyleXp = 0;
+    let totalHpXp = 0;
+
+    for (let i = 0; i < killsToExecute; i++) {
+      if (monster.maxHit > 0) {
+        const foodSlot = player.inventory.find(s => {
+          const def = ITEMS[s.itemId];
+          return (def?.baseStats?.healing || 0) > 0;
+        });
+        if (foodSlot) {
+          foodSlot.quantity -= 1;
+          player.inventory = player.inventory.filter(s => s.quantity > 0);
+        }
+      }
+
+      const coins = Math.floor((monster.minCoins + monster.maxCoins) / 2);
+      player.gold = (player.gold || 0) + coins;
+      summary.itemsGained['gold'] = (summary.itemsGained['gold'] || 0) + coins;
+
+      if (monster.guaranteedDropItemId && ITEMS[monster.guaranteedDropItemId]) {
+        const itemDef = ITEMS[monster.guaranteedDropItemId];
+        const res = addItemToSlots(player.inventory, 28, monster.guaranteedDropItemId, 1, 'plain', 0, itemDef, 'inventory');
+        if (res.remainder > 0) {
+          const maxStorage = player.storageSlotsMax || 75;
+          const bankRes = addItemToSlots(player.storage, maxStorage, monster.guaranteedDropItemId, res.remainder, 'plain', 0, itemDef, 'bank');
+          if (bankRes.remainder > 0) {
+            summary.overflowOccurred = true;
+          }
+        }
+        summary.itemsGained[monster.guaranteedDropItemId] = (summary.itemsGained[monster.guaranteedDropItemId] || 0) + 1;
+      }
+
+      totalStyleXp += (monster.hp * 4) + monster.xp;
+      totalHpXp += Math.floor(monster.hp * 1.33);
+      executed++;
+
+      if (player.inventory.length >= 28) {
+        break;
+      }
+    }
+
+    summary.completedCycles = executed;
+    summary.xpGained = totalStyleXp;
+    player.currentTask.completedQuantity = (player.currentTask.completedQuantity || 0) + executed;
+
+    if (targetQuantity !== Infinity && player.currentTask.completedQuantity >= targetQuantity) {
+      player.currentTask = null;
+    }
+
+    const styleRecord = player.skills[combatStyle];
+    if (styleRecord) {
+      const oldLevel = styleRecord.level;
+      styleRecord.xp += totalStyleXp;
+      styleRecord.level = getLevelFromXp(styleRecord.xp);
+      if (styleRecord.level > oldLevel) {
+        summary.leveledUp = true;
+        summary.skillName = combatStyle;
+        summary.startLevel = oldLevel;
+        summary.newLevel = styleRecord.level;
+      }
+    }
+
+    if (player.skills.hitpoints) {
+      player.skills.hitpoints.xp = Math.max(1154, (player.skills.hitpoints.xp || 1154) + totalHpXp);
+      player.skills.hitpoints.level = Math.max(10, getLevelFromXp(player.skills.hitpoints.xp));
+    }
+
+    return summary;
+  }
 
   const currentLevel = player.skills[recipe.skill]?.level || 1;
   const speedMult = getJobSpeedMultiplier(currentLevel, recipe.levelReq);

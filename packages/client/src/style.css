@@ -3800,5 +3800,94 @@ body, html {
   filter: brightness(1.15);
 }
 
+/* --- AFK Slumber Screen Overlay --- */
+.afk-backdrop {
+  z-index: 10000;
+  background: rgba(8, 10, 16, 0.88);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.afk-backdrop.hidden {
+  display: none !important;
+}
+.afk-box {
+  padding: 30px 28px;
+  border: 1.5px solid var(--gold-bright);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.85), 0 0 25px rgba(223, 166, 55, 0.25);
+  animation: afkFadeIn 0.3s ease-out;
+}
+@keyframes afkFadeIn {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: scale(1); }
+}
+.afk-icon-wrap {
+  width: 58px;
+  height: 58px;
+  margin: 0 auto 14px auto;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(223, 166, 55, 0.25) 0%, rgba(20, 24, 35, 0.8) 100%);
+  border: 1.5px solid var(--gold-bright);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 20px rgba(223, 166, 55, 0.4);
+  animation: afkPulse 3s infinite ease-in-out;
+}
+@keyframes afkPulse {
+  0%, 100% { transform: scale(1); box-shadow: 0 0 15px rgba(223, 166, 55, 0.3); }
+  50% { transform: scale(1.06); box-shadow: 0 0 25px rgba(223, 166, 55, 0.6); }
+}
+.afk-icon-wrap svg {
+  width: 32px;
+  height: 32px;
+  stroke: var(--gold-bright);
+}
+.afk-title {
+  color: var(--gold-bright);
+  font-size: 1.35rem;
+  font-weight: 800;
+  margin: 0 0 8px 0;
+  letter-spacing: 0.04em;
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.8);
+}
+.afk-desc {
+  color: var(--parchment-dim);
+  font-size: 0.86rem;
+  line-height: 1.45;
+  margin: 0 0 16px 0;
+}
+.afk-routine-card {
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid #573c24;
+  border-radius: 6px;
+  padding: 10px 14px;
+  margin-bottom: 12px;
+  text-align: left;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.afk-routine-label {
+  color: var(--gold-light);
+  font-size: 0.76rem;
+  text-transform: uppercase;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+}
+.afk-routine-val {
+  color: #fff;
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+.afk-note {
+  color: #94a3b8;
+  font-size: 0.78rem;
+  margin: 0 0 4px 0;
+  line-height: 1.4;
+}
+
 
 

@@ -59,6 +59,7 @@ import {
   Flame,
   ChevronRight,
   ArrowLeft,
+  MoonStar,
   IconNode,
 } from 'lucide';
 
@@ -176,6 +177,7 @@ export const ICONS: Record<string, string> = {
   quest: toSvg(Scroll),
   collision: toSvg(Grid),
   mapPin: toSvg(MapPin),
+  slumber: toSvg(MoonStar),
 };
 
 /**

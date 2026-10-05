@@ -66,6 +66,8 @@ export class WorldRenderer {
   private cameraX = 0;
   private cameraY = 0;
   private animTick = 0;
+  private isPaused = false;
+  private animFrameId: number | null = null;
 
   // Visual effects
   private destinationMarker: { x: number; y: number; time: number } | null = null;
@@ -317,7 +319,7 @@ export class WorldRenderer {
     window.addEventListener('resize', () => this.resize());
     this.setupInput();
 
-    requestAnimationFrame((ts) => this.render(ts));
+    this.animFrameId = requestAnimationFrame((ts) => this.render(ts));
   }
 
   public setNodes(nodes: WorldNodeDisplay[]) {
@@ -776,7 +778,25 @@ export class WorldRenderer {
     // 15. Tactical Radar Minimap
     this.drawMinimap();
 
-    requestAnimationFrame((ts) => this.render(ts));
+    if (!this.isPaused) {
+      this.animFrameId = requestAnimationFrame((ts) => this.render(ts));
+    }
+  }
+
+  public pauseRendering() {
+    this.isPaused = true;
+    if (this.animFrameId !== null) {
+      cancelAnimationFrame(this.animFrameId);
+      this.animFrameId = null;
+    }
+  }
+
+  public resumeRendering() {
+    if (!this.isPaused) return;
+    this.isPaused = false;
+    if (this.animFrameId === null) {
+      this.animFrameId = requestAnimationFrame((ts) => this.render(ts));
+    }
   }
 
   private drawCombatProjectiles() {

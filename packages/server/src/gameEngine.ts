@@ -62,6 +62,7 @@ interface ConnectedSession {
     monsterSwingTicks: number;
   } | null;
   lastBossAttackTime?: number;
+  lastActivityTimestamp?: number;
 }
 
 
@@ -292,6 +293,7 @@ export class GameEngine {
       pendingTask: player.pendingTask || null,
       pendingCombat: null,
       activeCombat: null,
+      lastActivityTimestamp: Date.now(),
     };
     this.sessions.set(player.id, session);
 
@@ -462,9 +464,22 @@ export class GameEngine {
   public handleClientMessage(playerId: string, msg: any) {
     const session = this.sessions.get(playerId);
     if (!session) return;
+    session.lastActivityTimestamp = Date.now();
     const { player } = session;
 
     switch (msg.type) {
+      case 'HEARTBEAT':
+        break;
+
+      case 'ENTER_AFK': {
+        session.player.lastActiveTimestamp = Date.now();
+        storage.savePlayer(session.player);
+        this.removeConnection(playerId, session.ws);
+        try {
+          session.ws.close(4001, 'User AFK');
+        } catch {}
+        break;
+      }
       case 'MOVE_TO':
       case 'MOVE':
         if (typeof msg.x === 'number' && typeof msg.y === 'number') {
@@ -2309,11 +2324,29 @@ export class GameEngine {
       }
     }
 
-    // Every 5 ticks (3s) auto-save
+    // Every 5 ticks (3s) auto-save & idle session cleanup
     if (this.tickCount % 5 === 0) {
-      for (const session of this.sessions.values()) {
-        session.player.lastActiveTimestamp = Date.now();
+      const now = Date.now();
+      const idleSessionsToDrop: string[] = [];
+
+      for (const [playerId, session] of this.sessions.entries()) {
+        session.player.lastActiveTimestamp = now;
         storage.savePlayer(session.player);
+
+        // Disconnect sessions that have been completely inactive for > 16 minutes
+        if (session.lastActivityTimestamp && now - session.lastActivityTimestamp > 16 * 60 * 1000) {
+          idleSessionsToDrop.push(playerId);
+        }
+      }
+
+      for (const playerId of idleSessionsToDrop) {
+        const session = this.sessions.get(playerId);
+        if (session) {
+          try {
+            session.ws.close(4001, 'Idle timeout (16+ minutes of inactivity)');
+          } catch {}
+          this.removeConnection(playerId, session.ws);
+        }
       }
     }
   }

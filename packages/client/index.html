@@ -530,6 +530,27 @@
         </div>
       </div>
 
+      <!-- AFK SLUMBER OVERLAY (Resource Saver for Inactive / Tabbed Out Players) -->
+      <div id="afk-overlay" class="modal-backdrop afk-backdrop hidden">
+        <div class="modal-box dark-oak-panel afk-box" style="width: 440px; text-align: center;">
+          <div class="afk-icon-wrap" id="afk-icon-wrap"></div>
+          <h2 class="afk-title">Adventurer in Slumber</h2>
+          <p class="afk-desc">
+            You have been away for 15+ minutes. System resources (GPU & 60 FPS canvas loop) have been suspended to conserve power.
+          </p>
+          <div class="afk-routine-card">
+            <div class="afk-routine-label">Active Routine:</div>
+            <div class="afk-routine-val" id="afk-routine-val">Resting at the Hearth</div>
+          </div>
+          <p class="afk-note">
+            Your character's tasks, yields, and experience continue safely offline.
+          </p>
+          <button id="afk-resume-btn" class="btn-start" style="width: 100%; margin-top: 16px;">
+            Awaken & Resume
+          </button>
+        </div>
+      </div>
+
       <!-- 11. IN-GAME ADMIN WORLD EDITOR DRAWER -->
       <div id="admin-editor-drawer" class="drawer-panel dark-oak-panel hidden" style="width: 380px;">
         <div class="drawer-header">

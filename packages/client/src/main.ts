@@ -103,6 +103,14 @@ class EldoriaClient {
   private lastToastText: string = '';
   private lastToastTime: number = 0;
 
+  // AFK Resource Saving State (15 minutes threshold)
+  private readonly AFK_TIMEOUT_MS = 15 * 60 * 1000;
+  private isAfk = false;
+  private lastUserActivity = Date.now();
+  private hiddenSince: number | null = null;
+  private afkCheckTimer: any = null;
+  private heartbeatTimer: any = null;
+
   constructor() {
     const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
     this.renderer = new WorldRenderer(canvas);
@@ -123,6 +131,7 @@ class EldoriaClient {
     this.setupLevelUpCelebration();
     this.setupBestiary();
     this.setupItemTooltips();
+    this.setupAfkSystem();
     this.fetchNodesAndInit();
   }
 
@@ -557,10 +566,16 @@ class EldoriaClient {
       }
     };
 
-    this.ws.onclose = () => {
-      console.log('Disconnected. Retrying in 3s...');
+    this.ws.onclose = (event) => {
+      console.log('Disconnected from server.', event.code, event.reason);
+      if (this.isAfk || event.code === 4001) {
+        if (!this.isAfk) {
+          this.enterAfkMode('server_disconnect');
+        }
+        return;
+      }
       setTimeout(() => {
-        if (this.player) this.connectWs();
+        if (this.player && !this.isAfk) this.connectWs();
       }, 3000);
     };
   }
@@ -4546,6 +4561,118 @@ class EldoriaClient {
     const close = () => modal.classList.add('hidden');
     document.getElementById('away-close-btn')!.onclick = close;
     document.getElementById('away-ok-btn')!.onclick = close;
+  }
+
+  private setupAfkSystem() {
+    const onActivity = () => {
+      this.lastUserActivity = Date.now();
+    };
+    window.addEventListener('mousemove', onActivity, { passive: true });
+    window.addEventListener('mousedown', onActivity, { passive: true });
+    window.addEventListener('keydown', onActivity, { passive: true });
+    window.addEventListener('touchstart', onActivity, { passive: true });
+    window.addEventListener('wheel', onActivity, { passive: true });
+
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') {
+        if (!this.hiddenSince) this.hiddenSince = Date.now();
+      } else {
+        if (this.hiddenSince && Date.now() - this.hiddenSince >= this.AFK_TIMEOUT_MS) {
+          this.enterAfkMode('tab_hidden');
+        }
+        this.hiddenSince = null;
+        this.lastUserActivity = Date.now();
+      }
+    });
+
+    const afkBtn = document.getElementById('afk-resume-btn');
+    if (afkBtn) {
+      afkBtn.addEventListener('click', () => this.resumeFromAfk());
+    }
+
+    this.afkCheckTimer = setInterval(() => {
+      if (this.isAfk || !this.player) return;
+      const now = Date.now();
+      const inactiveTime = now - this.lastUserActivity;
+      const hiddenTime = this.hiddenSince ? now - this.hiddenSince : 0;
+      if (inactiveTime >= this.AFK_TIMEOUT_MS || hiddenTime >= this.AFK_TIMEOUT_MS) {
+        this.enterAfkMode(hiddenTime >= this.AFK_TIMEOUT_MS ? 'tab_hidden' : 'inactivity');
+      }
+    }, 5000);
+
+    this.heartbeatTimer = setInterval(() => {
+      if (this.isAfk || !this.ws || this.ws.readyState !== WebSocket.OPEN) return;
+      try {
+        this.ws.send(JSON.stringify({ type: 'HEARTBEAT' }));
+      } catch {}
+    }, 30000);
+  }
+
+  private enterAfkMode(reason: string) {
+    if (this.isAfk) return;
+    this.isAfk = true;
+    console.log(`[AFK] Entering slumber mode (${reason}). Suspending canvas & WebSocket...`);
+
+    // 1. Inform server so it immediately saves exact timestamp and stops ticking this session
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      try {
+        this.ws.send(JSON.stringify({ type: 'ENTER_AFK' }));
+      } catch {}
+      try {
+        this.ws.close(4001, 'User AFK');
+      } catch {}
+    }
+
+    // 2. Pause 60 FPS canvas loop to free GPU / CPU
+    this.renderer.pauseRendering();
+
+    // 3. Populate and show AFK overlay
+    const overlay = document.getElementById('afk-overlay');
+    const taskVal = document.getElementById('afk-routine-val');
+    const iconWrap = document.getElementById('afk-icon-wrap');
+    if (iconWrap) iconWrap.innerHTML = ICONS.slumber;
+
+    if (taskVal && this.player) {
+      if (this.player.currentTask) {
+        const rec = RECIPES[this.player.currentTask.recipeId];
+        const mob = MONSTERS[this.player.currentTask.recipeId];
+        const taskName = rec?.name || mob?.name || this.player.currentTask.recipeId;
+        const skill = this.player.currentTask.skill ? this.player.currentTask.skill.toUpperCase() : 'ROUTINE';
+        taskVal.textContent = `${taskName} (${skill})`;
+      } else {
+        taskVal.textContent = 'Resting at the Hearth';
+      }
+    }
+
+    if (overlay) {
+      overlay.classList.remove('hidden');
+    }
+  }
+
+  private resumeFromAfk() {
+    if (!this.isAfk) return;
+    console.log('[AFK] Resuming from slumber...');
+    this.isAfk = false;
+    this.lastUserActivity = Date.now();
+    this.hiddenSince = null;
+
+    // 1. Hide AFK overlay
+    const overlay = document.getElementById('afk-overlay');
+    if (overlay) {
+      overlay.classList.add('hidden');
+    }
+
+    // 2. Resume 60 FPS canvas rendering
+    this.renderer.resumeRendering();
+
+    // 3. Reconnect WebSocket — server will calculate simulateOfflineCatchUp and send INIT with catchUp!
+    this.connectWs();
+  }
+
+  public destroy() {
+    if (this.afkCheckTimer) clearInterval(this.afkCheckTimer);
+    if (this.heartbeatTimer) clearInterval(this.heartbeatTimer);
+    if (this.levelUpTimer) clearTimeout(this.levelUpTimer);
   }
 
   private showToast(msg: string, alsoLogToChat: boolean = false) {
