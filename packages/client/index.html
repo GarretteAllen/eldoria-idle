@@ -70,7 +70,10 @@
           </div>
 
           <div class="sound-control-wrapper" style="position: relative;">
-            <button id="btn-sound-toggle" class="top-util-btn" title="Audio Controls & Volume"></button>
+            <button id="btn-sound-toggle" class="sound-pill-btn" title="Audio & Volume Controls (Click to open, Right-click to mute)">
+              <span id="sound-btn-icon" class="svg-icon-inline icon-xs"></span>
+              <span id="sound-btn-text">35%</span>
+            </button>
             <div id="sound-settings-popover" class="sound-settings-popover dark-oak-panel hidden">
               <div class="sound-popover-header">
                 <div style="display: flex; align-items: center; gap: 6px;">
@@ -93,25 +96,25 @@
               <div class="sound-slider-group">
                 <div class="sound-slider-label">
                   <span>Master Volume</span>
-                  <span id="sound-master-val">65%</span>
+                  <span id="sound-master-val">35%</span>
                 </div>
-                <input type="range" id="sound-master-slider" min="0" max="100" value="65" class="sound-slider" />
+                <input type="range" id="sound-master-slider" min="0" max="100" value="35" class="sound-slider" />
               </div>
 
               <!-- SFX Volume Slider -->
               <div class="sound-slider-group">
                 <div class="sound-slider-label">
                   <span>Effects & Skills</span>
-                  <span id="sound-sfx-val">85%</span>
+                  <span id="sound-sfx-val">60%</span>
                 </div>
-                <input type="range" id="sound-sfx-slider" min="0" max="100" value="85" class="sound-slider" />
+                <input type="range" id="sound-sfx-slider" min="0" max="100" value="60" class="sound-slider" />
               </div>
 
               <!-- Presets -->
               <div class="sound-presets-row">
                 <button type="button" class="btn-sound-preset" data-master="0" data-sfx="0">Mute</button>
-                <button type="button" class="btn-sound-preset" data-master="30" data-sfx="50">Quiet</button>
-                <button type="button" class="btn-sound-preset" data-master="65" data-sfx="85">Default</button>
+                <button type="button" class="btn-sound-preset" data-master="15" data-sfx="40">Quiet</button>
+                <button type="button" class="btn-sound-preset" data-master="35" data-sfx="60">Default</button>
                 <button type="button" class="btn-sound-preset" data-master="100" data-sfx="100">Max</button>
               </div>
 
@@ -265,6 +268,7 @@
         <button class="tool-btn" data-panel="inventory" id="tool-btn-inventory" title="Bag (Inventory)"></button>
         <button class="tool-btn" data-panel="equipment" id="tool-btn-equipment" title="Worn Equipment & Toolbelt"></button>
         <button class="tool-btn" data-panel="storage" id="tool-btn-storage" title="Hearth Reliquary"></button>
+        <button class="tool-btn" id="tool-btn-sound" title="Audio & Volume Controls"></button>
         <button class="tool-btn" data-panel="editor" id="tool-btn-editor" title="In-Game World Editor (Admin)" style="display:none;"></button>
         <button class="tool-btn" data-panel="chat" id="tool-btn-chat" title="Toggle Chat"></button>
       </aside>

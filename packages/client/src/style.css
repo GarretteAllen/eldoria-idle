@@ -2772,6 +2772,43 @@ body, html {
   filter: grayscale(1);
 }
 
+/* Sound Pill Button */
+.sound-pill-btn {
+  height: 24px;
+  padding: 0 8px;
+  background: #18110b;
+  border: 1px solid var(--border-oak-light);
+  color: var(--text-cream);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.70rem;
+  font-weight: 600;
+  box-sizing: border-box;
+}
+
+.sound-pill-btn:hover {
+  background: #2b1c11;
+  border-color: var(--gold-bright);
+  color: #ffffff;
+}
+
+.sound-pill-btn.muted {
+  opacity: 0.65;
+  color: #a0aec0;
+  border-color: #4a5568;
+}
+
+.sound-pill-btn svg,
+.sound-pill-btn .lucide-icon {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
 /* Sound Settings Popover */
 .sound-control-wrapper {
   position: relative;

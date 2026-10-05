@@ -9,8 +9,8 @@ type VolumeChangeListener = (master: number, sfx: number, enabled: boolean) => v
 class SoundManager {
   private ctx: AudioContext | null = null;
   public enabled: boolean = true;
-  public masterVolume: number = 0.65;
-  public sfxVolume: number = 0.85;
+  public masterVolume: number = 0.35;
+  public sfxVolume: number = 0.60;
 
   private audioBuffers: Map<string, AudioBuffer> = new Map();
   private loadingPromises: Map<string, Promise<AudioBuffer | null>> = new Map();
@@ -199,7 +199,8 @@ class SoundManager {
       source.buffer = buffer;
 
       const gain = this.ctx.createGain();
-      const finalVolume = Math.max(0, Math.min(1, this.masterVolume * this.sfxVolume * volumeScale));
+      // Master normalization factor (0.35) prevents loud recorded samples from blasting ears
+      const finalVolume = Math.max(0, Math.min(1, this.masterVolume * this.sfxVolume * volumeScale * 0.35));
       gain.gain.setValueAtTime(finalVolume, this.ctx.currentTime);
 
       source.connect(gain);
@@ -234,7 +235,7 @@ class SoundManager {
   }
 
   private get effectiveVolume(): number {
-    return Math.max(0, Math.min(1, this.masterVolume * this.sfxVolume * 0.45));
+    return Math.max(0, Math.min(1, this.masterVolume * this.sfxVolume * 0.25));
   }
 
   private playFallbackSynth(name: string) {

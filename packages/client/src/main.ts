@@ -174,6 +174,8 @@ class EldoriaClient {
     document.getElementById('tool-btn-inventory')!.innerHTML = ICONS.inventory;
     document.getElementById('tool-btn-equipment')!.innerHTML = ICONS.equipment;
     document.getElementById('tool-btn-storage')!.innerHTML = ICONS.storage;
+    const toolSoundBtn = document.getElementById('tool-btn-sound');
+    if (toolSoundBtn) toolSoundBtn.innerHTML = ICONS.soundOn;
     document.getElementById('tool-btn-chat')!.innerHTML = ICONS.chat;
     const editorToolBtn = document.getElementById('tool-btn-editor');
     if (editorToolBtn) editorToolBtn.innerHTML = ICONS.editor;
@@ -3193,6 +3195,7 @@ class EldoriaClient {
     sound.preloadCommonSounds();
 
     const soundBtn = document.getElementById('btn-sound-toggle');
+    const toolSoundBtn = document.getElementById('tool-btn-sound');
     const popover = document.getElementById('sound-settings-popover');
     const popoverClose = document.getElementById('btn-sound-popover-close');
     const headerIcon = document.getElementById('sound-header-icon');
@@ -3222,6 +3225,21 @@ class EldoriaClient {
       };
     }
 
+    if (toolSoundBtn && popover) {
+      toolSoundBtn.onclick = (e) => {
+        e.stopPropagation();
+        popover.classList.toggle('hidden');
+        if (!popover.classList.contains('hidden')) {
+          sound.preloadCommonSounds();
+        }
+      };
+
+      toolSoundBtn.oncontextmenu = (e) => {
+        e.preventDefault();
+        sound.toggle();
+      };
+    }
+
     if (popoverClose && popover) {
       popoverClose.onclick = (e) => {
         e.stopPropagation();
@@ -3233,7 +3251,7 @@ class EldoriaClient {
     window.addEventListener('click', (e) => {
       if (popover && !popover.classList.contains('hidden')) {
         const target = e.target as HTMLElement;
-        if (!popover.contains(target) && target !== soundBtn && !soundBtn?.contains(target)) {
+        if (!popover.contains(target) && target !== soundBtn && !soundBtn?.contains(target) && target !== toolSoundBtn && !toolSoundBtn?.contains(target)) {
           popover.classList.add('hidden');
         }
       }
@@ -3273,8 +3291,8 @@ class EldoriaClient {
     document.querySelectorAll('.btn-sound-preset').forEach((btn) => {
       const b = btn as HTMLButtonElement;
       b.onclick = () => {
-        const m = parseInt(b.dataset.master || '65') / 100;
-        const s = parseInt(b.dataset.sfx || '85') / 100;
+        const m = parseInt(b.dataset.master || '35') / 100;
+        const s = parseInt(b.dataset.sfx || '60') / 100;
         if (m === 0) {
           sound.setEnabled(false);
         } else {
@@ -3299,8 +3317,23 @@ class EldoriaClient {
     // Reactive listener syncing SoundManager state with UI
     const updateUIState = (master: number, sfx: number, enabled: boolean) => {
       if (soundBtn) {
-        soundBtn.innerHTML = enabled ? ICONS.soundOn : ICONS.soundOff;
+        const iconSpan = soundBtn.querySelector('#sound-btn-icon') || soundBtn;
+        const textSpan = soundBtn.querySelector('#sound-btn-text');
+        iconSpan.innerHTML = enabled ? ICONS.soundOn : ICONS.soundOff;
+        if (textSpan) {
+          textSpan.textContent = enabled ? `${Math.round(master * 100)}%` : 'Muted';
+        }
         soundBtn.classList.toggle('muted', !enabled);
+        soundBtn.title = enabled
+          ? `Audio: ${Math.round(master * 100)}% (Click for settings, Right-click to mute)`
+          : 'Audio: Muted (Click to unmute)';
+      }
+      if (toolSoundBtn) {
+        toolSoundBtn.innerHTML = enabled ? ICONS.soundOn : ICONS.soundOff;
+        toolSoundBtn.classList.toggle('muted', !enabled);
+        toolSoundBtn.title = enabled
+          ? `Audio Controls: ${Math.round(master * 100)}%`
+          : 'Audio: Muted (Click to unmute)';
       }
       if (muteCheckbox) muteCheckbox.checked = enabled;
       if (statusBadge) {
@@ -3740,6 +3773,15 @@ class EldoriaClient {
         e.preventDefault();
       } else if (e.code === 'KeyM') {
         this.toggleWorldMapModal();
+        e.preventDefault();
+      } else if (e.code === 'KeyU') {
+        const popover = document.getElementById('sound-settings-popover');
+        if (popover) {
+          popover.classList.toggle('hidden');
+          if (!popover.classList.contains('hidden')) {
+            sound.preloadCommonSounds();
+          }
+        }
         e.preventDefault();
       } else if (e.code === 'Space') {
         this.quickEatFood();
