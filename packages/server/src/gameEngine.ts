@@ -241,9 +241,9 @@ export class GameEngine {
       player.role = 'admin';
     }
 
-    // Ensure player Hitpoints is at least Level 10 and 1,478 XP
-    if (!player.skills.hitpoints || player.skills.hitpoints.level < 10 || player.skills.hitpoints.xp < 1478) {
-      const hpXp = Math.max(1478, player.skills.hitpoints?.xp || 1478);
+    // Ensure player Hitpoints is at least Level 10 and 1,154 XP (OSRS level 10 base)
+    if (!player.skills.hitpoints || player.skills.hitpoints.level < 10 || player.skills.hitpoints.xp < 1154) {
+      const hpXp = Math.max(1154, player.skills.hitpoints?.xp || 1154);
       player.skills.hitpoints = {
         xp: hpXp,
         level: Math.max(10, getLevelFromXp(hpXp)),
@@ -3165,7 +3165,7 @@ export class GameEngine {
       player.skills[combatStyle].level = getLevelFromXp(player.skills[combatStyle].xp);
 
       const hpXp = Math.max(1, Math.floor(damage * 1.33));
-      player.skills.hitpoints.xp = Math.max(1478, (player.skills.hitpoints.xp || 1478) + hpXp);
+      player.skills.hitpoints.xp = Math.max(1154, (player.skills.hitpoints.xp || 1154) + hpXp);
       player.skills.hitpoints.level = Math.max(10, getLevelFromXp(player.skills.hitpoints.xp));
 
       this.broadcast({

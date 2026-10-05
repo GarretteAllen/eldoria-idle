@@ -1,88 +1,66 @@
-// Exact Level & XP tables from the Codex
-// Level 2 takes 100 xp; each level after asks ~12% more up to 99 (55,485,366 total)
-// Beyond 99, compounds ~14% per level up to 241.
+// Canonical Old School RuneScape (OSRS) Experience & Level System
+// Reference: https://oldschool.runescape.wiki/w/Experience
+// Mathematical formula: Experience(L) = floor( 1/4 * sum_{l=1}^{L-1} floor( l + 300 * 2^(l/7) ) )
+
+export const MAX_LEVEL = 99; // Classic OSRS skill cap
+export const MAX_VIRTUAL_LEVEL = 126; // OSRS virtual level cap before 200M XP
+export const MAX_XP = 200_000_000; // Classic 200,000,000 XP cap
+
+/**
+ * Calculates the exact cumulative experience required to reach level L
+ * according to the canonical Old School RuneScape formula.
+ */
+export function calculateOsrsXpForLevel(level: number): number {
+  if (level <= 1) return 0;
+  let total = 0;
+  for (let l = 1; l < level; l++) {
+    total += Math.floor(l + 300 * Math.pow(2, l / 7));
+  }
+  return Math.floor(total / 4);
+}
 
 export const LEVEL_MILESTONES: Record<number, number> = {
   1: 0,
-  2: 100,
-  3: 212,
-  4: 337,
-  5: 478,
-  6: 635,
-  7: 812,
-  8: 1009,
-  9: 1230,
-  10: 1478,
-  11: 1755,
-  12: 2065,
-  13: 2413,
-  14: 2803,
-  15: 3239,
-  16: 3728,
-  17: 4275,
-  18: 4888,
-  19: 5575,
-  20: 6344,
-  25: 11816,
-  30: 21458,
-  35: 38452,
-  40: 68401,
-  45: 121181,
-  50: 214198,
-  55: 378125,
-  60: 667022,
-  65: 1176155,
-  70: 2073422,
-  75: 3654714,
-  80: 6441490,
-  85: 11352742,
-  90: 20008046,
-  95: 35261649,
-  98: 49540416,
-  99: 55485366,
-  100: 61033903,
-  110: 186915284,
-  120: 674462148,
-  130: 2562763195,
-  140: 9876277257,
-  150: 38201997890,
-  160: 147909375566,
-  170: 572813259665,
-  180: 2218493928967,
-  190: 8592323321144,
-  200: 33278583467707,
-  210: 128890091483878,
-  220: 499199745957762,
-  230: 1933433375798384,
-  240: 7488314487089727,
-  241: 8574120085220896
+  2: 83,
+  3: 174,
+  4: 276,
+  5: 388,
+  6: 512,
+  7: 650,
+  8: 801,
+  9: 969,
+  10: 1154,
+  15: 2411,
+  20: 4470,
+  25: 7842,
+  30: 13363,
+  35: 22406,
+  40: 37224,
+  45: 61512,
+  50: 101333,
+  55: 166636,
+  60: 273742,
+  65: 449428,
+  70: 737627,
+  75: 1210421,
+  80: 1986068,
+  85: 3258594,
+  90: 5346332,
+  92: 6517253, // Exactly half of 99!
+  95: 8771558,
+  98: 11805606,
+  99: 13034431, // Classic 99 cap
+  120: 104273167,
+  126: 188884740,
 };
 
-// Generate full table up to 99 using exact ~1.12 factor anchored at 99
-export const XP_TABLE: number[] = [0, 0]; // 1-indexed
+// 1-indexed XP table up to level 126 (virtual level cap)
+// XP_TABLE[1] = 0, XP_TABLE[2] = 83, ..., XP_TABLE[99] = 13,034,431
+export const XP_TABLE: number[] = [0];
 
 (() => {
-  let currentTotal = 0;
-  let diff = 100;
-  XP_TABLE.push(100); // Level 2
-  for (let lvl = 3; lvl <= 99; lvl++) {
-    diff = Math.round(diff * 1.12);
-    currentTotal = XP_TABLE[lvl - 1] + diff;
-    if (LEVEL_MILESTONES[lvl] !== undefined) {
-      currentTotal = LEVEL_MILESTONES[lvl];
-      diff = currentTotal - XP_TABLE[lvl - 1];
-    }
-    XP_TABLE.push(currentTotal);
-  }
-  // Level 100 to 241
-  diff = Math.round(55485366 * 0.10); // ~10% slice of 99 journey
-  for (let lvl = 100; lvl <= 241; lvl++) {
-    currentTotal = XP_TABLE[lvl - 1] + diff;
-    if (LEVEL_MILESTONES[lvl] !== undefined) {
-      currentTotal = LEVEL_MILESTONES[lvl];
-    }
-    diff = Math.round(diff * 1.14);
-    XP_TABLE.push(currentTotal);
+  for (let lvl = 1; lvl <= MAX_VIRTUAL_LEVEL; lvl++) {
+    XP_TABLE.push(calculateOsrsXpForLevel(lvl));
   }
 })();
 

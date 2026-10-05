@@ -104,7 +104,7 @@ const INITIAL_SKILLS: Record<SkillType, { xp: number; level: number }> = {
   ranged: { xp: 0, level: 1 },
   magic: { xp: 0, level: 1 },
   defence: { xp: 0, level: 1 },
-  hitpoints: { xp: 1478, level: 10 },
+  hitpoints: { xp: 1154, level: 10 },
 };
 
 const DEFAULT_NPCS: NpcDefinition[] = [
@@ -592,9 +592,9 @@ class StorageManager {
       if (this.isPlayerAdmin(player)) {
         player.role = 'admin';
       }
-      // Ensure hitpoints is never below Level 10 / 1478 XP
-      if (!player.skills.hitpoints || player.skills.hitpoints.level < 10 || player.skills.hitpoints.xp < 1478) {
-        const hpXp = Math.max(1478, player.skills.hitpoints?.xp || 1478);
+      // Ensure hitpoints is never below Level 10 / 1154 XP (OSRS level 10 base)
+      if (!player.skills.hitpoints || player.skills.hitpoints.level < 10 || player.skills.hitpoints.xp < 1154) {
+        const hpXp = Math.max(1154, player.skills.hitpoints?.xp || 1154);
         player.skills.hitpoints = {
           xp: hpXp,
           level: Math.max(10, getLevelFromXp(hpXp)),
