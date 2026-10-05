@@ -1053,7 +1053,7 @@ body, html {
   position: absolute;
   top: 38px;
   right: 288px;
-  width: 340px;
+  width: 360px;
   max-width: calc(100vw - 320px);
   max-height: calc(100vh - 52px);
   background: var(--bg-panel);
@@ -1148,17 +1148,17 @@ body, html {
 .popup-category-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 8px;
+  gap: 7px;
 }
 .popup-category-card {
   background: var(--bg-card);
   border: 1px solid var(--border-oak);
   border-radius: 5px;
-  padding: 8px 10px;
+  padding: 7px 9px;
   cursor: pointer;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   transition: all 0.15s ease-out;
   position: relative;
   overflow: hidden;
@@ -1183,9 +1183,9 @@ body, html {
   background: var(--gold-main);
 }
 .popup-category-icon-box {
-  width: 30px;
-  height: 30px;
-  min-width: 30px;
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
   background: var(--bg-darkest);
   border: 1px solid var(--border-subtle);
   border-radius: 4px;
@@ -1195,8 +1195,8 @@ body, html {
   color: var(--gold-main);
 }
 .popup-category-icon-box svg {
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
 }
 .popup-category-info {
   flex: 1;
@@ -1206,23 +1206,25 @@ body, html {
   gap: 2px;
 }
 .popup-category-title {
-  font-size: 0.78rem;
+  font-size: 0.8rem;
   font-weight: 700;
   color: var(--text-white);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
   line-height: 1.2;
+  word-break: normal;
 }
 .popup-category-count {
   font-size: 0.65rem;
   color: var(--text-muted);
   line-height: 1.1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .popup-category-arrow {
   color: var(--border-oak-light);
-  width: 14px;
-  height: 14px;
+  width: 12px;
+  height: 12px;
+  min-width: 12px;
   display: flex;
   align-items: center;
   justify-content: center;

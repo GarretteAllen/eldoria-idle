@@ -1569,81 +1569,81 @@ class EldoriaClient {
     const item = ITEMS[recipe.outputItemId];
 
     if (recipe.skill === 'smithing') {
-      if (item?.category === 'bar') return { id: 'ingots', name: 'Ingots & Smelting', icon: 'anvil' };
-      if (item?.category === 'weapon') return { id: 'weapons', name: 'Blades & Greatswords', icon: 'sword' };
+      if (item?.category === 'bar') return { id: 'ingots', name: 'Ingots', icon: 'anvil' };
+      if (item?.category === 'weapon') return { id: 'weapons', name: 'Weapons', icon: 'sword' };
       if (item?.category === 'armour') {
         if (item.slot === 'helmet') return { id: 'helmets', name: 'Helmets', icon: 'helmet' };
         if (item.slot === 'body') return { id: 'chestplates', name: 'Chestplates', icon: 'body' };
-        if (item.slot === 'legs') return { id: 'greaves', name: 'Greaves & Legs', icon: 'legs' };
+        if (item.slot === 'legs') return { id: 'greaves', name: 'Greaves', icon: 'legs' };
         if (item.slot === 'shield') return { id: 'shields', name: 'Shields', icon: 'shield' };
       }
-      if (item?.category === 'tool') return { id: 'tools', name: 'Tools & Pickaxes', icon: 'pickaxe' };
-      return { id: 'forging', name: 'Forged Goods', icon: 'smithing' };
+      if (item?.category === 'tool') return { id: 'tools', name: 'Tools', icon: 'pickaxe' };
+      return { id: 'forging', name: 'Forging', icon: 'smithing' };
     }
 
     if (recipe.skill === 'crafting') {
-      if (item?.id.includes('grimoire') || item?.slot === 'shield') return { id: 'grimoires', name: 'Spell Grimoires', icon: 'magic' };
-      if (item?.id.includes('gem') || item?.category === 'relic') return { id: 'gems', name: 'Gem Cutting', icon: 'gems' };
-      if (item?.category === 'armour') return { id: 'leather', name: 'Leather Armour', icon: 'body' };
-      return { id: 'artisan', name: 'Artisan Crafts', icon: 'crafting' };
+      if (item?.id.includes('grimoire') || item?.slot === 'shield') return { id: 'grimoires', name: 'Grimoires', icon: 'magic' };
+      if (item?.id.includes('gem') || item?.category === 'relic') return { id: 'gems', name: 'Gems', icon: 'gems' };
+      if (item?.category === 'armour') return { id: 'leather', name: 'Armour', icon: 'body' };
+      return { id: 'artisan', name: 'Artisan', icon: 'crafting' };
     }
 
     if (recipe.skill === 'fletching') {
-      if (item?.category === 'weapon' && item.id.includes('shortbow')) return { id: 'bows', name: 'Shortbows', icon: 'ranged' };
-      if (item?.category === 'weapon' && item.id.includes('staff')) return { id: 'staves', name: 'Magic Staves', icon: 'magic' };
-      if (item?.category === 'armour' || item?.slot === 'shield' || item?.id.includes('quiver')) return { id: 'quivers', name: 'Ranged Quivers', icon: 'shield' };
-      if (item?.category === 'tool' || item?.id.includes('rod')) return { id: 'rods', name: 'Fishing Rods', icon: 'fishing' };
-      return { id: 'woodworking', name: 'Woodworking', icon: 'fletching' };
+      if (item?.category === 'weapon' && item.id.includes('shortbow')) return { id: 'bows', name: 'Bows', icon: 'ranged' };
+      if (item?.category === 'weapon' && item.id.includes('staff')) return { id: 'staves', name: 'Staves', icon: 'magic' };
+      if (item?.category === 'armour' || item?.slot === 'shield' || item?.id.includes('quiver')) return { id: 'quivers', name: 'Quivers', icon: 'shield' };
+      if (item?.category === 'tool' || item?.id.includes('rod')) return { id: 'rods', name: 'Rods', icon: 'fishing' };
+      return { id: 'woodworking', name: 'Fletching', icon: 'fletching' };
     }
 
     if (recipe.skill === 'cooking') {
       if (['cook_prawn', 'cook_minnow', 'cook_trout', 'cook_salmon'].includes(recipe.id)) {
-        return { id: 'freshwater', name: 'Coastal & Freshwater', icon: 'fishing' };
+        return { id: 'freshwater', name: 'Freshwater', icon: 'fishing' };
       }
-      return { id: 'abyssal', name: 'Deep Sea & Abyssal', icon: 'cooking' };
+      return { id: 'abyssal', name: 'Deep Sea', icon: 'cooking' };
     }
 
     if (recipe.skill === 'alchemy') {
-      if (recipe.id.includes('predator') || recipe.id.includes('warmaster')) return { id: 'combat', name: 'Combat Elixirs', icon: 'sword' };
-      if (recipe.id.includes('zephyr') || recipe.id.includes('restorative')) return { id: 'vitality', name: 'Restorative Phials', icon: 'alchemy' };
-      return { id: 'specialty', name: 'Master Draughts', icon: 'alchemy' };
+      if (recipe.id.includes('predator') || recipe.id.includes('warmaster')) return { id: 'combat', name: 'Combat', icon: 'sword' };
+      if (recipe.id.includes('zephyr') || recipe.id.includes('restorative')) return { id: 'vitality', name: 'Potions', icon: 'alchemy' };
+      return { id: 'specialty', name: 'Elixirs', icon: 'alchemy' };
     }
 
     if (recipe.skill === 'attunement') {
-      if (recipe.levelReq <= 30) return { id: 'foci', name: 'Aether Foci', icon: 'sparkles' };
-      return { id: 'sigils', name: 'Cosmic Sigils', icon: 'attunement' };
+      if (recipe.levelReq <= 30) return { id: 'foci', name: 'Foci', icon: 'sparkles' };
+      return { id: 'sigils', name: 'Sigils', icon: 'attunement' };
     }
 
     if (recipe.skill === 'farming') {
       if (['farm_earthtuber', 'farm_deep_radish', 'farm_nether_gourd'].includes(recipe.id)) {
-        return { id: 'crops', name: 'Vegetables & Crops', icon: 'farming' };
+        return { id: 'crops', name: 'Crops', icon: 'farming' };
       }
-      return { id: 'herbs', name: 'Medicinal & Arcane Flora', icon: 'herbalism' };
+      return { id: 'herbs', name: 'Herbs', icon: 'herbalism' };
     }
 
     if (recipe.skill === 'herbalism') {
-      if (recipe.levelReq <= 45) return { id: 'medicinal', name: 'Medicinal Herbs', icon: 'herbalism' };
-      return { id: 'arcane', name: 'Arcane & Primal Flora', icon: 'sparkles' };
+      if (recipe.levelReq <= 45) return { id: 'medicinal', name: 'Medicinal', icon: 'herbalism' };
+      return { id: 'arcane', name: 'Arcane', icon: 'sparkles' };
     }
 
     if (recipe.skill === 'thieving') {
-      if (['thieve_bakery', 'thieve_produce'].includes(recipe.id)) return { id: 'produce', name: 'Food & Produce Stalls', icon: 'farming' };
-      return { id: 'vaults', name: 'Merchant Vaults & Guards', icon: 'lock' };
+      if (['thieve_bakery', 'thieve_produce'].includes(recipe.id)) return { id: 'produce', name: 'Produce Stalls', icon: 'farming' };
+      return { id: 'vaults', name: 'Vaults', icon: 'lock' };
     }
 
     if (recipe.skill === 'mining') {
       if (recipe.levelReq <= 30) return { id: 'common_ores', name: 'Common Ores', icon: 'mining' };
-      return { id: 'rare_ores', name: 'Precious & Astral Veins', icon: 'mining' };
+      return { id: 'rare_ores', name: 'Rare Veins', icon: 'mining' };
     }
 
     if (recipe.skill === 'woodcutting') {
       if (recipe.levelReq <= 30) return { id: 'common_timber', name: 'Common Timber', icon: 'woodcutting' };
-      return { id: 'spirit_timber', name: 'Spirit & Astral Trees', icon: 'woodcutting' };
+      return { id: 'spirit_timber', name: 'Spirit Timber', icon: 'woodcutting' };
     }
 
     if (recipe.skill === 'fishing') {
-      if (recipe.levelReq <= 30) return { id: 'shallows', name: 'Shallows & Rivers', icon: 'fishing' };
-      return { id: 'deep_sea', name: 'Ocean & The Abyss', icon: 'fishing' };
+      if (recipe.levelReq <= 30) return { id: 'shallows', name: 'Shallows', icon: 'fishing' };
+      return { id: 'deep_sea', name: 'Deep Sea', icon: 'fishing' };
     }
 
     return { id: 'general', name: 'General', icon: 'smithing' };
@@ -1900,13 +1900,14 @@ class EldoriaClient {
     }
 
     // Restore standard crafting/gathering popup UI
+    const isWorkingOnThisSkill = !!(this.player.currentTask && this.player.currentTask.skill === skillKey);
     const howManyRow = document.querySelector('.how-many-row') as HTMLElement | null;
     if (howManyRow) howManyRow.style.display = 'flex';
     const btnStart = document.getElementById('btn-job-start') as HTMLElement | null;
     if (btnStart) btnStart.style.display = 'inline-block';
     const btnStop = document.getElementById('btn-job-stop') as HTMLElement | null;
     if (btnStop) {
-      btnStop.style.display = 'inline-block';
+      btnStop.style.display = isWorkingOnThisSkill ? 'inline-block' : 'none';
       btnStop.textContent = 'Stop';
     }
     this.syncJobQuantityUI();
@@ -1987,8 +1988,16 @@ class EldoriaClient {
       // Hide quantity row and Start button on category overview
       if (howManyRow) howManyRow.style.display = 'none';
       if (btnStart) btnStart.style.display = 'none';
+      if (btnStop) {
+        btnStop.style.display = isWorkingOnThisSkill ? 'inline-block' : 'none';
+        btnStop.textContent = `Stop Active ${cleanName}`;
+      }
       const popupNote = document.getElementById('popup-job-note');
-      if (popupNote) popupNote.textContent = 'Select a category above to view available crafting projects.';
+      if (popupNote) {
+        popupNote.textContent = isWorkingOnThisSkill
+          ? `Currently working in ${cleanName}. Select a category above to view items, or stop below.`
+          : 'Select a category above to view available crafting projects.';
+      }
 
       const gridEl = document.createElement('div');
       gridEl.className = 'popup-category-grid';
