@@ -4877,10 +4877,7 @@ class EldoriaClient {
     }
 
     if (tab === 'monsters') {
-      this.renderer.showEditorZones = true;
       this.renderEditorMonsterZones();
-    } else {
-      this.renderer.showEditorZones = false;
     }
 
     if (tab === 'collisions') {

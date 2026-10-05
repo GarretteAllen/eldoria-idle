@@ -33,7 +33,6 @@ export class WorldRenderer {
   private nodes: WorldNodeDisplay[] = [];
   private npcs: NpcDefinition[] = [];
   private collisions = new Set<string>();
-  private monsterZones: MonsterSpawnZone[] = [];
   private stitchedWorld: StitchedWorld | null = null;
   private terrainCanvas: HTMLCanvasElement | null = null;
   private enemiesImage: HTMLImageElement | null = null;
@@ -46,7 +45,6 @@ export class WorldRenderer {
   // Editor states
   public editorMode: 'none' | 'place_node' | 'place_npc' | 'paint_collision' | 'erase_collision' | 'draw_zone' = 'none';
   public showCollisions = false;
-  public showEditorZones = false;
   private hoverTileX = 0;
   private hoverTileY = 0;
   private zoneDragStart: { x: number; y: number } | null = null;
@@ -325,8 +323,8 @@ export class WorldRenderer {
     this.nodes = nodes;
   }
 
-  public setMonsterZones(zones: MonsterSpawnZone[]) {
-    this.monsterZones = zones;
+  public setMonsterZones(_zones: MonsterSpawnZone[]) {
+    // Spawn zones are kept non-visual in world rendering
   }
 
   public setNpcs(npcs: NpcDefinition[]) {
@@ -1255,83 +1253,50 @@ export class WorldRenderer {
   }
 
   private drawMonsterZones() {
-    if (!this.showEditorZones && this.editorMode !== 'draw_zone') return;
+    // Only draw the interactive drag preview rectangle when the admin is actively dragging a new zone area
+    if (this.editorMode !== 'draw_zone' || !this.zoneDragStart) return;
     const { ctx } = this;
     ctx.save();
 
-    for (const zone of this.monsterZones) {
-      const zx = zone.x * TILE_SIZE;
-      const zy = zone.y * TILE_SIZE;
-      const zw = zone.width * TILE_SIZE;
-      const zh = zone.height * TILE_SIZE;
-
-      ctx.fillStyle = 'rgba(239, 68, 68, 0.08)';
-      ctx.fillRect(zx, zy, zw, zh);
-
-      ctx.strokeStyle = 'rgba(239, 68, 68, 0.75)';
-      ctx.lineWidth = 1.5;
-      ctx.setLineDash([4, 4]);
-      ctx.strokeRect(zx + 0.5, zy + 0.5, zw - 1, zh - 1);
-      ctx.setLineDash([]);
-
-      // Label badge
-      const label = `${zone.name} (${zone.monsterId} x${zone.maxMonsters})`;
-      ctx.font = 'bold 10px Inter, system-ui, sans-serif';
-      const textW = ctx.measureText(label).width;
-      ctx.fillStyle = 'rgba(20, 8, 8, 0.88)';
-      ctx.strokeStyle = '#ef4444';
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.roundRect(zx + 4, zy + 4, textW + 10, 18, 3);
-      ctx.fill();
-      ctx.stroke();
-
-      ctx.fillStyle = '#fecaca';
-      ctx.textAlign = 'left';
-      ctx.fillText(label, zx + 9, zy + 16);
-    }
-
     // Active zone dragging preview
-    if (this.editorMode === 'draw_zone' && this.zoneDragStart) {
-      const startX = this.zoneDragStart.x;
-      const startY = this.zoneDragStart.y;
-      const curX = this.zoneDragCur ? this.zoneDragCur.x : startX;
-      const curY = this.zoneDragCur ? this.zoneDragCur.y : startY;
-      const minX = Math.min(startX, curX);
-      const minY = Math.min(startY, curY);
-      const w = Math.abs(curX - startX) + 1;
-      const h = Math.abs(curY - startY) + 1;
+    const startX = this.zoneDragStart.x;
+    const startY = this.zoneDragStart.y;
+    const curX = this.zoneDragCur ? this.zoneDragCur.x : startX;
+    const curY = this.zoneDragCur ? this.zoneDragCur.y : startY;
+    const minX = Math.min(startX, curX);
+    const minY = Math.min(startY, curY);
+    const w = Math.abs(curX - startX) + 1;
+    const h = Math.abs(curY - startY) + 1;
 
-      const px = minX * TILE_SIZE;
-      const py = minY * TILE_SIZE;
-      const pw = w * TILE_SIZE;
-      const ph = h * TILE_SIZE;
+    const px = minX * TILE_SIZE;
+    const py = minY * TILE_SIZE;
+    const pw = w * TILE_SIZE;
+    const ph = h * TILE_SIZE;
 
-      ctx.fillStyle = 'rgba(248, 113, 113, 0.22)';
-      ctx.fillRect(px, py, pw, ph);
+    ctx.fillStyle = 'rgba(248, 113, 113, 0.22)';
+    ctx.fillRect(px, py, pw, ph);
 
-      ctx.strokeStyle = '#ef4444';
-      ctx.lineWidth = 2;
-      ctx.setLineDash([6, 4]);
-      ctx.strokeRect(px, py, pw, ph);
-      ctx.setLineDash([]);
+    ctx.strokeStyle = '#ef4444';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([6, 4]);
+    ctx.strokeRect(px, py, pw, ph);
+    ctx.setLineDash([]);
 
-      // Dimensions tag
-      const info = `Zone: ${w}x${h} tiles (${minX}, ${minY})`;
-      ctx.font = 'bold 11px monospace';
-      const infoW = ctx.measureText(info).width;
-      ctx.fillStyle = 'rgba(15, 23, 42, 0.95)';
-      ctx.strokeStyle = '#ef4444';
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.roundRect(px + 4, py - 24 > 0 ? py - 24 : py + 4, infoW + 12, 20, 4);
-      ctx.fill();
-      ctx.stroke();
+    // Dimensions tag
+    const info = `Zone: ${w}x${h} tiles (${minX}, ${minY})`;
+    ctx.font = 'bold 11px monospace';
+    const infoW = ctx.measureText(info).width;
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.95)';
+    ctx.strokeStyle = '#ef4444';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.roundRect(px + 4, py - 24 > 0 ? py - 24 : py + 4, infoW + 12, 20, 4);
+    ctx.fill();
+    ctx.stroke();
 
-      ctx.fillStyle = '#fef08a';
-      ctx.textAlign = 'left';
-      ctx.fillText(info, px + 10, py - 24 > 0 ? py - 10 : py + 18);
-    }
+    ctx.fillStyle = '#fef08a';
+    ctx.textAlign = 'left';
+    ctx.fillText(info, px + 10, py - 24 > 0 ? py - 10 : py + 18);
 
     ctx.restore();
   }
