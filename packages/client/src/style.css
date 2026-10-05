@@ -1144,6 +1144,140 @@ body, html {
   padding-bottom: 2px;
   border-bottom: 1px solid var(--border-subtle);
 }
+/* Workstation Category Selection Screen */
+.popup-category-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+.popup-category-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-oak);
+  border-radius: 5px;
+  padding: 8px 10px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  transition: all 0.15s ease-out;
+  position: relative;
+  overflow: hidden;
+}
+.popup-category-card::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 3px;
+  height: 100%;
+  background: var(--border-oak-light);
+  transition: background 0.15s;
+}
+.popup-category-card:hover {
+  background: var(--bg-card-hover);
+  border-color: var(--gold-main);
+  transform: translateY(-1px);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.4);
+}
+.popup-category-card:hover::after {
+  background: var(--gold-main);
+}
+.popup-category-icon-box {
+  width: 30px;
+  height: 30px;
+  min-width: 30px;
+  background: var(--bg-darkest);
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--gold-main);
+}
+.popup-category-icon-box svg {
+  width: 18px;
+  height: 18px;
+}
+.popup-category-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.popup-category-title {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--text-white);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.2;
+}
+.popup-category-count {
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  line-height: 1.1;
+}
+.popup-category-arrow {
+  color: var(--border-oak-light);
+  width: 14px;
+  height: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.15s, color 0.15s;
+}
+.popup-category-card:hover .popup-category-arrow {
+  color: var(--gold-bright);
+  transform: translateX(2px);
+}
+
+/* Category Detail View - Back Bar */
+.popup-category-back-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.btn-category-back {
+  background: #2b180d;
+  border: 1px solid var(--border-oak-light);
+  color: var(--gold-main);
+  font-family: var(--font-ui);
+  font-weight: 700;
+  font-size: 0.72rem;
+  padding: 3px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  transition: all 0.12s;
+  line-height: 1.3;
+}
+.btn-category-back svg {
+  width: 13px;
+  height: 13px;
+}
+.btn-category-back:hover {
+  background: #3d2212;
+  border-color: var(--gold-bright);
+  color: var(--gold-bright);
+  transform: translateX(-1px);
+}
+.popup-category-breadcrumb {
+  font-size: 0.72rem;
+  color: var(--text-cream);
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .popup-jobs-list {
   display: flex;
   flex-direction: column;

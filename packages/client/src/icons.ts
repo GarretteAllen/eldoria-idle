@@ -55,6 +55,10 @@ import {
   Wrench,
   Grid,
   MapPin,
+  Anvil,
+  Flame,
+  ChevronRight,
+  ArrowLeft,
   IconNode,
 } from 'lucide';
 
@@ -139,6 +143,10 @@ export const ICONS: Record<string, string> = {
   ring: toSvg(CircleDot),
   chevronUp: toSvg(ChevronUp),
   chevronDown: toSvg(ChevronDown),
+  chevronRight: toSvg(ChevronRight),
+  arrowLeft: toSvg(ArrowLeft),
+  anvil: toSvg(Anvil),
+  flame: toSvg(Flame),
 
   // === All 16 Skills ===
   mining: toSvg(Pickaxe),

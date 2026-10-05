@@ -9,6 +9,7 @@ import {
   NpcDefinition,
   QuestDefinition,
   ItemDefinition,
+  RecipeDefinition,
   isItemStackable,
   getItemMaxStack,
   isTileInAnyLevel,
@@ -56,6 +57,7 @@ class EldoriaClient {
   private activeDrawer: 'skills' | 'inventory' | 'equipment' | 'storage' | 'editor' = 'skills';
   private selectedSkillKey: SkillType = 'mining';
   private selectedRecipeId: string = 'mine_pyrite';
+  private selectedSkillCategory: string | null = null;
   private selectedJobQuantity: number = Infinity;
   private isPopupOpen: boolean = false;
   private chatCollapsed: boolean = false;
@@ -1563,6 +1565,90 @@ class EldoriaClient {
     });
   }
 
+  private getRecipeCategory(recipe: RecipeDefinition): { id: string; name: string; icon: string } {
+    const item = ITEMS[recipe.outputItemId];
+
+    if (recipe.skill === 'smithing') {
+      if (item?.category === 'bar') return { id: 'ingots', name: 'Ingots & Smelting', icon: 'anvil' };
+      if (item?.category === 'weapon') return { id: 'weapons', name: 'Blades & Greatswords', icon: 'sword' };
+      if (item?.category === 'armour') {
+        if (item.slot === 'helmet') return { id: 'helmets', name: 'Helmets', icon: 'helmet' };
+        if (item.slot === 'body') return { id: 'chestplates', name: 'Chestplates', icon: 'body' };
+        if (item.slot === 'legs') return { id: 'greaves', name: 'Greaves & Legs', icon: 'legs' };
+        if (item.slot === 'shield') return { id: 'shields', name: 'Shields', icon: 'shield' };
+      }
+      if (item?.category === 'tool') return { id: 'tools', name: 'Tools & Pickaxes', icon: 'pickaxe' };
+      return { id: 'forging', name: 'Forged Goods', icon: 'smithing' };
+    }
+
+    if (recipe.skill === 'crafting') {
+      if (item?.id.includes('grimoire') || item?.slot === 'shield') return { id: 'grimoires', name: 'Spell Grimoires', icon: 'magic' };
+      if (item?.id.includes('gem') || item?.category === 'relic') return { id: 'gems', name: 'Gem Cutting', icon: 'gems' };
+      if (item?.category === 'armour') return { id: 'leather', name: 'Leather Armour', icon: 'body' };
+      return { id: 'artisan', name: 'Artisan Crafts', icon: 'crafting' };
+    }
+
+    if (recipe.skill === 'fletching') {
+      if (item?.category === 'weapon' && item.id.includes('shortbow')) return { id: 'bows', name: 'Shortbows', icon: 'ranged' };
+      if (item?.category === 'weapon' && item.id.includes('staff')) return { id: 'staves', name: 'Magic Staves', icon: 'magic' };
+      if (item?.category === 'armour' || item?.slot === 'shield' || item?.id.includes('quiver')) return { id: 'quivers', name: 'Ranged Quivers', icon: 'shield' };
+      if (item?.category === 'tool' || item?.id.includes('rod')) return { id: 'rods', name: 'Fishing Rods', icon: 'fishing' };
+      return { id: 'woodworking', name: 'Woodworking', icon: 'fletching' };
+    }
+
+    if (recipe.skill === 'cooking') {
+      if (['cook_prawn', 'cook_minnow', 'cook_trout', 'cook_salmon'].includes(recipe.id)) {
+        return { id: 'freshwater', name: 'Coastal & Freshwater', icon: 'fishing' };
+      }
+      return { id: 'abyssal', name: 'Deep Sea & Abyssal', icon: 'cooking' };
+    }
+
+    if (recipe.skill === 'alchemy') {
+      if (recipe.id.includes('predator') || recipe.id.includes('warmaster')) return { id: 'combat', name: 'Combat Elixirs', icon: 'sword' };
+      if (recipe.id.includes('zephyr') || recipe.id.includes('restorative')) return { id: 'vitality', name: 'Restorative Phials', icon: 'alchemy' };
+      return { id: 'specialty', name: 'Master Draughts', icon: 'alchemy' };
+    }
+
+    if (recipe.skill === 'attunement') {
+      if (recipe.levelReq <= 30) return { id: 'foci', name: 'Aether Foci', icon: 'sparkles' };
+      return { id: 'sigils', name: 'Cosmic Sigils', icon: 'attunement' };
+    }
+
+    if (recipe.skill === 'farming') {
+      if (['farm_earthtuber', 'farm_deep_radish', 'farm_nether_gourd'].includes(recipe.id)) {
+        return { id: 'crops', name: 'Vegetables & Crops', icon: 'farming' };
+      }
+      return { id: 'herbs', name: 'Medicinal & Arcane Flora', icon: 'herbalism' };
+    }
+
+    if (recipe.skill === 'herbalism') {
+      if (recipe.levelReq <= 45) return { id: 'medicinal', name: 'Medicinal Herbs', icon: 'herbalism' };
+      return { id: 'arcane', name: 'Arcane & Primal Flora', icon: 'sparkles' };
+    }
+
+    if (recipe.skill === 'thieving') {
+      if (['thieve_bakery', 'thieve_produce'].includes(recipe.id)) return { id: 'produce', name: 'Food & Produce Stalls', icon: 'farming' };
+      return { id: 'vaults', name: 'Merchant Vaults & Guards', icon: 'lock' };
+    }
+
+    if (recipe.skill === 'mining') {
+      if (recipe.levelReq <= 30) return { id: 'common_ores', name: 'Common Ores', icon: 'mining' };
+      return { id: 'rare_ores', name: 'Precious & Astral Veins', icon: 'mining' };
+    }
+
+    if (recipe.skill === 'woodcutting') {
+      if (recipe.levelReq <= 30) return { id: 'common_timber', name: 'Common Timber', icon: 'woodcutting' };
+      return { id: 'spirit_timber', name: 'Spirit & Astral Trees', icon: 'woodcutting' };
+    }
+
+    if (recipe.skill === 'fishing') {
+      if (recipe.levelReq <= 30) return { id: 'shallows', name: 'Shallows & Rivers', icon: 'fishing' };
+      return { id: 'deep_sea', name: 'Ocean & The Abyss', icon: 'fishing' };
+    }
+
+    return { id: 'general', name: 'General', icon: 'smithing' };
+  }
+
   private openSkillJobPopup(skillKey: SkillType, selectRecipeId?: string) {
     if (COMBAT_SKILLS.includes(skillKey)) {
       this.openCombatDirectory(skillKey);
@@ -1578,7 +1664,12 @@ class EldoriaClient {
 
     if (selectRecipeId) {
       this.selectedRecipeId = selectRecipeId;
+      const rec = RECIPES[selectRecipeId];
+      if (rec) {
+        this.selectedSkillCategory = this.getRecipeCategory(rec).id;
+      }
     } else {
+      this.selectedSkillCategory = null;
       // Default to first available unlocked recipe
       const available = Object.values(RECIPES).filter(r => r.skill === skillKey);
       if (available.length > 0) {
@@ -1749,6 +1840,7 @@ class EldoriaClient {
 
   private closeSkillJobPopup() {
     this.isPopupOpen = false;
+    this.selectedSkillCategory = null;
     document.getElementById('skill-job-popup')!.classList.add('hidden');
     this.renderSkillsDrawer();
   }
@@ -1878,7 +1970,100 @@ class EldoriaClient {
       return;
     }
 
-    for (const recipe of skillRecipes) {
+    // Group recipes into distinct trade categories
+    const categoriesMap: Map<string, { id: string; name: string; icon: string; recipes: RecipeDefinition[] }> = new Map();
+    for (const r of skillRecipes) {
+      const cat = this.getRecipeCategory(r);
+      if (!categoriesMap.has(cat.id)) {
+        categoriesMap.set(cat.id, { id: cat.id, name: cat.name, icon: cat.icon, recipes: [] });
+      }
+      categoriesMap.get(cat.id)!.recipes.push(r);
+    }
+
+    // --- CASE A: CATEGORY SELECTION SCREEN ---
+    if (categoriesMap.size > 1 && this.selectedSkillCategory === null) {
+      jobsHeading.textContent = `${cleanName} Categories`;
+
+      // Hide quantity row and Start button on category overview
+      if (howManyRow) howManyRow.style.display = 'none';
+      if (btnStart) btnStart.style.display = 'none';
+      const popupNote = document.getElementById('popup-job-note');
+      if (popupNote) popupNote.textContent = 'Select a category above to view available crafting projects.';
+
+      const gridEl = document.createElement('div');
+      gridEl.className = 'popup-category-grid';
+
+      for (const [catId, cat] of categoriesMap) {
+        const unlockedCount = cat.recipes.filter(r => record.level >= r.levelReq).length;
+        const minLvl = Math.min(...cat.recipes.map(r => r.levelReq));
+
+        const card = document.createElement('div');
+        card.className = 'popup-category-card';
+        card.innerHTML = `
+          <div class="popup-category-icon-box">
+            ${ICONS[cat.icon] || ICONS.smithing}
+          </div>
+          <div class="popup-category-info">
+            <span class="popup-category-title">${cat.name}</span>
+            <span class="popup-category-count">${cat.recipes.length} items · ${unlockedCount > 0 ? `${unlockedCount}/${cat.recipes.length} unlocked` : `Req Lv ${minLvl}`}</span>
+          </div>
+          <div class="popup-category-arrow">
+            ${ICONS.chevronRight}
+          </div>
+        `;
+
+        card.addEventListener('click', () => {
+          this.selectedSkillCategory = catId;
+          const firstUnlocked = cat.recipes.find(r => record.level >= r.levelReq) || cat.recipes[0];
+          this.selectedRecipeId = firstUnlocked.id;
+          this.updateSkillJobPopup();
+        });
+
+        gridEl.appendChild(card);
+      }
+
+      jobsContainer.appendChild(gridEl);
+      return;
+    }
+
+    // --- CASE B: CATEGORY DETAIL VIEW ---
+    let recipesToDisplay = skillRecipes;
+    if (categoriesMap.size > 1 && this.selectedSkillCategory !== null) {
+      const currentCat = categoriesMap.get(this.selectedSkillCategory);
+      if (currentCat) {
+        recipesToDisplay = currentCat.recipes;
+        jobsHeading.textContent = `${cleanName} > ${currentCat.name}`;
+
+        const backBar = document.createElement('div');
+        backBar.className = 'popup-category-back-bar';
+        backBar.innerHTML = `
+          <button type="button" class="btn-category-back" id="btn-category-back">
+            ${ICONS.arrowLeft} Back to Categories
+          </button>
+          <span class="popup-category-breadcrumb">${currentCat.name} (${currentCat.recipes.length})</span>
+        `;
+        backBar.querySelector('#btn-category-back')?.addEventListener('click', () => {
+          this.selectedSkillCategory = null;
+          this.updateSkillJobPopup();
+        });
+        jobsContainer.appendChild(backBar);
+      } else {
+        this.selectedSkillCategory = null;
+      }
+    }
+
+    const popupNote = document.getElementById('popup-job-note');
+    if (popupNote) popupNote.textContent = 'Continuous idle (∞): automatically banks spoils at the Hearth and resumes non-stop.';
+
+    // If currently selected recipe is not in this category, pick the first valid recipe
+    if (!recipesToDisplay.some(r => r.id === this.selectedRecipeId)) {
+      const firstUnlocked = recipesToDisplay.find(r => record.level >= r.levelReq) || recipesToDisplay[0];
+      if (firstUnlocked) {
+        this.selectedRecipeId = firstUnlocked.id;
+      }
+    }
+
+    for (const recipe of recipesToDisplay) {
       const isUnlocked = record.level >= recipe.levelReq;
       const isSelected = this.selectedRecipeId === recipe.id;
 
@@ -1917,8 +2102,16 @@ class EldoriaClient {
         matchingNode = this.worldNodes.find(n => n.type === 'fire');
       } else if (recipe.skill === 'smithing') {
         matchingNode = this.worldNodes.find(n => n.type === 'forge');
-      } else if (recipe.skill === 'farming') {
+      } else if (recipe.skill === 'farming' || recipe.skill === 'herbalism') {
         matchingNode = this.worldNodes.find(n => n.type === 'farm');
+      } else if (recipe.skill === 'crafting' || recipe.skill === 'fletching') {
+        matchingNode = this.worldNodes.find(n => n.type === 'workbench');
+      } else if (recipe.skill === 'alchemy') {
+        matchingNode = this.worldNodes.find(n => n.type === 'cauldron');
+      } else if (recipe.skill === 'attunement') {
+        matchingNode = this.worldNodes.find(n => n.type === 'monolith');
+      } else if (recipe.skill === 'thieving') {
+        matchingNode = this.worldNodes.find(n => n.recipeId === recipe.id || (n.type === 'stall' && n.id.includes(recipe.id.replace('thieve_', ''))));
       } else {
         matchingNode = this.worldNodes.find(n => n.recipeId === recipe.id);
         if (!matchingNode && recipe.inputs && recipe.inputs.length > 0) {
