@@ -1457,9 +1457,17 @@ class EldoriaClient {
       let matchingNode: WorldNodeDisplay | undefined;
       if (rec.skill === 'cooking') {
         matchingNode = this.worldNodes.find(n => n.type === 'fire');
+        if (!matchingNode) {
+          this.showToast('No Firepit found in the realm. Place one via Admin Editor.');
+          return;
+        }
       } else if (rec.skill === 'smithing') {
         matchingNode = this.worldNodes.find(n => n.type === 'forge');
-      } else if (rec.skill === 'farming') {
+        if (!matchingNode) {
+          this.showToast('No Runeforge found in the realm. Place one via Admin Editor.');
+          return;
+        }
+      } else if (rec.skill === 'farming' || rec.skill === 'herbalism') {
         const farmNodes = this.worldNodes.filter(n => n.type === 'farm');
         if (farmNodes.length === 0) {
           this.showToast('No farm plot found in the realm. Place one via Admin Editor.');
@@ -1471,6 +1479,44 @@ class EldoriaClient {
           farmNodes.sort((a, b) => Math.hypot(this.player!.x - a.x, this.player!.y - a.y) - Math.hypot(this.player!.x - b.x, this.player!.y - b.y));
           matchingNode = farmNodes[0];
         }
+      } else if (rec.skill === 'crafting' || rec.skill === 'fletching') {
+        const wbNodes = this.worldNodes.filter(n => n.type === 'workbench');
+        if (wbNodes.length === 0) {
+          this.showToast("No Artisan's Workbench found in the realm. Place one via Admin Editor.");
+          return;
+        }
+        if (this.selectedStationNode && this.selectedStationNode.type === 'workbench') {
+          matchingNode = this.selectedStationNode;
+        } else {
+          wbNodes.sort((a, b) => Math.hypot(this.player!.x - a.x, this.player!.y - a.y) - Math.hypot(this.player!.x - b.x, this.player!.y - b.y));
+          matchingNode = wbNodes[0];
+        }
+      } else if (rec.skill === 'alchemy') {
+        const cauldronNodes = this.worldNodes.filter(n => n.type === 'cauldron');
+        if (cauldronNodes.length === 0) {
+          this.showToast('No Apothecary Cauldron found in the realm. Place one via Admin Editor.');
+          return;
+        }
+        if (this.selectedStationNode && this.selectedStationNode.type === 'cauldron') {
+          matchingNode = this.selectedStationNode;
+        } else {
+          cauldronNodes.sort((a, b) => Math.hypot(this.player!.x - a.x, this.player!.y - a.y) - Math.hypot(this.player!.x - b.x, this.player!.y - b.y));
+          matchingNode = cauldronNodes[0];
+        }
+      } else if (rec.skill === 'attunement') {
+        const monoNodes = this.worldNodes.filter(n => n.type === 'monolith');
+        if (monoNodes.length === 0) {
+          this.showToast('No Aether Monolith found in the realm. Place one via Admin Editor.');
+          return;
+        }
+        if (this.selectedStationNode && this.selectedStationNode.type === 'monolith') {
+          matchingNode = this.selectedStationNode;
+        } else {
+          monoNodes.sort((a, b) => Math.hypot(this.player!.x - a.x, this.player!.y - a.y) - Math.hypot(this.player!.x - b.x, this.player!.y - b.y));
+          matchingNode = monoNodes[0];
+        }
+      } else if (rec.skill === 'thieving') {
+        matchingNode = this.worldNodes.find(n => n.recipeId === rec.id || (n.type === 'stall' && n.id.includes(rec.id.replace('thieve_', ''))));
       } else {
         matchingNode = this.worldNodes.find(n => n.recipeId === rec.id);
       }
@@ -4663,6 +4709,10 @@ class EldoriaClient {
     const countFarm = allNodes.filter(n => n.type === 'farm').length;
     const countForge = allNodes.filter(n => n.type === 'forge').length;
     const countFire = allNodes.filter(n => n.type === 'fire').length;
+    const countWorkbench = allNodes.filter(n => n.type === 'workbench').length;
+    const countCauldron = allNodes.filter(n => n.type === 'cauldron').length;
+    const countMonolith = allNodes.filter(n => n.type === 'monolith').length;
+    const countStall = allNodes.filter(n => n.type === 'stall').length;
     const countHearth = allNodes.filter(n => n.type === 'hearth_counter').length;
 
     const elCountAll = document.getElementById('count-node-all');
@@ -4679,6 +4729,14 @@ class EldoriaClient {
     if (elCountForge) elCountForge.textContent = countForge.toString();
     const elCountFire = document.getElementById('count-node-fire');
     if (elCountFire) elCountFire.textContent = countFire.toString();
+    const elCountWorkbench = document.getElementById('count-node-workbench');
+    if (elCountWorkbench) elCountWorkbench.textContent = countWorkbench.toString();
+    const elCountCauldron = document.getElementById('count-node-cauldron');
+    if (elCountCauldron) elCountCauldron.textContent = countCauldron.toString();
+    const elCountMonolith = document.getElementById('count-node-monolith');
+    if (elCountMonolith) elCountMonolith.textContent = countMonolith.toString();
+    const elCountStall = document.getElementById('count-node-stall');
+    if (elCountStall) elCountStall.textContent = countStall.toString();
     const elCountHearth = document.getElementById('count-node-hearth');
     if (elCountHearth) elCountHearth.textContent = countHearth.toString();
 

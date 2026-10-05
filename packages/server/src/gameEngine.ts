@@ -358,13 +358,13 @@ export class GameEngine {
               nodeX = forgeNode.x;
               nodeY = forgeNode.y;
             }
-          } else if (rec.skill === 'farming') {
-            // Farming takes place at a Farm Plot
+          } else if (rec.skill === 'farming' || rec.skill === 'herbalism') {
+            // Farming and Herbalism take place at a Farm Plot
             const farmNodes = storage.getWorldNodes().filter(n => n.type === 'farm');
             if (farmNodes.length === 0) {
               this.send(session.ws, {
                 type: 'NOTIFICATION',
-                message: 'No farm plot exists in the world. Place one via Admin Panel.'
+                message: 'No farm plot exists in the realm. Place one via Admin Panel.'
               });
               break;
             }
@@ -378,6 +378,66 @@ export class GameEngine {
             targetY = adj.y;
             nodeX = farmNode.x;
             nodeY = farmNode.y;
+          } else if (rec.skill === 'crafting' || rec.skill === 'fletching') {
+            // Crafting and Fletching take place at an Artisan Workbench
+            const wbNodes = storage.getWorldNodes().filter(n => n.type === 'workbench');
+            if (wbNodes.length === 0) {
+              this.send(session.ws, {
+                type: 'NOTIFICATION',
+                message: "No Artisan's Workbench found in the realm. Place one via Admin Panel."
+              });
+              break;
+            }
+            let wbNode = wbNodes.find(n => Math.hypot(n.x - nodeX, n.y - nodeY) < 1.0);
+            if (!wbNode) {
+              wbNodes.sort((a, b) => Math.hypot(player.x - a.x, player.y - a.y) - Math.hypot(player.x - b.x, player.y - b.y));
+              wbNode = wbNodes[0];
+            }
+            const adj = this.getAdjacentWalkableTile(player.x, player.y, wbNode.x, wbNode.y);
+            targetX = adj.x;
+            targetY = adj.y;
+            nodeX = wbNode.x;
+            nodeY = wbNode.y;
+          } else if (rec.skill === 'alchemy') {
+            // Alchemy takes place at an Apothecary Cauldron
+            const cauldronNodes = storage.getWorldNodes().filter(n => n.type === 'cauldron');
+            if (cauldronNodes.length === 0) {
+              this.send(session.ws, {
+                type: 'NOTIFICATION',
+                message: "No Apothecary Cauldron found in the realm. Place one via Admin Panel."
+              });
+              break;
+            }
+            let cNode = cauldronNodes.find(n => Math.hypot(n.x - nodeX, n.y - nodeY) < 1.0);
+            if (!cNode) {
+              cauldronNodes.sort((a, b) => Math.hypot(player.x - a.x, player.y - a.y) - Math.hypot(player.x - b.x, player.y - b.y));
+              cNode = cauldronNodes[0];
+            }
+            const adj = this.getAdjacentWalkableTile(player.x, player.y, cNode.x, cNode.y);
+            targetX = adj.x;
+            targetY = adj.y;
+            nodeX = cNode.x;
+            nodeY = cNode.y;
+          } else if (rec.skill === 'attunement') {
+            // Attunement takes place at an Aether Monolith
+            const monoNodes = storage.getWorldNodes().filter(n => n.type === 'monolith');
+            if (monoNodes.length === 0) {
+              this.send(session.ws, {
+                type: 'NOTIFICATION',
+                message: "No Aether Monolith found in the realm. Place one via Admin Panel."
+              });
+              break;
+            }
+            let mNode = monoNodes.find(n => Math.hypot(n.x - nodeX, n.y - nodeY) < 1.0);
+            if (!mNode) {
+              monoNodes.sort((a, b) => Math.hypot(player.x - a.x, player.y - a.y) - Math.hypot(player.x - b.x, player.y - b.y));
+              mNode = monoNodes[0];
+            }
+            const adj = this.getAdjacentWalkableTile(player.x, player.y, mNode.x, mNode.y);
+            targetX = adj.x;
+            targetY = adj.y;
+            nodeX = mNode.x;
+            nodeY = mNode.y;
           } else if (storage.isCollidable(targetX, targetY)) {
             // If destination tile is collidable (e.g. water or obstacle), resolve adjacent walkable tile
             const adj = this.getAdjacentWalkableTile(player.x, player.y, targetX, targetY);
@@ -1861,7 +1921,7 @@ export class GameEngine {
   }
 
   private executeTaskCycle(session: ConnectedSession, recipe: RecipeDefinition) {
-    if (recipe.skill === 'farming') {
+    if (recipe.skill === 'farming' || recipe.skill === 'herbalism') {
       this.executeFarmingTaskCycle(session, recipe);
       return;
     }
@@ -2101,15 +2161,17 @@ export class GameEngine {
         }
       }
 
-      // Award Farming XP ONLY on harvest!
+      // Award Farming and Herbalism XP on harvest!
       const xpEarned = plot.xp || cropDef?.xp || recipe.xp || 45;
+      const isHerb = ['silverleaf', 'glowshroom', 'nightshade_bell', 'bramble_mandrake', 'wyrmfrond', 'sunfire_pepper'].includes(plot.cropId || '') || recipe.skill === 'herbalism';
+
       const farmingSkill = player.skills.farming || { xp: 0, level: 1 };
-      const oldLevel = farmingSkill.level;
+      const oldFarmLevel = farmingSkill.level;
       farmingSkill.xp += xpEarned;
       farmingSkill.level = getLevelFromXp(farmingSkill.xp);
       player.skills.farming = farmingSkill;
 
-      if (farmingSkill.level > oldLevel) {
+      if (farmingSkill.level > oldFarmLevel) {
         this.send(ws, {
           type: 'LEVEL_UP',
           skill: 'farming',
@@ -2121,12 +2183,34 @@ export class GameEngine {
         });
       }
 
+      // If the harvested crop is an herb, also award Herbalism XP!
+      if (isHerb) {
+        const herbalismSkill = player.skills.herbalism || { xp: 0, level: 1 };
+        const oldHerbLevel = herbalismSkill.level;
+        herbalismSkill.xp += xpEarned;
+        herbalismSkill.level = getLevelFromXp(herbalismSkill.xp);
+        player.skills.herbalism = herbalismSkill;
+
+        if (herbalismSkill.level > oldHerbLevel) {
+          this.send(ws, {
+            type: 'LEVEL_UP',
+            skill: 'herbalism',
+            newLevel: herbalismSkill.level,
+          });
+          this.send(ws, {
+            type: 'NOTIFICATION',
+            message: `Congratulations! Your Herbalism skill advanced to Level ${herbalismSkill.level}!`
+          });
+        }
+      }
+
       delete player.farmPlots[readyPlotNode.id];
 
       const cropName = produceDef?.name || plot.cropName;
+      const xpLabel = isHerb ? `(+${xpEarned} Farming & Herbalism XP)` : `(+${xpEarned} Farming XP)`;
       this.send(ws, {
         type: 'NOTIFICATION',
-        message: `Harvested ${yieldQty}x ${cropName}${seedReturn ? ' + 1 bonus seed' : ''}! (+${xpEarned} Farming XP)`
+        message: `Harvested ${yieldQty}x ${cropName}${seedReturn ? ' + 1 bonus seed' : ''}! ${xpLabel}`
       });
 
       storage.savePlayer(player);
