@@ -127,3 +127,16 @@ export function getSteedWalkSpeedBonus(rarity: Rarity, plus: number): number {
   const base = STEED_BASE_BONUS[rarity] || 0.12;
   return base * (1 + 0.15 * plus);
 }
+
+import type { SkillType } from './types.js';
+
+export const GATHERING_SKILLS: SkillType[] = ['mining', 'fishing', 'woodcutting', 'herbalism', 'farming', 'thieving'];
+export const CRAFTING_SKILLS: SkillType[] = ['cooking', 'smithing', 'fletching', 'alchemy', 'crafting', 'attunement'];
+export const COMBAT_SKILLS: SkillType[] = ['melee', 'ranged', 'magic', 'defence', 'hitpoints'];
+
+export const ALL_SKILLS: SkillType[] = [
+  ...GATHERING_SKILLS,
+  ...CRAFTING_SKILLS,
+  ...COMBAT_SKILLS,
+];
+

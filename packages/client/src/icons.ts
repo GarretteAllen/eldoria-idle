@@ -172,6 +172,7 @@ export const ICONS: Record<string, string> = {
   logo: toSvg(Shield),
   admin: toSvg(Crown),
   editor: toSvg(Wrench),
+  leaderboard: toSvg(Crown),
   character: toSvg(User),
   npc: toSvg(Users),
   quest: toSvg(Scroll),

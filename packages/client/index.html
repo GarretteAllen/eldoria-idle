@@ -285,6 +285,7 @@
         <button class="tool-btn" data-panel="inventory" id="tool-btn-inventory" title="Bag (Inventory)"></button>
         <button class="tool-btn" data-panel="equipment" id="tool-btn-equipment" title="Worn Equipment & Toolbelt"></button>
         <button class="tool-btn" data-panel="storage" id="tool-btn-storage" title="Hearth Reliquary"></button>
+        <button class="tool-btn" data-panel="leaderboard" id="tool-btn-leaderboard" title="Realm Leaderboards" style="display:none;"></button>
         <button class="tool-btn" id="tool-btn-sound" title="Audio & Volume Controls"></button>
         <button class="tool-btn" data-panel="editor" id="tool-btn-editor" title="In-Game World Editor (Admin)" style="display:none;"></button>
         <button class="tool-btn" data-panel="chat" id="tool-btn-chat" title="Toggle Chat"></button>
@@ -1441,6 +1442,62 @@
           <div style="display: flex; gap: 8px; justify-content: center;">
             <button type="button" id="confirm-modal-cancel" class="btn-oak" style="min-width: 90px;">Cancel</button>
             <button type="button" id="confirm-modal-confirm" class="btn-stop" style="min-width: 90px;">Confirm</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- IN-GAME CUSTOM PROMPT / INPUT MODAL (Replaces window.prompt) -->
+      <div id="game-prompt-modal" class="modal-backdrop hidden" style="z-index: 2500;">
+        <div class="modal-box dark-oak-panel" style="max-width: 380px; width: 90vw; padding: 18px 20px;">
+          <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+            <span id="prompt-modal-icon" class="svg-icon-inline icon-md"></span>
+            <h4 id="prompt-modal-title" style="color: var(--gold-bright); margin: 0; font-size: 0.95rem;">Enter Amount</h4>
+          </div>
+          <p id="prompt-modal-message" style="font-size: 0.78rem; color: var(--text-cream); line-height: 1.4; margin-bottom: 10px;">Please enter a value:</p>
+          <form id="game-prompt-form" style="display: flex; flex-direction: column; gap: 12px;">
+            <input type="number" id="prompt-modal-input" style="width: 100%; padding: 8px 10px; background: #120b07; border: 1.5px solid #84613b; border-radius: 4px; color: #fff; font-family: inherit; font-size: 0.9rem;" required />
+            <div style="display: flex; gap: 8px; justify-content: flex-end;">
+              <button type="button" id="prompt-modal-cancel" class="btn-oak" style="min-width: 80px;">Cancel</button>
+              <button type="submit" id="prompt-modal-confirm" class="btn-start" style="min-width: 80px;">Submit</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- 20. REALM LEADERBOARDS MODAL -->
+      <div id="leaderboard-modal" class="modal-backdrop hidden" style="z-index: 2200;">
+        <div class="modal-box dark-oak-panel leaderboard-card" style="width: 620px; max-width: 95vw;">
+          <div class="modal-header">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span id="leaderboard-header-icon" class="svg-icon-inline icon-lg"></span>
+              <div>
+                <h4 style="color: var(--gold-bright); margin: 0;">Realm Leaderboards</h4>
+                <div style="font-size: 0.68rem; color: #a0aec0;">Top ranking adventurers across Eldoria • Live updates</div>
+              </div>
+            </div>
+            <button id="leaderboard-close-btn" class="icon-btn-micro" title="Close Leaderboards"></button>
+          </div>
+
+          <!-- Category filter tabs -->
+          <div class="leaderboard-category-tabs" style="display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; padding-bottom: 8px; border-bottom: 1px solid rgba(132, 97, 59, 0.4);">
+            <!-- Populated dynamically in main.ts -->
+          </div>
+
+          <!-- Table Container -->
+          <div class="leaderboard-body" style="margin-top: 8px; max-height: 380px; overflow-y: auto; background: rgba(18, 11, 7, 0.6); border-radius: 4px; border: 1px solid rgba(132, 97, 59, 0.3);">
+            <table class="leaderboard-table" style="width: 100%; border-collapse: collapse; font-size: 0.75rem;">
+              <thead>
+                <tr style="border-bottom: 1.5px solid #84613b; color: #ffd700; text-align: left;">
+                  <th style="padding: 8px 10px; width: 60px;">Rank</th>
+                  <th style="padding: 8px 10px;">Adventurer</th>
+                  <th style="padding: 8px 10px; text-align: right;" id="leaderboard-th-level">Level</th>
+                  <th style="padding: 8px 10px; text-align: right;" id="leaderboard-th-xp">Total XP</th>
+                </tr>
+              </thead>
+              <tbody id="leaderboard-table-rows">
+                <!-- Dynamically rendered -->
+              </tbody>
+            </table>
           </div>
         </div>
       </div>

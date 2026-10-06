@@ -836,6 +836,69 @@ class StorageManager {
     return newPlayer;
   }
 
+  public getLeaderboard(category: 'total' | SkillType = 'total', limit: number = 50): Array<{
+    rank: number;
+    username: string;
+    level: number;
+    xp: number;
+    isGuest: boolean;
+  }> {
+    try {
+      const rows = this.db.prepare('SELECT data FROM players').all() as Array<{ data: string }>;
+      const entries: Array<{ username: string; level: number; xp: number; isGuest: boolean }> = [];
+
+      for (const row of rows) {
+        try {
+          const p = JSON.parse(row.data) as PlayerData;
+          // Admins must not count towards the leaderboard
+          if (this.isPlayerAdmin(p) || p.role === 'admin') {
+            continue;
+          }
+
+          if (category === 'total') {
+            let totalLevel = 0;
+            let totalXp = 0;
+            if (p.skills) {
+              for (const sk of Object.values(p.skills)) {
+                totalLevel += sk.level || 1;
+                totalXp += sk.xp || 0;
+              }
+            }
+            entries.push({
+              username: p.username || 'Adventurer',
+              level: totalLevel,
+              xp: totalXp,
+              isGuest: !!p.isGuest,
+            });
+          } else {
+            const skillData = p.skills?.[category as SkillType] || { level: 1, xp: 0 };
+            entries.push({
+              username: p.username || 'Adventurer',
+              level: skillData.level || 1,
+              xp: skillData.xp || 0,
+              isGuest: !!p.isGuest,
+            });
+          }
+        } catch {}
+      }
+
+      // Sort by level DESC, then xp DESC, then username ASC
+      entries.sort((a, b) => {
+        if (b.level !== a.level) return b.level - a.level;
+        if (b.xp !== a.xp) return b.xp - a.xp;
+        return a.username.localeCompare(b.username);
+      });
+
+      return entries.slice(0, limit).map((entry, idx) => ({
+        rank: idx + 1,
+        ...entry,
+      }));
+    } catch (err) {
+      console.error('getLeaderboard error', err);
+      return [];
+    }
+  }
+
   public createPersistentPlayer(username: string): PlayerData {
     const id = 'player_' + crypto.randomBytes(6).toString('hex');
     const isAdmin = this.isAdminUsername(username);

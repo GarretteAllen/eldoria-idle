@@ -881,54 +881,82 @@ class EldoriaClient {
         this.updateBossBanner(msg.boss);
         break;
 
-      case 'COMBAT_HIT':
+      case 'COMBAT_HIT': {
+        const isMe = msg.target === 'monster'
+          ? (!msg.attackerId || msg.attackerId === this.player?.id)
+          : (!msg.targetPlayerId || msg.targetPlayerId === this.player?.id);
+
         if (msg.target === 'monster') {
           const targetKey = msg.nodeId || (typeof msg.targetX === 'number' && typeof msg.targetY === 'number' ? `mob_${msg.targetX}_${msg.targetY}` : msg.monsterId);
           if (targetKey && msg.monsterHp !== undefined && msg.monsterMaxHp !== undefined) {
             this.renderer.monsterHpMap.set(targetKey, { currentHp: msg.monsterHp, maxHp: msg.monsterMaxHp });
           }
           const style = (msg.combatStyle || this.getPlayerCombatStyle()) as 'melee' | 'ranged' | 'magic';
-          if (typeof msg.playerX === 'number' && typeof msg.targetX === 'number') {
+          const myX = this.player?.x ?? 0;
+          const myY = this.player?.y ?? 0;
+          const hasCoords = typeof msg.targetX === 'number' && typeof msg.targetY === 'number';
+          const targetX = typeof msg.targetX === 'number' ? msg.targetX : (this.worldNodes.find(n => n.id === targetKey)?.x ?? myX);
+          const targetY = typeof msg.targetY === 'number' ? msg.targetY : (this.worldNodes.find(n => n.id === targetKey)?.y ?? myY);
+          const isNearby = isMe || (hasCoords && Math.hypot(targetX - myX, targetY - myY) <= 25);
+
+          if (typeof msg.playerX === 'number' && typeof msg.targetX === 'number' && isNearby) {
             this.renderer.addCombatProjectile(msg.playerX, msg.playerY, msg.targetX, msg.targetY, style);
           }
-          // Trigger attack animation on the specific attacking player (local or remote)
+          // Trigger attack animation on the specific attacking player (local or remote if nearby)
           const attackerId = msg.attackerId || this.player?.id || 'self';
-          this.renderer.triggerPlayerAttack(style, attackerId);
+          if (isNearby) {
+            this.renderer.triggerPlayerAttack(style, attackerId);
+          }
 
-          // Audio: weapon swing
-          if (style === 'melee') sound.play('sword');
-          else if (style === 'ranged') sound.play('bow');
-          else if (style === 'magic') sound.play('spell');
+          // Audio: weapon swing - ONLY for local player
+          if (isMe) {
+            if (style === 'melee') sound.play('sword');
+            else if (style === 'ranged') sound.play('bow');
+            else if (style === 'magic') sound.play('spell');
+          }
 
           const dmg = typeof msg.damage === 'number' ? msg.damage : (msg.hit ? 1 : 0);
-          const targetX = typeof msg.targetX === 'number' ? msg.targetX : (this.worldNodes.find(n => n.id === targetKey)?.x ?? this.player?.x ?? 0);
-          const targetY = typeof msg.targetY === 'number' ? msg.targetY : (this.worldNodes.find(n => n.id === targetKey)?.y ?? this.player?.y ?? 0);
 
           if (dmg > 0) {
-            sound.play('impact');
-            if (dmg >= 12) {
-              this.renderer.addFloatingText(targetX, targetY, `CRIT! -${dmg}`, 'crit');
-              this.renderer.spawnParticles(targetX, targetY, 8, 'gold_crit');
-              this.renderer.triggerCameraShake(4);
-            } else {
-              this.renderer.addFloatingText(targetX, targetY, `-${dmg}`, 'damage');
-              this.renderer.spawnParticles(targetX, targetY, 5, 'blood');
-              this.renderer.triggerCameraShake(1.5);
+            if (isMe) {
+              sound.play('impact');
+              if (dmg >= 12) {
+                this.renderer.triggerCameraShake(4);
+              } else {
+                this.renderer.triggerCameraShake(1.5);
+              }
             }
-            if (targetKey) this.renderer.triggerMonsterFlinch(targetKey);
+            if (isNearby) {
+              if (dmg >= 12) {
+                this.renderer.addFloatingText(targetX, targetY, `CRIT! -${dmg}`, 'crit');
+                this.renderer.spawnParticles(targetX, targetY, 8, 'gold_crit');
+              } else {
+                this.renderer.addFloatingText(targetX, targetY, `-${dmg}`, 'damage');
+                this.renderer.spawnParticles(targetX, targetY, 5, 'blood');
+              }
+              if (targetKey) this.renderer.triggerMonsterFlinch(targetKey);
+            }
           } else if (!msg.isRespawn) {
-            sound.play('splash');
-            this.renderer.addFloatingText(targetX, targetY, '0', 'splash');
+            if (isMe) {
+              sound.play('splash');
+            }
+            if (isNearby) {
+              this.renderer.addFloatingText(targetX, targetY, '0', 'splash');
+            }
           }
 
           if (msg.isRespawn && targetKey) {
             this.renderer.monsterHpMap.set(targetKey, { currentHp: msg.monsterMaxHp, maxHp: msg.monsterMaxHp });
           } else if (msg.monsterHp !== undefined && msg.monsterHp <= 0) {
-            sound.play('kill');
-            sound.play('coin');
-            this.renderer.addDeathEffect(targetX, targetY);
-            this.renderer.spawnParticles(targetX, targetY, 15, 'gold_crit');
-            if (msg.xp && (!msg.attackerId || msg.attackerId === this.player?.id)) {
+            if (isMe) {
+              sound.play('kill');
+              sound.play('coin');
+            }
+            if (isNearby) {
+              this.renderer.addDeathEffect(targetX, targetY);
+              this.renderer.spawnParticles(targetX, targetY, 15, 'gold_crit');
+            }
+            if (msg.xp && isMe) {
               this.renderer.addFloatingText(targetX, targetY - 0.5, `+${msg.xp} XP`, 'xp');
               this.appendChatMessage({
                 time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
@@ -941,7 +969,7 @@ class EldoriaClient {
           }
 
           // Update active combat HUD only if local player is the attacker
-          if (!msg.attackerId || msg.attackerId === this.player?.id) {
+          if (isMe) {
             this.activeCombatMonster = {
               id: msg.monsterId,
               name: msg.monsterName || MONSTERS[msg.monsterId]?.name || 'Target',
@@ -954,8 +982,11 @@ class EldoriaClient {
           }
         } else if (msg.target === 'player') {
           const isMe = !msg.targetPlayerId || msg.targetPlayerId === this.player?.id;
-          const px = typeof msg.playerX === 'number' ? msg.playerX : (this.player?.x ?? 0);
-          const py = typeof msg.playerY === 'number' ? msg.playerY : (this.player?.y ?? 0);
+          const myX = this.player?.x ?? 0;
+          const myY = this.player?.y ?? 0;
+          const px = typeof msg.playerX === 'number' ? msg.playerX : myX;
+          const py = typeof msg.playerY === 'number' ? msg.playerY : myY;
+          const isNearby = isMe || Math.hypot(px - myX, py - myY) <= 25;
           const dmg = typeof msg.damage === 'number' ? msg.damage : 0;
 
           if (isMe && typeof msg.playerHp === 'number' && this.player) {
@@ -964,26 +995,38 @@ class EldoriaClient {
           }
 
           if (dmg > 0) {
-            sound.play(isMe ? 'hurt' : 'impact');
-            this.renderer.addFloatingText(px, py, `-${dmg}`, 'damage');
-            this.renderer.spawnParticles(px, py, 4, 'blood');
-            this.renderer.triggerCameraShake(2);
+            if (isMe) {
+              sound.play('hurt');
+              this.renderer.triggerCameraShake(2);
+            }
+            if (isNearby) {
+              this.renderer.addFloatingText(px, py, `-${dmg}`, 'damage');
+              this.renderer.spawnParticles(px, py, 4, 'blood');
+            }
           } else {
-            sound.play('splash');
-            this.renderer.addFloatingText(px, py, '0', 'splash');
+            if (isMe) {
+              sound.play('splash');
+            }
+            if (isNearby) {
+              this.renderer.addFloatingText(px, py, '0', 'splash');
+            }
           }
         }
         break;
+      }
 
       case 'COMBAT_HEAL': {
         const isMe = !msg.playerId || msg.playerId === this.player?.id;
-        const px = typeof msg.playerX === 'number' ? msg.playerX : (this.player?.x ?? 0);
-        const py = typeof msg.playerY === 'number' ? msg.playerY : (this.player?.y ?? 0);
+        const myX = this.player?.x ?? 0;
+        const myY = this.player?.y ?? 0;
+        const px = typeof msg.playerX === 'number' ? msg.playerX : myX;
+        const py = typeof msg.playerY === 'number' ? msg.playerY : myY;
+        const isNearby = isMe || Math.hypot(px - myX, py - myY) <= 25;
         if (isMe && this.player) {
           if (typeof msg.currentHp === 'number') this.player.currentHp = msg.currentHp;
           this.updateCombatHud();
         }
-        if (typeof msg.heal === 'number' && msg.heal > 0) {
+        if (typeof msg.heal === 'number' && msg.heal > 0 && isNearby) {
           this.renderer.addFloatingText(px, py, `+${msg.heal}`, 'heal');
           this.renderer.spawnParticles(px, py, 7, 'herb');
         }
@@ -3417,12 +3460,17 @@ class EldoriaClient {
             buyBtn.title = `Buy from ${listing.sellerName}`;
             buyBtn.onclick = () => {
               if (listing.quantity > 1) {
-                const countStr = prompt(`How many ${itemDef?.name || 'items'} would you like to buy? (1 to ${listing.quantity})`, String(listing.quantity));
-                if (!countStr) return;
-                const buyQty = parseInt(countStr, 10);
-                if (!isNaN(buyQty) && buyQty > 0) {
-                  this.sendWs({ type: 'BUY_MARKET_LISTING', listingId: listing.id, quantity: Math.min(listing.quantity, buyQty) });
-                }
+                this.showInGamePrompt({
+                  title: 'Buy Listing',
+                  message: `How many ${itemDef?.name || 'items'} would you like to buy? (1 to ${listing.quantity})`,
+                  defaultValue: listing.quantity,
+                  min: 1,
+                  max: listing.quantity,
+                  confirmText: 'Buy',
+                  onConfirm: (buyQty) => {
+                    this.sendWs({ type: 'BUY_MARKET_LISTING', listingId: listing.id, quantity: Math.min(listing.quantity, buyQty) });
+                  },
+                });
               } else {
                 this.sendWs({ type: 'BUY_MARKET_LISTING', listingId: listing.id, quantity: 1 });
               }
@@ -3473,30 +3521,40 @@ class EldoriaClient {
               return;
             }
 
-            let sellQty = slot.quantity;
+            const promptForPrice = (sellQty: number) => {
+              const defaultUnitPrice = Math.max(1, Math.floor((def?.vendorFloorPrice || 2) * 1.5));
+              this.showInGamePrompt({
+                title: 'Set Price',
+                message: `Set unit price in Gold for each ${def?.name || slot.itemId}:`,
+                defaultValue: defaultUnitPrice,
+                min: 1,
+                confirmText: 'List Item',
+                onConfirm: (parsedPrice) => {
+                  this.sendWs({
+                    type: 'CREATE_MARKET_LISTING',
+                    inventoryIndex: index,
+                    quantity: sellQty,
+                    unitPrice: parsedPrice,
+                  });
+                },
+              });
+            };
+
             if (slot.quantity > 1) {
-              const qtyStr = prompt(`How many ${def?.name || slot.itemId} to list for sale? (1 to ${slot.quantity})`, String(slot.quantity));
-              if (!qtyStr) return;
-              const parsedQty = parseInt(qtyStr, 10);
-              if (isNaN(parsedQty) || parsedQty <= 0) return;
-              sellQty = Math.min(slot.quantity, parsedQty);
+              this.showInGamePrompt({
+                title: 'List for Sale',
+                message: `How many ${def?.name || slot.itemId} to list for sale? (1 to ${slot.quantity})`,
+                defaultValue: slot.quantity,
+                min: 1,
+                max: slot.quantity,
+                confirmText: 'Next',
+                onConfirm: (sellQty) => {
+                  promptForPrice(sellQty);
+                },
+              });
+            } else {
+              promptForPrice(1);
             }
-
-            const defaultUnitPrice = Math.max(1, Math.floor((def?.vendorFloorPrice || 2) * 1.5));
-            const priceStr = prompt(`Set unit price in Gold for each ${def?.name || slot.itemId}:`, String(defaultUnitPrice));
-            if (!priceStr) return;
-            const parsedPrice = parseInt(priceStr, 10);
-            if (isNaN(parsedPrice) || parsedPrice <= 0) {
-              this.showToast('Unit price must be a positive number.');
-              return;
-            }
-
-            this.sendWs({
-              type: 'CREATE_MARKET_LISTING',
-              inventoryIndex: index,
-              quantity: sellQty,
-              unitPrice: parsedPrice,
-            });
           };
         } else {
           div.classList.add('dv-slot-empty');
@@ -3688,13 +3746,20 @@ class EldoriaClient {
     if (ctxBtnDepX && ctxMenu) {
       ctxBtnDepX.onclick = () => {
         if (this.selectedInventoryIndex !== null && this.player) {
-          const slot = this.player.inventory[this.selectedInventoryIndex];
+          const invIndex = this.selectedInventoryIndex;
+          const slot = this.player.inventory[invIndex];
           if (slot) {
-            const countStr = prompt(`How many ${ITEMS[slot.itemId]?.name || 'items'} to deposit?`, String(slot.quantity));
-            const count = parseInt(countStr || '', 10);
-            if (!isNaN(count) && count > 0) {
-              this.sendWs({ type: 'DEPOSIT_ITEM', inventoryIndex: this.selectedInventoryIndex, quantity: count });
-            }
+            this.showInGamePrompt({
+              title: 'Deposit Items',
+              message: `How many ${ITEMS[slot.itemId]?.name || 'items'} to deposit?`,
+              defaultValue: slot.quantity,
+              min: 1,
+              max: slot.quantity,
+              confirmText: 'Deposit',
+              onConfirm: (count) => {
+                this.sendWs({ type: 'DEPOSIT_ITEM', inventoryIndex: invIndex, quantity: count });
+              },
+            });
           }
           ctxMenu.classList.add('hidden');
         }
@@ -4823,6 +4888,89 @@ class EldoriaClient {
     }
 
     modal.classList.remove('hidden');
+  }
+
+  private showInGamePrompt(options: {
+    title?: string;
+    message: string;
+    defaultValue?: number | string;
+    min?: number;
+    max?: number;
+    confirmText?: string;
+    cancelText?: string;
+    onConfirm: (val: number) => void;
+    onCancel?: () => void;
+  }) {
+    const modal = document.getElementById('game-prompt-modal');
+    if (!modal) {
+      const res = prompt(options.message, String(options.defaultValue ?? '1'));
+      if (res !== null) {
+        const num = parseInt(res, 10);
+        if (!isNaN(num) && num > 0) options.onConfirm(num);
+      }
+      return;
+    }
+
+    const titleEl = document.getElementById('prompt-modal-title');
+    const msgEl = document.getElementById('prompt-modal-message');
+    const inputEl = document.getElementById('prompt-modal-input') as HTMLInputElement | null;
+    const formEl = document.getElementById('game-prompt-form') as HTMLFormElement | null;
+    const btnCancel = document.getElementById('prompt-modal-cancel') as HTMLButtonElement | null;
+    const btnConfirm = document.getElementById('prompt-modal-confirm') as HTMLButtonElement | null;
+    const iconEl = document.getElementById('prompt-modal-icon');
+
+    if (iconEl) iconEl.innerHTML = ICONS.gold || ICONS.satchel;
+    if (titleEl) titleEl.textContent = options.title || 'Enter Amount';
+    if (msgEl) msgEl.textContent = options.message;
+    if (inputEl) {
+      inputEl.value = String(options.defaultValue ?? '1');
+      if (options.min !== undefined) inputEl.min = String(options.min);
+      else inputEl.min = '1';
+      if (options.max !== undefined) inputEl.max = String(options.max);
+      else inputEl.removeAttribute('max');
+    }
+    if (btnConfirm) btnConfirm.textContent = options.confirmText || 'Submit';
+    if (btnCancel) btnCancel.textContent = options.cancelText || 'Cancel';
+
+    const cleanup = () => {
+      modal.classList.add('hidden');
+      if (formEl) formEl.onsubmit = null;
+      if (btnCancel) btnCancel.onclick = null;
+    };
+
+    if (formEl) {
+      formEl.onsubmit = (e) => {
+        e.preventDefault();
+        const val = parseInt(inputEl?.value || '', 10);
+        if (isNaN(val) || val <= 0) {
+          this.showToast('Please enter a valid positive number.');
+          return;
+        }
+        if (options.min !== undefined && val < options.min) {
+          this.showToast(`Minimum value is ${options.min}.`);
+          return;
+        }
+        if (options.max !== undefined && val > options.max) {
+          this.showToast(`Maximum value is ${options.max}.`);
+          return;
+        }
+        cleanup();
+        options.onConfirm(val);
+      };
+    }
+
+    if (btnCancel) {
+      btnCancel.onclick = () => {
+        cleanup();
+        if (options.onCancel) options.onCancel();
+      };
+    }
+
+    modal.classList.remove('hidden');
+    setTimeout(() => {
+      inputEl?.focus();
+      inputEl?.select();
+    }, 50);
   }
 
   private openAuthModal(defaultTab: 'login' | 'register' = 'login', allowClose = true) {

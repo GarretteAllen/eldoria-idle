@@ -61,6 +61,16 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', time: Date.now() });
 });
 
+app.get('/api/leaderboard', (req, res) => {
+  const category = (req.query.category as string) || 'total';
+  const limit = Math.min(100, Math.max(1, parseInt((req.query.limit as string) || '50', 10)));
+  const entries = storage.getLeaderboard(category as any, limit);
+  res.json({
+    category,
+    entries,
+  });
+});
+
 app.post('/api/auth/guest', (req, res) => {
   const { guestId } = req.body || {};
   let player = guestId ? storage.getPlayer(guestId) : undefined;
