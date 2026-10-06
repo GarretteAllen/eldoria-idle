@@ -26,7 +26,7 @@ jobs:
 
             # Discard any local build artifact changes on VPS before pulling main
             git reset --hard HEAD
-            git clean -fd -e data/ -e data.sqlite*
+            git clean -fd -e data/ -e data.sqlite* -e .env
             git pull origin main
 
 
