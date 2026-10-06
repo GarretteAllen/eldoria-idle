@@ -3757,9 +3757,12 @@ class EldoriaClient {
       e.preventDefault();
       const text = input.value.trim();
       if (!text) return;
+      const targetChan = (this.activeChannel === 'System' || this.activeChannel === 'Combat' || this.activeChannel === 'Loot')
+        ? 'Global'
+        : this.activeChannel;
       this.sendWs({
         type: 'CHAT',
-        channel: this.activeChannel,
+        channel: targetChan,
         text,
       });
       input.value = '';
@@ -3790,7 +3793,7 @@ class EldoriaClient {
       isAdmin: msg.isAdmin,
     });
 
-    if (this.chatHistory.length > 120) {
+    if (this.chatHistory.length > 200) {
       this.chatHistory.shift();
     }
 
@@ -3803,10 +3806,14 @@ class EldoriaClient {
     log.innerHTML = '';
 
     const filtered = this.chatHistory.filter(m => {
-      if (this.activeChannel === 'All') return true;
+      if (this.activeChannel === 'All') {
+        // Show player chat, combat, and loot, but keep routine system messages in the System tab so they don't flood chat
+        return m.channel !== 'System' || m.isAdmin;
+      }
+      if (this.activeChannel === 'Global') return m.channel === 'Global' || m.isAdmin;
       if (this.activeChannel === 'Combat') return m.channel === 'Combat';
       if (this.activeChannel === 'Loot') return m.channel === 'Loot';
-      if (this.activeChannel === 'Global') return m.channel === 'Global' || m.channel === 'System';
+      if (this.activeChannel === 'System') return m.channel === 'System';
       return true;
     });
 
@@ -3821,6 +3828,7 @@ class EldoriaClient {
       let chanColor = '#90cdf4';
       if (msg.channel === 'Combat') chanColor = '#f6ad55';
       else if (msg.channel === 'Loot') chanColor = '#ecc94b';
+      else if (msg.channel === 'System') chanColor = '#a0aec0';
 
       line.innerHTML = `
         <span class="chat-time">${msg.time}</span>
