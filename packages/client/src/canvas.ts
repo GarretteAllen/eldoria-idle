@@ -1159,6 +1159,8 @@ export class WorldRenderer {
           mCtx.fillStyle = '#4299e1'; // ocean blue
         } else if (node.type === 'hearth_counter') {
           mCtx.fillStyle = '#ecc94b'; // gold
+        } else if (node.type === 'door' || node.type === 'portal') {
+          mCtx.fillStyle = '#c084fc'; // purple warp
         } else {
           mCtx.fillStyle = '#ed8936'; // orange
         }
@@ -2001,6 +2003,39 @@ export class WorldRenderer {
         }
       }
 
+      else if (node.type === 'door' || node.type === 'portal') {
+        const isPortal = node.type === 'portal';
+        const pulse = Math.sin(this.animTick * 0.005 + node.x * 2) * 2;
+        ctx.fillStyle = isPortal ? 'rgba(168, 85, 247, 0.35)' : 'rgba(234, 179, 8, 0.3)';
+        ctx.beginPath();
+        ctx.arc(px + TILE_SIZE / 2, py + TILE_SIZE / 2, 10 + pulse, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Stylized Arch / Gateway
+        ctx.save();
+        ctx.translate(px, py);
+        ctx.strokeStyle = isPortal ? '#c084fc' : '#fde047';
+        ctx.lineWidth = 2;
+        ctx.fillStyle = isPortal ? 'rgba(88, 28, 135, 0.85)' : 'rgba(40, 25, 15, 0.9)';
+        ctx.beginPath();
+        ctx.arc(TILE_SIZE / 2, 12, 9, Math.PI, 0);
+        ctx.lineTo(TILE_SIZE / 2 + 9, TILE_SIZE - 2);
+        ctx.lineTo(TILE_SIZE / 2 - 9, TILE_SIZE - 2);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+
+        // Inner glowing doorway threshold
+        ctx.fillStyle = isPortal ? '#e9d5ff' : '#fef08a';
+        ctx.beginPath();
+        ctx.arc(TILE_SIZE / 2, 14, 5, Math.PI, 0);
+        ctx.lineTo(TILE_SIZE / 2 + 5, TILE_SIZE - 4);
+        ctx.lineTo(TILE_SIZE / 2 - 5, TILE_SIZE - 4);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+      }
+
       else {
         // Other gathering nodes (mines, trees, boss arena)
         const pulse = Math.sin(this.animTick * 0.003 + node.x * 2) * (isHearth ? 2.5 : 1.5);
@@ -2011,7 +2046,7 @@ export class WorldRenderer {
       }
 
       // Stylized nameplate badge
-      const defaultName = node.type === 'farm' ? 'Verdant Plot' : (node.type === 'fire' ? 'Campfire' : (node.type === 'forge' ? 'Forge' : (node.type === 'workbench' ? "Artisan's Workbench" : (node.type === 'cauldron' ? 'Apothecary Cauldron' : (node.type === 'monolith' ? 'Aether Monolith' : (node.type === 'stall' ? 'Market Stall' : (node.type === 'herb' ? 'Wild Herb' : 'Work Station')))))));
+      const defaultName = node.type === 'door' ? 'Doorway' : (node.type === 'portal' ? 'Mystic Portal' : (node.type === 'farm' ? 'Verdant Plot' : (node.type === 'fire' ? 'Campfire' : (node.type === 'forge' ? 'Forge' : (node.type === 'workbench' ? "Artisan's Workbench" : (node.type === 'cauldron' ? 'Apothecary Cauldron' : (node.type === 'monolith' ? 'Aether Monolith' : (node.type === 'stall' ? 'Market Stall' : (node.type === 'herb' ? 'Wild Herb' : 'Work Station')))))))));
       const friendlyName = (node.name && !node.name.startsWith('node_')) ? node.name : defaultName;
       let text = friendlyName;
       const farmPlot = node.type === 'farm' ? this.localPlayer?.farmPlots?.[node.id] : null;

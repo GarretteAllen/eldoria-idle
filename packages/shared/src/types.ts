@@ -216,7 +216,7 @@ export interface ActiveBuff {
 export interface WorldNode {
   id: string;
   name: string;
-  type: 'hearth_counter' | 'forge' | 'fire' | 'mine' | 'tree' | 'water' | 'farm' | 'monster' | 'boss_arena' | 'portal' | 'workbench' | 'cauldron' | 'monolith' | 'stall' | 'herb';
+  type: 'hearth_counter' | 'forge' | 'fire' | 'mine' | 'tree' | 'water' | 'farm' | 'monster' | 'boss_arena' | 'portal' | 'door' | 'workbench' | 'cauldron' | 'monolith' | 'stall' | 'herb';
   x: number;
   y: number;
   recipeId?: string;
@@ -224,6 +224,7 @@ export interface WorldNode {
   targetX?: number;
   targetY?: number;
   targetLabel?: string;
+  targetLevelId?: string;
   zoneId?: string;
 }
 

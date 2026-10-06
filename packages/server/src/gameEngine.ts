@@ -539,6 +539,10 @@ export class GameEngine {
         this.handleRedeemGemPack(session, msg.itemId);
         break;
 
+      case 'USE_WARP':
+        this.handleUseWarp(session, msg.nodeId);
+        break;
+
       case 'STOP_TASK':
         if (msg.clearQueue) {
           player.taskQueue = [];
@@ -2226,6 +2230,64 @@ export class GameEngine {
       message: `Claimed items from your mailbox into your ${targetDesc}.`
     });
     this.send(ws, { type: 'PLAYER_UPDATE', player });
+  }
+
+  private handleUseWarp(session: ConnectedSession, nodeId: string) {
+    const { player, ws } = session;
+    if (!nodeId || typeof nodeId !== 'string') return;
+
+    const node = storage.getWorldNodes().find(n => n.id === nodeId);
+    if (!node || (node.type !== 'door' && node.type !== 'portal')) {
+      this.send(ws, { type: 'NOTIFICATION', message: 'Warp door not found.' });
+      return;
+    }
+
+    const dist = Math.hypot(player.x - node.x, player.y - node.y);
+    if (dist > 2.5) {
+      this.send(ws, { type: 'NOTIFICATION', message: 'Too far from the doorway to enter.' });
+      return;
+    }
+
+    let targetX = node.targetX;
+    let targetY = node.targetY;
+
+    // If targetLevelId was set without targetX/targetY, look up level bounds in storage
+    if (node.targetLevelId && (targetX === undefined || targetY === undefined)) {
+      const bounds = storage.getLevelBounds().find(b => b.identifier === node.targetLevelId);
+      if (bounds) {
+        if (targetX === undefined) targetX = bounds.tileX + Math.floor(bounds.widthTiles / 2);
+        if (targetY === undefined) targetY = bounds.tileY + Math.floor(bounds.heightTiles / 2);
+      }
+    }
+
+    if (targetX === undefined || targetY === undefined) {
+      this.send(ws, { type: 'NOTIFICATION', message: 'This doorway has no destination set.' });
+      return;
+    }
+
+    // Cancel active tasks, pathing, and combat
+    if (player.currentTask) player.currentTask = null;
+    player.pendingTask = null;
+    session.pendingTask = null;
+    session.pendingCombat = null;
+    session.activeCombat = null;
+    player.bankReturnTask = null;
+    player.bankingState = 'idle';
+
+    player.x = targetX;
+    player.y = targetY;
+    player.targetX = targetX;
+    player.targetY = targetY;
+    player.path = [];
+    player.isMoving = false;
+
+    storage.savePlayer(player);
+    storage.checkpoint();
+
+    const label = node.targetLabel || (node.targetLevelId ? `Entered ${node.targetLevelId}` : `Warped through ${node.name || 'door'}`);
+    this.send(ws, { type: 'NOTIFICATION', message: label });
+    this.send(ws, { type: 'PLAYER_UPDATE', player });
+    this.broadcastWorldState();
   }
 
   private tick() {

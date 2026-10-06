@@ -87,6 +87,7 @@ class EldoriaClient {
   private pendingNpcTarget: NpcDefinition | null = null;
   private pendingMonsterTarget: WorldNodeDisplay | null = null;
   private pendingHearthTarget: WorldNodeDisplay | null = null;
+  private pendingDoorTarget: WorldNodeDisplay | null = null;
   private pendingStationTarget: { type: 'fire' | 'forge' | 'farm' | 'workbench' | 'cauldron' | 'monolith'; node: WorldNodeDisplay } | null = null;
   private selectedStationNode: WorldNodeDisplay | null = null;
   private activeCombatMonster: {
@@ -351,6 +352,23 @@ class EldoriaClient {
             const target = this.getAdjacentWalkableTile(node.x, node.y);
             this.sendWs({ type: 'MOVE_TO', x: target.x, y: target.y });
             this.showToast(`Walking to ${node.name}...`);
+          }
+          return;
+        }
+
+        // DOOR / WARP PORTAL: Walk to door, then trigger warp!
+        if (node.type === 'door' || node.type === 'portal') {
+          if (!this.player) return;
+          const dist = Math.hypot(this.player.x - node.x, this.player.y - node.y);
+          if (dist <= 1.5) {
+            this.pendingDoorTarget = null;
+            this.triggerDoorWarp(node);
+          } else {
+            this.pendingDoorTarget = node;
+            const target = this.getAdjacentWalkableTile(node.x, node.y);
+            this.sendWs({ type: 'MOVE_TO', x: target.x, y: target.y });
+            const label = node.targetLabel || node.name || 'Door';
+            this.showToast(`Walking to ${label}...`);
           }
           return;
         }
@@ -765,6 +783,16 @@ class EldoriaClient {
           if (dist <= 1.5) {
             this.pendingHearthTarget = null;
             this.openStorageModal();
+          }
+        }
+
+        // Check if arrived adjacent to clicked Door / Portal
+        if (this.pendingDoorTarget && this.player) {
+          const dist = Math.hypot(this.player.x - this.pendingDoorTarget.x, this.player.y - this.pendingDoorTarget.y);
+          if (dist <= 1.5) {
+            const doorNode = this.pendingDoorTarget;
+            this.pendingDoorTarget = null;
+            this.triggerDoorWarp(doorNode);
           }
         }
 
@@ -5538,9 +5566,26 @@ class EldoriaClient {
         const x = parseInt((document.getElementById('node-form-x') as HTMLInputElement).value, 10);
         const y = parseInt((document.getElementById('node-form-y') as HTMLInputElement).value, 10);
 
+        let targetX: number | undefined;
+        let targetY: number | undefined;
+        let targetLevelId: string | undefined;
+        let targetLabel: string | undefined;
+
+        if (type === 'door' || type === 'portal') {
+          const txIn = document.getElementById('node-form-target-x') as HTMLInputElement | null;
+          const tyIn = document.getElementById('node-form-target-y') as HTMLInputElement | null;
+          const tlvlIn = document.getElementById('node-form-target-level') as HTMLSelectElement | null;
+          const tlblIn = document.getElementById('node-form-target-label') as HTMLInputElement | null;
+
+          if (txIn && txIn.value !== '') targetX = parseFloat(txIn.value);
+          if (tyIn && tyIn.value !== '') targetY = parseFloat(tyIn.value);
+          if (tlvlIn && tlvlIn.value) targetLevelId = tlvlIn.value;
+          if (tlblIn && tlblIn.value.trim()) targetLabel = tlblIn.value.trim();
+        }
+
         this.sendWs({
           type: 'ADMIN_SAVE_NODE',
-          node: { id, name, type, recipeId, x, y },
+          node: { id, name, type, recipeId, x, y, targetX, targetY, targetLevelId, targetLabel },
         });
         nodeForm.classList.add('hidden');
       };
@@ -5775,10 +5820,43 @@ class EldoriaClient {
     const targetSkills = typeToSkillMap[selectedType];
     let filteredRecipes = Object.values(RECIPES);
 
-    if (targetSkills && targetSkills.length > 0) {
-      filteredRecipes = filteredRecipes.filter(r => targetSkills.includes(r.skill));
-    } else if (selectedType === 'hearth_counter' || selectedType === 'farm') {
+    const warpFields = document.getElementById('node-form-warp-fields');
+    const recipeRow = document.getElementById('node-form-recipe-row');
+
+    if (selectedType === 'door' || selectedType === 'portal') {
+      if (warpFields) warpFields.classList.remove('hidden');
+      if (recipeRow) recipeRow.classList.add('hidden');
+
+      // Populate level selector from loaded LDtk levels
+      const levelSelect = document.getElementById('node-form-target-level') as HTMLSelectElement | null;
+      if (levelSelect) {
+        const stitched = this.renderer.getStitchedWorld();
+        const levels = stitched ? stitched.levels : [];
+        levelSelect.innerHTML = `<option value="">-- Select Destination Level (Optional) --</option>` +
+          levels.map(l => `<option value="${l.identifier}">${l.identifier} (${l.tileX}, ${l.tileY})</option>`).join('');
+
+        levelSelect.onchange = () => {
+          const selectedLvl = levels.find(l => l.identifier === levelSelect.value);
+          if (selectedLvl) {
+            const tx = document.getElementById('node-form-target-x') as HTMLInputElement | null;
+            const ty = document.getElementById('node-form-target-y') as HTMLInputElement | null;
+            const tlabel = document.getElementById('node-form-target-label') as HTMLInputElement | null;
+            if (tx && (!tx.value || tx.value === '0')) tx.value = (selectedLvl.tileX + Math.floor(selectedLvl.widthTiles / 2)).toString();
+            if (ty && (!ty.value || ty.value === '0')) ty.value = (selectedLvl.tileY + Math.floor(selectedLvl.heightTiles / 2)).toString();
+            if (tlabel && !tlabel.value) tlabel.value = `Enter ${selectedLvl.identifier}`;
+          }
+        };
+      }
       filteredRecipes = [];
+    } else {
+      if (warpFields) warpFields.classList.add('hidden');
+      if (recipeRow) recipeRow.classList.remove('hidden');
+
+      if (targetSkills && targetSkills.length > 0) {
+        filteredRecipes = filteredRecipes.filter(r => targetSkills.includes(r.skill));
+      } else if (selectedType === 'hearth_counter' || selectedType === 'farm') {
+        filteredRecipes = [];
+      }
     }
 
     recSelect.innerHTML = `<option value="">None (Heuristics / Bank)</option>` +
@@ -5814,9 +5892,12 @@ class EldoriaClient {
     const countMonolith = allNodes.filter(n => n.type === 'monolith').length;
     const countStall = allNodes.filter(n => n.type === 'stall').length;
     const countHearth = allNodes.filter(n => n.type === 'hearth_counter').length;
+    const countDoor = allNodes.filter(n => n.type === 'door' || n.type === 'portal').length;
 
     const elCountAll = document.getElementById('count-node-all');
     if (elCountAll) elCountAll.textContent = countAll.toString();
+    const elCountDoor = document.getElementById('count-node-door');
+    if (elCountDoor) elCountDoor.textContent = countDoor.toString();
     const elCountMine = document.getElementById('count-node-mine');
     if (elCountMine) elCountMine.textContent = countMine.toString();
     const elCountTree = document.getElementById('count-node-tree');
@@ -5882,12 +5963,16 @@ class EldoriaClient {
       const distText = dist !== null ? `<span class="editor-dist-tag">${dist.toFixed(1)}t</span>` : '';
       const recipeLabel = n.recipeId && RECIPES[n.recipeId] ? ` · ${RECIPES[n.recipeId].name}` : (n.recipeId ? ` · ${n.recipeId}` : '');
 
+      const warpLabel = (n.type === 'door' || n.type === 'portal') && (n.targetX !== undefined || n.targetLevelId)
+        ? ` · Warp ➔ ${n.targetLevelId ? n.targetLevelId + ' ' : ''}(${n.targetX ?? '?'}, ${n.targetY ?? '?'})`
+        : '';
+
       card.innerHTML = `
         <div class="editor-entity-info">
           <div class="editor-entity-title">
             <span class="editor-entity-badge-icon badge-${n.type}">${n.type}</span>${n.name}${distText}
           </div>
-          <div class="editor-entity-meta">(${n.x}, ${n.y})${recipeLabel}</div>
+          <div class="editor-entity-meta">(${n.x}, ${n.y})${recipeLabel}${warpLabel}</div>
         </div>
         <div class="editor-entity-actions">
           <button class="btn-micro-tp" title="Teleport to node (${n.x}, ${n.y})">TP</button>
@@ -5914,6 +5999,16 @@ class EldoriaClient {
         this.updateNodeRecipesForType(n.type, n.recipeId);
         (document.getElementById('node-form-x') as HTMLInputElement).value = n.x.toString();
         (document.getElementById('node-form-y') as HTMLInputElement).value = n.y.toString();
+
+        const txIn = document.getElementById('node-form-target-x') as HTMLInputElement | null;
+        const tyIn = document.getElementById('node-form-target-y') as HTMLInputElement | null;
+        const tlvlIn = document.getElementById('node-form-target-level') as HTMLSelectElement | null;
+        const tlblIn = document.getElementById('node-form-target-label') as HTMLInputElement | null;
+
+        if (txIn) txIn.value = n.targetX !== undefined ? n.targetX.toString() : '';
+        if (tyIn) tyIn.value = n.targetY !== undefined ? n.targetY.toString() : '';
+        if (tlvlIn) tlvlIn.value = n.targetLevelId || '';
+        if (tlblIn) tlblIn.value = n.targetLabel || '';
       });
 
       card.querySelector('.btn-micro-del')!.addEventListener('click', () => {
@@ -6736,6 +6831,46 @@ class EldoriaClient {
       console.error('Checkout error:', err);
       this.showToast(err.message || 'Something went wrong with the purchase.');
     }
+  }
+
+  private triggerDoorWarp(doorNode: WorldNodeDisplay) {
+    if (!this.player) return;
+
+    let targetX = doorNode.targetX;
+    let targetY = doorNode.targetY;
+
+    // If targetLevelId was set, we can resolve level center if coordinates weren't set
+    if (doorNode.targetLevelId && (targetX === undefined || targetY === undefined)) {
+      const stitched = this.renderer.getStitchedWorld();
+      if (stitched) {
+        const lvl = stitched.levels.find(l => l.identifier === doorNode.targetLevelId);
+        if (lvl) {
+          if (targetX === undefined) targetX = lvl.tileX + Math.floor(lvl.widthTiles / 2);
+          if (targetY === undefined) targetY = lvl.tileY + Math.floor(lvl.heightTiles / 2);
+        }
+      }
+    }
+
+    if (targetX === undefined || targetY === undefined) {
+      this.showToast('This doorway leads nowhere yet. Configure destination in Admin Editor.');
+      return;
+    }
+
+    sound.play('teleport');
+    const label = doorNode.targetLabel || (doorNode.targetLevelId ? `Entering ${doorNode.targetLevelId}` : `Warping to (${targetX}, ${targetY})`);
+    this.showToast(label);
+
+    // Cancel current walking / task
+    this.pendingDoorTarget = null;
+    this.pendingMonsterTarget = null;
+    this.pendingNpcTarget = null;
+    this.pendingStationTarget = null;
+    this.pendingHearthTarget = null;
+
+    this.sendWs({
+      type: 'USE_WARP',
+      nodeId: doorNode.id,
+    });
   }
 }
 
