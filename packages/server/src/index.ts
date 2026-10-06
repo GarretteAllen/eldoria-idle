@@ -8,20 +8,34 @@ import { storage } from './storage.js';
 import { WORLD_NODES } from './world.js';
 import { gameEngine } from './gameEngine.js';
 
-// Auto-load .env file if present in project root
-const envPath = path.resolve(process.cwd(), '.env');
-if (fs.existsSync(envPath)) {
-  const envContent = fs.readFileSync(envPath, 'utf-8');
-  for (const line of envContent.split('\n')) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith('#')) continue;
-    const eqIdx = trimmed.indexOf('=');
-    if (eqIdx !== -1) {
-      const key = trimmed.slice(0, eqIdx).trim();
-      const val = trimmed.slice(eqIdx + 1).trim().replace(/^['"](.*)['"]$/, '$1');
-      if (!process.env[key]) {
-        process.env[key] = val;
+// Auto-load .env file from current directory or parent directories if present
+const candidateEnvPaths = [
+  path.resolve(process.cwd(), '.env'),
+  path.resolve(process.cwd(), '..', '.env'),
+  path.resolve(process.cwd(), '..', '..', '.env'),
+  path.resolve(path.dirname(new URL(import.meta.url).pathname), '..', '..', '..', '.env'),
+];
+
+for (const p of candidateEnvPaths) {
+  if (fs.existsSync(p)) {
+    try {
+      const envContent = fs.readFileSync(p, 'utf-8');
+      for (const line of envContent.split('\n')) {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith('#')) continue;
+        const eqIdx = trimmed.indexOf('=');
+        if (eqIdx !== -1) {
+          const key = trimmed.slice(0, eqIdx).trim();
+          const val = trimmed.slice(eqIdx + 1).trim().replace(/^['"](.*)['"]$/, '$1');
+          if (!process.env[key] || process.env[key] === '') {
+            process.env[key] = val;
+          }
+        }
       }
+      console.log(`[Config] Loaded environment variables from: ${p}`);
+      break;
+    } catch (e) {
+      console.error(`[Config] Error reading env from ${p}:`, e);
     }
   }
 }
@@ -153,7 +167,9 @@ const PAYPAL_BASE_URL = PAYPAL_MODE === 'production'
   : 'https://api-m.sandbox.paypal.com';
 
 async function getPayPalAccessToken(): Promise<string> {
-  if (!PAYPAL_CLIENT_ID || !PAYPAL_SECRET) return '';
+  if (!PAYPAL_CLIENT_ID || !PAYPAL_SECRET) {
+    throw new Error('PayPal Client ID or Secret is not configured on server.');
+  }
   const auth = Buffer.from(`${PAYPAL_CLIENT_ID}:${PAYPAL_SECRET}`).toString('base64');
   const resp = await fetch(`${PAYPAL_BASE_URL}/v1/oauth2/token`, {
     method: 'POST',
@@ -164,7 +180,9 @@ async function getPayPalAccessToken(): Promise<string> {
     body: 'grant_type=client_credentials',
   });
   if (!resp.ok) {
-    throw new Error(`PayPal auth failed: ${resp.statusText}`);
+    const errBody = await resp.text();
+    console.error(`[PayPal] OAuth error (${resp.status} ${resp.statusText}):`, errBody);
+    throw new Error(`PayPal auth failed: ${resp.statusText} (${errBody})`);
   }
   const data = (await resp.json()) as any;
   return data.access_token;
