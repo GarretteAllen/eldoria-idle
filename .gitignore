@@ -5,5 +5,6 @@ data/
 .DS_Store
 .env
 dontpush/
+pasteboard/
 scratch/
 *.tsbuildinfo
