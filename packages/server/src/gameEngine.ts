@@ -2177,7 +2177,7 @@ export class GameEngine {
         }
       }
 
-      // Combat sustenance: if returning to combat, keep up to targetFoodStock (15) rations in inventory
+      // Combat food: if returning to combat, keep up to targetFoodStock (15) food items in inventory
       let depositQty = slot.quantity;
       if (isCombatWork && (def?.category === 'cooked_food' || ((def?.baseStats?.healing || 0) > 0))) {
         if (combatFoodKept < targetFoodStock) {
@@ -3095,7 +3095,7 @@ export class GameEngine {
       targetSession = session;
     }
 
-    // Give item — stack if matching slot exists and space permits
+    // Give item: stack if matching slot exists and space permits
     if (destination === 'storage') {
       const maxSlots = targetPlayer.storageSlotsMax || 75;
       targetPlayer.storage = targetPlayer.storage || [];
@@ -3135,7 +3135,7 @@ export class GameEngine {
       }
       this.send(targetSession.ws, { type: 'PLAYER_UPDATE', player: targetPlayer });
     } else if (targetSession) {
-      // Giving to self — update their own client
+      // Giving to self: update their own client
       this.send(ws, { type: 'PLAYER_UPDATE', player: targetPlayer });
     }
   }
@@ -3705,7 +3705,7 @@ export class GameEngine {
       this.send(ws, { type: 'PLAYER_UPDATE', player });
       this.broadcastWorldState();
     } else {
-      // Already within attack range — begin combat immediately
+      // Already within attack range: begin combat immediately
       session.pendingCombat = null;
       this.startCombatSession(session, monsterId, actualTargetX, actualTargetY, effectiveNodeId, effectiveZoneId);
     }

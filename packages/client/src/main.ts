@@ -31,9 +31,9 @@ const SKILL_FLAVOR: Record<string, string> = {
   herbalism: 'Tend fertile soil, forage earth roots, ghost moss and mystical blooms for alchemy.',
   farming: 'Till fertile allotments, sow ancient seeds, and nurture bountiful harvests across Eldoria.',
   thieving: 'Lurk in shadowy alcoves to pickpocket citizens, merchants and opulent nobles.',
-  smithing: 'Smelt ores into glowing ingots and hammer formidable blades and armaments at the forge.',
-  cooking: 'Prepare nourishing smoked rations, chowders and celestial feasts over the firepit.',
-  fletching: 'Carve seasoned timbers into recurve longbows and fletch deadly feathered arrows.',
+  smithing: 'Smelt ores into ingots and hammer weapons and armor at the forge.',
+  cooking: 'Cook fresh fish, bake bread, and prepare meals over the firepit.',
+  fletching: 'Carve seasoned wood into bows and craft arrows.',
   alchemy: 'Distill enchanted herbs and pure solvents into potent elixirs of haste and warding.',
   crafting: 'Cut celestial gems, stitch tough hides and fashion rings and talismans of power.',
   attunement: 'Channel primordial soul anima into cosmic blessings and celestial wards.',
@@ -1009,14 +1009,14 @@ class EldoriaClient {
     if (nameEl) {
       if (this.player.isGuest) {
         nameEl.textContent = `${this.player.username} (Guest)`;
-        if (charPill) charPill.title = 'Guest Adventurer — Click to register permanent account';
+        if (charPill) charPill.title = 'Guest Adventurer: Click to register permanent account';
       } else {
         nameEl.textContent = this.player.role === 'admin' 
           ? `[ADMIN] ${this.player.username || 'Admin'}` 
           : (this.player.username || 'Adventurer');
         if (charPill) charPill.title = this.player.role === 'admin'
-          ? 'Administrator Account — Click for profile'
-          : 'Registered Adventurer — Click for profile';
+          ? 'Administrator Account: Click for profile'
+          : 'Registered Adventurer: Click for profile';
       }
     }
 
@@ -1179,7 +1179,7 @@ class EldoriaClient {
 
     if (this.player.bankingState === 'walking_to_bank') {
       const isSatchelFull = this.player.inventory.length >= 28;
-      taskNameEl.textContent = 'Banking — Riding to Hearth';
+      taskNameEl.textContent = 'Banking: Riding to Hearth';
       taskSubEl.textContent = isSatchelFull
         ? `Satchel full (28/28) • Depositing spoils...`
         : `Riding to Hearth Storage Counter • Depositing spoils...`;
@@ -1207,7 +1207,7 @@ class EldoriaClient {
         const style = (this.player.currentTask.skill || this.getPlayerCombatStyle()) as SkillType;
         const cSkill = this.player.skills[style] || { level: 1, xp: 0 };
         const { percent } = getXpToNextLevel(cSkill.level, cSkill.xp);
-        taskNameEl.textContent = `Combat (${style.toUpperCase()}) — ${monsterDef.name} (Lv ${monsterDef.level})`;
+        taskNameEl.textContent = `Combat (${style.toUpperCase()}): ${monsterDef.name} (Lv ${monsterDef.level})`;
         taskSubEl.textContent = `${style.toUpperCase()} ${cSkill.level} (${percent.toFixed(1)}%) • Auto-retaliating in ${monsterDef.zone}`;
         progressFillEl.style.width = `${Math.max(5, percent)}%`;
         taskIconEl.innerHTML = ICONS[style] || ICONS.melee || ICONS.skills;
@@ -1237,7 +1237,7 @@ class EldoriaClient {
         statusTagEl.className = 'status-tag';
       }
     } else {
-      taskNameEl.textContent = 'Idle — Choose a trade';
+      taskNameEl.textContent = 'Idle: Choose a trade';
       taskSubEl.textContent = 'Select a trade from the skills menu or click the map';
       progressFillEl.style.width = '0%';
       taskIconEl.innerHTML = ICONS.skills;
@@ -2790,8 +2790,8 @@ class EldoriaClient {
         <span class="item-qty">${qtyFormatted}</span>
       `;
       div.title = isNearHearth 
-        ? `${def?.name || slot.itemId} (x${slot.quantity.toLocaleString()}) — Click to withdraw into satchel` 
-        : `${def?.name || slot.itemId} (x${slot.quantity.toLocaleString()}) — Travel to Hearth to withdraw`;
+        ? `${def?.name || slot.itemId} (x${slot.quantity.toLocaleString()}). Click to withdraw into satchel` 
+        : `${def?.name || slot.itemId} (x${slot.quantity.toLocaleString()}). Travel to Hearth to withdraw`;
       this.attachItemTooltip(div, slot);
       div.onclick = () => {
         if (!isNearHearth) {
@@ -3012,7 +3012,7 @@ class EldoriaClient {
           ${iconSvg}
           <span class="dv-slot-qty">${qtyFormatted}</span>
         `;
-        div.title = `${def?.name || slot.itemId} (x${slot.quantity.toLocaleString()}) — Click to withdraw ${this.selectedTransferAmount === 'all' ? 'all' : this.selectedTransferAmount}`;
+        div.title = `${def?.name || slot.itemId} (x${slot.quantity.toLocaleString()}). Click to withdraw ${this.selectedTransferAmount === 'all' ? 'all' : this.selectedTransferAmount}`;
         this.attachItemTooltip(div, slot);
 
         div.onclick = () => {
@@ -3071,7 +3071,7 @@ class EldoriaClient {
             ${iconSvg}
             <span class="dv-slot-qty">${qtyFormatted}</span>
           `;
-          div.title = `${def?.name || slot.itemId} (x${slot.quantity.toLocaleString()}) — Click to deposit ${this.selectedTransferAmount === 'all' ? 'all' : this.selectedTransferAmount}`;
+          div.title = `${def?.name || slot.itemId} (x${slot.quantity.toLocaleString()}). Click to deposit ${this.selectedTransferAmount === 'all' ? 'all' : this.selectedTransferAmount}`;
           this.attachItemTooltip(div, slot);
 
           const index = i;
@@ -3122,7 +3122,7 @@ class EldoriaClient {
           ${iconSvg}
           <span class="dv-slot-qty">${qtyFormatted}</span>
         `;
-        div.title = `${def?.name || slot.itemId} (x${slot.quantity}) — Click to sell for ${totalPrice.toLocaleString()} Gold (${pricePerUnit} each)`;
+        div.title = `${def?.name || slot.itemId} (x${slot.quantity}). Click to sell for ${totalPrice.toLocaleString()} Gold (${pricePerUnit} each)`;
         this.attachItemTooltip(div, slot);
 
         const index = i;
@@ -4310,7 +4310,13 @@ class EldoriaClient {
       }
 
       if (flavorEl) {
-        flavorEl.textContent = def.category === 'cooked_food' ? 'Nourishing provision. Click to consume and restore vitality.' : '';
+        if (def.description) {
+          flavorEl.textContent = def.description;
+        } else if (def.category === 'cooked_food') {
+          flavorEl.textContent = 'Cooked food. Restores health when eaten.';
+        } else {
+          flavorEl.textContent = '';
+        }
       }
 
       tooltip.classList.remove('hidden');
@@ -4923,7 +4929,7 @@ class EldoriaClient {
     // 2. Resume 60 FPS canvas rendering
     this.renderer.resumeRendering();
 
-    // 3. Reconnect WebSocket — server will calculate simulateOfflineCatchUp and send INIT with catchUp!
+    // 3. Reconnect WebSocket: server will calculate simulateOfflineCatchUp and send INIT with catchUp!
     this.connectWs();
   }
 
