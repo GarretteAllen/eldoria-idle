@@ -1624,12 +1624,16 @@ class EldoriaClient {
     if (drawer !== 'editor') {
       this.renderer.editorMode = 'none';
       this.renderer.showCollisions = false;
+      this.renderer.selectedNodeId = null;
+      this.renderer.onEditorNodeClick = undefined;
       const chk = document.getElementById('chk-show-collisions') as HTMLInputElement | null;
       if (chk) chk.checked = false;
       const btnPaint = document.getElementById('btn-brush-paint');
       const btnErase = document.getElementById('btn-brush-erase');
       if (btnPaint) btnPaint.classList.remove('active');
       if (btnErase) btnErase.classList.remove('active');
+    } else {
+      this.renderer.onEditorNodeClick = (node) => this.selectNodeForEditing(node);
     }
 
     if (this.player) {
@@ -5814,6 +5818,13 @@ class EldoriaClient {
           xIn.value = tx.toString();
           yIn.value = ty.toString();
         }
+        if (this.renderer.selectedNodeId) {
+          const editedNode = this.worldNodes.find(n => n.id === this.renderer.selectedNodeId);
+          if (editedNode) {
+            editedNode.x = tx;
+            editedNode.y = ty;
+          }
+        }
         this.showToast(`Node coordinates set: (${tx}, ${ty})`);
       } else if (this.activeEditorTab === 'monsters') {
         const xIn = document.getElementById('monster-zone-form-x') as HTMLInputElement | null;
@@ -6023,6 +6034,7 @@ class EldoriaClient {
     if (btnAddNode && nodeForm) {
       btnAddNode.onclick = () => {
         nodeForm.classList.remove('hidden');
+        this.renderer.selectedNodeId = null;
         (document.getElementById('node-form-id') as HTMLInputElement).value = '';
         (document.getElementById('node-form-name') as HTMLInputElement).value = '';
         const curType = (document.getElementById('node-form-type') as HTMLSelectElement).value || 'mine';
@@ -6036,7 +6048,9 @@ class EldoriaClient {
     if (btnCancelNode && nodeForm) {
       btnCancelNode.onclick = () => {
         nodeForm.classList.add('hidden');
+        this.renderer.selectedNodeId = null;
         this.renderer.editorMode = 'none';
+        this.renderEditorNodes();
       };
     }
     if (btnPickNode) {
@@ -6079,6 +6093,9 @@ class EldoriaClient {
           node: { id, name, type, recipeId, x, y, targetX, targetY, targetLevelId, targetLabel },
         });
         nodeForm.classList.add('hidden');
+        this.renderer.selectedNodeId = null;
+        this.showToast(`Saved node "${name}" (${x}, ${y})`);
+        this.renderEditorNodes();
       };
     }
 
@@ -6362,6 +6379,53 @@ class EldoriaClient {
     }
   }
 
+  public selectNodeForEditing(n: WorldNodeDisplay) {
+    this.renderer.selectedNodeId = n.id;
+
+    // Ensure the editor drawer is open and the nodes tab is active
+    if (this.activeDrawer !== 'editor') {
+      this.switchDrawer('editor');
+    }
+    this.switchEditorTab('nodes');
+
+    const form = document.getElementById('editor-node-form');
+    if (form) form.classList.remove('hidden');
+
+    const idInput = document.getElementById('node-form-id') as HTMLInputElement | null;
+    const nameInput = document.getElementById('node-form-name') as HTMLInputElement | null;
+    const typeInput = document.getElementById('node-form-type') as HTMLSelectElement | null;
+    const xInput = document.getElementById('node-form-x') as HTMLInputElement | null;
+    const yInput = document.getElementById('node-form-y') as HTMLInputElement | null;
+
+    if (idInput) idInput.value = n.id;
+    if (nameInput) nameInput.value = n.name;
+    if (typeInput) typeInput.value = n.type;
+    this.updateNodeRecipesForType(n.type, n.recipeId);
+    if (xInput) xInput.value = n.x.toString();
+    if (yInput) yInput.value = n.y.toString();
+
+    const txIn = document.getElementById('node-form-target-x') as HTMLInputElement | null;
+    const tyIn = document.getElementById('node-form-target-y') as HTMLInputElement | null;
+    const tlvlIn = document.getElementById('node-form-target-level') as HTMLSelectElement | null;
+    const tlblIn = document.getElementById('node-form-target-label') as HTMLInputElement | null;
+
+    if (txIn) txIn.value = n.targetX !== undefined ? n.targetX.toString() : '';
+    if (tyIn) tyIn.value = n.targetY !== undefined ? n.targetY.toString() : '';
+    if (tlvlIn) tlvlIn.value = n.targetLevelId || '';
+    if (tlblIn) tlblIn.value = n.targetLabel || '';
+
+    this.showToast(`Selected "${n.name}" for editing`);
+    this.renderEditorNodes();
+
+    // Scroll the selected card into view in the nodes list
+    setTimeout(() => {
+      const activeCard = document.querySelector(`.editor-entity-card[data-node-id="${n.id}"]`);
+      if (activeCard) {
+        activeCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    }, 50);
+  }
+
   private renderEditorNodes() {
     const container = document.getElementById('editor-nodes-list');
     if (!container) return;
@@ -6431,8 +6495,9 @@ class EldoriaClient {
       );
     }
 
-    // Sort by distance to player (closest first)
-    if (this.player) {
+    // Sort by distance to player (closest first) - freeze re-sorting if a node is actively being edited so list doesn't shift
+    const isEditingNode = Boolean(this.renderer.selectedNodeId);
+    if (this.player && !isEditingNode) {
       const px = this.player.x;
       const py = this.player.y;
       filtered.sort((a, b) => {
@@ -6448,8 +6513,14 @@ class EldoriaClient {
     }
 
     for (const n of filtered) {
+      const isSelected = this.renderer.selectedNodeId === n.id;
       const card = document.createElement('div');
-      card.className = 'editor-entity-card';
+      card.className = `editor-entity-card${isSelected ? ' active-selected-node' : ''}`;
+      card.setAttribute('data-node-id', n.id);
+      if (isSelected) {
+        card.style.borderColor = '#ffd700';
+        card.style.boxShadow = '0 0 8px rgba(255, 215, 0, 0.4)';
+      }
       const dist = this.player ? Math.hypot(n.x - this.player.x, n.y - this.player.y) : null;
       const distText = dist !== null ? `<span class="editor-dist-tag">${dist.toFixed(1)}t</span>` : '';
       const recipeLabel = n.recipeId && RECIPES[n.recipeId] ? ` · ${RECIPES[n.recipeId].name}` : (n.recipeId ? ` · ${n.recipeId}` : '');
@@ -6459,7 +6530,7 @@ class EldoriaClient {
         : '';
 
       card.innerHTML = `
-        <div class="editor-entity-info">
+        <div class="editor-entity-info" style="cursor: pointer;">
           <div class="editor-entity-title">
             <span class="editor-entity-badge-icon badge-${n.type}">${n.type}</span>${n.name}${distText}
           </div>
@@ -6467,12 +6538,18 @@ class EldoriaClient {
         </div>
         <div class="editor-entity-actions">
           <button class="btn-micro-tp" title="Teleport to node (${n.x}, ${n.y})">TP</button>
-          <button class="btn-micro-edit" data-id="${n.id}">Edit</button>
+          <button class="btn-micro-edit" data-id="${n.id}">${isSelected ? 'Editing' : 'Edit'}</button>
           <button class="btn-micro-del" data-id="${n.id}">Del</button>
         </div>
       `;
 
-      card.querySelector('.btn-micro-tp')!.addEventListener('click', () => {
+      // Clicking the card body also selects the node for editing
+      card.querySelector('.editor-entity-info')!.addEventListener('click', () => {
+        this.selectNodeForEditing(n);
+      });
+
+      card.querySelector('.btn-micro-tp')!.addEventListener('click', (e) => {
+        e.stopPropagation();
         this.sendWs({
           type: 'ADMIN_TELEPORT',
           x: n.x,
@@ -6481,30 +6558,20 @@ class EldoriaClient {
         this.showToast(`Teleported to ${n.name} (${n.x}, ${n.y})`);
       });
 
-      card.querySelector('.btn-micro-edit')!.addEventListener('click', () => {
-        const form = document.getElementById('editor-node-form')!;
-        form.classList.remove('hidden');
-        (document.getElementById('node-form-id') as HTMLInputElement).value = n.id;
-        (document.getElementById('node-form-name') as HTMLInputElement).value = n.name;
-        (document.getElementById('node-form-type') as HTMLSelectElement).value = n.type;
-        this.updateNodeRecipesForType(n.type, n.recipeId);
-        (document.getElementById('node-form-x') as HTMLInputElement).value = n.x.toString();
-        (document.getElementById('node-form-y') as HTMLInputElement).value = n.y.toString();
-
-        const txIn = document.getElementById('node-form-target-x') as HTMLInputElement | null;
-        const tyIn = document.getElementById('node-form-target-y') as HTMLInputElement | null;
-        const tlvlIn = document.getElementById('node-form-target-level') as HTMLSelectElement | null;
-        const tlblIn = document.getElementById('node-form-target-label') as HTMLInputElement | null;
-
-        if (txIn) txIn.value = n.targetX !== undefined ? n.targetX.toString() : '';
-        if (tyIn) tyIn.value = n.targetY !== undefined ? n.targetY.toString() : '';
-        if (tlvlIn) tlvlIn.value = n.targetLevelId || '';
-        if (tlblIn) tlblIn.value = n.targetLabel || '';
+      card.querySelector('.btn-micro-edit')!.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.selectNodeForEditing(n);
       });
 
-      card.querySelector('.btn-micro-del')!.addEventListener('click', () => {
+      card.querySelector('.btn-micro-del')!.addEventListener('click', (e) => {
+        e.stopPropagation();
         if (confirm(`Delete node "${n.name}"?`)) {
           this.sendWs({ type: 'ADMIN_DELETE_NODE', nodeId: n.id, id: n.id });
+          if (this.renderer.selectedNodeId === n.id) {
+            this.renderer.selectedNodeId = null;
+            const form = document.getElementById('editor-node-form');
+            if (form) form.classList.add('hidden');
+          }
         }
       });
 

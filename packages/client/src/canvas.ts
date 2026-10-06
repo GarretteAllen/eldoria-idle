@@ -48,6 +48,8 @@ export class WorldRenderer {
   // Editor states
   public editorMode: 'none' | 'place_node' | 'place_npc' | 'paint_collision' | 'erase_collision' | 'draw_zone' = 'none';
   public showCollisions = false;
+  public selectedNodeId: string | null = null;
+  public onEditorNodeClick?: (node: WorldNodeDisplay) => void;
   private hoverTileX = 0;
   private hoverTileY = 0;
   private zoneDragStart: { x: number; y: number } | null = null;
@@ -522,6 +524,31 @@ export class WorldRenderer {
       if (this.editorMode === 'place_node' || this.editorMode === 'place_npc') {
         this.onTileSelected?.(tileX, tileY);
         return;
+      }
+
+      // If Editor is open, intercept node selection directly on map
+      if (this.onEditorNodeClick) {
+        // First try exact tile match, then closest node within 1.5 tiles of click
+        let clickedEditorNode = this.nodes.find(n => n.x === tileX && n.y === tileY && n.type !== 'monster');
+        if (!clickedEditorNode) {
+          const clickWorldX = (camX + clickScreenX / this.zoom);
+          const clickWorldY = (camY + clickScreenY / this.zoom);
+          let closestDist = Infinity;
+          for (const n of this.nodes) {
+            if (n.type === 'monster') continue;
+            const nCenterX = n.x * TILE_SIZE + TILE_SIZE / 2;
+            const nCenterY = n.y * TILE_SIZE + TILE_SIZE / 2;
+            const dist = Math.hypot(clickWorldX - nCenterX, clickWorldY - nCenterY);
+            if (dist <= TILE_SIZE * 1.5 && dist < closestDist) {
+              closestDist = dist;
+              clickedEditorNode = n;
+            }
+          }
+        }
+        if (clickedEditorNode) {
+          this.onEditorNodeClick(clickedEditorNode);
+          return;
+        }
       }
 
       this.setDestinationMarker(tileX, tileY);
@@ -2081,6 +2108,35 @@ export class WorldRenderer {
       ctx.textAlign = 'center';
       ctx.fillText(text, px + TILE_SIZE / 2, badgeY + (isHearth ? 13 : 11));
       ctx.restore();
+
+      // Draw prominent glowing highlight if node is currently selected in World Editor
+      if (this.selectedNodeId === node.id) {
+        ctx.save();
+        const pulse = 0.5 + 0.5 * Math.sin(this.animTick * 0.008);
+        ctx.fillStyle = `rgba(255, 215, 0, ${0.25 + 0.15 * pulse})`;
+        ctx.fillRect(px - 2, py - 2, TILE_SIZE + 4, TILE_SIZE + 4);
+
+        ctx.strokeStyle = '#ffd700';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([4, 2]);
+        ctx.lineDashOffset = -this.animTick * 0.04;
+        ctx.strokeRect(px - 2.5, py - 2.5, TILE_SIZE + 5, TILE_SIZE + 5);
+
+        ctx.setLineDash([]);
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.9)';
+        const tagText = `[EDIT] ${node.name} (${node.x}, ${node.y})`;
+        ctx.font = 'bold 9px sans-serif';
+        const tagW = ctx.measureText(tagText).width + 10;
+        ctx.fillRect(px + TILE_SIZE / 2 - tagW / 2, py - 26, tagW, 14);
+        ctx.strokeStyle = '#ffd700';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(px + TILE_SIZE / 2 - tagW / 2, py - 26, tagW, 14);
+        ctx.fillStyle = '#ffd700';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(tagText, px + TILE_SIZE / 2, py - 19);
+        ctx.restore();
+      }
     }
   }
 

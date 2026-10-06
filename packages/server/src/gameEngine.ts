@@ -3811,19 +3811,29 @@ export class GameEngine {
       }
     } else {
       const worldNodes = this.getAllWorldNodes();
+      // 1. Exact match by recipeId near preferred coordinates (clicked node)
       let matchingNode = (preferredNodeX !== undefined && preferredNodeY !== undefined)
-        ? worldNodes.find(n => (n.recipeId === rec.id || n.type === 'mine' || n.type === 'tree' || n.type === 'water' || n.type === 'herb') && Math.hypot(n.x - preferredNodeX, n.y - preferredNodeY) <= 3.0)
+        ? worldNodes.find(n => n.recipeId === rec.id && Math.hypot(n.x - preferredNodeX, n.y - preferredNodeY) <= 3.0)
         : undefined;
+      // 2. Exact match by recipeId closest to player
       if (!matchingNode) {
-        const matches = worldNodes.filter(n => n.recipeId === rec.id ||
+        const exactMatches = worldNodes.filter(n => n.recipeId === rec.id);
+        if (exactMatches.length > 0) {
+          exactMatches.sort((a, b) => Math.hypot(player.x - a.x, player.y - a.y) - Math.hypot(player.x - b.x, player.y - b.y));
+          matchingNode = exactMatches[0];
+        }
+      }
+      // 3. Fallback: only if NO node has this recipeId, match unassigned node of matching skill type
+      if (!matchingNode) {
+        const typeMatches = worldNodes.filter(n => !n.recipeId && (
           (rec.skill === 'mining' && n.type === 'mine') ||
           (rec.skill === 'woodcutting' && n.type === 'tree') ||
           (rec.skill === 'fishing' && n.type === 'water') ||
           (rec.skill === 'herbalism' && n.type === 'herb')
-        );
-        if (matches.length > 0) {
-          matches.sort((a, b) => Math.hypot(player.x - a.x, player.y - a.y) - Math.hypot(player.x - b.x, player.y - b.y));
-          matchingNode = matches[0];
+        ));
+        if (typeMatches.length > 0) {
+          typeMatches.sort((a, b) => Math.hypot(player.x - a.x, player.y - a.y) - Math.hypot(player.x - b.x, player.y - b.y));
+          matchingNode = typeMatches[0];
         }
       }
       if (matchingNode) {
