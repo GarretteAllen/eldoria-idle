@@ -3716,9 +3716,15 @@ class EldoriaClient {
     const topLogoutBtn = document.getElementById('btn-top-logout');
     if (topLogoutBtn) {
       topLogoutBtn.onclick = () => {
-        if (confirm('Are you sure you want to log out of Eldoria?')) {
-          this.handleLogout();
-        }
+        this.showInGameConfirm({
+          title: 'Log Out',
+          message: 'Are you sure you want to log out of Eldoria?',
+          confirmText: 'Log Out',
+          cancelText: 'Cancel',
+          onConfirm: () => {
+            this.handleLogout();
+          },
+        });
       };
     }
 
@@ -4762,6 +4768,63 @@ class EldoriaClient {
     });
   }
 
+  private showInGameConfirm(options: {
+    title?: string;
+    message: string;
+    confirmText?: string;
+    cancelText?: string;
+    confirmClass?: string;
+    onConfirm: () => void;
+    onCancel?: () => void;
+  }) {
+    const modal = document.getElementById('game-confirm-modal');
+    if (!modal) {
+      if (confirm(options.message)) {
+        options.onConfirm();
+      } else if (options.onCancel) {
+        options.onCancel();
+      }
+      return;
+    }
+
+    const titleEl = document.getElementById('confirm-modal-title');
+    const msgEl = document.getElementById('confirm-modal-message');
+    const btnConfirm = document.getElementById('confirm-modal-confirm') as HTMLButtonElement | null;
+    const btnCancel = document.getElementById('confirm-modal-cancel') as HTMLButtonElement | null;
+
+    if (titleEl) titleEl.textContent = options.title || 'Confirm Action';
+    if (msgEl) msgEl.textContent = options.message;
+    if (btnConfirm) {
+      btnConfirm.textContent = options.confirmText || 'Confirm';
+      btnConfirm.className = options.confirmClass || 'btn-stop';
+    }
+    if (btnCancel) {
+      btnCancel.textContent = options.cancelText || 'Cancel';
+    }
+
+    const cleanup = () => {
+      modal.classList.add('hidden');
+      if (btnConfirm) btnConfirm.onclick = null;
+      if (btnCancel) btnCancel.onclick = null;
+    };
+
+    if (btnConfirm) {
+      btnConfirm.onclick = () => {
+        cleanup();
+        options.onConfirm();
+      };
+    }
+
+    if (btnCancel) {
+      btnCancel.onclick = () => {
+        cleanup();
+        if (options.onCancel) options.onCancel();
+      };
+    }
+
+    modal.classList.remove('hidden');
+  }
+
   private openAuthModal(defaultTab: 'login' | 'register' = 'login', allowClose = true) {
     const modal = document.getElementById('auth-modal');
     if (!modal) return;
@@ -5031,19 +5094,31 @@ class EldoriaClient {
 
     if (btnNewGuest) {
       btnNewGuest.onclick = () => {
-        if (confirm('Create a new guest character? Current guest progress will be reset.')) {
-          localStorage.removeItem('eldoria_guest_id');
-          localStorage.removeItem('eldoria_session_token');
-          window.location.reload();
-        }
+        this.showInGameConfirm({
+          title: 'New Guest Character',
+          message: 'Create a new guest character? Current guest progress will be reset.',
+          confirmText: 'Reset & New Guest',
+          cancelText: 'Cancel',
+          onConfirm: () => {
+            localStorage.removeItem('eldoria_guest_id');
+            localStorage.removeItem('eldoria_session_token');
+            window.location.reload();
+          },
+        });
       };
     }
 
     if (btnLogout) {
       btnLogout.onclick = () => {
-        if (confirm('Are you sure you want to log out of Eldoria?')) {
-          this.handleLogout();
-        }
+        this.showInGameConfirm({
+          title: 'Log Out',
+          message: 'Are you sure you want to log out of Eldoria?',
+          confirmText: 'Log Out',
+          cancelText: 'Cancel',
+          onConfirm: () => {
+            this.handleLogout();
+          },
+        });
       };
     }
   }

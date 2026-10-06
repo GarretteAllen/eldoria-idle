@@ -1429,6 +1429,21 @@
         </div>
       </div>
 
+      <!-- IN-GAME CUSTOM CONFIRMATION MODAL -->
+      <div id="game-confirm-modal" class="modal-backdrop hidden" style="z-index: 2500;">
+        <div class="modal-box dark-oak-panel" style="max-width: 380px; width: 90vw; text-align: center; padding: 18px 20px;">
+          <div style="display: flex; justify-content: center; margin-bottom: 8px;">
+            <span id="confirm-modal-icon" class="brand-crest" style="width: 24px; height: 24px;"></span>
+          </div>
+          <h4 id="confirm-modal-title" style="color: var(--gold-bright); margin-bottom: 6px; font-size: 0.95rem;">Confirm Action</h4>
+          <p id="confirm-modal-message" style="font-size: 0.78rem; color: var(--text-cream); line-height: 1.4; margin-bottom: 16px;">Are you sure?</p>
+          <div style="display: flex; gap: 8px; justify-content: center;">
+            <button type="button" id="confirm-modal-cancel" class="btn-oak" style="min-width: 90px;">Cancel</button>
+            <button type="button" id="confirm-modal-confirm" class="btn-stop" style="min-width: 90px;">Confirm</button>
+          </div>
+        </div>
+      </div>
+
       <!-- 18. FLOATING ITEM HOVER TOOLTIP -->
       <div id="item-hover-tooltip" class="item-hover-tooltip hidden">
         <div id="tooltip-header" class="tooltip-header">
