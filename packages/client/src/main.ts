@@ -2911,6 +2911,21 @@ class EldoriaClient {
       };
     }
 
+    // Mailbox Claim Buttons
+    const btnClaimBag = document.getElementById('dv-btn-claim-bag');
+    if (btnClaimBag) {
+      btnClaimBag.onclick = () => {
+        this.sendWs({ type: 'CLAIM_MARKET_MAILBOX', destination: 'inventory' });
+      };
+    }
+
+    const btnClaimVault = document.getElementById('dv-btn-claim-vault');
+    if (btnClaimVault) {
+      btnClaimVault.onclick = () => {
+        this.sendWs({ type: 'CLAIM_MARKET_MAILBOX', destination: 'storage' });
+      };
+    }
+
     // Filter input
     const filterInput = document.getElementById('dv-filter-input') as HTMLInputElement | null;
     if (filterInput) {
@@ -3209,6 +3224,26 @@ class EldoriaClient {
     const counterEl = document.getElementById('dv-slots-counter');
     if (counterEl) {
       counterEl.textContent = `Coins: ${(this.player.gold || 0).toLocaleString()} G`;
+    }
+
+    // Render Mailbox / Claim Box status bar
+    const mailboxBar = document.getElementById('dv-market-mailbox-bar');
+    const mailboxSummary = document.getElementById('dv-mailbox-summary-text');
+    const mailbox = this.player.marketMailbox || [];
+
+    if (mailboxBar && mailboxSummary) {
+      if (mailbox.length > 0) {
+        mailboxBar.classList.remove('hidden');
+        const totalItemsCount = mailbox.reduce((sum, m) => sum + m.quantity, 0);
+        const itemNames = mailbox.map(m => {
+          const def = ITEMS[m.itemId];
+          return `${m.quantity}x ${def?.name || m.itemId}`;
+        }).slice(0, 3).join(', ');
+        const moreSuffix = mailbox.length > 3 ? ` +${mailbox.length - 3} more` : '';
+        mailboxSummary.textContent = `${totalItemsCount} items waiting (${itemNames}${moreSuffix})`;
+      } else {
+        mailboxBar.classList.add('hidden');
+      }
     }
 
     const listingsContainer = document.getElementById('dv-market-listings-list');

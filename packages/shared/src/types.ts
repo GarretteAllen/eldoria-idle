@@ -291,6 +291,16 @@ export interface MarketListing {
   createdAt: number;
 }
 
+export interface MarketMailboxItem {
+  id: string;
+  itemId: string; // 'gold' or item ID
+  quantity: number;
+  rarity?: Rarity;
+  plus?: number;
+  reason: 'cancelled_listing' | 'sale_proceeds';
+  createdAt: number;
+}
+
 export interface PlayerData {
   id: string;
   username: string;
@@ -316,6 +326,7 @@ export interface PlayerData {
   storage: InventorySlot[];
   storageSlotsMax: number;
   overflowTray: InventorySlot[];
+  marketMailbox?: MarketMailboxItem[];
   equipment: Partial<Record<EquipSlot, InventorySlot>>;
   farmPlots?: Record<string, FarmPlotState>;
   currentTask: ActiveTask | null;

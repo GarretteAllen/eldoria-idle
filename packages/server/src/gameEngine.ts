@@ -30,6 +30,7 @@ import {
   GEM_PACKS,
   QueuedTask,
   MarketListing,
+  MarketMailboxItem,
 } from '@eldoria/shared';
 import { storage } from './storage.js';
 
@@ -619,6 +620,10 @@ export class GameEngine {
 
       case 'CANCEL_MARKET_LISTING':
         this.handleCancelMarketListing(session, msg.listingId);
+        break;
+
+      case 'CLAIM_MARKET_MAILBOX':
+        this.handleClaimMarketMailbox(session, msg.mailboxItemId, msg.destination);
         break;
 
       case 'SET_COMBAT_FOOD_SETTINGS':
@@ -2090,45 +2095,29 @@ export class GameEngine {
         const itemDef = storage.getItem(listing.itemId) || ITEMS[listing.itemId];
         cancelledItemName = itemDef?.name || listing.itemId;
 
-        // Try to return items to satchel first
-        const invRes = addItemToSlots(player.inventory, 28, listing.itemId, listing.quantity, listing.rarity, listing.plus, itemDef, 'inventory');
-        if (invRes.remainder > 0) {
-          // If satchel cannot fit all, try to place remainder in vault/bank
-          const maxStorage = player.storageSlotsMax || 75;
-          const bankRes = addItemToSlots(player.storage, maxStorage, listing.itemId, invRes.remainder, listing.rarity, listing.plus, itemDef, 'bank');
-          if (bankRes.remainder > 0) {
-            // Roll back inventory addition if storage is also full
-            if (invRes.added > 0) {
-              let rollBack = invRes.added;
-              for (let i = player.inventory.length - 1; i >= 0 && rollBack > 0; i--) {
-                const s = player.inventory[i];
-                if (s.itemId === listing.itemId && s.rarity === listing.rarity && (s.plus || 0) === (listing.plus || 0)) {
-                  const take = Math.min(s.quantity, rollBack);
-                  s.quantity -= take;
-                  rollBack -= take;
-                  if (s.quantity <= 0) {
-                    player.inventory.splice(i, 1);
-                  }
-                }
-              }
-            }
-            if (bankRes.added > 0) {
-              let rollBack = bankRes.added;
-              for (let i = player.storage.length - 1; i >= 0 && rollBack > 0; i--) {
-                const s = player.storage[i];
-                if (s.itemId === listing.itemId && s.rarity === listing.rarity && (s.plus || 0) === (listing.plus || 0)) {
-                  const take = Math.min(s.quantity, rollBack);
-                  s.quantity -= take;
-                  rollBack -= take;
-                  if (s.quantity <= 0) {
-                    player.storage.splice(i, 1);
-                  }
-                }
-              }
-            }
-            errMessage = 'Both your satchel and storage vault are full. Make room to cancel this listing.';
-            return;
-          }
+        // Safely send cancelled items to player's Auction Mailbox / Claim Box
+        if (!player.marketMailbox) player.marketMailbox = [];
+
+        // Check if stackable existing mailbox entry exists
+        const existingMailboxSlot = player.marketMailbox.find(m =>
+          m.itemId === listing.itemId &&
+          (m.rarity || 'plain') === (listing.rarity || 'plain') &&
+          (m.plus || 0) === (listing.plus || 0) &&
+          m.reason === 'cancelled_listing'
+        );
+
+        if (existingMailboxSlot && isItemStackable(itemDef, 'bank')) {
+          existingMailboxSlot.quantity += listing.quantity;
+        } else {
+          player.marketMailbox.push({
+            id: `mail_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+            itemId: listing.itemId,
+            quantity: listing.quantity,
+            rarity: listing.rarity,
+            plus: listing.plus,
+            reason: 'cancelled_listing',
+            createdAt: Date.now(),
+          });
         }
 
         storage.removeMarketListing(listing.id);
@@ -2151,7 +2140,7 @@ export class GameEngine {
     storage.checkpoint();
     this.send(ws, {
       type: 'NOTIFICATION',
-      message: `Cancelled listing and returned ${cancelledItemName} to your possession.`
+      message: `Cancelled listing for ${cancelledItemName}. Sent to your Hearth Mailbox.`
     });
     this.send(ws, { type: 'PLAYER_UPDATE', player });
 
@@ -2159,6 +2148,84 @@ export class GameEngine {
       type: 'MARKET_LISTINGS',
       listings: storage.getMarketListings(),
     });
+  }
+
+  private handleClaimMarketMailbox(session: ConnectedSession, mailboxItemId?: string, destination: 'inventory' | 'storage' = 'inventory') {
+    const { player, ws } = session;
+    const hearth = this.getHearthLocation(player.x, player.y);
+    const distToHearth = Math.hypot(player.x - hearth.x, player.y - hearth.y);
+    if (distToHearth > 3.5) {
+      this.send(ws, { type: 'NOTIFICATION', message: 'You must be at the Hearth to claim items from your mailbox.' });
+      return;
+    }
+
+    if (!player.marketMailbox || player.marketMailbox.length === 0) {
+      this.send(ws, { type: 'NOTIFICATION', message: 'Your mailbox is empty.' });
+      return;
+    }
+
+    let claimedCount = 0;
+    const maxStorage = player.storageSlotsMax || 75;
+    const itemsToProcess = mailboxItemId
+      ? player.marketMailbox.filter(m => m.id === mailboxItemId)
+      : [...player.marketMailbox];
+
+    if (itemsToProcess.length === 0) {
+      this.send(ws, { type: 'NOTIFICATION', message: 'Item not found in mailbox.' });
+      return;
+    }
+
+    for (const mail of itemsToProcess) {
+      if (mail.itemId === 'gold') {
+        player.gold = (player.gold || 0) + mail.quantity;
+        claimedCount += mail.quantity;
+        player.marketMailbox = player.marketMailbox.filter(m => m.id !== mail.id);
+        continue;
+      }
+
+      const itemDef = storage.getItem(mail.itemId) || ITEMS[mail.itemId];
+      const targetSlots = destination === 'storage' ? player.storage : player.inventory;
+      const targetMax = destination === 'storage' ? maxStorage : 28;
+
+      const addRes = addItemToSlots(
+        targetSlots,
+        targetMax,
+        mail.itemId,
+        mail.quantity,
+        mail.rarity || 'plain',
+        mail.plus || 0,
+        itemDef,
+        destination === 'storage' ? 'bank' : 'inventory'
+      );
+
+      if (addRes.added > 0) {
+        claimedCount += addRes.added;
+        if (addRes.added >= mail.quantity) {
+          player.marketMailbox = player.marketMailbox.filter(m => m.id !== mail.id);
+        } else {
+          mail.quantity -= addRes.added;
+        }
+      }
+    }
+
+    if (claimedCount === 0) {
+      const locName = destination === 'storage' ? 'storage vault' : 'satchel';
+      this.send(ws, {
+        type: 'NOTIFICATION',
+        message: `Your ${locName} is full! Make space before claiming.`
+      });
+      return;
+    }
+
+    storage.savePlayer(player);
+    storage.checkpoint();
+
+    const targetDesc = destination === 'storage' ? 'vault' : 'satchel';
+    this.send(ws, {
+      type: 'NOTIFICATION',
+      message: `Claimed items from your mailbox into your ${targetDesc}.`
+    });
+    this.send(ws, { type: 'PLAYER_UPDATE', player });
   }
 
   private tick() {
