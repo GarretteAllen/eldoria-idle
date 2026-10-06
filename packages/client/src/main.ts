@@ -107,8 +107,8 @@ class EldoriaClient {
   private lastToastText: string = '';
   private lastToastTime: number = 0;
 
-  // Gem Store & PayPal State
-  private currentGemStoreTab: 'queue' | 'packs' | 'redeem' = 'queue';
+  // Gem Store & Payment State
+  private currentGemStoreTab: 'queue' | 'packs' = 'queue';
   private gemPacksData: GemPackDef[] = Object.values(GEM_PACKS);
 
   // AFK Resource Saving State (15 minutes threshold)
@@ -166,11 +166,11 @@ class EldoriaClient {
     }
     const gemStoreCloseBtn = document.getElementById('gem-store-close-btn');
     if (gemStoreCloseBtn) {
+      gemStoreCloseBtn.innerHTML = ICONS.close;
       gemStoreCloseBtn.onclick = () => this.closeGemStoreModal();
     }
     document.getElementById('tab-gem-queue')?.addEventListener('click', () => this.renderGemStoreTab('queue'));
     document.getElementById('tab-gem-packs')?.addEventListener('click', () => this.renderGemStoreTab('packs'));
-    document.getElementById('tab-gem-redeem')?.addEventListener('click', () => this.renderGemStoreTab('redeem'));
     this.fetchGemPacks();
 
     // Tasks Card
@@ -6193,7 +6193,7 @@ class EldoriaClient {
     }
   }
 
-  public openGemStoreModal(tab: 'queue' | 'packs' | 'redeem' = 'queue') {
+  public openGemStoreModal(tab: 'queue' | 'packs' = 'queue') {
     const modal = document.getElementById('gem-store-modal');
     if (!modal) return;
     sound.play('ding');
@@ -6208,7 +6208,7 @@ class EldoriaClient {
     modal.classList.add('hidden');
   }
 
-  public renderGemStoreTab(tab: 'queue' | 'packs' | 'redeem') {
+  public renderGemStoreTab(tab: 'queue' | 'packs') {
     this.currentGemStoreTab = tab;
     const bodyEl = document.getElementById('gem-store-body');
     const balanceVal = document.getElementById('gem-store-balance-val');
@@ -6224,10 +6224,8 @@ class EldoriaClient {
     // Toggle tab active classes
     const tabQueue = document.getElementById('tab-gem-queue');
     const tabPacks = document.getElementById('tab-gem-packs');
-    const tabRedeem = document.getElementById('tab-gem-redeem');
     tabQueue?.classList.toggle('active', tab === 'queue');
     tabPacks?.classList.toggle('active', tab === 'packs');
-    tabRedeem?.classList.toggle('active', tab === 'redeem');
 
     if (!bodyEl || !this.player) return;
     bodyEl.innerHTML = '';
@@ -6240,15 +6238,15 @@ class EldoriaClient {
       const container = document.createElement('div');
       container.style.display = 'flex';
       container.style.flexDirection = 'column';
-      container.style.gap = '14px';
+      container.style.gap = '12px';
 
       const descBox = document.createElement('div');
       descBox.style.fontSize = '0.78rem';
       descBox.style.color = '#cbd5e0';
       descBox.style.lineHeight = '1.4';
       descBox.innerHTML = `
-        Automate your idle gameplay by chaining actions together! Current capacity: <strong style="color: #68d391;">${unlocked} / ${maxSlots} slots</strong>.
-        When an action completes or its supplies run out, your character immediately travels to and executes the next queued task.
+        Queue multiple actions in a row. Unlocked: <strong style="color: #68d391;">${unlocked} / ${maxSlots} slots</strong>.
+        When an action finishes or materials run out, your character moves straight to the next task.
       `;
       container.appendChild(descBox);
 
@@ -6285,8 +6283,8 @@ class EldoriaClient {
             <div style="display: flex; align-items: center; gap: 8px;">
               <span style="color: #38bdf8;">🔓</span>
               <div>
-                <div style="font-size: 0.82rem; font-weight: 700; color: #e2e8f0;">Slot ${s} (Next Unlock)</div>
-                <div style="font-size: 0.7rem; color: #a0aec0;">Permanent automated queue slot</div>
+                <div style="font-size: 0.82rem; font-weight: 700; color: #e2e8f0;">Slot ${s}</div>
+                <div style="font-size: 0.7rem; color: #a0aec0;">Adds a permanent action queue slot</div>
               </div>
             </div>
             <button class="btn-oak btn-unlock-slot" style="padding: 4px 12px; font-size: 0.75rem; background: ${canAfford ? '#3182ce' : '#4a5568'};">
@@ -6296,7 +6294,7 @@ class EldoriaClient {
           const btnUnlock = slotRow.querySelector('.btn-unlock-slot') as HTMLButtonElement;
           btnUnlock.onclick = () => {
             if (!canAfford) {
-              this.showToast(`Not enough gems! You need ${cost} gems.`);
+              this.showToast(`You need ${cost} gems to unlock Slot ${s}.`);
               this.renderGemStoreTab('packs');
               return;
             }
@@ -6331,7 +6329,7 @@ class EldoriaClient {
       infoBox.style.color = '#cbd5e0';
       infoBox.style.lineHeight = '1.4';
       infoBox.innerHTML = `
-        Acquire <strong>tradeable Gem Packs</strong> delivered directly to your satchel! You can open them to redeem gems or <strong>sell them to other players for gold</strong> in the player marketplace.
+        Packs are placed straight into your inventory. Open them for gems, or sell them to other players for gold in the market.
       `;
       container.appendChild(infoBox);
 
@@ -6345,86 +6343,16 @@ class EldoriaClient {
           <div style="font-size: 1.6rem; margin-bottom: 2px;">💎</div>
           <div class="gem-pack-name">${pack.name}</div>
           <div class="gem-pack-gems">${pack.gems.toLocaleString()} Gems</div>
-          <div style="font-size: 0.7rem; color: #a0aec0; margin: 4px 0 10px 0;">Tradeable Inventory Item</div>
-          <button class="btn-paypal-buy">$${pack.priceUsd.toFixed(2)} USD</button>
+          <div style="font-size: 0.7rem; color: #a0aec0; margin: 4px 0 2px 0;">Tradeable Pack</div>
+          <button class="btn-pack-buy">$${pack.priceUsd.toFixed(2)}</button>
         `;
 
-        const buyBtn = card.querySelector('.btn-paypal-buy') as HTMLButtonElement;
+        const buyBtn = card.querySelector('.btn-pack-buy') as HTMLButtonElement;
         buyBtn.onclick = () => this.handleBuyGemPack(pack);
         grid.appendChild(card);
       }
 
       container.appendChild(grid);
-      bodyEl.appendChild(container);
-
-    } else if (tab === 'redeem') {
-      const container = document.createElement('div');
-      container.style.display = 'flex';
-      container.style.flexDirection = 'column';
-      container.style.gap = '12px';
-
-      const info = document.createElement('div');
-      info.style.fontSize = '0.78rem';
-      info.style.color = '#cbd5e0';
-      info.textContent = 'Open Gem Packs in your satchel to immediately credit gems to your character.';
-      container.appendChild(info);
-
-      const packSlots: Array<{ index: number; itemId: string; quantity: number }> = [];
-      this.player.inventory.forEach((slot, index) => {
-        if (slot && slot.itemId.startsWith('gem_pack_')) {
-          packSlots.push({ index, itemId: slot.itemId, quantity: slot.quantity });
-        }
-      });
-
-      if (packSlots.length === 0) {
-        const emptyMsg = document.createElement('div');
-        emptyMsg.style.padding = '24px';
-        emptyMsg.style.textAlign = 'center';
-        emptyMsg.style.color = '#718096';
-        emptyMsg.style.fontStyle = 'italic';
-        emptyMsg.style.fontSize = '0.8rem';
-        emptyMsg.textContent = 'No unopened gem packs currently in your inventory.';
-        container.appendChild(emptyMsg);
-      } else {
-        const list = document.createElement('div');
-        list.style.display = 'flex';
-        list.style.flexDirection = 'column';
-        list.style.gap = '8px';
-
-        for (const p of packSlots) {
-          const def = ITEMS[p.itemId];
-          const row = document.createElement('div');
-          row.style.display = 'flex';
-          row.style.alignItems = 'center';
-          row.style.justifyContent = 'space-between';
-          row.style.padding = '8px 12px';
-          row.style.borderRadius = '6px';
-          row.style.background = 'rgba(0, 0, 0, 0.25)';
-          row.style.border = '1px solid rgba(255, 255, 255, 0.08)';
-
-          row.innerHTML = `
-            <div style="display: flex; align-items: center; gap: 8px;">
-              <span style="font-size: 1.2rem;">🎁</span>
-              <div>
-                <div style="font-size: 0.82rem; font-weight: 700; color: #63b3ed;">${def?.name || p.itemId} (x${p.quantity})</div>
-                <div style="font-size: 0.7rem; color: #a0aec0;">${def?.description || 'Contains tradeable gems'}</div>
-              </div>
-            </div>
-            <button class="btn-oak btn-open-pack" style="padding: 4px 10px; font-size: 0.75rem; background: #38a169;">Open Pack</button>
-          `;
-
-          const btnOpen = row.querySelector('.btn-open-pack') as HTMLButtonElement;
-          btnOpen.onclick = () => {
-            sound.play('ding');
-            this.sendWs({ type: 'REDEEM_GEM_PACK', inventoryIndex: p.index });
-            setTimeout(() => this.renderGemStoreTab('redeem'), 100);
-          };
-
-          list.appendChild(row);
-        }
-        container.appendChild(list);
-      }
-
       bodyEl.appendChild(container);
     }
   }
@@ -6432,7 +6360,7 @@ class EldoriaClient {
   private async handleBuyGemPack(pack: GemPackDef) {
     if (!this.player) return;
     try {
-      this.showToast(`Initiating checkout for ${pack.name}...`);
+      this.showToast(`Starting checkout for ${pack.name}...`);
       const createRes = await fetch('/api/paypal/create-order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -6440,7 +6368,7 @@ class EldoriaClient {
       });
       const createData = await createRes.json();
       if (!createRes.ok || !createData.orderId) {
-        this.showToast(createData.error || 'Failed to start checkout.');
+        this.showToast(createData.error || 'Could not start checkout.');
         return;
       }
 
@@ -6455,16 +6383,15 @@ class EldoriaClient {
       });
       const captureData = await captureRes.json();
       if (!captureRes.ok) {
-        this.showToast(captureData.error || 'Payment capture failed.');
+        this.showToast(captureData.error || 'Payment failed.');
         return;
       }
 
       sound.play('levelUp');
-      this.showToast(`Payment successful! ${pack.name} delivered to your satchel.`);
-      this.renderGemStoreTab('redeem');
+      this.showToast(`Thank you! Your ${pack.name} was placed in your inventory.`);
     } catch (err: any) {
-      console.error('PayPal checkout error:', err);
-      this.showToast('Checkout encountered an error.');
+      console.error('Checkout error:', err);
+      this.showToast('Something went wrong with the purchase.');
     }
   }
 }
