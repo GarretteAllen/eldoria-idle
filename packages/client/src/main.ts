@@ -4668,7 +4668,7 @@ class EldoriaClient {
     this.appendChatMessage({
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       senderName: 'System',
-      channel: 'Global',
+      channel: 'System',
       text: `LEVEL UP! You reached ${skill.toUpperCase()} Level ${newLevel}!`,
     });
 
