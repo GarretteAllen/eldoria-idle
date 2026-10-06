@@ -202,54 +202,57 @@
         </div>
       </div>
 
-      <!-- 3. TOP-LEFT TASKS & ACTION QUEUE CARD (Parchment Float) -->
-      <div id="tasks-card" class="parchment-card">
-        <div class="tasks-card-header" style="display: flex; justify-content: space-between; align-items: center;">
-          <span class="tasks-title">Active Task</span>
-          <button id="queue-slots-chip" class="queue-chip" title="Click to open Celestial Gem Store & Queue Upgrades">
-            <span id="queue-slots-count">2/2</span> Slots
-          </button>
-        </div>
-        <div class="tasks-card-body">
-          <div id="task-running-row" class="task-running-row">
-            <div class="task-leading">
-              <span id="task-icon" class="task-icon-wrap"></span>
-              <span id="task-name" class="task-name">Idle — Choose a trade</span>
-            </div>
-            <div class="task-trailing">
-              <span id="task-status-tag" class="status-tag idle">IDLE</span>
-              <button id="task-home-btn" class="icon-btn-micro" title="Walk to Hearth Storage"></button>
-              <button id="task-skip-btn" class="icon-btn-micro" title="Skip to Next in Queue" style="display:none; font-size: 0.75rem;">⏭</button>
-              <button id="task-stop-btn" class="icon-btn-micro stop" title="Stop Task"></button>
-            </div>
+      <!-- 3. TOP-LEFT HUD STACK (Tasks & Quests) -->
+      <div id="left-cards-stack" class="left-cards-stack">
+        <!-- 3a. ACTIVE TASK & ACTION QUEUE CARD -->
+        <div id="tasks-card" class="parchment-card tasks-card">
+          <div class="tasks-card-header" style="display: flex; justify-content: space-between; align-items: center;">
+            <span class="tasks-title">Active Task</span>
+            <button id="queue-slots-chip" class="queue-chip" title="Click to open Celestial Gem Store & Queue Upgrades">
+              <span id="queue-slots-count">2/2</span> Slots
+            </button>
           </div>
-          <div class="task-bar-container">
-            <div id="task-progress-fill" class="task-progress-fill"></div>
-          </div>
-          <div id="task-subtext" class="task-subtext">Click an ore, tree, or shoreline on the map</div>
+          <div class="tasks-card-body">
+            <div id="task-running-row" class="task-running-row">
+              <div class="task-leading">
+                <span id="task-icon" class="task-icon-wrap"></span>
+                <span id="task-name" class="task-name">Idle — Choose a trade</span>
+              </div>
+              <div class="task-trailing">
+                <span id="task-status-tag" class="status-tag idle">IDLE</span>
+                <button id="task-home-btn" class="icon-btn-micro" title="Walk to Hearth Storage"></button>
+                <button id="task-skip-btn" class="icon-btn-micro" title="Skip to Next in Queue" style="display:none; font-size: 0.75rem;">⏭</button>
+                <button id="task-stop-btn" class="icon-btn-micro stop" title="Stop Task"></button>
+              </div>
+            </div>
+            <div class="task-bar-container">
+              <div id="task-progress-fill" class="task-progress-fill"></div>
+            </div>
+            <div id="task-subtext" class="task-subtext">Click an ore, tree, or shoreline on the map</div>
 
-          <!-- Upcoming Task Queue List -->
-          <div id="task-queue-section" class="task-queue-section">
-            <div class="task-queue-header">
-              <span>Next in Queue</span>
-              <button id="btn-clear-queue" class="btn-micro-text" style="display:none;">Clear All</button>
+            <!-- Upcoming Task Queue List -->
+            <div id="task-queue-section" class="task-queue-section">
+              <div class="task-queue-header">
+                <span>Next in Queue</span>
+                <button id="btn-clear-queue" class="btn-micro-text" style="display:none;">Clear All</button>
+              </div>
+              <div id="task-queue-list" class="task-queue-list"></div>
             </div>
-            <div id="task-queue-list" class="task-queue-list"></div>
           </div>
         </div>
-      </div>
 
-      <!-- 3b. PINNED QUEST TRACKER CARD (Parchment Float beneath Tasks) -->
-      <div id="quest-tracker-card" class="parchment-card quest-tracker-card">
-        <div class="tasks-card-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
-          <div style="display:flex; align-items:center; gap:5px;">
-            <span id="quest-tracker-header-icon" class="svg-icon-inline icon-sm"></span>
-            <span style="font-size:0.82rem; font-weight:800; color:var(--parchment-text);">Bounties & Quests</span>
+        <!-- 3b. PINNED QUEST TRACKER CARD -->
+        <div id="quest-tracker-card" class="parchment-card quest-tracker-card">
+          <div class="tasks-card-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+            <div style="display:flex; align-items:center; gap:5px;">
+              <span id="quest-tracker-header-icon" class="svg-icon-inline icon-sm"></span>
+              <span style="font-size:0.82rem; font-weight:800; color:var(--parchment-text);">Bounties & Quests</span>
+            </div>
+            <button id="quest-tracker-toggle-btn" class="icon-btn-micro" title="Collapse/Expand Quests"></button>
           </div>
-          <button id="quest-tracker-toggle-btn" class="icon-btn-micro" title="Collapse/Expand Quests"></button>
-        </div>
-        <div id="quest-tracker-content">
-          <div id="quest-tracker-list" class="quest-tracker-list"></div>
+          <div id="quest-tracker-content">
+            <div id="quest-tracker-list" class="quest-tracker-list"></div>
+          </div>
         </div>
       </div>
 

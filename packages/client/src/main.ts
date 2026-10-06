@@ -1303,23 +1303,34 @@ class EldoriaClient {
         } else if (i < unlockedSlots) {
           // Empty unlocked slot
           const itemEl = document.createElement('div');
-          itemEl.className = 'task-queue-item';
-          itemEl.style.opacity = '0.6';
+          itemEl.className = 'task-queue-item task-queue-item-empty';
           itemEl.innerHTML = `
             <div class="task-queue-item-left">
               <span class="task-queue-slot-num">${slotNum}.</span>
-              <span style="font-style: italic; font-size: 0.72rem; color: #a0aec0;">Empty queue slot</span>
+              <span class="task-queue-empty-label">Empty Slot</span>
             </div>
+            <span class="task-queue-ready-tag">Ready</span>
           `;
           queueListEl.appendChild(itemEl);
         } else {
           // Locked slot
           const cost = QUEUE_SLOT_CONFIG.COSTS[slotNum] || 500;
+          const isNextToUnlock = slotNum === unlockedSlots + 1;
           const itemEl = document.createElement('div');
           itemEl.className = 'task-queue-slot-locked';
+          if (isNextToUnlock) itemEl.classList.add('next-unlock');
+          
           itemEl.innerHTML = `
-            <span>${ICONS.lock || '🔒'} Slot ${slotNum} Locked</span>
-            <button class="btn-queue-slot-unlock">Unlock (${cost} 💎)</button>
+            <div class="task-queue-item-left">
+              <span class="task-queue-slot-num" style="color: #718096;">${slotNum}.</span>
+              <span class="task-queue-locked-label">
+                <span class="svg-icon-inline icon-sm">${ICONS.lock}</span>
+                <span>Slot ${slotNum} Locked</span>
+              </span>
+            </div>
+            <button class="btn-queue-slot-unlock" title="Unlock Slot ${slotNum}">
+              Unlock (${cost} 💎)
+            </button>
           `;
           itemEl.querySelector('.btn-queue-slot-unlock')!.addEventListener('click', (e) => {
             e.stopPropagation();
