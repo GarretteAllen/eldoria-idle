@@ -1440,6 +1440,38 @@
         <div id="tooltip-flavor" class="tooltip-flavor"></div>
       </div>
 
+      <!-- 19. FLOATING SKILL HOVER TOOLTIP -->
+      <div id="skill-hover-tooltip" class="skill-hover-tooltip hidden">
+        <div class="skill-tooltip-header">
+          <div class="skill-tooltip-title-wrap">
+            <span id="skill-tooltip-icon" class="skill-tooltip-icon"></span>
+            <span id="skill-tooltip-name" class="skill-tooltip-name">Skill</span>
+          </div>
+          <span id="skill-tooltip-level" class="skill-tooltip-level">Lv 1</span>
+        </div>
+        <div class="skill-tooltip-stats">
+          <div class="skill-tooltip-row">
+            <span class="skill-tooltip-label">Current XP:</span>
+            <span id="skill-tooltip-current-xp" class="skill-tooltip-value">0</span>
+          </div>
+          <div class="skill-tooltip-row">
+            <span class="skill-tooltip-label">Next Level:</span>
+            <span id="skill-tooltip-next-xp" class="skill-tooltip-value">83</span>
+          </div>
+          <div class="skill-tooltip-row">
+            <span class="skill-tooltip-label">Remaining:</span>
+            <span id="skill-tooltip-remaining-xp" class="skill-tooltip-value">83</span>
+          </div>
+          <div class="skill-tooltip-row">
+            <span class="skill-tooltip-label">Progress:</span>
+            <span id="skill-tooltip-progress-text" class="skill-tooltip-value">0 / 83 (0.0%)</span>
+          </div>
+        </div>
+        <div class="skill-tooltip-groove">
+          <div id="skill-tooltip-fill" class="skill-tooltip-fill" style="width: 0%;"></div>
+        </div>
+      </div>
+
     </div>
 
     <script type="module" src="/src/main.ts"></script>

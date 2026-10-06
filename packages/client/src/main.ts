@@ -6,6 +6,7 @@ import {
   EquipSlot,
   SkillType,
   getXpToNextLevel,
+  getXpForLevel,
   NpcDefinition,
   QuestDefinition,
   ItemDefinition,
@@ -86,6 +87,7 @@ class EldoriaClient {
   // Interaction State
   private pendingNpcTarget: NpcDefinition | null = null;
   private pendingMonsterTarget: WorldNodeDisplay | null = null;
+  private pendingMonsterQuantity?: number;
   private pendingHearthTarget: WorldNodeDisplay | null = null;
   private pendingDoorTarget: WorldNodeDisplay | null = null;
   private pendingStationTarget: { type: 'fire' | 'forge' | 'farm' | 'workbench' | 'cauldron' | 'monolith'; node: WorldNodeDisplay } | null = null;
@@ -765,13 +767,16 @@ class EldoriaClient {
           const dist = Math.hypot(this.player.x - this.pendingMonsterTarget.x, this.player.y - this.pendingMonsterTarget.y);
           if (dist <= maxRange) {
             const target = this.pendingMonsterTarget;
+            const qty = this.pendingMonsterQuantity;
             this.pendingMonsterTarget = null;
+            this.pendingMonsterQuantity = undefined;
             this.sendWs({
               type: 'START_COMBAT',
               nodeId: target.id,
               monsterId: target.monsterId || 'mire_rat',
               targetX: target.x,
               targetY: target.y,
+              quantity: (typeof qty === 'number' && qty > 0 && qty !== Infinity) ? qty : undefined,
             });
             this.showToast(`Attacking ${target.name}!`);
           }
@@ -1601,6 +1606,8 @@ class EldoriaClient {
         }
       });
 
+      this.attachSkillTooltip(card, skillKey);
+
       container.appendChild(card);
     }
   }
@@ -1991,7 +1998,7 @@ class EldoriaClient {
 
     // Footer adjustments for combat
     const howManyRow = document.querySelector('.how-many-row') as HTMLElement | null;
-    if (howManyRow) howManyRow.style.display = 'none';
+    if (howManyRow) howManyRow.style.display = 'flex';
 
     const btnStart = document.getElementById('btn-job-start') as HTMLElement | null;
     if (btnStart) btnStart.style.display = 'none';
@@ -2002,9 +2009,13 @@ class EldoriaClient {
       btnStop.textContent = 'Flee Combat';
     }
 
-    const popupNote = document.querySelector('.popup-note') as HTMLElement | null;
+    const popupNote = document.getElementById('popup-job-note');
     if (popupNote) {
-      popupNote.textContent = 'Select any enemy to travel to their territory and fight continuously.';
+      if (this.selectedJobQuantity === Infinity) {
+        popupNote.textContent = 'Continuous idle (∞): automatically hunts in territory and auto-banks spoils at the Hearth.';
+      } else {
+        popupNote.textContent = `Will slay exactly ${this.selectedJobQuantity} foe${this.selectedJobQuantity === 1 ? '' : 's'} (auto-banking if full), then stop.`;
+      }
     }
 
     // Foes list
@@ -2029,6 +2040,10 @@ class EldoriaClient {
         dropsSummary += ` · Rare: ${ITEMS[mob.rareDrop.itemId].name}`;
       }
 
+      const fightLabel = isTargeted
+        ? 'Engaged'
+        : (this.selectedJobQuantity === Infinity ? 'Fight (∞)' : `Fight (${this.selectedJobQuantity})`);
+
       itemEl.innerHTML = `
         <div class="job-item-icon-box" style="background: #1c0e08; border-color: ${isTargeted ? '#e53e3e' : '#844c27'}; color: #feb2b2;">
           ${ICONS.sword}
@@ -2048,7 +2063,7 @@ class EldoriaClient {
         </div>
         <div class="job-item-side" style="display: flex; flex-direction: column; align-items: flex-end; justify-content: center; gap: 4px;">
           <button class="btn-start btn-fight-foe" type="button" style="padding: 4px 10px; font-size: 0.74rem; white-space: nowrap; ${isTargeted ? 'background: #9b2c2c;' : ''}">
-            ${isTargeted ? 'Engaged' : 'Fight'}
+            ${fightLabel}
           </button>
           <button class="btn-queue btn-queue-foe" type="button" style="padding: 2px 8px; font-size: 0.68rem; white-space: nowrap;">
             Queue
@@ -2071,15 +2086,26 @@ class EldoriaClient {
         this.closeSkillJobPopup();
       });
 
+      itemEl.querySelector('.btn-fight-foe')?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const qty = (typeof this.selectedJobQuantity === 'number' && this.selectedJobQuantity > 0 && this.selectedJobQuantity !== Infinity)
+          ? this.selectedJobQuantity
+          : undefined;
+        this.huntMonster(mob.id, qty);
+      });
+
       itemEl.addEventListener('click', () => {
-        this.huntMonster(mob.id);
+        const qty = (typeof this.selectedJobQuantity === 'number' && this.selectedJobQuantity > 0 && this.selectedJobQuantity !== Infinity)
+          ? this.selectedJobQuantity
+          : undefined;
+        this.huntMonster(mob.id, qty);
       });
 
       jobsContainer.appendChild(itemEl);
     }
   }
 
-  private huntMonster(monsterId: string) {
+  private huntMonster(monsterId: string, quantity?: number) {
     const mobDef = MONSTERS[monsterId];
     if (!mobDef) return;
 
@@ -2100,16 +2126,20 @@ class EldoriaClient {
 
     if (dist <= maxRange) {
       this.pendingMonsterTarget = null;
+      this.pendingMonsterQuantity = undefined;
       this.sendWs({
         type: 'START_COMBAT',
         nodeId: targetNode.id,
         monsterId: targetNode.monsterId || monsterId,
         targetX: targetNode.x,
         targetY: targetNode.y,
+        quantity: (typeof quantity === 'number' && quantity > 0 && quantity !== Infinity) ? quantity : undefined,
       });
-      this.showToast(`Engaging ${targetNode.name} in ${mobDef.zone}!`);
+      const qtyMsg = (typeof quantity === 'number' && quantity > 0 && quantity !== Infinity) ? ` (${quantity}x)` : '';
+      this.showToast(`Engaging ${targetNode.name}${qtyMsg} in ${mobDef.zone}!`);
     } else {
       this.pendingMonsterTarget = targetNode;
+      this.pendingMonsterQuantity = (typeof quantity === 'number' && quantity > 0 && quantity !== Infinity) ? quantity : undefined;
       const targetTile = this.getAdjacentWalkableTile(targetNode.x, targetNode.y);
       this.sendWs({ type: 'MOVE_TO', x: targetTile.x, y: targetTile.y });
       this.showToast(`Traveling to ${mobDef.zone} to hunt ${targetNode.name}...`);
@@ -2160,13 +2190,31 @@ class EldoriaClient {
     if (btnStart) {
       btnStart.textContent = this.selectedJobQuantity === Infinity ? 'Start (∞)' : `Start (${this.selectedJobQuantity})`;
     }
+    const isCombat = this.selectedSkillKey && COMBAT_SKILLS.includes(this.selectedSkillKey);
     const popupNote = document.getElementById('popup-job-note');
     if (popupNote) {
-      if (this.selectedJobQuantity === Infinity) {
-        popupNote.textContent = 'Continuous idle (∞): automatically banks spoils at the Hearth and resumes non-stop.';
+      if (isCombat) {
+        if (this.selectedJobQuantity === Infinity) {
+          popupNote.textContent = 'Continuous idle (∞): automatically hunts in territory and auto-banks spoils at the Hearth.';
+        } else {
+          popupNote.textContent = `Will slay exactly ${this.selectedJobQuantity} foe${this.selectedJobQuantity === 1 ? '' : 's'} (auto-banking if full), then stop.`;
+        }
       } else {
-        popupNote.textContent = `Will craft/gather exactly ${this.selectedJobQuantity} time${this.selectedJobQuantity === 1 ? '' : 's'} (auto-banking if full), then stop.`;
+        if (this.selectedJobQuantity === Infinity) {
+          popupNote.textContent = 'Continuous idle (∞): automatically banks spoils at the Hearth and resumes non-stop.';
+        } else {
+          popupNote.textContent = `Will craft/gather exactly ${this.selectedJobQuantity} time${this.selectedJobQuantity === 1 ? '' : 's'} (auto-banking if full), then stop.`;
+        }
       }
+    }
+    if (isCombat) {
+      // Refresh combat buttons label if currently showing combat directory
+      const fightBtns = document.querySelectorAll('.btn-fight-foe');
+      fightBtns.forEach(btn => {
+        if (btn.textContent?.trim() !== 'Engaged') {
+          btn.textContent = this.selectedJobQuantity === Infinity ? 'Fight (∞)' : `Fight (${this.selectedJobQuantity})`;
+        }
+      });
     }
   }
 
@@ -4530,6 +4578,63 @@ class EldoriaClient {
     window.addEventListener('blur', () => {
       const tooltip = document.getElementById('item-hover-tooltip');
       if (tooltip) tooltip.classList.add('hidden');
+      const skillTooltip = document.getElementById('skill-hover-tooltip');
+      if (skillTooltip) skillTooltip.classList.add('hidden');
+    });
+  }
+
+  private attachSkillTooltip(el: HTMLElement, skillKey: SkillType) {
+    const tooltip = document.getElementById('skill-hover-tooltip');
+    if (!tooltip) return;
+
+    el.addEventListener('mouseenter', (e: MouseEvent) => {
+      if (!this.player) return;
+      const record = this.player.skills[skillKey] || { level: 1, xp: 0 };
+      const currentXp = Math.floor(record.xp || 0);
+      const level = record.level || 1;
+      const currentLvlXp = getXpForLevel(level);
+      const nextLvlXp = getXpForLevel(level + 1);
+      const needed = Math.max(1, nextLvlXp - currentLvlXp);
+      const progress = Math.max(0, currentXp - currentLvlXp);
+      const remaining = Math.max(0, nextLvlXp - currentXp);
+      const percent = Math.min(100, (progress / needed) * 100);
+
+      const iconEl = document.getElementById('skill-tooltip-icon');
+      const nameEl = document.getElementById('skill-tooltip-name');
+      const lvlEl = document.getElementById('skill-tooltip-level');
+      const curXpEl = document.getElementById('skill-tooltip-current-xp');
+      const nextXpEl = document.getElementById('skill-tooltip-next-xp');
+      const remXpEl = document.getElementById('skill-tooltip-remaining-xp');
+      const progEl = document.getElementById('skill-tooltip-progress-text');
+      const fillEl = document.getElementById('skill-tooltip-fill');
+
+      const cleanName = skillKey.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
+
+      if (iconEl) iconEl.innerHTML = ICONS[skillKey] || ICONS.skills;
+      if (nameEl) nameEl.textContent = cleanName;
+      if (lvlEl) lvlEl.textContent = `Lv ${level}`;
+      if (curXpEl) curXpEl.textContent = `${currentXp.toLocaleString()} XP`;
+      if (nextXpEl) nextXpEl.textContent = `${nextLvlXp.toLocaleString()} XP`;
+      if (remXpEl) remXpEl.textContent = `${remaining.toLocaleString()} XP`;
+      if (progEl) progEl.textContent = `${progress.toLocaleString()} / ${needed.toLocaleString()} (${percent.toFixed(1)}%)`;
+      if (fillEl) fillEl.style.width = `${percent.toFixed(1)}%`;
+
+      tooltip.classList.remove('hidden');
+      const tx = Math.min(window.innerWidth - 240, e.clientX + 14);
+      const ty = Math.min(window.innerHeight - 170, e.clientY + 14);
+      tooltip.style.left = `${tx}px`;
+      tooltip.style.top = `${ty}px`;
+    });
+
+    el.addEventListener('mousemove', (e: MouseEvent) => {
+      const tx = Math.min(window.innerWidth - 240, e.clientX + 14);
+      const ty = Math.min(window.innerHeight - 170, e.clientY + 14);
+      tooltip.style.left = `${tx}px`;
+      tooltip.style.top = `${ty}px`;
+    });
+
+    el.addEventListener('mouseleave', () => {
+      tooltip.classList.add('hidden');
     });
   }
 

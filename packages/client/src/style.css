@@ -3818,6 +3818,113 @@ body, html {
 }
 
 /* ========================================================
+   17. FLOATING SKILL HOVER TOOLTIP
+   ======================================================== */
+.skill-hover-tooltip {
+  position: fixed;
+  z-index: 2000;
+  pointer-events: none;
+  background: rgba(18, 11, 6, 0.96);
+  border: 1.5px solid #84613b;
+  border-radius: 6px;
+  padding: 9px 12px;
+  width: 220px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.9);
+  backdrop-filter: blur(4px);
+  color: #f7fafc;
+  font-family: inherit;
+  font-size: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  transition: opacity 0.08s ease-out;
+}
+
+.skill-tooltip-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #432e1c;
+  padding-bottom: 5px;
+}
+
+.skill-tooltip-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.skill-tooltip-icon {
+  display: inline-flex;
+  align-items: center;
+  color: #f6ad55;
+}
+
+.skill-tooltip-icon svg,
+.skill-tooltip-icon .lucide-icon {
+  width: 15px;
+  height: 15px;
+}
+
+.skill-tooltip-name {
+  font-weight: 800;
+  font-size: 0.82rem;
+  color: #ffd700;
+  letter-spacing: 0.3px;
+}
+
+.skill-tooltip-level {
+  font-weight: 700;
+  font-size: 0.75rem;
+  color: #68d391;
+  background: rgba(34, 84, 61, 0.4);
+  padding: 1px 6px;
+  border-radius: 4px;
+  border: 1px solid #276749;
+}
+
+.skill-tooltip-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 2px 0;
+}
+
+.skill-tooltip-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.72rem;
+}
+
+.skill-tooltip-label {
+  color: #a0aec0;
+}
+
+.skill-tooltip-value {
+  color: #f7fafc;
+  font-family: 'Courier New', Courier, monospace;
+  font-weight: 600;
+}
+
+.skill-tooltip-groove {
+  height: 6px;
+  background: #100b07;
+  border: 1px solid #3d2616;
+  border-radius: 3px;
+  overflow: hidden;
+  margin-top: 2px;
+}
+
+.skill-tooltip-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #dd6b20 0%, #ecc94b 100%);
+  border-radius: 2px;
+  transition: width 0.2s ease;
+}
+
+
+/* ========================================================
    18. PINNED QUEST TRACKER CARD & WORLD MAP
    ======================================================== */
 .quest-tracker-card {

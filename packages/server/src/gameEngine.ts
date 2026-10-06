@@ -54,7 +54,7 @@ interface ConnectedSession {
   moveAccumulator: number;
   pendingTask: { recipeId: string; targetX: number; targetY: number; quantity?: number; nodeX?: number; nodeY?: number } | null;
   pendingDeposit?: { itemId: string; rarity?: string; plus?: number; quantity?: number } | null;
-  pendingCombat?: { monsterId: string; targetX: number; targetY: number; nodeId?: string; zoneId?: string } | null;
+  pendingCombat?: { monsterId: string; targetX: number; targetY: number; nodeId?: string; zoneId?: string; quantity?: number } | null;
   activeCombat?: {
     monsterId: string;
     targetX: number;
@@ -2408,6 +2408,7 @@ export class GameEngine {
               targetX: targetMob.x,
               targetY: targetMob.y,
               nodeId: targetMob.id,
+              quantity: player.currentTask.targetQuantity,
             });
           }
         }
@@ -2498,7 +2499,7 @@ export class GameEngine {
             // Arrived adjacent to target monster!
             const pending = session.pendingCombat;
             session.pendingCombat = null;
-            this.startCombatSession(session, pending.monsterId, pending.targetX, pending.targetY, pending.nodeId, pending.zoneId);
+            this.startCombatSession(session, pending.monsterId, pending.targetX, pending.targetY, pending.nodeId, pending.zoneId, pending.quantity);
           } else if (session.pendingTask || player.pendingTask) {
             // Arrived at target work node
             const pending = session.pendingTask || player.pendingTask;
@@ -4296,6 +4297,7 @@ export class GameEngine {
     session.pendingTask = null;
 
     const maxRange = this.getCombatMaxRange(player);
+    const quota = (typeof msg.quantity === 'number' && msg.quantity > 0 && msg.quantity !== Infinity) ? msg.quantity : undefined;
     if (dist > maxRange) {
       // Find closest walkable tile within range (stop 1 tile before enemy for melee, or at range for bow/staff)
       const adj = this.getAdjacentWalkableTile(player.x, player.y, actualTargetX, actualTargetY);
@@ -4304,14 +4306,14 @@ export class GameEngine {
       player.targetY = adj.y;
       player.path = path;
       player.isMoving = path.length > 0;
-      session.pendingCombat = { monsterId, targetX: actualTargetX, targetY: actualTargetY, nodeId: effectiveNodeId, zoneId: effectiveZoneId };
+      session.pendingCombat = { monsterId, targetX: actualTargetX, targetY: actualTargetY, nodeId: effectiveNodeId, zoneId: effectiveZoneId, quantity: quota };
       session.activeCombat = null;
       this.send(ws, { type: 'PLAYER_UPDATE', player });
       this.broadcastWorldState();
     } else {
       // Already within attack range: begin combat immediately
       session.pendingCombat = null;
-      this.startCombatSession(session, monsterId, actualTargetX, actualTargetY, effectiveNodeId, effectiveZoneId);
+      this.startCombatSession(session, monsterId, actualTargetX, actualTargetY, effectiveNodeId, effectiveZoneId, quota);
     }
   }
 
@@ -4446,7 +4448,7 @@ export class GameEngine {
     }
   }
 
-  private startCombatSession(session: ConnectedSession, monsterId: string, targetX: number, targetY: number, nodeId?: string, zoneId?: string) {
+  private startCombatSession(session: ConnectedSession, monsterId: string, targetX: number, targetY: number, nodeId?: string, zoneId?: string, quantity?: number) {
     const { player, ws } = session;
     const monsterDef = MONSTERS[monsterId];
     if (!monsterDef) return;
@@ -4476,12 +4478,20 @@ export class GameEngine {
     };
 
     const combatStyle = this.getPlayerCombatStyle(player);
+    const sameCombatTarget = player.currentTask && player.currentTask.recipeId === monsterId;
+    const prevCompleted = (sameCombatTarget && typeof player.currentTask?.completedQuantity === 'number')
+      ? player.currentTask.completedQuantity
+      : 0;
+    const targetQty = (typeof quantity === 'number' && quantity > 0 && quantity !== Infinity)
+      ? quantity
+      : (sameCombatTarget && player.currentTask?.targetQuantity ? player.currentTask.targetQuantity : Infinity);
+
     player.currentTask = {
       recipeId: monsterId,
       skill: combatStyle,
       startedAtTick: this.tickCount,
-      targetQuantity: Infinity,
-      completedQuantity: 0,
+      targetQuantity: targetQty,
+      completedQuantity: prevCompleted,
       targetNodeX: actualTargetX,
       targetNodeY: actualTargetY,
       targetNodeId: effectiveNodeId,
@@ -4672,6 +4682,7 @@ export class GameEngine {
             targetX: nextMob.x,
             targetY: nextMob.y,
             nodeId: nextMob.id,
+            quantity: task ? task.targetQuantity : undefined,
           });
         } else {
           session.activeCombat = null;
