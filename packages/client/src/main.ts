@@ -6372,6 +6372,50 @@ class EldoriaClient {
         return;
       }
 
+      // If approval URL is present (live/sandbox PayPal), open checkout window
+      if (createData.approvalUrl) {
+        const width = 500;
+        const height = 620;
+        const left = window.screenX + (window.outerWidth - width) / 2;
+        const top = window.screenY + (window.outerHeight - height) / 2;
+        const popup = window.open(
+          createData.approvalUrl,
+          'paypal_checkout',
+          `width=${width},height=${height},left=${left},top=${top},scrollbars=yes,status=no`
+        );
+
+        if (!popup) {
+          window.location.href = createData.approvalUrl;
+          return;
+        }
+
+        // Await buyer completing approval in the popup
+        await new Promise<void>((resolve, reject) => {
+          let timer: any = null;
+          const messageHandler = (ev: MessageEvent) => {
+            if (ev.data?.type === 'PAYPAL_APPROVED') {
+              window.removeEventListener('message', messageHandler);
+              if (timer) clearInterval(timer);
+              resolve();
+            } else if (ev.data?.type === 'PAYPAL_CANCELLED') {
+              window.removeEventListener('message', messageHandler);
+              if (timer) clearInterval(timer);
+              reject(new Error('Checkout cancelled.'));
+            }
+          };
+          window.addEventListener('message', messageHandler);
+
+          timer = setInterval(() => {
+            if (popup.closed) {
+              clearInterval(timer);
+              window.removeEventListener('message', messageHandler);
+              // Give backend a moment to process or capture
+              resolve();
+            }
+          }, 600);
+        });
+      }
+
       const captureRes = await fetch('/api/paypal/capture-order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -6391,7 +6435,7 @@ class EldoriaClient {
       this.showToast(`Thank you! Your ${pack.name} was placed in your inventory.`);
     } catch (err: any) {
       console.error('Checkout error:', err);
-      this.showToast('Something went wrong with the purchase.');
+      this.showToast(err.message || 'Something went wrong with the purchase.');
     }
   }
 }

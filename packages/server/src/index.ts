@@ -226,6 +226,13 @@ app.post('/api/paypal/create-order', async (req, res) => {
               },
             },
           ],
+          application_context: {
+            brand_name: 'Eldoria Idle',
+            landing_page: 'NO_PREFERENCE',
+            user_action: 'PAY_NOW',
+            return_url: `${req.protocol}://${req.get('host')}/api/paypal/return`,
+            cancel_url: `${req.protocol}://${req.get('host')}/api/paypal/cancel`,
+          },
         }),
       });
 
@@ -237,9 +244,10 @@ app.post('/api/paypal/create-order', async (req, res) => {
       }
 
       const order = (await response.json()) as any;
-      res.json({ orderId: order.id });
+      const approveLink = (order.links || []).find((l: any) => l.rel === 'approve')?.href;
+      res.json({ orderId: order.id, approvalUrl: approveLink });
     } else {
-      // Development / sandbox test order ID
+      // Development test order ID
       res.json({ orderId: `DEV_${Date.now()}_${packId}` });
     }
   } catch (err: any) {
@@ -307,6 +315,45 @@ app.post('/api/paypal/capture-order', async (req, res) => {
     console.error('PayPal capture-order exception:', err);
     res.status(500).json({ error: err.message });
   }
+});
+
+app.get('/api/paypal/return', (req, res) => {
+  const token = req.query.token;
+  res.send(`<!DOCTYPE html>
+<html>
+<head><title>Processing Checkout...</title></head>
+<body style="background:#0a0c10;color:#e2e8f0;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;">
+  <div style="text-align:center;">
+    <h2 style="color:#d4af37;">Payment Approved!</h2>
+    <p>Finalizing your pack... You can close this window.</p>
+  </div>
+  <script>
+    if (window.opener) {
+      window.opener.postMessage({ type: 'PAYPAL_APPROVED', token: '${token || ''}' }, '*');
+    }
+    setTimeout(() => { window.close(); }, 1200);
+  </script>
+</body>
+</html>`);
+});
+
+app.get('/api/paypal/cancel', (req, res) => {
+  res.send(`<!DOCTYPE html>
+<html>
+<head><title>Checkout Cancelled</title></head>
+<body style="background:#0a0c10;color:#e2e8f0;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;">
+  <div style="text-align:center;">
+    <h2 style="color:#ef4444;">Checkout Cancelled</h2>
+    <p>You can close this window and return to the game.</p>
+  </div>
+  <script>
+    if (window.opener) {
+      window.opener.postMessage({ type: 'PAYPAL_CANCELLED' }, '*');
+    }
+    setTimeout(() => { window.close(); }, 1500);
+  </script>
+</body>
+</html>`);
 });
 
 // Serve frontend dist if available (Single-port production serving)
