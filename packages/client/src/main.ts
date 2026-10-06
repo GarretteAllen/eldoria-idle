@@ -1423,9 +1423,8 @@ class EldoriaClient {
   private getHearthLocation(playerX?: number, playerY?: number): { x: number; y: number } {
     const hearthNodes = this.worldNodes.filter(n =>
       n.type === 'hearth_counter' ||
-      n.id.toLowerCase().includes('hearth') ||
-      n.id.toLowerCase().includes('bank') ||
-      (n.name && (n.name.toLowerCase().includes('hearth') || n.name.toLowerCase().includes('bank')))
+      n.id === 'hearth_bank' ||
+      (n.name && (n.name.toLowerCase().includes('storage counter') || n.name.toLowerCase().includes('bank counter')))
     );
 
     if (hearthNodes.length === 0) {

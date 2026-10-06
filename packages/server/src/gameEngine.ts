@@ -1476,9 +1476,8 @@ export class GameEngine {
     const nodes = storage.getWorldNodes();
     const hearthNodes = nodes.filter(n =>
       n.type === 'hearth_counter' ||
-      n.id.toLowerCase().includes('hearth') ||
-      n.id.toLowerCase().includes('bank') ||
-      (n.name && (n.name.toLowerCase().includes('hearth') || n.name.toLowerCase().includes('bank')))
+      n.id === 'hearth_bank' ||
+      (n.name && (n.name.toLowerCase().includes('storage counter') || n.name.toLowerCase().includes('bank counter')))
     );
 
     if (hearthNodes.length === 0) {
@@ -2736,8 +2735,8 @@ export class GameEngine {
       if (rec && rec.inputs && rec.inputs.length > 0) {
         let canWithdraw = true;
         for (const inp of rec.inputs) {
-          const sSlot = player.storage.find(s => s.itemId === inp.itemId && s.quantity >= inp.quantity);
-          if (!sSlot) {
+          const totalInBank = player.storage.reduce((sum, s) => s.itemId === inp.itemId ? sum + s.quantity : sum, 0);
+          if (totalInBank < inp.quantity) {
             canWithdraw = false;
             break;
           }
@@ -2764,12 +2763,18 @@ export class GameEngine {
           const batches = Math.max(1, Math.min(20, maxBatchesBySlots, remainingQuota));
 
           for (const inp of rec.inputs) {
-            const sSlot = player.storage.find(s => s.itemId === inp.itemId)!;
-            const toTake = Math.min(sSlot.quantity, inp.quantity * batches);
-            const inpDef = storage.getItem(inp.itemId) || ITEMS[inp.itemId];
-            const res = addItemToSlots(player.inventory, 28, inp.itemId, toTake, 'plain', 0, inpDef, 'inventory');
-            if (res.added > 0) {
-              sSlot.quantity -= res.added;
+            let toTake = inp.quantity * batches;
+            for (const sSlot of player.storage) {
+              if (sSlot.itemId === inp.itemId && toTake > 0) {
+                const takeFromSlot = Math.min(sSlot.quantity, toTake);
+                const inpDef = storage.getItem(inp.itemId) || ITEMS[inp.itemId];
+                const res = addItemToSlots(player.inventory, 28, inp.itemId, takeFromSlot, 'plain', 0, inpDef, 'inventory');
+                if (res.added > 0) {
+                  sSlot.quantity -= res.added;
+                  toTake -= res.added;
+                }
+                if (res.remainder > 0) break;
+              }
             }
           }
           player.storage = player.storage.filter(s => s.quantity > 0);
@@ -2779,7 +2784,10 @@ export class GameEngine {
           });
         } else {
           // Cannot withdraw from storage. Check if satchel still has enough inputs.
-          const hasInputsInInv = rec.inputs.every(inp => player.inventory.some(s => s.itemId === inp.itemId && s.quantity >= inp.quantity));
+          const hasInputsInInv = rec.inputs.every(inp => {
+            const totalInBag = player.inventory.reduce((sum, s) => s.itemId === inp.itemId ? sum + s.quantity : sum, 0);
+            return totalInBag >= inp.quantity;
+          });
           if (!hasInputsInInv) {
             // Out of materials in both inventory and storage! Stop here at the Hearth, do not return to work!
             player.bankReturnTask = null;
@@ -2806,8 +2814,15 @@ export class GameEngine {
         const simulatedInv = player.inventory.map(s => ({ ...s }));
         if (rec.inputs?.length > 0) {
           for (const inp of rec.inputs) {
-            const slot = simulatedInv.find(s => s.itemId === inp.itemId);
-            if (slot) slot.quantity -= inp.quantity;
+            let needed = inp.quantity;
+            for (const s of simulatedInv) {
+              if (s.itemId === inp.itemId) {
+                const take = Math.min(s.quantity, needed);
+                s.quantity -= take;
+                needed -= take;
+                if (needed <= 0) break;
+              }
+            }
           }
         }
         const cleanedInv = simulatedInv.filter(s => s.quantity > 0);
@@ -2999,8 +3014,15 @@ export class GameEngine {
       const simulatedInv = player.inventory.map(s => ({ ...s }));
       if (recipe.inputs?.length > 0) {
         for (const inp of recipe.inputs) {
-          const slot = simulatedInv.find(s => s.itemId === inp.itemId);
-          if (slot) slot.quantity -= inp.quantity;
+          let needed = inp.quantity;
+          for (const s of simulatedInv) {
+            if (s.itemId === inp.itemId) {
+              const take = Math.min(s.quantity, needed);
+              s.quantity -= take;
+              needed -= take;
+              if (needed <= 0) break;
+            }
+          }
         }
       }
       const cleanedInv = simulatedInv.filter(s => s.quantity > 0);
@@ -3030,8 +3052,8 @@ export class GameEngine {
     if (recipe.inputs?.length > 0) {
       let inputsAvailable = true;
       for (const inp of recipe.inputs) {
-        const slot = player.inventory.find(s => s.itemId === inp.itemId && s.quantity >= inp.quantity);
-        if (!slot) {
+        const totalInBag = player.inventory.reduce((sum, s) => s.itemId === inp.itemId ? sum + s.quantity : sum, 0);
+        if (totalInBag < inp.quantity) {
           inputsAvailable = false;
           break;
         }
@@ -3040,7 +3062,8 @@ export class GameEngine {
       if (!inputsAvailable) {
         // Check if more materials exist in Hearth storage!
         const hasInStorage = recipe.inputs.every(inp => {
-          return player.storage.some(s => s.itemId === inp.itemId && s.quantity >= inp.quantity);
+          const totalInBank = player.storage.reduce((sum, s) => s.itemId === inp.itemId ? sum + s.quantity : sum, 0);
+          return totalInBank >= inp.quantity;
         });
 
         if (hasInStorage) {
@@ -3072,8 +3095,15 @@ export class GameEngine {
       }
 
       for (const inp of recipe.inputs) {
-        const slot = player.inventory.find(s => s.itemId === inp.itemId)!;
-        slot.quantity -= inp.quantity;
+        let needed = inp.quantity;
+        for (const slot of player.inventory) {
+          if (slot.itemId === inp.itemId) {
+            const take = Math.min(slot.quantity, needed);
+            slot.quantity -= take;
+            needed -= take;
+            if (needed <= 0) break;
+          }
+        }
       }
       player.inventory = player.inventory.filter(s => s.quantity > 0);
     }
@@ -3824,13 +3854,14 @@ export class GameEngine {
       Object.values(player.farmPlots).some(p => p.status === 'ready');
 
     const hasInputsInBag = hasReadyPlots || !rec.inputs || rec.inputs.length === 0 || rec.inputs.every(inp => {
-      const slot = player.inventory.find(s => s.itemId === inp.itemId && s.quantity >= inp.quantity);
-      return !!slot;
+      const totalInBag = player.inventory.reduce((sum, s) => s.itemId === inp.itemId ? sum + s.quantity : sum, 0);
+      return totalInBag >= inp.quantity;
     });
 
     if (!hasInputsInBag && rec.inputs && rec.inputs.length > 0) {
       const hasInStorage = rec.inputs.every(inp => {
-        return player.storage.some(s => s.itemId === inp.itemId && s.quantity >= inp.quantity);
+        const totalInBank = player.storage.reduce((sum, s) => s.itemId === inp.itemId ? sum + s.quantity : sum, 0);
+        return totalInBank >= inp.quantity;
       });
 
       if (hasInStorage) {
