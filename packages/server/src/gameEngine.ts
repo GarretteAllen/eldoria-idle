@@ -2467,18 +2467,54 @@ export class GameEngine {
                   message: `Returned to work on ${RECIPES[player.currentTask.recipeId]?.name || player.currentTask.skill}.`
                 });
               }
-            } else if (session.pendingTask) {
-              const rec = RECIPES[session.pendingTask.recipeId];
+            } else {
+              const pending = session.pendingTask || player.pendingTask;
+              if (pending) {
+                const rec = RECIPES[pending.recipeId];
+                if (rec) {
+                  const targetQty = (typeof pending.quantity === 'number' && pending.quantity > 0) ? pending.quantity : Infinity;
+                  player.currentTask = {
+                    recipeId: pending.recipeId,
+                    skill: rec.skill,
+                    startedAtTick: this.tickCount,
+                    targetQuantity: targetQty,
+                    completedQuantity: 0,
+                    targetNodeX: pending.nodeX ?? pending.targetX,
+                    targetNodeY: pending.nodeY ?? pending.targetY,
+                    standX: player.x,
+                    standY: player.y,
+                  };
+                  session.ticksInTask = 0;
+                  this.send(ws, {
+                    type: 'NOTIFICATION',
+                    message: `Arrived at ${rec.name}. Began work.`
+                  });
+                }
+                session.pendingTask = null;
+                player.pendingTask = null;
+                storage.savePlayer(player);
+              }
+            }
+          } else if (session.pendingCombat) {
+            // Arrived adjacent to target monster!
+            const pending = session.pendingCombat;
+            session.pendingCombat = null;
+            this.startCombatSession(session, pending.monsterId, pending.targetX, pending.targetY, pending.nodeId, pending.zoneId);
+          } else if (session.pendingTask || player.pendingTask) {
+            // Arrived at target work node
+            const pending = session.pendingTask || player.pendingTask;
+            if (pending) {
+              const rec = RECIPES[pending.recipeId];
               if (rec) {
-                const targetQty = (typeof session.pendingTask.quantity === 'number' && session.pendingTask.quantity > 0) ? session.pendingTask.quantity : Infinity;
+                const targetQty = (typeof pending.quantity === 'number' && pending.quantity > 0) ? pending.quantity : Infinity;
                 player.currentTask = {
-                  recipeId: session.pendingTask.recipeId,
+                  recipeId: pending.recipeId,
                   skill: rec.skill,
                   startedAtTick: this.tickCount,
                   targetQuantity: targetQty,
                   completedQuantity: 0,
-                  targetNodeX: session.pendingTask.nodeX ?? session.pendingTask.targetX,
-                  targetNodeY: session.pendingTask.nodeY ?? session.pendingTask.targetY,
+                  targetNodeX: pending.nodeX ?? pending.targetX,
+                  targetNodeY: pending.nodeY ?? pending.targetY,
                   standX: player.x,
                   standY: player.y,
                 };
@@ -2492,36 +2528,6 @@ export class GameEngine {
               player.pendingTask = null;
               storage.savePlayer(player);
             }
-          } else if (session.pendingCombat) {
-            // Arrived adjacent to target monster!
-            const pending = session.pendingCombat;
-            session.pendingCombat = null;
-            this.startCombatSession(session, pending.monsterId, pending.targetX, pending.targetY, pending.nodeId, pending.zoneId);
-          } else if (session.pendingTask) {
-            // Arrived at target work node
-            const rec = RECIPES[session.pendingTask.recipeId];
-            if (rec) {
-              const targetQty = (typeof session.pendingTask.quantity === 'number' && session.pendingTask.quantity > 0) ? session.pendingTask.quantity : Infinity;
-              player.currentTask = {
-                recipeId: session.pendingTask.recipeId,
-                skill: rec.skill,
-                startedAtTick: this.tickCount,
-                targetQuantity: targetQty,
-                completedQuantity: 0,
-                targetNodeX: session.pendingTask.nodeX ?? session.pendingTask.targetX,
-                targetNodeY: session.pendingTask.nodeY ?? session.pendingTask.targetY,
-                standX: player.x,
-                standY: player.y,
-              };
-              session.ticksInTask = 0;
-              this.send(ws, {
-                type: 'NOTIFICATION',
-                message: `Arrived at ${rec.name}. Began work.`
-              });
-            }
-            session.pendingTask = null;
-            player.pendingTask = null;
-            storage.savePlayer(player);
           }
         }
 
@@ -2891,27 +2897,77 @@ export class GameEngine {
           destY = adj.y;
         }
       }
-    } else if (session.pendingTask) {
-      const nodeX = session.pendingTask.nodeX ?? session.pendingTask.targetX;
-      const nodeY = session.pendingTask.nodeY ?? session.pendingTask.targetY;
-      const adj = this.getAdjacentWalkableTile(player.x, player.y, nodeX, nodeY);
-      destX = adj.x;
-      destY = adj.y;
+    } else if (session.pendingTask || player.pendingTask) {
+      const pending = session.pendingTask || player.pendingTask;
+      if (pending) {
+        const nodeX = pending.nodeX ?? pending.targetX;
+        const nodeY = pending.nodeY ?? pending.targetY;
+        const adj = this.getAdjacentWalkableTile(player.x, player.y, nodeX, nodeY);
+        destX = adj.x;
+        destY = adj.y;
+      }
     }
 
     if (typeof destX === 'number' && typeof destY === 'number') {
-      player.bankingState = 'returning_to_work';
       const path = this.findPathWithCollisions(player.x, player.y, destX, destY);
-      player.path = path;
-      player.targetX = destX;
-      player.targetY = destY;
-      player.isMoving = path.length > 0;
-      this.send(ws, {
-        type: 'NOTIFICATION',
-        message: count > 0 
-          ? `Dropped off ${count} items in the bank! Heading back to work...`
-          : `Heading back to work...`
-      });
+      if (path.length === 0 && Math.hypot(player.x - destX, player.y - destY) <= 1.5) {
+        // Already at destination! Immediately transition back to work!
+        player.bankingState = 'idle';
+        player.path = [];
+        player.isMoving = false;
+        if (player.bankReturnTask) {
+          player.currentTask = player.bankReturnTask;
+          player.bankReturnTask = null;
+          session.ticksInTask = 0;
+          if (MONSTERS[player.currentTask.recipeId]) {
+            const mobId = player.currentTask.recipeId;
+            this.startCombatSession(session, mobId, player.currentTask.targetNodeX || player.x, player.currentTask.targetNodeY || player.y, player.currentTask.targetNodeId);
+          } else {
+            this.send(ws, {
+              type: 'NOTIFICATION',
+              message: `Began work on ${RECIPES[player.currentTask.recipeId]?.name || player.currentTask.skill}.`
+            });
+          }
+        } else {
+          const pending = session.pendingTask || player.pendingTask;
+          if (pending) {
+            const rec = RECIPES[pending.recipeId];
+            if (rec) {
+              const targetQty = (typeof pending.quantity === 'number' && pending.quantity > 0) ? pending.quantity : Infinity;
+              player.currentTask = {
+                recipeId: pending.recipeId,
+                skill: rec.skill,
+                startedAtTick: this.tickCount,
+                targetQuantity: targetQty,
+                completedQuantity: 0,
+                targetNodeX: pending.nodeX ?? pending.targetX,
+                targetNodeY: pending.nodeY ?? pending.targetY,
+                standX: player.x,
+                standY: player.y,
+              };
+              session.ticksInTask = 0;
+              this.send(ws, {
+                type: 'NOTIFICATION',
+                message: `Arrived at ${rec.name}. Began work.`
+              });
+            }
+            session.pendingTask = null;
+            player.pendingTask = null;
+          }
+        }
+      } else {
+        player.bankingState = 'returning_to_work';
+        player.path = path;
+        player.targetX = destX;
+        player.targetY = destY;
+        player.isMoving = path.length > 0;
+        this.send(ws, {
+          type: 'NOTIFICATION',
+          message: count > 0 
+            ? `Dropped off ${count} items in the bank! Heading back to work...`
+            : `Heading back to work...`
+        });
+      }
     } else {
       player.bankingState = 'idle';
       this.send(ws, {
@@ -3782,7 +3838,15 @@ export class GameEngine {
         session.pendingTask = pending;
         player.pendingTask = pending;
         const hearth = this.getHearthLocation(player.x, player.y);
+        const distToHearth = Math.hypot(player.x - hearth.x, player.y - hearth.y);
         const pathToHearth = this.findPathWithCollisions(player.x, player.y, hearth.x, hearth.y);
+
+        if (distToHearth <= 1.5 || pathToHearth.length === 0) {
+          // Already at Hearth! Immediately withdraw materials and head to work
+          this.handleAutoDepositAtHearth(session);
+          return;
+        }
+
         player.targetX = hearth.x;
         player.targetY = hearth.y;
         player.path = pathToHearth;
