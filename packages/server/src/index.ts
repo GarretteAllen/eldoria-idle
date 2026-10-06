@@ -46,6 +46,16 @@ const HOST = process.env.HOST || '0.0.0.0';
 const app = express();
 app.use(express.json());
 
+// Allow iframe embedding on itch.io and other sites
+app.use((req, res, next) => {
+  res.removeHeader('X-Frame-Options');
+  res.setHeader(
+    'Content-Security-Policy',
+    "frame-ancestors 'self' https://*.itch.io https://itch.io https://*.itch.zone https://*.html5.gamedistribution.com *;"
+  );
+  next();
+});
+
 // --- REST API Endpoints ---
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', time: Date.now() });
