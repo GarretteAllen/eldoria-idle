@@ -50,9 +50,31 @@ const GATHERING_SKILLS: SkillType[] = ['mining', 'fishing', 'woodcutting', 'herb
 const CRAFTING_SKILLS: SkillType[] = ['cooking', 'smithing', 'fletching', 'alchemy', 'crafting', 'attunement'];
 const COMBAT_SKILLS: SkillType[] = ['melee', 'ranged', 'magic', 'defence', 'hitpoints'];
 
+const LEADERBOARD_CATEGORIES: { id: 'total' | SkillType; name: string }[] = [
+  { id: 'total', name: 'Total Level' },
+  { id: 'mining', name: 'Mining' },
+  { id: 'fishing', name: 'Fishing' },
+  { id: 'woodcutting', name: 'Woodcutting' },
+  { id: 'herbalism', name: 'Herbalism' },
+  { id: 'farming', name: 'Farming' },
+  { id: 'thieving', name: 'Thieving' },
+  { id: 'cooking', name: 'Cooking' },
+  { id: 'smithing', name: 'Smithing' },
+  { id: 'fletching', name: 'Fletching' },
+  { id: 'alchemy', name: 'Alchemy' },
+  { id: 'crafting', name: 'Crafting' },
+  { id: 'attunement', name: 'Attunement' },
+  { id: 'melee', name: 'Melee' },
+  { id: 'ranged', name: 'Ranged' },
+  { id: 'magic', name: 'Magic' },
+  { id: 'defence', name: 'Defence' },
+  { id: 'hitpoints', name: 'Hitpoints' },
+];
+
 class EldoriaClient {
   private ws: WebSocket | null = null;
   private player: PlayerData | null = null;
+  private activeLeaderboardCategory: 'total' | SkillType = 'total';
   private renderer: WorldRenderer;
   private activeChannel = 'All';
   private selectedInventoryIndex: number | null = null;
@@ -137,6 +159,7 @@ class EldoriaClient {
     this.setupSkillJobPopup();
     this.setupModals();
     this.setupStorageModal();
+    this.setupLeaderboardModal();
     this.setupCombatSustenance();
     this.setupAdminEditor();
     this.setupSoundAndMinimap();
@@ -207,11 +230,19 @@ class EldoriaClient {
     document.getElementById('tool-btn-inventory')!.innerHTML = ICONS.inventory;
     document.getElementById('tool-btn-equipment')!.innerHTML = ICONS.equipment;
     document.getElementById('tool-btn-storage')!.innerHTML = ICONS.storage;
+    const toolLeaderboardBtn = document.getElementById('tool-btn-leaderboard');
+    if (toolLeaderboardBtn) toolLeaderboardBtn.innerHTML = ICONS.leaderboard;
     const toolSoundBtn = document.getElementById('tool-btn-sound');
     if (toolSoundBtn) toolSoundBtn.innerHTML = ICONS.soundOn;
     document.getElementById('tool-btn-chat')!.innerHTML = ICONS.chat;
     const editorToolBtn = document.getElementById('tool-btn-editor');
     if (editorToolBtn) editorToolBtn.innerHTML = ICONS.editor;
+
+    // Leaderboard Modal Icons
+    const leaderboardHeaderIcon = document.getElementById('leaderboard-header-icon');
+    if (leaderboardHeaderIcon) leaderboardHeaderIcon.innerHTML = ICONS.leaderboard;
+    const leaderboardCloseBtn = document.getElementById('leaderboard-close-btn');
+    if (leaderboardCloseBtn) leaderboardCloseBtn.innerHTML = ICONS.close;
 
     // Editor Header Crown
     const crownIcon = document.getElementById('editor-crown-icon');
@@ -1531,6 +1562,11 @@ class EldoriaClient {
 
         if (panel === 'storage') {
           this.openStorageModal();
+          return;
+        }
+
+        if (panel === 'leaderboard') {
+          this.openLeaderboardModal();
           return;
         }
 
@@ -3128,6 +3164,130 @@ class EldoriaClient {
       btnSellAll.onclick = () => {
         this.sendWs({ type: 'SELL_ALL_JUNK' });
       };
+    }
+  }
+
+  private setupLeaderboardModal() {
+    const modal = document.getElementById('leaderboard-modal');
+    if (!modal) return;
+
+    const closeBtn = document.getElementById('leaderboard-close-btn');
+    if (closeBtn) {
+      closeBtn.onclick = () => this.closeLeaderboardModal();
+    }
+
+    modal.onclick = (e) => {
+      if (e.target === modal) {
+        this.closeLeaderboardModal();
+      }
+    };
+
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && !modal.classList.contains('hidden')) {
+        this.closeLeaderboardModal();
+      }
+    });
+
+    this.renderLeaderboardTabs();
+  }
+
+  private renderLeaderboardTabs() {
+    const tabsContainer = document.querySelector('.leaderboard-category-tabs');
+    if (!tabsContainer) return;
+    tabsContainer.innerHTML = '';
+
+    for (const cat of LEADERBOARD_CATEGORIES) {
+      const btn = document.createElement('button');
+      btn.className = 'lb-tab-btn' + (this.activeLeaderboardCategory === cat.id ? ' active' : '');
+      btn.dataset.category = cat.id;
+
+      const iconSvg = cat.id === 'total' ? ICONS.leaderboard : (ICONS[cat.id] || ICONS.skills);
+      btn.innerHTML = `<span class="svg-icon-inline">${iconSvg}</span><span>${cat.name}</span>`;
+
+      btn.onclick = () => {
+        if (this.activeLeaderboardCategory === cat.id) return;
+        this.activeLeaderboardCategory = cat.id;
+        tabsContainer.querySelectorAll('.lb-tab-btn').forEach(b => {
+          b.classList.toggle('active', (b as HTMLElement).dataset.category === cat.id);
+        });
+        this.loadLeaderboard(cat.id);
+      };
+
+      tabsContainer.appendChild(btn);
+    }
+  }
+
+  private openLeaderboardModal() {
+    const modal = document.getElementById('leaderboard-modal');
+    if (!modal) return;
+    sound.play('click');
+    modal.classList.remove('hidden');
+    this.renderLeaderboardTabs();
+    this.loadLeaderboard(this.activeLeaderboardCategory);
+  }
+
+  private closeLeaderboardModal() {
+    const modal = document.getElementById('leaderboard-modal');
+    if (!modal) return;
+    modal.classList.add('hidden');
+  }
+
+  private async loadLeaderboard(category: 'total' | SkillType) {
+    const tbody = document.getElementById('leaderboard-table-rows');
+    const thLevel = document.getElementById('leaderboard-th-level');
+    const thXp = document.getElementById('leaderboard-th-xp');
+    if (!tbody) return;
+
+    const catDef = LEADERBOARD_CATEGORIES.find(c => c.id === category);
+    const catName = catDef ? catDef.name : 'Level';
+
+    if (thLevel) thLevel.textContent = category === 'total' ? 'Total Level' : `${catName} Lvl`;
+    if (thXp) thXp.textContent = category === 'total' ? 'Total XP' : `${catName} XP`;
+
+    tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; padding: 24px; color: #a0aec0;">Gathering chronicles of Eldoria...</td></tr>`;
+
+    try {
+      const res = await fetch(`/api/leaderboard?category=${encodeURIComponent(category)}&limit=50`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      const entries: Array<{ rank: number; username: string; level: number; xp: number; isGuest: boolean }> = data.entries || [];
+
+      tbody.innerHTML = '';
+      if (entries.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; padding: 24px; color: #a0aec0;">No adventurers ranked in this category yet.</td></tr>`;
+        return;
+      }
+
+      for (const entry of entries) {
+        const isMe = !!(this.player && entry.username === this.player.username);
+        const tr = document.createElement('tr');
+        tr.className = 'lb-row' + (isMe ? ' lb-row-me' : '');
+
+        let rankBadgeClass = 'lb-rank-default';
+        if (entry.rank === 1) rankBadgeClass = 'lb-rank-1';
+        else if (entry.rank === 2) rankBadgeClass = 'lb-rank-2';
+        else if (entry.rank === 3) rankBadgeClass = 'lb-rank-3';
+
+        const guestBadge = entry.isGuest ? `<span class="lb-guest-tag">Guest</span>` : '';
+        const youBadge = isMe ? `<span style="color:#ffd700; font-size:0.68rem; font-weight:700;">(You)</span>` : '';
+
+        tr.innerHTML = `
+          <td><span class="lb-rank-badge ${rankBadgeClass}">#${entry.rank}</span></td>
+          <td>
+            <div class="lb-name-cell ${isMe ? 'lb-name-me' : ''}">
+              <span>${entry.username}</span>
+              ${guestBadge}
+              ${youBadge}
+            </div>
+          </td>
+          <td style="text-align: right;"><span class="lb-level-val">${entry.level.toLocaleString()}</span></td>
+          <td style="text-align: right;"><span class="lb-xp-val">${entry.xp.toLocaleString()} XP</span></td>
+        `;
+        tbody.appendChild(tr);
+      }
+    } catch (err) {
+      console.error('Failed to load leaderboard', err);
+      tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; padding: 24px; color: #f87171;">Failed to load leaderboard rankings.</td></tr>`;
     }
   }
 

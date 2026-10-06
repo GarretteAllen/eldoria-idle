@@ -4659,5 +4659,138 @@ body, html {
   margin-bottom: 8px;
 }
 
+/* REALM LEADERBOARDS */
+.leaderboard-category-tabs {
+  max-height: 110px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.lb-tab-btn {
+  background: #18110b;
+  color: #a49382;
+  border: 1px solid #432e1c;
+  border-radius: 4px;
+  padding: 3px 8px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  transition: all 0.15s;
+  font-family: inherit;
+}
+
+.lb-tab-btn .svg-icon-inline {
+  width: 13px;
+  height: 13px;
+}
+
+.lb-tab-btn:hover {
+  background: #2b1c11;
+  color: #f3e8dc;
+  border-color: #6d4b2d;
+}
+
+.lb-tab-btn.active {
+  background: #50351d;
+  color: #ffd699;
+  border: 1px solid #c99346;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.15);
+  font-weight: 700;
+}
+
+.lb-row {
+  border-bottom: 1px solid rgba(132, 97, 59, 0.15);
+  transition: background 0.12s;
+}
+
+.lb-row:nth-child(even) {
+  background: rgba(0, 0, 0, 0.15);
+}
+
+.lb-row:hover {
+  background: rgba(132, 97, 59, 0.2);
+}
+
+.lb-row-me {
+  background: rgba(201, 147, 70, 0.18) !important;
+  border-left: 2px solid #ffd700;
+}
+
+.lb-row td {
+  padding: 6px 10px;
+  vertical-align: middle;
+}
+
+.lb-rank-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  height: 20px;
+  padding: 0 4px;
+  border-radius: 3px;
+  font-weight: 800;
+  font-size: 0.72rem;
+}
+
+.lb-rank-1 {
+  background: linear-gradient(135deg, #ffd700, #b8860b);
+  color: #1a0f00;
+  box-shadow: 0 0 6px rgba(255, 215, 0, 0.4);
+}
+
+.lb-rank-2 {
+  background: linear-gradient(135deg, #e2e8f0, #94a3b8);
+  color: #0f172a;
+  box-shadow: 0 0 5px rgba(226, 232, 240, 0.3);
+}
+
+.lb-rank-3 {
+  background: linear-gradient(135deg, #cd7f32, #8b4513);
+  color: #fff8f0;
+  box-shadow: 0 0 5px rgba(205, 127, 50, 0.3);
+}
+
+.lb-rank-default {
+  color: #94a3b8;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.lb-name-cell {
+  font-weight: 600;
+  color: #f1f5f9;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.lb-name-me {
+  color: #ffd700;
+  font-weight: 700;
+}
+
+.lb-guest-tag {
+  font-size: 0.62rem;
+  color: #94a3b8;
+  background: rgba(148, 163, 184, 0.15);
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  border-radius: 2px;
+  padding: 0 3px;
+}
+
+.lb-level-val {
+  font-weight: 700;
+  color: #38bdf8;
+  font-variant-numeric: tabular-nums;
+}
+
+.lb-xp-val {
+  color: #a0aec0;
+  font-variant-numeric: tabular-nums;
+}
+
 
 
