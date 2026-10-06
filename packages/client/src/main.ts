@@ -5578,7 +5578,21 @@ class EldoriaClient {
 
     let levelUpHtml = '';
     if (summary.leveledUp) {
-      if (summary.skillName && summary.newLevel) {
+      if (Array.isArray(summary.levelUps) && summary.levelUps.length > 0) {
+        levelUpHtml = summary.levelUps.map((lu: any) => {
+          const skillCapitalized = lu.skillName.charAt(0).toUpperCase() + lu.skillName.slice(1);
+          const diff = lu.startLevel ? ` (+${lu.newLevel - lu.startLevel} Levels)` : '';
+          const progression = lu.startLevel ? `Lv ${lu.startLevel} → Lv ${lu.newLevel}` : `Lv ${lu.newLevel}`;
+          return `
+            <div style="background: rgba(223, 166, 55, 0.15); border: 1px solid var(--gold-bright); border-radius: 6px; padding: 8px 10px; margin-top: 4px;">
+              <div style="font-weight: 800; color: var(--gold-bright); font-size: 0.85rem; display: flex; align-items: center; gap: 6px;">
+                <span class="svg-icon-inline icon-sm">${ICONS.star}</span>
+                <span>${skillCapitalized} leveled up to ${progression}${diff}!</span>
+              </div>
+            </div>
+          `;
+        }).join('');
+      } else if (summary.skillName && summary.newLevel) {
         const skillCapitalized = summary.skillName.charAt(0).toUpperCase() + summary.skillName.slice(1);
         const diff = summary.startLevel ? ` (+${summary.newLevel - summary.startLevel} Levels)` : '';
         const progression = summary.startLevel ? `Lv ${summary.startLevel} → Lv ${summary.newLevel}` : `Lv ${summary.newLevel}`;

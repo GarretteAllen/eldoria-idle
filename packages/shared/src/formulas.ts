@@ -202,6 +202,7 @@ export interface CatchUpSummary {
   skillName?: string;
   startLevel?: number;
   newLevel?: number;
+  levelUps?: Array<{ skillName: string; startLevel: number; newLevel: number }>;
   itemsGained: Record<string, number>;
   overflowOccurred: boolean;
 }
@@ -209,241 +210,317 @@ export interface CatchUpSummary {
 /**
  * Deterministic Offline Catch-Up Engine:
  * Simulates actions while player was away without running 600ms loops in real-time.
+ * Automatically advances through queued tasks when currentTask completes its target quantity.
  */
 export function simulateOfflineCatchUp(
   player: PlayerData,
   elapsedSeconds: number,
   maxOfflineSeconds: number = 24 * 3600
 ): CatchUpSummary {
-  const cappedElapsed = Math.min(elapsedSeconds, maxOfflineSeconds);
+  let remainingTime = Math.min(elapsedSeconds, maxOfflineSeconds);
   const summary: CatchUpSummary = {
-    elapsedSeconds: cappedElapsed,
+    elapsedSeconds: remainingTime,
     completedCycles: 0,
     xpGained: 0,
     leveledUp: false,
+    levelUps: [],
     itemsGained: {},
     overflowOccurred: false,
   };
 
-  if (!player.currentTask || cappedElapsed <= 0) {
+  // If no active task currently, try to start the first task in queue
+  if (!player.currentTask && Array.isArray(player.taskQueue) && player.taskQueue.length > 0) {
+    const next = player.taskQueue.shift()!;
+    const mobId = next.monsterId || next.recipeId;
+    const isCombat = Boolean(next.monsterId || ((next.skill as string) === 'combat') || (mobId && MONSTERS[mobId]));
+    player.currentTask = {
+      recipeId: isCombat ? mobId : next.recipeId,
+      skill: next.skill,
+      startedAtTick: 0,
+      targetQuantity: (typeof next.targetQuantity === 'number' && next.targetQuantity > 0) ? next.targetQuantity : Infinity,
+      completedQuantity: 0,
+    };
+  }
+
+  if (!player.currentTask || remainingTime <= 0) {
     return summary;
   }
 
-  const recipe: RecipeDefinition | undefined = RECIPES[player.currentTask.recipeId];
-  const monster: MonsterDefinition | undefined = MONSTERS[player.currentTask.recipeId];
-  if (!recipe && !monster) return summary;
-
-  if (monster) {
-    const combatStyle = (player.currentTask.skill === 'ranged' || player.currentTask.skill === 'magic')
-      ? player.currentTask.skill
-      : 'melee';
-    const combatLvl = player.skills[combatStyle]?.level || 1;
-    const weaponItem = player.equipment?.weapon ? ITEMS[player.equipment.weapon.itemId] : undefined;
-    const strBonus = weaponItem?.baseStats?.strength || 0;
-    const avgHit = Math.max(1, Math.floor((combatLvl + strBonus) / 10) + 1);
-    const swingsToKill = Math.ceil(monster.hp / avgHit);
-    const swingSec = weaponItem?.baseStats?.swingSpeedSeconds || (combatStyle === 'ranged' ? 1.8 : combatStyle === 'magic' ? 3.6 : 2.4);
-    const killSec = Math.max(2.4, swingsToKill * swingSec);
-
-    const rawTarget = player.currentTask.targetQuantity;
-    const targetQuantity = (typeof rawTarget === 'number' && rawTarget > 0) ? rawTarget : Infinity;
-    const remainingTarget = targetQuantity === Infinity
-      ? Infinity
-      : Math.max(0, targetQuantity - (player.currentTask.completedQuantity || 0));
-    const potentialKills = Math.floor(cappedElapsed / killSec);
-    const killsToExecute = Math.min(potentialKills, remainingTarget);
-
-    if (killsToExecute <= 0) return summary;
-
-    let executed = 0;
-    let totalStyleXp = 0;
-    let totalHpXp = 0;
-
-    for (let i = 0; i < killsToExecute; i++) {
-      if (monster.maxHit > 0) {
-        const foodSlot = player.inventory.find(s => {
-          const def = ITEMS[s.itemId];
-          return (def?.baseStats?.healing || 0) > 0;
-        });
-        if (foodSlot) {
-          foodSlot.quantity -= 1;
-          player.inventory = player.inventory.filter(s => s.quantity > 0);
-        }
+  // Loop while player has time left and an active task
+  while (player.currentTask && remainingTime > 0.5) {
+    const recipe: RecipeDefinition | undefined = RECIPES[player.currentTask.recipeId];
+    const monster: MonsterDefinition | undefined = MONSTERS[player.currentTask.recipeId];
+    if (!recipe && !monster) {
+      player.currentTask = null;
+      // Try next queued task if recipe/monster not found
+      if (Array.isArray(player.taskQueue) && player.taskQueue.length > 0) {
+        const next = player.taskQueue.shift()!;
+        const mobId = next.monsterId || next.recipeId;
+        const isCombat = Boolean(next.monsterId || ((next.skill as string) === 'combat') || (mobId && MONSTERS[mobId]));
+        player.currentTask = {
+          recipeId: isCombat ? mobId : next.recipeId,
+          skill: next.skill,
+          startedAtTick: 0,
+          targetQuantity: (typeof next.targetQuantity === 'number' && next.targetQuantity > 0) ? next.targetQuantity : Infinity,
+          completedQuantity: 0,
+        };
+        continue;
       }
+      break;
+    }
 
-      const coins = Math.floor((monster.minCoins + monster.maxCoins) / 2);
-      player.gold = (player.gold || 0) + coins;
-      summary.itemsGained['gold'] = (summary.itemsGained['gold'] || 0) + coins;
+    if (monster) {
+      const combatStyle = (player.currentTask.skill === 'ranged' || player.currentTask.skill === 'magic')
+        ? player.currentTask.skill
+        : 'melee';
+      const combatLvl = player.skills[combatStyle]?.level || 1;
+      const weaponItem = player.equipment?.weapon ? ITEMS[player.equipment.weapon.itemId] : undefined;
+      const strBonus = weaponItem?.baseStats?.strength || 0;
+      const avgHit = Math.max(1, Math.floor((combatLvl + strBonus) / 10) + 1);
+      const swingsToKill = Math.ceil(monster.hp / avgHit);
+      const swingSec = weaponItem?.baseStats?.swingSpeedSeconds || (combatStyle === 'ranged' ? 1.8 : combatStyle === 'magic' ? 3.6 : 2.4);
+      const killSec = Math.max(2.4, swingsToKill * swingSec);
 
-      if (monster.guaranteedDropItemId && ITEMS[monster.guaranteedDropItemId]) {
-        const itemDef = ITEMS[monster.guaranteedDropItemId];
-        const res = addItemToSlots(player.inventory, 28, monster.guaranteedDropItemId, 1, 'plain', 0, itemDef, 'inventory');
-        if (res.remainder > 0) {
-          const maxStorage = player.storageSlotsMax || 75;
-          const bankRes = addItemToSlots(player.storage, maxStorage, monster.guaranteedDropItemId, res.remainder, 'plain', 0, itemDef, 'bank');
-          if (bankRes.remainder > 0) {
-            summary.overflowOccurred = true;
+      const rawTarget: number | undefined = player.currentTask.targetQuantity;
+      const targetQuantity: number = (typeof rawTarget === 'number' && rawTarget > 0) ? rawTarget : Infinity;
+      const remainingTarget: number = targetQuantity === Infinity
+        ? Infinity
+        : Math.max(0, targetQuantity - (player.currentTask.completedQuantity || 0));
+      const potentialKills = Math.floor(remainingTime / killSec);
+      const killsToExecute = Math.min(potentialKills, remainingTarget);
+
+      if (killsToExecute <= 0) break;
+
+      let executed = 0;
+      let totalStyleXp = 0;
+      let totalHpXp = 0;
+
+      for (let i = 0; i < killsToExecute; i++) {
+        if (monster.maxHit > 0) {
+          const foodSlot = player.inventory.find(s => {
+            const def = ITEMS[s.itemId];
+            return (def?.baseStats?.healing || 0) > 0;
+          });
+          if (foodSlot) {
+            foodSlot.quantity -= 1;
+            player.inventory = player.inventory.filter(s => s.quantity > 0);
           }
         }
-        summary.itemsGained[monster.guaranteedDropItemId] = (summary.itemsGained[monster.guaranteedDropItemId] || 0) + 1;
-      }
 
-      totalStyleXp += (monster.hp * 4) + monster.xp;
-      totalHpXp += Math.floor(monster.hp * 1.33);
-      executed++;
+        const coins = Math.floor((monster.minCoins + monster.maxCoins) / 2);
+        player.gold = (player.gold || 0) + coins;
+        summary.itemsGained['gold'] = (summary.itemsGained['gold'] || 0) + coins;
 
-      if (player.inventory.length >= 28) {
-        break;
-      }
-    }
+        if (monster.guaranteedDropItemId && ITEMS[monster.guaranteedDropItemId]) {
+          const itemDef = ITEMS[monster.guaranteedDropItemId];
+          const res = addItemToSlots(player.inventory, 28, monster.guaranteedDropItemId, 1, 'plain', 0, itemDef, 'inventory');
+          if (res.remainder > 0) {
+            const maxStorage = player.storageSlotsMax || 75;
+            const bankRes = addItemToSlots(player.storage, maxStorage, monster.guaranteedDropItemId, res.remainder, 'plain', 0, itemDef, 'bank');
+            if (bankRes.remainder > 0) {
+              summary.overflowOccurred = true;
+            }
+          }
+          summary.itemsGained[monster.guaranteedDropItemId] = (summary.itemsGained[monster.guaranteedDropItemId] || 0) + 1;
+        }
 
-    summary.completedCycles = executed;
-    summary.xpGained = totalStyleXp;
-    player.currentTask.completedQuantity = (player.currentTask.completedQuantity || 0) + executed;
+        totalStyleXp += (monster.hp * 4) + monster.xp;
+        totalHpXp += Math.floor(monster.hp * 1.33);
+        executed++;
 
-    if (targetQuantity !== Infinity && player.currentTask.completedQuantity >= targetQuantity) {
-      player.currentTask = null;
-    }
-
-    const styleRecord = player.skills[combatStyle];
-    if (styleRecord) {
-      const oldLevel = styleRecord.level;
-      styleRecord.xp += totalStyleXp;
-      styleRecord.level = getLevelFromXp(styleRecord.xp);
-      if (styleRecord.level > oldLevel) {
-        summary.leveledUp = true;
-        summary.skillName = combatStyle;
-        summary.startLevel = oldLevel;
-        summary.newLevel = styleRecord.level;
-      }
-    }
-
-    if (player.skills.hitpoints) {
-      player.skills.hitpoints.xp = Math.max(1154, (player.skills.hitpoints.xp || 1154) + totalHpXp);
-      player.skills.hitpoints.level = Math.max(10, getLevelFromXp(player.skills.hitpoints.xp));
-    }
-
-    return summary;
-  }
-
-  const currentLevel = player.skills[recipe.skill]?.level || 1;
-  const speedMult = getJobSpeedMultiplier(currentLevel, recipe.levelReq);
-
-  let toolBonus = 0;
-  if (recipe.skill === 'mining') {
-    const toolItem = player.equipment?.tool_pickaxe || player.equipment?.tool;
-    if (toolItem && ITEMS[toolItem.itemId]?.baseStats?.toolSpeedBonus) {
-      toolBonus = ITEMS[toolItem.itemId].baseStats!.toolSpeedBonus!;
-    }
-  } else if (recipe.skill === 'woodcutting') {
-    const toolItem = player.equipment?.tool_axe || player.equipment?.tool;
-    if (toolItem && ITEMS[toolItem.itemId]?.baseStats?.toolSpeedBonus) {
-      toolBonus = ITEMS[toolItem.itemId].baseStats!.toolSpeedBonus!;
-    }
-  } else if (recipe.skill === 'fishing') {
-    const toolItem = player.equipment?.tool_rod || player.equipment?.tool;
-    if (toolItem && ITEMS[toolItem.itemId]?.baseStats?.toolSpeedBonus) {
-      toolBonus = ITEMS[toolItem.itemId].baseStats!.toolSpeedBonus!;
-    }
-  }
-
-  const effectiveInterval = Math.max(0.6, recipe.intervalSeconds / (speedMult * (1 + toolBonus)));
-
-  const rawTarget = player.currentTask.targetQuantity;
-  const targetQuantity = (typeof rawTarget === 'number' && rawTarget > 0) ? rawTarget : Infinity;
-  player.currentTask.targetQuantity = targetQuantity;
-
-  const potentialCycles = Math.floor(cappedElapsed / effectiveInterval);
-  const remainingTarget = targetQuantity === Infinity
-    ? Infinity
-    : Math.max(0, targetQuantity - (player.currentTask.completedQuantity || 0));
-  const cyclesToExecute = Math.min(potentialCycles, remainingTarget);
-
-  if (cyclesToExecute <= 0) return summary;
-
-  let totalXp = 0;
-  let executed = 0;
-
-  for (let i = 0; i < cyclesToExecute; i++) {
-    // Check material inputs for crafting
-    if (recipe.inputs.length > 0) {
-      let canAfford = true;
-      for (const input of recipe.inputs) {
-        const slot = player.inventory.find(s => s.itemId === input.itemId && s.quantity >= input.quantity);
-        if (!slot) {
-          canAfford = false;
+        if (player.inventory.length >= 28) {
           break;
         }
       }
-      if (!canAfford) break;
 
-      // Deduct materials
-      for (const input of recipe.inputs) {
-        const slot = player.inventory.find(s => s.itemId === input.itemId)!;
-        slot.quantity -= input.quantity;
+      summary.completedCycles += executed;
+      summary.xpGained += totalStyleXp;
+      player.currentTask.completedQuantity = (player.currentTask.completedQuantity || 0) + executed;
+      remainingTime = Math.max(0, remainingTime - (executed * killSec));
+
+      const styleRecord = player.skills[combatStyle];
+      if (styleRecord) {
+        const oldLevel = styleRecord.level;
+        styleRecord.xp += totalStyleXp;
+        styleRecord.level = getLevelFromXp(styleRecord.xp);
+        if (styleRecord.level > oldLevel) {
+          summary.leveledUp = true;
+          summary.skillName = combatStyle;
+          summary.startLevel = oldLevel;
+          summary.newLevel = styleRecord.level;
+          summary.levelUps!.push({ skillName: combatStyle, startLevel: oldLevel, newLevel: styleRecord.level });
+        }
       }
-      // Clean up empty slots
-      player.inventory = player.inventory.filter(s => s.quantity > 0);
+
+      if (player.skills.hitpoints) {
+        const oldHp = player.skills.hitpoints.level;
+        player.skills.hitpoints.xp = Math.max(1154, (player.skills.hitpoints.xp || 1154) + totalHpXp);
+        player.skills.hitpoints.level = Math.max(10, getLevelFromXp(player.skills.hitpoints.xp));
+        if (player.skills.hitpoints.level > oldHp) {
+          summary.leveledUp = true;
+          summary.levelUps!.push({ skillName: 'hitpoints', startLevel: oldHp, newLevel: player.skills.hitpoints.level });
+        }
+      }
+
+      // If target fulfilled or bag full, advance or exit
+      if (targetQuantity !== Infinity && player.currentTask.completedQuantity >= targetQuantity) {
+        player.currentTask = null;
+        if (Array.isArray(player.taskQueue) && player.taskQueue.length > 0) {
+          const next = player.taskQueue.shift()!;
+          const mobId = next.monsterId || next.recipeId;
+          const isCombat = Boolean(next.monsterId || ((next.skill as string) === 'combat') || (mobId && MONSTERS[mobId]));
+          player.currentTask = {
+            recipeId: isCombat ? mobId : next.recipeId,
+            skill: next.skill,
+            startedAtTick: 0,
+            targetQuantity: (typeof next.targetQuantity === 'number' && next.targetQuantity > 0) ? next.targetQuantity : Infinity,
+            completedQuantity: 0,
+          };
+          continue;
+        }
+      }
+
+      break;
     }
 
-    // Add output item
-    if (recipe.outputItemId === 'gold') {
-      player.gold = (player.gold || 0) + recipe.outputQuantity;
-      summary.itemsGained['gold'] = (summary.itemsGained['gold'] || 0) + recipe.outputQuantity;
-    } else {
-      const outputItem = ITEMS[recipe.outputItemId];
-      if (outputItem) {
-        const rarity = rollRarity(1.0);
-        const invRes = addItemToSlots(player.inventory, 28, recipe.outputItemId, recipe.outputQuantity, rarity, 0, outputItem, 'inventory');
-        if (invRes.remainder > 0) {
-          summary.overflowOccurred = true;
-          const maxStorage = player.storageSlotsMax || 75;
-          const bankRes = addItemToSlots(player.storage, maxStorage, recipe.outputItemId, invRes.remainder, rarity, 0, outputItem, 'bank');
-          if (bankRes.remainder > 0) {
-            if (!player.overflowTray) player.overflowTray = [];
-            const traySlot = player.overflowTray.find(s => s.itemId === recipe.outputItemId && s.rarity === rarity && s.plus === 0);
-            if (traySlot) {
-              traySlot.quantity += bankRes.remainder;
-            } else if (player.overflowTray.length < 10) {
-              player.overflowTray.push({
-                itemId: recipe.outputItemId,
-                quantity: bankRes.remainder,
-                rarity,
-                plus: 0,
-              });
-            } else {
-              break;
-            }
+    // Non-combat recipe task
+    const currentLevel = player.skills[recipe.skill]?.level || 1;
+    const speedMult = getJobSpeedMultiplier(currentLevel, recipe.levelReq);
+
+    let toolBonus = 0;
+    if (recipe.skill === 'mining') {
+      const toolItem = player.equipment?.tool_pickaxe || player.equipment?.tool;
+      if (toolItem && ITEMS[toolItem.itemId]?.baseStats?.toolSpeedBonus) {
+        toolBonus = ITEMS[toolItem.itemId].baseStats!.toolSpeedBonus!;
+      }
+    } else if (recipe.skill === 'woodcutting') {
+      const toolItem = player.equipment?.tool_axe || player.equipment?.tool;
+      if (toolItem && ITEMS[toolItem.itemId]?.baseStats?.toolSpeedBonus) {
+        toolBonus = ITEMS[toolItem.itemId].baseStats!.toolSpeedBonus!;
+      }
+    } else if (recipe.skill === 'fishing') {
+      const toolItem = player.equipment?.tool_rod || player.equipment?.tool;
+      if (toolItem && ITEMS[toolItem.itemId]?.baseStats?.toolSpeedBonus) {
+        toolBonus = ITEMS[toolItem.itemId].baseStats!.toolSpeedBonus!;
+      }
+    }
+
+    const effectiveInterval = Math.max(0.6, recipe.intervalSeconds / (speedMult * (1 + toolBonus)));
+
+    const rawTarget: number | undefined = player.currentTask.targetQuantity;
+    const targetQuantity: number = (typeof rawTarget === 'number' && rawTarget > 0) ? rawTarget : Infinity;
+    player.currentTask.targetQuantity = targetQuantity;
+
+    const potentialCycles = Math.floor(remainingTime / effectiveInterval);
+    const remainingTarget: number = targetQuantity === Infinity
+      ? Infinity
+      : Math.max(0, targetQuantity - (player.currentTask.completedQuantity || 0));
+    const cyclesToExecute = Math.min(potentialCycles, remainingTarget);
+
+    if (cyclesToExecute <= 0) break;
+
+    let totalXp = 0;
+    let executed = 0;
+
+    for (let i = 0; i < cyclesToExecute; i++) {
+      // Check material inputs for crafting
+      if (recipe.inputs.length > 0) {
+        let canAfford = true;
+        for (const input of recipe.inputs) {
+          const slot = player.inventory.find(s => s.itemId === input.itemId && s.quantity >= input.quantity);
+          if (!slot) {
+            canAfford = false;
+            break;
           }
         }
-        summary.itemsGained[recipe.outputItemId] = (summary.itemsGained[recipe.outputItemId] || 0) + recipe.outputQuantity;
+        if (!canAfford) break;
+
+        // Deduct materials
+        for (const input of recipe.inputs) {
+          const slot = player.inventory.find(s => s.itemId === input.itemId)!;
+          slot.quantity -= input.quantity;
+        }
+        // Clean up empty slots
+        player.inventory = player.inventory.filter(s => s.quantity > 0);
+      }
+
+      // Add output item
+      if (recipe.outputItemId === 'gold') {
+        player.gold = (player.gold || 0) + recipe.outputQuantity;
+        summary.itemsGained['gold'] = (summary.itemsGained['gold'] || 0) + recipe.outputQuantity;
+      } else {
+        const outputItem = ITEMS[recipe.outputItemId];
+        if (outputItem) {
+          const rarity = rollRarity(1.0);
+          const invRes = addItemToSlots(player.inventory, 28, recipe.outputItemId, recipe.outputQuantity, rarity, 0, outputItem, 'inventory');
+          if (invRes.remainder > 0) {
+            summary.overflowOccurred = true;
+            const maxStorage = player.storageSlotsMax || 75;
+            const bankRes = addItemToSlots(player.storage, maxStorage, recipe.outputItemId, invRes.remainder, rarity, 0, outputItem, 'bank');
+            if (bankRes.remainder > 0) {
+              if (!player.overflowTray) player.overflowTray = [];
+              const traySlot = player.overflowTray.find(s => s.itemId === recipe.outputItemId && s.rarity === rarity && s.plus === 0);
+              if (traySlot) {
+                traySlot.quantity += bankRes.remainder;
+              } else if (player.overflowTray.length < 10) {
+                player.overflowTray.push({
+                  itemId: recipe.outputItemId,
+                  quantity: bankRes.remainder,
+                  rarity,
+                  plus: 0,
+                });
+              } else {
+                break;
+              }
+            }
+          }
+          summary.itemsGained[recipe.outputItemId] = (summary.itemsGained[recipe.outputItemId] || 0) + recipe.outputQuantity;
+        }
+      }
+
+      totalXp += recipe.xp;
+      executed++;
+    }
+
+    summary.completedCycles += executed;
+    summary.xpGained += totalXp;
+    player.currentTask.completedQuantity = (player.currentTask.completedQuantity || 0) + executed;
+    remainingTime = Math.max(0, remainingTime - (executed * effectiveInterval));
+
+    // Apply XP & check level up
+    const skillRecord = player.skills[recipe.skill];
+    if (skillRecord) {
+      const oldLevel = skillRecord.level;
+      skillRecord.xp += totalXp;
+      skillRecord.level = getLevelFromXp(skillRecord.xp);
+      if (skillRecord.level > oldLevel) {
+        summary.leveledUp = true;
+        summary.skillName = recipe.skill;
+        summary.startLevel = oldLevel;
+        summary.newLevel = skillRecord.level;
+        summary.levelUps!.push({ skillName: recipe.skill, startLevel: oldLevel, newLevel: skillRecord.level });
       }
     }
 
-    totalXp += recipe.xp;
-    executed++;
-  }
-
-  summary.completedCycles = executed;
-  summary.xpGained = totalXp;
-  player.currentTask.completedQuantity = (player.currentTask.completedQuantity || 0) + executed;
-
-  if (targetQuantity !== Infinity && player.currentTask.completedQuantity >= targetQuantity) {
-    player.currentTask = null;
-  }
-
-  // Apply XP & check level up
-  const skillRecord = player.skills[recipe.skill];
-  if (skillRecord) {
-    const oldLevel = skillRecord.level;
-    skillRecord.xp += totalXp;
-    skillRecord.level = getLevelFromXp(skillRecord.xp);
-    if (skillRecord.level > oldLevel) {
-      summary.leveledUp = true;
-      summary.skillName = recipe.skill;
-      summary.startLevel = oldLevel;
-      summary.newLevel = skillRecord.level;
+    // Check if task finished its target quantity
+    if (targetQuantity !== Infinity && player.currentTask.completedQuantity >= targetQuantity) {
+      player.currentTask = null;
+      if (Array.isArray(player.taskQueue) && player.taskQueue.length > 0) {
+        const next = player.taskQueue.shift()!;
+        const mobId = next.monsterId || next.recipeId;
+        const isCombat = Boolean(next.monsterId || ((next.skill as string) === 'combat') || (mobId && MONSTERS[mobId]));
+        player.currentTask = {
+          recipeId: isCombat ? mobId : next.recipeId,
+          skill: next.skill,
+          startedAtTick: 0,
+          targetQuantity: (typeof next.targetQuantity === 'number' && next.targetQuantity > 0) ? next.targetQuantity : Infinity,
+          completedQuantity: 0,
+        };
+        continue;
+      }
     }
+
+    break;
   }
 
   return summary;
