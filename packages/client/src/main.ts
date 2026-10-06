@@ -6340,7 +6340,9 @@ class EldoriaClient {
         const card = document.createElement('div');
         card.className = 'gem-pack-card';
         card.innerHTML = `
-          <div style="font-size: 1.6rem; margin-bottom: 2px;">💎</div>
+          <div style="margin-bottom: 4px; display: flex; justify-content: center;">
+            <img src="/icons/items/${pack.id}.png" style="width: 32px; height: 32px; image-rendering: pixelated;" alt="${pack.name}" />
+          </div>
           <div class="gem-pack-name">${pack.name}</div>
           <div class="gem-pack-gems">${pack.gems.toLocaleString()} Gems</div>
           <div style="font-size: 0.7rem; color: #a0aec0; margin: 4px 0 2px 0;">Tradeable Pack</div>
