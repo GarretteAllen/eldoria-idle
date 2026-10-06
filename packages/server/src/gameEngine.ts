@@ -1344,7 +1344,7 @@ export class GameEngine {
       }
 
       case 'ATTACK_BOSS':
-        this.handleBossAttack(session);
+        // Raid system is deactivated
         break;
     }
   }

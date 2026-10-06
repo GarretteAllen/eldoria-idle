@@ -5239,20 +5239,12 @@ class EldoriaClient {
 
 
 
-  private updateBossBanner(boss: any) {
-    const pill = document.getElementById('boss-pill')!;
-    if (!boss) {
+  private updateBossBanner(_boss: any) {
+    const pill = document.getElementById('boss-pill');
+    if (pill) {
       pill.classList.add('hidden');
-      return;
+      pill.style.display = 'none';
     }
-    pill.classList.remove('hidden');
-    const info = document.getElementById('boss-info')!;
-    info.textContent = `${boss.name} (${boss.currentHp.toLocaleString()} HP)`;
-
-    const joinBtn = document.getElementById('boss-join-btn')!;
-    joinBtn.onclick = () => {
-      this.sendWs({ type: 'ATTACK_BOSS' });
-    };
   }
 
   private showCatchUpModal(summary: any) {
