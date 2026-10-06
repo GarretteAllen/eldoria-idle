@@ -570,9 +570,21 @@ class StorageManager {
           this.stmtDeleteItem.run('pelt_quiver');
           this.stmtUpsertItem.run('leather_quiver', JSON.stringify(item));
         }
+        const baseCodeDef = ITEMS[item.id];
+        if (baseCodeDef?.description) {
+          item.description = baseCodeDef.description;
+        }
         this.itemsCache[item.id] = item;
       } catch (e) {
         console.error(`Failed to parse item ${row.id}`, e);
+      }
+    }
+    // Ensure all code-defined items are in cache with their descriptions
+    for (const [id, def] of Object.entries(ITEMS)) {
+      if (!this.itemsCache[id]) {
+        this.itemsCache[id] = { ...def };
+      } else if (def.description) {
+        this.itemsCache[id].description = def.description;
       }
     }
     if (this.itemsCache['pelt_jerkin']) this.itemsCache['pelt_jerkin'].name = 'Leather Tunic';

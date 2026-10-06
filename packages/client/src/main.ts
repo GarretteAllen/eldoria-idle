@@ -4663,7 +4663,10 @@ class EldoriaClient {
       if (def.baseStats?.toolSpeedBonus) statParts.push(`+${Math.round(def.baseStats.toolSpeedBonus * 100)}% Speed`);
       if (def.baseStats?.healing) statParts.push(`Heals +${def.baseStats.healing} HP`);
       if (def.equipReq) statParts.push(`${def.equipReq.skill} ${def.equipReq.level}`);
-      statsEl.textContent = statParts.length > 0 ? statParts.join(' ') : (def.description || `${slot.rarity || 'plain'} item`);
+      
+      const statsLine = statParts.length > 0 ? `<div style="color: var(--gold-bright); font-weight: 600; margin-bottom: 2px;">${statParts.join(' • ')}</div>` : '';
+      const descLine = def.description ? `<div style="color: #cbd5e1; font-size: 0.72rem; line-height: 1.3;">${def.description}</div>` : '';
+      statsEl.innerHTML = `${statsLine}${descLine}`;
     }
 
     const equipBtn = document.getElementById('ctx-btn-equip');
