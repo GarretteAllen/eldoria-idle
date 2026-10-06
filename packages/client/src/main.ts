@@ -6965,8 +6965,6 @@ class EldoriaClient {
     }
 
     sound.play('teleport');
-    const label = doorNode.targetLabel || (doorNode.targetLevelId ? `Entering ${doorNode.targetLevelId}` : `Warping to (${targetX}, ${targetY})`);
-    this.showToast(label);
 
     // Cancel current walking / task
     this.pendingDoorTarget = null;

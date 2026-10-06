@@ -2283,8 +2283,6 @@ export class GameEngine {
     storage.savePlayer(player);
     storage.checkpoint();
 
-    const label = node.targetLabel || (node.targetLevelId ? `Entered ${node.targetLevelId}` : `Warped through ${node.name || 'door'}`);
-    this.send(ws, { type: 'NOTIFICATION', message: label });
     this.send(ws, { type: 'PLAYER_UPDATE', player });
     this.broadcastWorldState();
   }
