@@ -446,6 +446,7 @@
             <div class="dv-storage-tabs">
               <button id="dv-tab-storage" class="dv-tab-btn active">Storage</button>
               <button id="dv-tab-vendor" class="dv-tab-btn">Vendor</button>
+              <button id="dv-tab-market" class="dv-tab-btn">Market</button>
             </div>
             <div id="dv-slots-counter" class="dv-slots-label">0 / 75 slots</div>
             <button id="dv-storage-close-btn" class="dv-close-circle-btn" title="Close storage"></button>
@@ -513,6 +514,43 @@
             <div id="dv-vendor-carrying-grid" class="dv-item-grid dv-carrying-grid" style="margin-top: 10px;"></div>
             <div class="dv-vendor-footer" style="margin-top: 14px;">
               <button id="dv-btn-sell-all-junk" class="dv-btn-deposit-primary" style="width: 100%;">Sell All Common Spoils</button>
+            </div>
+          </div>
+
+          <!-- Marketplace Tab Content Area -->
+          <div id="dv-market-tab-view" class="hidden">
+            <div class="dv-market-subbar">
+              <input type="text" id="dv-market-search-input" class="dv-filter-box" placeholder="Search marketplace..." style="flex: 1;" />
+              <select id="dv-market-filter-type" class="dv-market-select">
+                <option value="all">All Items</option>
+                <option value="my_listings">My Listings</option>
+                <option value="materials">Materials</option>
+                <option value="equipment">Equipment</option>
+                <option value="consumables">Consumables</option>
+              </select>
+              <button id="dv-market-refresh-btn" class="dv-sub-btn">Refresh</button>
+            </div>
+
+            <div class="dv-market-listings-container">
+              <div class="dv-market-listings-header">
+                <span class="dv-mkt-col-item">Item</span>
+                <span class="dv-mkt-col-qty">Qty</span>
+                <span class="dv-mkt-col-price">Unit Price</span>
+                <span class="dv-mkt-col-total">Total</span>
+                <span class="dv-mkt-col-seller">Seller</span>
+                <span class="dv-mkt-col-action">Action</span>
+              </div>
+              <div id="dv-market-listings-list" class="dv-market-listings-list">
+                <div class="dv-market-empty-msg">Loading listings...</div>
+              </div>
+            </div>
+
+            <div class="dv-market-sell-section">
+              <div class="dv-market-sell-header">
+                <span class="dv-carrying-title">List an Item from Satchel</span>
+                <span style="font-size: 0.75rem; color: #a0aec0;">Click an item below to create a market listing</span>
+              </div>
+              <div id="dv-market-carrying-grid" class="dv-item-grid dv-carrying-grid" style="max-height: 84px; overflow-y: auto;"></div>
             </div>
           </div>
         </div>

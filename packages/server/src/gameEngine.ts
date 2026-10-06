@@ -29,6 +29,7 @@ import {
   QUEUE_SLOT_CONFIG,
   GEM_PACKS,
   QueuedTask,
+  MarketListing,
 } from '@eldoria/shared';
 import { storage } from './storage.js';
 
@@ -602,6 +603,22 @@ export class GameEngine {
 
       case 'SELL_ALL_JUNK':
         this.handleSellAllJunk(session);
+        break;
+
+      case 'GET_MARKET_LISTINGS':
+        this.handleGetMarketListings(session);
+        break;
+
+      case 'CREATE_MARKET_LISTING':
+        this.handleCreateMarketListing(session, msg.inventoryIndex, msg.quantity, msg.unitPrice);
+        break;
+
+      case 'BUY_MARKET_LISTING':
+        this.handleBuyMarketListing(session, msg.listingId, msg.quantity);
+        break;
+
+      case 'CANCEL_MARKET_LISTING':
+        this.handleCancelMarketListing(session, msg.listingId);
         break;
 
       case 'SET_COMBAT_FOOD_SETTINGS':
@@ -1795,6 +1812,353 @@ export class GameEngine {
       message: `Sold ${soldCount} items to merchant for ${totalGold.toLocaleString()} gold.`
     });
     this.send(ws, { type: 'PLAYER_UPDATE', player });
+  }
+
+  private handleGetMarketListings(session: ConnectedSession) {
+    const listings = storage.getMarketListings();
+    this.send(session.ws, {
+      type: 'MARKET_LISTINGS',
+      listings,
+    });
+  }
+
+  private handleCreateMarketListing(session: ConnectedSession, inventoryIndex: number, quantity: number, unitPrice: number) {
+    const { player, ws } = session;
+    const hearth = this.getHearthLocation(player.x, player.y);
+    const distToHearth = Math.hypot(player.x - hearth.x, player.y - hearth.y);
+    if (distToHearth > 3.5) {
+      this.send(ws, { type: 'NOTIFICATION', message: 'You must be at the Hearth to list items on the marketplace.' });
+      return;
+    }
+
+    if (typeof inventoryIndex !== 'number' || inventoryIndex < 0 || inventoryIndex >= player.inventory.length) {
+      this.send(ws, { type: 'NOTIFICATION', message: 'Invalid item selected.' });
+      return;
+    }
+
+    const slot = player.inventory[inventoryIndex];
+    if (!slot) {
+      this.send(ws, { type: 'NOTIFICATION', message: 'Item no longer exists in satchel.' });
+      return;
+    }
+
+    if (slot.itemId === 'gold') {
+      this.send(ws, { type: 'NOTIFICATION', message: 'Cannot list gold coins on the marketplace.' });
+      return;
+    }
+
+    const safeQty = Math.floor(quantity);
+    if (!Number.isFinite(safeQty) || safeQty <= 0) {
+      this.send(ws, { type: 'NOTIFICATION', message: 'Quantity must be greater than zero.' });
+      return;
+    }
+
+    if (safeQty > slot.quantity) {
+      this.send(ws, { type: 'NOTIFICATION', message: 'You do not have enough of that item.' });
+      return;
+    }
+
+    const safeUnitPrice = Math.floor(unitPrice);
+    if (!Number.isFinite(safeUnitPrice) || safeUnitPrice <= 0 || safeUnitPrice > 2000000000) {
+      this.send(ws, { type: 'NOTIFICATION', message: 'Unit price must be between 1 and 2,000,000,000 gold.' });
+      return;
+    }
+
+    const totalPrice = safeUnitPrice * safeQty;
+    if (totalPrice <= 0 || totalPrice > 2000000000) {
+      this.send(ws, { type: 'NOTIFICATION', message: 'Total price exceeds gold capacity.' });
+      return;
+    }
+
+    // Deduct item from inventory immediately (escrow)
+    slot.quantity -= safeQty;
+    const itemRarity = slot.rarity || 'plain';
+    const itemPlus = slot.plus || 0;
+    const itemId = slot.itemId;
+
+    if (slot.quantity <= 0) {
+      player.inventory.splice(inventoryIndex, 1);
+    }
+
+    const listingId = `mkt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const listing: MarketListing = {
+      id: listingId,
+      sellerId: player.id,
+      sellerName: player.username,
+      itemId,
+      quantity: safeQty,
+      unitPrice: safeUnitPrice,
+      totalPrice,
+      rarity: itemRarity,
+      plus: itemPlus,
+      createdAt: Date.now(),
+    };
+
+    storage.createMarketListing(listing);
+    storage.savePlayer(player);
+    storage.checkpoint();
+
+    const itemDef = storage.getItem(itemId) || ITEMS[itemId];
+    const itemName = itemDef?.name || itemId;
+
+    this.send(ws, {
+      type: 'NOTIFICATION',
+      message: `Listed ${safeQty}x ${itemName} for ${safeUnitPrice.toLocaleString()} gold each.`
+    });
+    this.send(ws, { type: 'PLAYER_UPDATE', player });
+
+    // Broadcast updated market listings to all online players
+    this.broadcast({
+      type: 'MARKET_LISTINGS',
+      listings: storage.getMarketListings(),
+    });
+  }
+
+  private handleBuyMarketListing(session: ConnectedSession, listingId: string, requestedQty?: number) {
+    const { player, ws } = session;
+    const hearth = this.getHearthLocation(player.x, player.y);
+    const distToHearth = Math.hypot(player.x - hearth.x, player.y - hearth.y);
+    if (distToHearth > 3.5) {
+      this.send(ws, { type: 'NOTIFICATION', message: 'You must be at the Hearth to buy items from the marketplace.' });
+      return;
+    }
+
+    if (!listingId || typeof listingId !== 'string') return;
+
+    // Execute purchase inside an atomic transaction
+    let purchaseSuccess = false;
+    let errMessage = '';
+    let purchasedListing: MarketListing | null = null;
+    let actualBoughtQty = 0;
+    let totalCost = 0;
+
+    try {
+      storage.runTransaction(() => {
+        const listing = storage.getMarketListing(listingId);
+        if (!listing) {
+          errMessage = 'Listing is no longer available.';
+          return;
+        }
+
+        if (listing.sellerId === player.id) {
+          errMessage = 'You cannot buy your own listing. Use Cancel Listing instead.';
+          return;
+        }
+
+        let buyQty = listing.quantity;
+        if (typeof requestedQty === 'number') {
+          const parsed = Math.floor(requestedQty);
+          if (parsed > 0 && parsed <= listing.quantity) {
+            buyQty = parsed;
+          }
+        }
+
+        const cost = listing.unitPrice * buyQty;
+        if ((player.gold || 0) < cost) {
+          errMessage = `You do not have enough gold. Required: ${cost.toLocaleString()} gold.`;
+          return;
+        }
+
+        const itemDef = storage.getItem(listing.itemId) || ITEMS[listing.itemId];
+
+        // Attempt to deliver items to buyer inventory
+        const addRes = addItemToSlots(player.inventory, 28, listing.itemId, buyQty, listing.rarity, listing.plus, itemDef, 'inventory');
+        if (addRes.added < buyQty) {
+          // If satchel was partially filled or completely full, rollback satchel add
+          if (addRes.added > 0) {
+            let rollBack = addRes.added;
+            for (let i = player.inventory.length - 1; i >= 0 && rollBack > 0; i--) {
+              const s = player.inventory[i];
+              if (s.itemId === listing.itemId && s.rarity === listing.rarity && (s.plus || 0) === (listing.plus || 0)) {
+                const take = Math.min(s.quantity, rollBack);
+                s.quantity -= take;
+                rollBack -= take;
+                if (s.quantity <= 0) {
+                  player.inventory.splice(i, 1);
+                }
+              }
+            }
+          }
+          errMessage = 'Not enough free satchel space to receive the items.';
+          return;
+        }
+
+        // Deduct gold from buyer
+        player.gold = (player.gold || 0) - cost;
+
+        // Credit gold to seller
+        let sellerSession: ConnectedSession | undefined;
+        for (const s of this.sessions.values()) {
+          if (s.player.id === listing.sellerId) {
+            sellerSession = s;
+            break;
+          }
+        }
+
+        if (sellerSession) {
+          sellerSession.player.gold = (sellerSession.player.gold || 0) + cost;
+          storage.savePlayer(sellerSession.player);
+          this.send(sellerSession.ws, {
+            type: 'NOTIFICATION',
+            message: `${player.username} bought ${buyQty}x ${itemDef?.name || listing.itemId} from your listing for +${cost.toLocaleString()} gold!`
+          });
+          this.send(sellerSession.ws, { type: 'PLAYER_UPDATE', player: sellerSession.player });
+        } else {
+          // Seller is offline: load player from DB, credit gold, and persist
+          const offlineSeller = storage.getPlayer(listing.sellerId);
+          if (offlineSeller) {
+            offlineSeller.gold = (offlineSeller.gold || 0) + cost;
+            storage.savePlayer(offlineSeller);
+          }
+        }
+
+        // Update or delete listing in database
+        if (buyQty >= listing.quantity) {
+          storage.removeMarketListing(listing.id);
+        } else {
+          // Partial buy: reduce listing quantity and update total price
+          storage.removeMarketListing(listing.id);
+          const updatedListing: MarketListing = {
+            ...listing,
+            quantity: listing.quantity - buyQty,
+            totalPrice: listing.unitPrice * (listing.quantity - buyQty),
+          };
+          storage.createMarketListing(updatedListing);
+        }
+
+        storage.savePlayer(player);
+        purchasedListing = listing;
+        actualBoughtQty = buyQty;
+        totalCost = cost;
+        purchaseSuccess = true;
+      });
+    } catch (err) {
+      console.error('Marketplace buy transaction error:', err);
+      errMessage = 'Transaction failed. Please try again.';
+      purchaseSuccess = false;
+    }
+
+    if (!purchaseSuccess) {
+      if (errMessage) {
+        this.send(ws, { type: 'NOTIFICATION', message: errMessage });
+      }
+      return;
+    }
+
+    storage.checkpoint();
+    const itemDef = storage.getItem(purchasedListing!.itemId) || ITEMS[purchasedListing!.itemId];
+    this.send(ws, {
+      type: 'NOTIFICATION',
+      message: `Purchased ${actualBoughtQty}x ${itemDef?.name || purchasedListing!.itemId} for ${totalCost.toLocaleString()} gold.`
+    });
+    this.send(ws, { type: 'PLAYER_UPDATE', player });
+
+    this.broadcast({
+      type: 'MARKET_LISTINGS',
+      listings: storage.getMarketListings(),
+    });
+  }
+
+  private handleCancelMarketListing(session: ConnectedSession, listingId: string) {
+    const { player, ws } = session;
+    const hearth = this.getHearthLocation(player.x, player.y);
+    const distToHearth = Math.hypot(player.x - hearth.x, player.y - hearth.y);
+    if (distToHearth > 3.5) {
+      this.send(ws, { type: 'NOTIFICATION', message: 'You must be at the Hearth to cancel marketplace listings.' });
+      return;
+    }
+
+    if (!listingId || typeof listingId !== 'string') return;
+
+    let cancelSuccess = false;
+    let errMessage = '';
+    let cancelledItemName = '';
+
+    try {
+      storage.runTransaction(() => {
+        const listing = storage.getMarketListing(listingId);
+        if (!listing) {
+          errMessage = 'Listing no longer exists.';
+          return;
+        }
+
+        if (listing.sellerId !== player.id) {
+          errMessage = 'You can only cancel your own listings.';
+          return;
+        }
+
+        const itemDef = storage.getItem(listing.itemId) || ITEMS[listing.itemId];
+        cancelledItemName = itemDef?.name || listing.itemId;
+
+        // Try to return items to satchel first
+        const invRes = addItemToSlots(player.inventory, 28, listing.itemId, listing.quantity, listing.rarity, listing.plus, itemDef, 'inventory');
+        if (invRes.remainder > 0) {
+          // If satchel cannot fit all, try to place remainder in vault/bank
+          const maxStorage = player.storageSlotsMax || 75;
+          const bankRes = addItemToSlots(player.storage, maxStorage, listing.itemId, invRes.remainder, listing.rarity, listing.plus, itemDef, 'bank');
+          if (bankRes.remainder > 0) {
+            // Roll back inventory addition if storage is also full
+            if (invRes.added > 0) {
+              let rollBack = invRes.added;
+              for (let i = player.inventory.length - 1; i >= 0 && rollBack > 0; i--) {
+                const s = player.inventory[i];
+                if (s.itemId === listing.itemId && s.rarity === listing.rarity && (s.plus || 0) === (listing.plus || 0)) {
+                  const take = Math.min(s.quantity, rollBack);
+                  s.quantity -= take;
+                  rollBack -= take;
+                  if (s.quantity <= 0) {
+                    player.inventory.splice(i, 1);
+                  }
+                }
+              }
+            }
+            if (bankRes.added > 0) {
+              let rollBack = bankRes.added;
+              for (let i = player.storage.length - 1; i >= 0 && rollBack > 0; i--) {
+                const s = player.storage[i];
+                if (s.itemId === listing.itemId && s.rarity === listing.rarity && (s.plus || 0) === (listing.plus || 0)) {
+                  const take = Math.min(s.quantity, rollBack);
+                  s.quantity -= take;
+                  rollBack -= take;
+                  if (s.quantity <= 0) {
+                    player.storage.splice(i, 1);
+                  }
+                }
+              }
+            }
+            errMessage = 'Both your satchel and storage vault are full. Make room to cancel this listing.';
+            return;
+          }
+        }
+
+        storage.removeMarketListing(listing.id);
+        storage.savePlayer(player);
+        cancelSuccess = true;
+      });
+    } catch (err) {
+      console.error('Marketplace cancel transaction error:', err);
+      errMessage = 'Failed to cancel listing. Please try again.';
+      cancelSuccess = false;
+    }
+
+    if (!cancelSuccess) {
+      if (errMessage) {
+        this.send(ws, { type: 'NOTIFICATION', message: errMessage });
+      }
+      return;
+    }
+
+    storage.checkpoint();
+    this.send(ws, {
+      type: 'NOTIFICATION',
+      message: `Cancelled listing and returned ${cancelledItemName} to your possession.`
+    });
+    this.send(ws, { type: 'PLAYER_UPDATE', player });
+
+    this.broadcast({
+      type: 'MARKET_LISTINGS',
+      listings: storage.getMarketListings(),
+    });
   }
 
   private tick() {

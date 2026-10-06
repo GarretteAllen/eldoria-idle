@@ -2643,6 +2643,169 @@ body, html {
   font-family: monospace, sans-serif;
 }
 
+/* Marketplace Tab Styles */
+.dv-market-subbar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.dv-market-select {
+  background: #140d08;
+  border: 1px solid #432e1c;
+  border-radius: 4px;
+  color: #ffd699;
+  font-size: 0.78rem;
+  padding: 5px 8px;
+  font-family: inherit;
+  outline: none;
+}
+
+.dv-market-select:focus {
+  border-color: #d97706;
+}
+
+.dv-market-listings-container {
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid #432e1c;
+  border-radius: 6px;
+  padding: 6px 8px;
+  margin-bottom: 12px;
+}
+
+.dv-market-listings-header {
+  display: grid;
+  grid-template-columns: 2.2fr 0.8fr 1.2fr 1.2fr 1.2fr 1fr;
+  padding: 4px 6px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #a49382;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.dv-market-listings-list {
+  max-height: 200px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding-top: 4px;
+}
+
+.dv-market-listing-row {
+  display: grid;
+  grid-template-columns: 2.2fr 0.8fr 1.2fr 1.2fr 1.2fr 1fr;
+  align-items: center;
+  padding: 5px 6px;
+  background: rgba(25, 17, 10, 0.6);
+  border-radius: 4px;
+  font-size: 0.78rem;
+  border: 1px solid transparent;
+  transition: all 0.12s;
+}
+
+.dv-market-listing-row:hover {
+  background: rgba(45, 30, 18, 0.8);
+  border-color: #6d4b2d;
+}
+
+.dv-market-listing-row.my-listing {
+  border-left: 2px solid #3b82f6;
+}
+
+.dv-mkt-item-cell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dv-mkt-item-icon {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+  image-rendering: pixelated;
+  flex-shrink: 0;
+}
+
+.dv-mkt-item-name {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dv-mkt-gold-text {
+  color: #ffd699;
+  font-weight: 600;
+}
+
+.dv-mkt-seller-name {
+  color: #cbd5e1;
+  font-size: 0.74rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dv-market-btn-buy {
+  background: linear-gradient(180deg, #10b981 0%, #059669 100%);
+  color: #fff;
+  border: 1px solid #34d399;
+  border-radius: 3px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 3px 8px;
+  cursor: pointer;
+  transition: all 0.12s;
+}
+
+.dv-market-btn-buy:hover {
+  background: linear-gradient(180deg, #34d399 0%, #10b981 100%);
+  box-shadow: 0 0 6px rgba(16, 185, 129, 0.6);
+}
+
+.dv-market-btn-cancel {
+  background: linear-gradient(180deg, #ef4444 0%, #dc2626 100%);
+  color: #fff;
+  border: 1px solid #f87171;
+  border-radius: 3px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 3px 8px;
+  cursor: pointer;
+  transition: all 0.12s;
+}
+
+.dv-market-btn-cancel:hover {
+  background: linear-gradient(180deg, #f87171 0%, #ef4444 100%);
+  box-shadow: 0 0 6px rgba(239, 68, 68, 0.6);
+}
+
+.dv-market-empty-msg {
+  text-align: center;
+  color: #84613b;
+  font-size: 0.8rem;
+  padding: 24px 0;
+}
+
+.dv-market-sell-section {
+  border-top: 1px solid #432e1c;
+  padding-top: 8px;
+}
+
+.dv-market-sell-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 6px;
+}
+
 /* ========================================================
    COMPACT IN-PANEL ITEM CONTEXT MENU (matching contextmenu.png)
    ======================================================== */

@@ -3,7 +3,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import Database from 'better-sqlite3';
-import { PlayerData, SkillType, WorldNode, NpcDefinition, QuestDefinition, MonsterSpawnZone, getLevelFromXp, ItemDefinition, ITEMS, LevelBounds, parseLdtkLevelBounds, isTileInAnyLevel, InventorySlot } from '@eldoria/shared';
+import { PlayerData, SkillType, WorldNode, NpcDefinition, QuestDefinition, MonsterSpawnZone, getLevelFromXp, ItemDefinition, ITEMS, LevelBounds, parseLdtkLevelBounds, isTileInAnyLevel, InventorySlot, MarketListing } from '@eldoria/shared';
 import { WORLD_NODES as DEFAULT_WORLD_NODES } from './world.js';
 
 export const DEFAULT_MONSTER_ZONES: MonsterSpawnZone[] = [
@@ -226,6 +226,10 @@ class StorageManager {
   private stmtGetMonsterZones: Database.Statement;
   private stmtUpsertMonsterZone: Database.Statement;
   private stmtDeleteMonsterZone: Database.Statement;
+  private stmtGetMarketListings: Database.Statement;
+  private stmtGetMarketListingById: Database.Statement;
+  private stmtInsertMarketListing: Database.Statement;
+  private stmtDeleteMarketListing: Database.Statement;
   private itemsCache: Record<string, ItemDefinition> = {};
   private monsterZonesCache: MonsterSpawnZone[] = [];
 
@@ -314,6 +318,14 @@ class StorageManager {
     );
     this.stmtDeleteMonsterZone = this.db.prepare('DELETE FROM monster_zones WHERE id = ?');
 
+    this.stmtGetMarketListings = this.db.prepare('SELECT * FROM market_listings ORDER BY created_at DESC');
+    this.stmtGetMarketListingById = this.db.prepare('SELECT * FROM market_listings WHERE id = ?');
+    this.stmtInsertMarketListing = this.db.prepare(
+      `INSERT INTO market_listings (id, seller_id, seller_name, item_id, quantity, unit_price, total_price, rarity, plus, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    );
+    this.stmtDeleteMarketListing = this.db.prepare('DELETE FROM market_listings WHERE id = ?');
+
     // Run automatic migration from legacy json files if upgrading
     this.migrateLegacyJson();
 
@@ -385,8 +397,23 @@ class StorageManager {
         data TEXT NOT NULL
       );
 
+      CREATE TABLE IF NOT EXISTS market_listings (
+        id TEXT PRIMARY KEY,
+        seller_id TEXT NOT NULL,
+        seller_name TEXT NOT NULL,
+        item_id TEXT NOT NULL,
+        quantity INTEGER NOT NULL,
+        unit_price INTEGER NOT NULL,
+        total_price INTEGER NOT NULL,
+        rarity TEXT NOT NULL DEFAULT 'plain',
+        plus INTEGER NOT NULL DEFAULT 0,
+        created_at INTEGER NOT NULL
+      );
+
       CREATE INDEX IF NOT EXISTS idx_accounts_norm_user ON accounts(normalized_username);
       CREATE INDEX IF NOT EXISTS idx_sessions_account ON sessions(account_id);
+      CREATE INDEX IF NOT EXISTS idx_market_item ON market_listings(item_id);
+      CREATE INDEX IF NOT EXISTS idx_market_seller ON market_listings(seller_id);
     `);
   }
 
@@ -1289,6 +1316,66 @@ class StorageManager {
   public verifyAdminSecret(secret: string): boolean {
     if (!secret) return false;
     return secret.trim() === ADMIN_SECRET;
+  }
+
+  // --- Marketplace Methods ---
+  public getMarketListings(): MarketListing[] {
+    const rows = this.stmtGetMarketListings.all() as any[];
+    return rows.map(r => ({
+      id: r.id,
+      sellerId: r.seller_id,
+      sellerName: r.seller_name,
+      itemId: r.item_id,
+      quantity: r.quantity,
+      unitPrice: r.unit_price,
+      totalPrice: r.total_price,
+      rarity: r.rarity,
+      plus: r.plus,
+      createdAt: r.created_at,
+    }));
+  }
+
+  public getMarketListing(id: string): MarketListing | null {
+    const r = this.stmtGetMarketListingById.get(id) as any;
+    if (!r) return null;
+    return {
+      id: r.id,
+      sellerId: r.seller_id,
+      sellerName: r.seller_name,
+      itemId: r.item_id,
+      quantity: r.quantity,
+      unitPrice: r.unit_price,
+      totalPrice: r.total_price,
+      rarity: r.rarity,
+      plus: r.plus,
+      createdAt: r.created_at,
+    };
+  }
+
+  public createMarketListing(listing: MarketListing): void {
+    this.stmtInsertMarketListing.run(
+      listing.id,
+      listing.sellerId,
+      listing.sellerName,
+      listing.itemId,
+      listing.quantity,
+      listing.unitPrice,
+      listing.totalPrice,
+      listing.rarity || 'plain',
+      listing.plus || 0,
+      listing.createdAt || Date.now()
+    );
+    this.checkpoint();
+  }
+
+  public removeMarketListing(id: string): void {
+    this.stmtDeleteMarketListing.run(id);
+    this.checkpoint();
+  }
+
+  // Execute in an atomic SQLite transaction
+  public runTransaction<T>(fn: () => T): T {
+    return this.db.transaction(fn)();
   }
 
   // Legacy no-op compatibility helpers

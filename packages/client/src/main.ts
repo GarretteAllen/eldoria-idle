@@ -18,6 +18,7 @@ import {
   GEM_PACKS,
   GemPackDef,
   QueuedTask,
+  MarketListing,
 } from '@eldoria/shared';
 import { WorldRenderer, WorldNodeDisplay, TILE_SIZE } from './canvas.js';
 import { loadLdtkWorld } from './ldtkLoader.js';
@@ -71,7 +72,10 @@ class EldoriaClient {
   // Storage Modal State
   private selectedTransferAmount: number | 'all' = 1;
   private storageFilterQuery: string = '';
-  private activeStorageTab: 'storage' | 'vendor' = 'storage';
+  private activeStorageTab: 'storage' | 'vendor' | 'market' = 'storage';
+  private marketListings: MarketListing[] = [];
+  private marketSearchQuery: string = '';
+  private marketFilterCategory: string = 'all';
 
   // Editor State
   private activeEditorTab: 'nodes' | 'monsters' | 'npcs' | 'quests' | 'collisions' | 'giveitems' | 'items' = 'nodes';
@@ -955,6 +959,13 @@ class EldoriaClient {
 
       case 'LEVEL_UP':
         this.showLevelUpModal(msg.skill, msg.newLevel);
+        break;
+
+      case 'MARKET_LISTINGS':
+        this.marketListings = Array.isArray(msg.listings) ? msg.listings : [];
+        if (this.activeStorageTab === 'market') {
+          this.renderMarketView();
+        }
         break;
 
       case 'NOTIFICATION': {
@@ -2831,16 +2842,22 @@ class EldoriaClient {
     // Tab buttons
     const tabStorage = document.getElementById('dv-tab-storage');
     const tabVendor = document.getElementById('dv-tab-vendor');
+    const tabMarket = document.getElementById('dv-tab-market');
     const viewStorage = document.getElementById('dv-storage-tab-view');
     const viewVendor = document.getElementById('dv-vendor-tab-view');
+    const viewMarket = document.getElementById('dv-market-tab-view');
+    const subbarStorage = document.querySelector('.dv-storage-subbar') as HTMLElement | null;
 
-    if (tabStorage && tabVendor && viewStorage && viewVendor) {
+    if (tabStorage && tabVendor && tabMarket && viewStorage && viewVendor && viewMarket) {
       tabStorage.onclick = () => {
         this.activeStorageTab = 'storage';
         tabStorage.classList.add('active');
         tabVendor.classList.remove('active');
+        tabMarket.classList.remove('active');
         viewStorage.classList.remove('hidden');
         viewVendor.classList.add('hidden');
+        viewMarket.classList.add('hidden');
+        if (subbarStorage) subbarStorage.style.display = 'flex';
         this.renderStorageModal();
       };
 
@@ -2848,9 +2865,49 @@ class EldoriaClient {
         this.activeStorageTab = 'vendor';
         tabVendor.classList.add('active');
         tabStorage.classList.remove('active');
+        tabMarket.classList.remove('active');
         viewVendor.classList.remove('hidden');
         viewStorage.classList.add('hidden');
+        viewMarket.classList.add('hidden');
+        if (subbarStorage) subbarStorage.style.display = 'none';
         this.renderVendorView();
+      };
+
+      tabMarket.onclick = () => {
+        this.activeStorageTab = 'market';
+        tabMarket.classList.add('active');
+        tabStorage.classList.remove('active');
+        tabVendor.classList.remove('active');
+        viewMarket.classList.remove('hidden');
+        viewStorage.classList.add('hidden');
+        viewVendor.classList.add('hidden');
+        if (subbarStorage) subbarStorage.style.display = 'none';
+        this.sendWs({ type: 'GET_MARKET_LISTINGS' });
+        this.renderMarketView();
+      };
+    }
+
+    // Marketplace Search & Filter controls
+    const mktSearch = document.getElementById('dv-market-search-input') as HTMLInputElement | null;
+    if (mktSearch) {
+      mktSearch.oninput = () => {
+        this.marketSearchQuery = (mktSearch.value || '').trim().toLowerCase();
+        this.renderMarketView();
+      };
+    }
+
+    const mktType = document.getElementById('dv-market-filter-type') as HTMLSelectElement | null;
+    if (mktType) {
+      mktType.onchange = () => {
+        this.marketFilterCategory = mktType.value;
+        this.renderMarketView();
+      };
+    }
+
+    const mktRefresh = document.getElementById('dv-market-refresh-btn');
+    if (mktRefresh) {
+      mktRefresh.onclick = () => {
+        this.sendWs({ type: 'GET_MARKET_LISTINGS' });
       };
     }
 
@@ -2958,6 +3015,10 @@ class EldoriaClient {
 
     if (this.activeStorageTab === 'vendor') {
       this.renderVendorView();
+      return;
+    }
+    if (this.activeStorageTab === 'market') {
+      this.renderMarketView();
       return;
     }
 
@@ -3137,6 +3198,198 @@ class EldoriaClient {
       }
 
       vendorGrid.appendChild(div);
+    }
+  }
+
+  private renderMarketView() {
+    if (!this.player) return;
+    const modal = document.getElementById('deepvein-storage-modal');
+    if (!modal || modal.classList.contains('hidden')) return;
+
+    const counterEl = document.getElementById('dv-slots-counter');
+    if (counterEl) {
+      counterEl.textContent = `Coins: ${(this.player.gold || 0).toLocaleString()} G`;
+    }
+
+    const listingsContainer = document.getElementById('dv-market-listings-list');
+    if (listingsContainer) {
+      listingsContainer.innerHTML = '';
+
+      // Filter listings by search query and category
+      const query = this.marketSearchQuery;
+      const category = this.marketFilterCategory;
+
+      const filtered = this.marketListings.filter(listing => {
+        const itemDef = ITEMS[listing.itemId];
+        const name = (itemDef?.name || listing.itemId).toLowerCase();
+
+        if (query && !name.includes(query) && !listing.sellerName.toLowerCase().includes(query)) {
+          return false;
+        }
+
+        if (category === 'my_listings') {
+          return listing.sellerId === this.player?.id;
+        }
+
+        if (category === 'materials') {
+          return itemDef?.category === 'bar' || itemDef?.category === 'ore' || itemDef?.category === 'log' || itemDef?.category === 'herb' || itemDef?.category === 'crop' || itemDef?.category === 'seed';
+        }
+
+        if (category === 'equipment') {
+          return itemDef?.slot || itemDef?.category === 'weapon' || itemDef?.category === 'armour' || itemDef?.category === 'steed' || itemDef?.category === 'tool';
+        }
+
+        if (category === 'consumables') {
+          return itemDef?.category === 'cooked_food' || itemDef?.category === 'raw_food' || itemDef?.category === 'potion';
+        }
+
+        return true;
+      });
+
+      if (filtered.length === 0) {
+        const emptyDiv = document.createElement('div');
+        emptyDiv.className = 'dv-market-empty-msg';
+        emptyDiv.textContent = this.marketListings.length === 0
+          ? 'No active marketplace listings. List an item from your satchel below!'
+          : 'No listings match your search criteria.';
+        listingsContainer.appendChild(emptyDiv);
+      } else {
+        filtered.forEach(listing => {
+          const itemDef = ITEMS[listing.itemId];
+          const isMine = listing.sellerId === this.player?.id;
+          const iconSvg = getItemIconSvg(listing.itemId, itemDef?.category);
+          const plusLabel = listing.plus > 0 ? ` +${listing.plus}` : '';
+          const rarityClass = listing.rarity && listing.rarity !== 'plain' ? `rarity-${listing.rarity}` : '';
+
+          const row = document.createElement('div');
+          row.className = `dv-market-listing-row ${isMine ? 'my-listing' : ''}`;
+
+          const itemCell = document.createElement('div');
+          itemCell.className = `dv-mkt-item-cell ${rarityClass}`;
+          itemCell.innerHTML = `
+            ${iconSvg}
+            <span class="dv-mkt-item-name" title="${itemDef?.name || listing.itemId}">${itemDef?.name || listing.itemId}${plusLabel}</span>
+          `;
+
+          const qtyCell = document.createElement('div');
+          qtyCell.textContent = listing.quantity.toLocaleString();
+
+          const priceCell = document.createElement('div');
+          priceCell.className = 'dv-mkt-gold-text';
+          priceCell.textContent = `${listing.unitPrice.toLocaleString()} G`;
+
+          const totalCell = document.createElement('div');
+          totalCell.className = 'dv-mkt-gold-text';
+          totalCell.textContent = `${listing.totalPrice.toLocaleString()} G`;
+
+          const sellerCell = document.createElement('div');
+          sellerCell.className = 'dv-mkt-seller-name';
+          sellerCell.textContent = isMine ? 'You' : listing.sellerName;
+
+          const actionCell = document.createElement('div');
+          if (isMine) {
+            const cancelBtn = document.createElement('button');
+            cancelBtn.className = 'dv-market-btn-cancel';
+            cancelBtn.textContent = 'Cancel';
+            cancelBtn.title = 'Cancel listing and return items to satchel or vault';
+            cancelBtn.onclick = () => {
+              this.sendWs({ type: 'CANCEL_MARKET_LISTING', listingId: listing.id });
+            };
+            actionCell.appendChild(cancelBtn);
+          } else {
+            const buyBtn = document.createElement('button');
+            buyBtn.className = 'dv-market-btn-buy';
+            buyBtn.textContent = 'Buy';
+            buyBtn.title = `Buy from ${listing.sellerName}`;
+            buyBtn.onclick = () => {
+              if (listing.quantity > 1) {
+                const countStr = prompt(`How many ${itemDef?.name || 'items'} would you like to buy? (1 to ${listing.quantity})`, String(listing.quantity));
+                if (!countStr) return;
+                const buyQty = parseInt(countStr, 10);
+                if (!isNaN(buyQty) && buyQty > 0) {
+                  this.sendWs({ type: 'BUY_MARKET_LISTING', listingId: listing.id, quantity: Math.min(listing.quantity, buyQty) });
+                }
+              } else {
+                this.sendWs({ type: 'BUY_MARKET_LISTING', listingId: listing.id, quantity: 1 });
+              }
+            };
+            actionCell.appendChild(buyBtn);
+          }
+
+          row.appendChild(itemCell);
+          row.appendChild(qtyCell);
+          row.appendChild(priceCell);
+          row.appendChild(totalCell);
+          row.appendChild(sellerCell);
+          row.appendChild(actionCell);
+
+          listingsContainer.appendChild(row);
+        });
+      }
+    }
+
+    // Render Satchel grid for listing items
+    const satchelGrid = document.getElementById('dv-market-carrying-grid');
+    if (satchelGrid) {
+      satchelGrid.innerHTML = '';
+      for (let i = 0; i < 28; i++) {
+        const slot = this.player.inventory[i];
+        const div = document.createElement('div');
+        div.className = 'dv-slot';
+
+        if (slot) {
+          const def = ITEMS[slot.itemId];
+          if (slot.rarity && slot.rarity !== 'plain') {
+            div.classList.add(`rarity-${slot.rarity}`);
+          }
+          const iconSvg = getItemIconSvg(slot.itemId, def?.category);
+          const qtyFormatted = slot.quantity >= 1000 ? `${(slot.quantity / 1000).toFixed(1)}K` : slot.quantity.toString();
+
+          div.innerHTML = `
+            ${iconSvg}
+            <span class="dv-slot-qty">${qtyFormatted}</span>
+          `;
+          div.title = `${def?.name || slot.itemId} (x${slot.quantity}). Click to create a marketplace listing.`;
+          this.attachItemTooltip(div, slot);
+
+          const index = i;
+          div.onclick = () => {
+            if (slot.itemId === 'gold') {
+              this.showToast('Cannot list gold coins on the marketplace.');
+              return;
+            }
+
+            let sellQty = slot.quantity;
+            if (slot.quantity > 1) {
+              const qtyStr = prompt(`How many ${def?.name || slot.itemId} to list for sale? (1 to ${slot.quantity})`, String(slot.quantity));
+              if (!qtyStr) return;
+              const parsedQty = parseInt(qtyStr, 10);
+              if (isNaN(parsedQty) || parsedQty <= 0) return;
+              sellQty = Math.min(slot.quantity, parsedQty);
+            }
+
+            const defaultUnitPrice = Math.max(1, Math.floor((def?.vendorFloorPrice || 2) * 1.5));
+            const priceStr = prompt(`Set unit price in Gold for each ${def?.name || slot.itemId}:`, String(defaultUnitPrice));
+            if (!priceStr) return;
+            const parsedPrice = parseInt(priceStr, 10);
+            if (isNaN(parsedPrice) || parsedPrice <= 0) {
+              this.showToast('Unit price must be a positive number.');
+              return;
+            }
+
+            this.sendWs({
+              type: 'CREATE_MARKET_LISTING',
+              inventoryIndex: index,
+              quantity: sellQty,
+              unitPrice: parsedPrice,
+            });
+          };
+        } else {
+          div.classList.add('dv-slot-empty');
+        }
+
+        satchelGrid.appendChild(div);
+      }
     }
   }
 

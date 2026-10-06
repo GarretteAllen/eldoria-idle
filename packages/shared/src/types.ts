@@ -278,6 +278,19 @@ export interface FarmPlotState {
   isHighXpMethod?: boolean;
 }
 
+export interface MarketListing {
+  id: string;
+  sellerId: string;
+  sellerName: string;
+  itemId: string;
+  quantity: number;
+  unitPrice: number; // Gold per unit
+  totalPrice: number;
+  rarity: Rarity;
+  plus: number;
+  createdAt: number;
+}
+
 export interface PlayerData {
   id: string;
   username: string;
