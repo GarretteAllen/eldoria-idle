@@ -2738,12 +2738,28 @@ export class GameEngine {
         }
 
         if (canWithdraw) {
-          // Withdraw up to available bag space (batch size)
-          const emptySlots = Math.max(1, 28 - player.inventory.length);
-          const batches = Math.min(20, Math.floor(emptySlots / rec.inputs.length));
+          // Calculate quota remaining for the target task if specified
+          const currentDone = ('completedQuantity' in targetTask && typeof targetTask.completedQuantity === 'number') ? targetTask.completedQuantity : 0;
+          const targetQty = ('quantity' in targetTask && typeof targetTask.quantity === 'number')
+            ? targetTask.quantity
+            : (('targetQuantity' in targetTask && typeof targetTask.targetQuantity === 'number') ? targetTask.targetQuantity : Infinity);
+          const remainingQuota = (targetQty > 0 && targetQty !== Infinity) ? Math.max(1, targetQty - currentDone) : Infinity;
+
+          // Check if output is non-stackable in inventory
+          const outDef = rec.outputItemId !== 'gold' ? (storage.getItem(rec.outputItemId) || ITEMS[rec.outputItemId]) : null;
+          const isNonStackableOutput = outDef ? !isItemStackable(outDef, 'inventory') : false;
+
+          // If output is non-stackable, ensure we reserve at least 1 free slot for the crafted product
+          let availableSlots = 28 - player.inventory.length;
+          if (isNonStackableOutput && availableSlots > 1) {
+            availableSlots -= 1;
+          }
+          const maxBatchesBySlots = Math.max(1, Math.floor(availableSlots / Math.max(1, rec.inputs.length)));
+          const batches = Math.max(1, Math.min(20, maxBatchesBySlots, remainingQuota));
+
           for (const inp of rec.inputs) {
             const sSlot = player.storage.find(s => s.itemId === inp.itemId)!;
-            const toTake = Math.min(sSlot.quantity, inp.quantity * Math.max(1, batches));
+            const toTake = Math.min(sSlot.quantity, inp.quantity * batches);
             const inpDef = storage.getItem(inp.itemId) || ITEMS[inp.itemId];
             const res = addItemToSlots(player.inventory, 28, inp.itemId, toTake, 'plain', 0, inpDef, 'inventory');
             if (res.added > 0) {
