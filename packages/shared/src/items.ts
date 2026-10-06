@@ -3,7 +3,7 @@ import { Rarity } from './constants.js';
 
 export const ITEMS: Record<string, ItemDefinition> = {
   // --- Ores & Minerals ---
-  pyrite_ore: { id: 'pyrite_ore', name: 'Pyrite Ore', category: 'ore', tier: 1, vendorFloorPrice: 2, description: 'Common fool gold ore chipped from surface stone. Smelts into dawnburn ingots.' },
+  pyrite_ore: { id: 'pyrite_ore', name: 'Pyrite Ore', category: 'ore', tier: 1, vendorFloorPrice: 2, description: "Common fool's gold ore chipped from surface stone. Smelts into dawnburn ingots." },
   galena_ore: { id: 'galena_ore', name: 'Galena Ore', category: 'ore', tier: 1, vendorFloorPrice: 2, description: 'Heavy lead-gray ore found in shallow quarries. Useful for basic metalwork.' },
   cold_iron_ore: { id: 'cold_iron_ore', name: 'Cold Iron Ore', category: 'ore', tier: 2, vendorFloorPrice: 5, description: 'Dense ore that stays freezing to the touch. Refines into cold iron ingots.' },
   quicksilver_ore: { id: 'quicksilver_ore', name: 'Quicksilver Ore', category: 'ore', tier: 3, vendorFloorPrice: 12, description: 'Lustrous, silvery stone that shimmers faintly under torchlight.' },
