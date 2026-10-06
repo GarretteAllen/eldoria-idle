@@ -202,10 +202,13 @@
         </div>
       </div>
 
-      <!-- 3. TOP-LEFT TASKS CARD (Parchment Float) -->
+      <!-- 3. TOP-LEFT TASKS & ACTION QUEUE CARD (Parchment Float) -->
       <div id="tasks-card" class="parchment-card">
-        <div class="tasks-card-header">
-          <span class="tasks-title">Tasks</span>
+        <div class="tasks-card-header" style="display: flex; justify-content: space-between; align-items: center;">
+          <span class="tasks-title">Active Task</span>
+          <button id="queue-slots-chip" class="queue-chip" title="Click to open Celestial Gem Store & Queue Upgrades">
+            <span id="queue-slots-count">2/2</span> Slots
+          </button>
         </div>
         <div class="tasks-card-body">
           <div id="task-running-row" class="task-running-row">
@@ -216,6 +219,7 @@
             <div class="task-trailing">
               <span id="task-status-tag" class="status-tag idle">IDLE</span>
               <button id="task-home-btn" class="icon-btn-micro" title="Walk to Hearth Storage"></button>
+              <button id="task-skip-btn" class="icon-btn-micro" title="Skip to Next in Queue" style="display:none; font-size: 0.75rem;">⏭</button>
               <button id="task-stop-btn" class="icon-btn-micro stop" title="Stop Task"></button>
             </div>
           </div>
@@ -223,6 +227,15 @@
             <div id="task-progress-fill" class="task-progress-fill"></div>
           </div>
           <div id="task-subtext" class="task-subtext">Click an ore, tree, or shoreline on the map</div>
+
+          <!-- Upcoming Task Queue List -->
+          <div id="task-queue-section" class="task-queue-section">
+            <div class="task-queue-header">
+              <span>Next in Queue</span>
+              <button id="btn-clear-queue" class="btn-micro-text" style="display:none;">Clear All</button>
+            </div>
+            <div id="task-queue-list" class="task-queue-list"></div>
+          </div>
         </div>
       </div>
 
@@ -340,6 +353,7 @@
           <div class="popup-note" id="popup-job-note">Runs non-stop: automatically drops items off in your bank when your bag is full, then heads right back to work.</div>
           <div class="popup-action-row">
             <button id="btn-job-start" class="btn-start">Start (∞)</button>
+            <button id="btn-job-enqueue" class="btn-queue" title="Add this task to your automated idle queue">Queue</button>
             <button id="btn-job-stop" class="btn-stop">Stop</button>
           </div>
         </div>
@@ -1304,6 +1318,40 @@
         </div>
       </div>
 
+
+      <!-- 17. CELESTIAL GEM STORE & PAYPAL MODAL -->
+      <div id="gem-store-modal" class="modal-backdrop hidden">
+        <div class="modal-box dark-oak-panel gem-store-card" style="width: 540px; max-width: 95vw;">
+          <div class="modal-header">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span id="gem-store-icon" class="svg-icon-inline icon-lg"></span>
+              <div>
+                <h4 style="color: #38bdf8; margin: 0;">Celestial Gem Store</h4>
+                <div style="font-size: 0.72rem; color: #a0aec0;">Expand your idle automation queue and acquire tradeable gem packs</div>
+              </div>
+            </div>
+            <button id="gem-store-close-btn" class="icon-btn-micro" title="Close Store"></button>
+          </div>
+
+          <div class="gem-store-balance-row">
+            <span>Your Balance:</span>
+            <div class="currency-chip gems" style="cursor: default;">
+              <span class="curr-icon" id="gem-store-balance-icon"></span>
+              <strong id="gem-store-balance-val">0</strong> Gems
+            </div>
+          </div>
+
+          <div class="gem-store-tabs">
+            <button id="tab-gem-queue" class="gem-tab active">Queue Slots</button>
+            <button id="tab-gem-packs" class="gem-tab">Gem Packs (PayPal)</button>
+            <button id="tab-gem-redeem" class="gem-tab">My Packs</button>
+          </div>
+
+          <div id="gem-store-body" class="gem-store-body">
+            <!-- Rendered dynamically in main.ts -->
+          </div>
+        </div>
+      </div>
 
       <!-- 18. FLOATING ITEM HOVER TOOLTIP -->
       <div id="item-hover-tooltip" class="item-hover-tooltip hidden">

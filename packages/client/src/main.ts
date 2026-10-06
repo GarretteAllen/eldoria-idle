@@ -14,6 +14,10 @@ import {
   getItemMaxStack,
   isTileInAnyLevel,
   MonsterSpawnZone,
+  QUEUE_SLOT_CONFIG,
+  GEM_PACKS,
+  GemPackDef,
+  QueuedTask,
 } from '@eldoria/shared';
 import { WorldRenderer, WorldNodeDisplay, TILE_SIZE } from './canvas.js';
 import { loadLdtkWorld } from './ldtkLoader.js';
@@ -103,6 +107,10 @@ class EldoriaClient {
   private lastToastText: string = '';
   private lastToastTime: number = 0;
 
+  // Gem Store & PayPal State
+  private currentGemStoreTab: 'queue' | 'packs' | 'redeem' = 'queue';
+  private gemPacksData: GemPackDef[] = Object.values(GEM_PACKS);
+
   // AFK Resource Saving State (15 minutes threshold)
   private readonly AFK_TIMEOUT_MS = 15 * 60 * 1000;
   private isAfk = false;
@@ -146,6 +154,24 @@ class EldoriaClient {
     document.getElementById('icon-gems')!.innerHTML = ICONS.gems;
     document.getElementById('icon-anima')!.innerHTML = ICONS.anima;
     document.getElementById('boss-icon')!.innerHTML = ICONS.boss;
+
+    // Currency and Queue Gem Store triggers
+    const gemChip = document.querySelector('.currency-chip.gems');
+    if (gemChip) {
+      gemChip.addEventListener('click', () => this.openGemStoreModal('packs'));
+    }
+    const queueChip = document.getElementById('queue-slots-chip');
+    if (queueChip) {
+      queueChip.addEventListener('click', () => this.openGemStoreModal('queue'));
+    }
+    const gemStoreCloseBtn = document.getElementById('gem-store-close-btn');
+    if (gemStoreCloseBtn) {
+      gemStoreCloseBtn.onclick = () => this.closeGemStoreModal();
+    }
+    document.getElementById('tab-gem-queue')?.addEventListener('click', () => this.renderGemStoreTab('queue'));
+    document.getElementById('tab-gem-packs')?.addEventListener('click', () => this.renderGemStoreTab('packs'));
+    document.getElementById('tab-gem-redeem')?.addEventListener('click', () => this.renderGemStoreTab('redeem'));
+    this.fetchGemPacks();
 
     // Tasks Card
     document.getElementById('task-home-btn')!.innerHTML = ICONS.hearth;
@@ -1033,6 +1059,10 @@ class EldoriaClient {
     this.renderEquipmentDrawer();
     this.renderStorageDrawer();
     this.renderStorageModal();
+    const gemModal = document.getElementById('gem-store-modal');
+    if (gemModal && !gemModal.classList.contains('hidden')) {
+      this.renderGemStoreTab(this.currentGemStoreTab);
+    }
     if (this.activeDrawer === 'editor') {
       this.renderEditorNodes();
       this.renderEditorMonsterZones();
@@ -1213,6 +1243,91 @@ class EldoriaClient {
       taskIconEl.innerHTML = ICONS.skills;
       statusTagEl.textContent = 'IDLE';
       statusTagEl.className = 'status-tag idle';
+    }
+
+    // Update Action Queue UI
+    const unlockedSlots = Math.min(QUEUE_SLOT_CONFIG.MAX_SLOTS, Math.max(QUEUE_SLOT_CONFIG.BASE_SLOTS, this.player.unlockedQueueSlots || 2));
+    const taskQueue: QueuedTask[] = Array.isArray(this.player.taskQueue) ? this.player.taskQueue : [];
+    const queueSlotsCountEl = document.getElementById('queue-slots-count');
+    if (queueSlotsCountEl) {
+      queueSlotsCountEl.textContent = `${taskQueue.length}/${unlockedSlots}`;
+    }
+
+    const skipBtn = document.getElementById('task-skip-btn');
+    if (skipBtn) {
+      skipBtn.style.display = taskQueue.length > 0 ? 'inline-block' : 'none';
+      skipBtn.onclick = (e) => {
+        e.stopPropagation();
+        this.sendWs({ type: 'STOP_TASK', skipToNext: true });
+      };
+    }
+
+    const clearQueueBtn = document.getElementById('btn-clear-queue');
+    if (clearQueueBtn) {
+      clearQueueBtn.style.display = taskQueue.length > 0 ? 'inline-block' : 'none';
+      clearQueueBtn.onclick = () => {
+        this.sendWs({ type: 'CANCEL_QUEUED_TASK', clearAll: true });
+      };
+    }
+
+    const queueListEl = document.getElementById('task-queue-list');
+    if (queueListEl) {
+      queueListEl.innerHTML = '';
+      for (let i = 0; i < QUEUE_SLOT_CONFIG.MAX_SLOTS; i++) {
+        const slotNum = i + 1;
+        if (i < taskQueue.length) {
+          // Queued task item
+          const qTask = taskQueue[i];
+          const itemEl = document.createElement('div');
+          itemEl.className = 'task-queue-item';
+          const recName = qTask.targetLabel || (qTask.recipeId ? (RECIPES[qTask.recipeId]?.name || qTask.recipeId) : (qTask.monsterId ? MONSTERS[qTask.monsterId]?.name : 'Task'));
+          const targetQtyStr = (typeof qTask.targetQuantity === 'number' && qTask.targetQuantity > 0 && qTask.targetQuantity !== Infinity)
+            ? `(${qTask.targetQuantity}x)`
+            : '(∞)';
+
+          itemEl.innerHTML = `
+            <div class="task-queue-item-left">
+              <span class="task-queue-slot-num">${slotNum}.</span>
+              <span class="task-queue-name" title="${recName}">${recName}</span>
+              <span class="task-queue-qty">${targetQtyStr}</span>
+            </div>
+            <div class="task-queue-actions">
+              <button class="btn-queue-remove" title="Remove from queue">✕</button>
+            </div>
+          `;
+          itemEl.querySelector('.btn-queue-remove')!.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.sendWs({ type: 'CANCEL_QUEUED_TASK', index: i });
+          });
+          queueListEl.appendChild(itemEl);
+        } else if (i < unlockedSlots) {
+          // Empty unlocked slot
+          const itemEl = document.createElement('div');
+          itemEl.className = 'task-queue-item';
+          itemEl.style.opacity = '0.6';
+          itemEl.innerHTML = `
+            <div class="task-queue-item-left">
+              <span class="task-queue-slot-num">${slotNum}.</span>
+              <span style="font-style: italic; font-size: 0.72rem; color: #a0aec0;">Empty queue slot</span>
+            </div>
+          `;
+          queueListEl.appendChild(itemEl);
+        } else {
+          // Locked slot
+          const cost = QUEUE_SLOT_CONFIG.COSTS[slotNum] || 500;
+          const itemEl = document.createElement('div');
+          itemEl.className = 'task-queue-slot-locked';
+          itemEl.innerHTML = `
+            <span>${ICONS.lock || '🔒'} Slot ${slotNum} Locked</span>
+            <button class="btn-queue-slot-unlock">Unlock (${cost} 💎)</button>
+          `;
+          itemEl.querySelector('.btn-queue-slot-unlock')!.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.openGemStoreModal('queue');
+          });
+          queueListEl.appendChild(itemEl);
+        }
+      }
     }
   }
 
@@ -1591,6 +1706,66 @@ class EldoriaClient {
       this.closeSkillJobPopup();
     };
 
+    // Queue button
+    const btnEnqueue = document.getElementById('btn-job-enqueue');
+    if (btnEnqueue) {
+      btnEnqueue.onclick = () => {
+        if (!this.selectedRecipeId) return;
+        const rec = RECIPES[this.selectedRecipeId];
+        if (!rec) return;
+
+        const playerLvl = this.player?.skills[rec.skill]?.level || 1;
+        if (playerLvl < rec.levelReq) {
+          this.showToast(`Requires ${rec.skill} Lv ${rec.levelReq}!`);
+          return;
+        }
+
+        let targetX = this.player!.x;
+        let targetY = this.player!.y;
+        let nodeX = targetX;
+        let nodeY = targetY;
+
+        let matchingNode: WorldNodeDisplay | undefined;
+        if (rec.skill === 'cooking') {
+          matchingNode = this.worldNodes.find(n => n.type === 'fire');
+        } else if (rec.skill === 'smithing') {
+          matchingNode = this.worldNodes.find(n => n.type === 'forge');
+        } else if (rec.skill === 'crafting' || rec.skill === 'fletching') {
+          matchingNode = this.worldNodes.find(n => n.type === 'workbench');
+        } else if (rec.skill === 'alchemy') {
+          matchingNode = this.worldNodes.find(n => n.type === 'cauldron');
+        } else if (rec.skill === 'attunement') {
+          matchingNode = this.worldNodes.find(n => n.type === 'monolith');
+        } else {
+          matchingNode = this.worldNodes.find(n => n.recipeId === rec.id);
+        }
+
+        if (matchingNode) {
+          nodeX = matchingNode.x;
+          nodeY = matchingNode.y;
+          const dist = Math.hypot(this.player!.x - matchingNode.x, this.player!.y - matchingNode.y);
+          const walkable = dist <= 1.5
+            ? { x: Math.round(this.player!.x), y: Math.round(this.player!.y) }
+            : this.getAdjacentWalkableTile(matchingNode.x, matchingNode.y);
+          targetX = walkable.x;
+          targetY = walkable.y;
+        }
+
+        this.sendWs({
+          type: 'ENQUEUE_TASK',
+          recipeId: rec.id,
+          quantity: this.selectedJobQuantity === Infinity ? -1 : this.selectedJobQuantity,
+          targetX,
+          targetY,
+          nodeX,
+          nodeY,
+          targetLabel: rec.name,
+        });
+
+        this.closeSkillJobPopup();
+      };
+    }
+
     // Stop button
     document.getElementById('btn-job-stop')!.onclick = () => {
       this.pendingMonsterTarget = null;
@@ -1826,9 +2001,26 @@ class EldoriaClient {
           <button class="btn-start btn-fight-foe" type="button" style="padding: 4px 10px; font-size: 0.74rem; white-space: nowrap; ${isTargeted ? 'background: #9b2c2c;' : ''}">
             ${isTargeted ? 'Engaged' : 'Fight'}
           </button>
+          <button class="btn-queue btn-queue-foe" type="button" style="padding: 2px 8px; font-size: 0.68rem; white-space: nowrap;">
+            Queue
+          </button>
           ${hasNodes ? `<span style="font-size: 0.65rem; color: #718096;">${matchingNodes.length} in habitat</span>` : `<span style="font-size: 0.65rem; color: #718096;">Uncharted</span>`}
         </div>
       `;
+
+      itemEl.querySelector('.btn-queue-foe')?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const qty = (typeof this.selectedJobQuantity === 'number' && this.selectedJobQuantity > 0 && this.selectedJobQuantity !== Infinity)
+          ? this.selectedJobQuantity
+          : 50;
+        this.sendWs({
+          type: 'ENQUEUE_TASK',
+          monsterId: mob.id,
+          quantity: qty,
+          targetLabel: `Hunt ${mob.name}`,
+        });
+        this.closeSkillJobPopup();
+      });
 
       itemEl.addEventListener('click', () => {
         this.huntMonster(mob.id);
@@ -3086,6 +3278,12 @@ class EldoriaClient {
         if (this.selectedInventoryIndex !== null && this.player) {
           const slot = this.player.inventory[this.selectedInventoryIndex];
           if (slot) {
+            if (slot.itemId.startsWith('gem_pack_')) {
+              sound.play('ding');
+              this.sendWs({ type: 'REDEEM_GEM_PACK', inventoryIndex: this.selectedInventoryIndex });
+              ctxMenu.classList.add('hidden');
+              return;
+            }
             const def = ITEMS[slot.itemId];
             if (def?.baseStats?.healing) {
               sound.play('eat');
@@ -4471,7 +4669,15 @@ class EldoriaClient {
 
     const eatBtn = document.getElementById('ctx-btn-eat');
     if (eatBtn) {
-      eatBtn.style.display = def.category === 'cooked_food' ? 'flex' : 'none';
+      if (slot.itemId.startsWith('gem_pack_')) {
+        eatBtn.style.display = 'flex';
+        eatBtn.textContent = 'Open Gem Pack';
+      } else if (def.category === 'cooked_food') {
+        eatBtn.style.display = 'flex';
+        eatBtn.textContent = 'Eat Food';
+      } else {
+        eatBtn.style.display = 'none';
+      }
     }
 
     const hearth = this.getHearthLocation(this.player?.x, this.player?.y);
@@ -5958,7 +6164,300 @@ class EldoriaClient {
 
     modal.classList.remove('hidden');
   }
+
+  // --- CELESTIAL GEM STORE & PAYPAL INTEGRATION ---
+
+  public async fetchGemPacks() {
+    try {
+      const res = await fetch('/api/gem-packs');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.packs && Array.isArray(data.packs)) {
+          this.gemPacksData = data.packs;
+        }
+      }
+    } catch {
+      // Fallback to shared constants
+      this.gemPacksData = Object.values(GEM_PACKS);
+    }
+  }
+
+  public openGemStoreModal(tab: 'queue' | 'packs' | 'redeem' = 'queue') {
+    const modal = document.getElementById('gem-store-modal');
+    if (!modal) return;
+    sound.play('ding');
+    this.currentGemStoreTab = tab;
+    modal.classList.remove('hidden');
+    this.renderGemStoreTab(tab);
+  }
+
+  public closeGemStoreModal() {
+    const modal = document.getElementById('gem-store-modal');
+    if (!modal) return;
+    modal.classList.add('hidden');
+  }
+
+  public renderGemStoreTab(tab: 'queue' | 'packs' | 'redeem') {
+    this.currentGemStoreTab = tab;
+    const bodyEl = document.getElementById('gem-store-body');
+    const balanceVal = document.getElementById('gem-store-balance-val');
+    const balanceIcon = document.getElementById('gem-store-balance-icon');
+    const storeIcon = document.getElementById('gem-store-icon');
+
+    if (balanceIcon) balanceIcon.innerHTML = ICONS.gems;
+    if (storeIcon) storeIcon.innerHTML = ICONS.gems;
+    if (balanceVal && this.player) {
+      balanceVal.textContent = (this.player.gems || 0).toLocaleString();
+    }
+
+    // Toggle tab active classes
+    const tabQueue = document.getElementById('tab-gem-queue');
+    const tabPacks = document.getElementById('tab-gem-packs');
+    const tabRedeem = document.getElementById('tab-gem-redeem');
+    tabQueue?.classList.toggle('active', tab === 'queue');
+    tabPacks?.classList.toggle('active', tab === 'packs');
+    tabRedeem?.classList.toggle('active', tab === 'redeem');
+
+    if (!bodyEl || !this.player) return;
+    bodyEl.innerHTML = '';
+
+    if (tab === 'queue') {
+      const unlocked = this.player.unlockedQueueSlots ?? QUEUE_SLOT_CONFIG.BASE_SLOTS;
+      const nextSlot = unlocked + 1;
+      const maxSlots = QUEUE_SLOT_CONFIG.MAX_SLOTS;
+
+      const container = document.createElement('div');
+      container.style.display = 'flex';
+      container.style.flexDirection = 'column';
+      container.style.gap = '14px';
+
+      const descBox = document.createElement('div');
+      descBox.style.fontSize = '0.78rem';
+      descBox.style.color = '#cbd5e0';
+      descBox.style.lineHeight = '1.4';
+      descBox.innerHTML = `
+        Automate your idle gameplay by chaining actions together! Current capacity: <strong style="color: #68d391;">${unlocked} / ${maxSlots} slots</strong>.
+        When an action completes or its supplies run out, your character immediately travels to and executes the next queued task.
+      `;
+      container.appendChild(descBox);
+
+      const slotsList = document.createElement('div');
+      slotsList.style.display = 'flex';
+      slotsList.style.flexDirection = 'column';
+      slotsList.style.gap = '8px';
+
+      for (let s = 1; s <= maxSlots; s++) {
+        const slotRow = document.createElement('div');
+        slotRow.style.display = 'flex';
+        slotRow.style.alignItems = 'center';
+        slotRow.style.justifyContent = 'space-between';
+        slotRow.style.padding = '8px 12px';
+        slotRow.style.borderRadius = '6px';
+        slotRow.style.border = '1px solid rgba(255, 255, 255, 0.08)';
+
+        if (s <= unlocked) {
+          slotRow.style.background = 'rgba(72, 187, 120, 0.08)';
+          slotRow.innerHTML = `
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span style="color: #48bb78; font-weight: 700;">✓</span>
+              <span style="font-size: 0.82rem; font-weight: 600;">Slot ${s}</span>
+              <span style="font-size: 0.7rem; color: #a0aec0;">(Active)</span>
+            </div>
+            <span style="font-size: 0.72rem; color: #48bb78; font-weight: 600;">Unlocked</span>
+          `;
+        } else if (s === nextSlot) {
+          const cost = QUEUE_SLOT_CONFIG.COSTS[s] || 500;
+          const canAfford = (this.player.gems || 0) >= cost;
+          slotRow.style.background = 'rgba(56, 189, 248, 0.08)';
+          slotRow.style.borderColor = 'rgba(56, 189, 248, 0.3)';
+          slotRow.innerHTML = `
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span style="color: #38bdf8;">🔓</span>
+              <div>
+                <div style="font-size: 0.82rem; font-weight: 700; color: #e2e8f0;">Slot ${s} (Next Unlock)</div>
+                <div style="font-size: 0.7rem; color: #a0aec0;">Permanent automated queue slot</div>
+              </div>
+            </div>
+            <button class="btn-oak btn-unlock-slot" style="padding: 4px 12px; font-size: 0.75rem; background: ${canAfford ? '#3182ce' : '#4a5568'};">
+              Unlock (${cost} 💎)
+            </button>
+          `;
+          const btnUnlock = slotRow.querySelector('.btn-unlock-slot') as HTMLButtonElement;
+          btnUnlock.onclick = () => {
+            if (!canAfford) {
+              this.showToast(`Not enough gems! You need ${cost} gems.`);
+              this.renderGemStoreTab('packs');
+              return;
+            }
+            sound.play('ding');
+            this.sendWs({ type: 'UNLOCK_QUEUE_SLOT', slotNumber: s });
+          };
+        } else {
+          const cost = QUEUE_SLOT_CONFIG.COSTS[s] || 500;
+          slotRow.style.background = 'rgba(0, 0, 0, 0.2)';
+          slotRow.style.opacity = '0.5';
+          slotRow.innerHTML = `
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span>🔒</span>
+              <span style="font-size: 0.82rem; color: #a0aec0;">Slot ${s}</span>
+            </div>
+            <span style="font-size: 0.72rem; color: #718096;">Requires Slot ${s - 1} (${cost} 💎)</span>
+          `;
+        }
+        slotsList.appendChild(slotRow);
+      }
+      container.appendChild(slotsList);
+      bodyEl.appendChild(container);
+
+    } else if (tab === 'packs') {
+      const container = document.createElement('div');
+      container.style.display = 'flex';
+      container.style.flexDirection = 'column';
+      container.style.gap = '12px';
+
+      const infoBox = document.createElement('div');
+      infoBox.style.fontSize = '0.78rem';
+      infoBox.style.color = '#cbd5e0';
+      infoBox.style.lineHeight = '1.4';
+      infoBox.innerHTML = `
+        Acquire <strong>tradeable Gem Packs</strong> delivered directly to your satchel! You can open them to redeem gems or <strong>sell them to other players for gold</strong> in the player marketplace.
+      `;
+      container.appendChild(infoBox);
+
+      const grid = document.createElement('div');
+      grid.className = 'gem-pack-grid';
+
+      for (const pack of this.gemPacksData) {
+        const card = document.createElement('div');
+        card.className = 'gem-pack-card';
+        card.innerHTML = `
+          <div style="font-size: 1.6rem; margin-bottom: 2px;">💎</div>
+          <div class="gem-pack-name">${pack.name}</div>
+          <div class="gem-pack-gems">${pack.gems.toLocaleString()} Gems</div>
+          <div style="font-size: 0.7rem; color: #a0aec0; margin: 4px 0 10px 0;">Tradeable Inventory Item</div>
+          <button class="btn-paypal-buy">$${pack.priceUsd.toFixed(2)} USD</button>
+        `;
+
+        const buyBtn = card.querySelector('.btn-paypal-buy') as HTMLButtonElement;
+        buyBtn.onclick = () => this.handleBuyGemPack(pack);
+        grid.appendChild(card);
+      }
+
+      container.appendChild(grid);
+      bodyEl.appendChild(container);
+
+    } else if (tab === 'redeem') {
+      const container = document.createElement('div');
+      container.style.display = 'flex';
+      container.style.flexDirection = 'column';
+      container.style.gap = '12px';
+
+      const info = document.createElement('div');
+      info.style.fontSize = '0.78rem';
+      info.style.color = '#cbd5e0';
+      info.textContent = 'Open Gem Packs in your satchel to immediately credit gems to your character.';
+      container.appendChild(info);
+
+      const packSlots: Array<{ index: number; itemId: string; quantity: number }> = [];
+      this.player.inventory.forEach((slot, index) => {
+        if (slot && slot.itemId.startsWith('gem_pack_')) {
+          packSlots.push({ index, itemId: slot.itemId, quantity: slot.quantity });
+        }
+      });
+
+      if (packSlots.length === 0) {
+        const emptyMsg = document.createElement('div');
+        emptyMsg.style.padding = '24px';
+        emptyMsg.style.textAlign = 'center';
+        emptyMsg.style.color = '#718096';
+        emptyMsg.style.fontStyle = 'italic';
+        emptyMsg.style.fontSize = '0.8rem';
+        emptyMsg.textContent = 'No unopened gem packs currently in your inventory.';
+        container.appendChild(emptyMsg);
+      } else {
+        const list = document.createElement('div');
+        list.style.display = 'flex';
+        list.style.flexDirection = 'column';
+        list.style.gap = '8px';
+
+        for (const p of packSlots) {
+          const def = ITEMS[p.itemId];
+          const row = document.createElement('div');
+          row.style.display = 'flex';
+          row.style.alignItems = 'center';
+          row.style.justifyContent = 'space-between';
+          row.style.padding = '8px 12px';
+          row.style.borderRadius = '6px';
+          row.style.background = 'rgba(0, 0, 0, 0.25)';
+          row.style.border = '1px solid rgba(255, 255, 255, 0.08)';
+
+          row.innerHTML = `
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span style="font-size: 1.2rem;">🎁</span>
+              <div>
+                <div style="font-size: 0.82rem; font-weight: 700; color: #63b3ed;">${def?.name || p.itemId} (x${p.quantity})</div>
+                <div style="font-size: 0.7rem; color: #a0aec0;">${def?.description || 'Contains tradeable gems'}</div>
+              </div>
+            </div>
+            <button class="btn-oak btn-open-pack" style="padding: 4px 10px; font-size: 0.75rem; background: #38a169;">Open Pack</button>
+          `;
+
+          const btnOpen = row.querySelector('.btn-open-pack') as HTMLButtonElement;
+          btnOpen.onclick = () => {
+            sound.play('ding');
+            this.sendWs({ type: 'REDEEM_GEM_PACK', inventoryIndex: p.index });
+            setTimeout(() => this.renderGemStoreTab('redeem'), 100);
+          };
+
+          list.appendChild(row);
+        }
+        container.appendChild(list);
+      }
+
+      bodyEl.appendChild(container);
+    }
+  }
+
+  private async handleBuyGemPack(pack: GemPackDef) {
+    if (!this.player) return;
+    try {
+      this.showToast(`Initiating checkout for ${pack.name}...`);
+      const createRes = await fetch('/api/paypal/create-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ packId: pack.id, playerId: this.player.id }),
+      });
+      const createData = await createRes.json();
+      if (!createRes.ok || !createData.orderId) {
+        this.showToast(createData.error || 'Failed to start checkout.');
+        return;
+      }
+
+      const captureRes = await fetch('/api/paypal/capture-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderId: createData.orderId,
+          packId: pack.id,
+          playerId: this.player.id,
+        }),
+      });
+      const captureData = await captureRes.json();
+      if (!captureRes.ok) {
+        this.showToast(captureData.error || 'Payment capture failed.');
+        return;
+      }
+
+      sound.play('levelUp');
+      this.showToast(`Payment successful! ${pack.name} delivered to your satchel.`);
+      this.renderGemStoreTab('redeem');
+    } catch (err: any) {
+      console.error('PayPal checkout error:', err);
+      this.showToast('Checkout encountered an error.');
+    }
+  }
 }
 
 new EldoriaClient();
+
 

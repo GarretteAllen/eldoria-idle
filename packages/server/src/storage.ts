@@ -630,6 +630,12 @@ class StorageManager {
       if (!player.questProgress) {
         player.questProgress = {};
       }
+      if (typeof player.unlockedQueueSlots !== 'number' || player.unlockedQueueSlots < 2) {
+        player.unlockedQueueSlots = 2;
+      }
+      if (!Array.isArray(player.taskQueue)) {
+        player.taskQueue = [];
+      }
       // Ensure targetQuantity is restored as Infinity if null (from JSON serialization)
       if (player.currentTask) {
         player.currentTask.targetQuantity = (typeof player.currentTask.targetQuantity === 'number' && player.currentTask.targetQuantity > 0)
@@ -778,6 +784,7 @@ class StorageManager {
         targetNodeY: 5,
       },
       taskQueue: [],
+      unlockedQueueSlots: 2,
       eatsAtHpPercent: 50,
       selectedFoodItemId: null,
       currentHp: 10,
@@ -834,6 +841,7 @@ class StorageManager {
         targetNodeY: 5,
       },
       taskQueue: [],
+      unlockedQueueSlots: 2,
       eatsAtHpPercent: 50,
       selectedFoodItemId: null,
       currentHp: 10,

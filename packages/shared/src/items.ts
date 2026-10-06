@@ -229,7 +229,14 @@ export const ITEMS: Record<string, ItemDefinition> = {
   fishing_rod_yew: { id: 'fishing_rod_yew', name: 'Yew Deep-Sea Rod', category: 'tool', tier: 4, slot: 'tool_rod', equipReq: { skill: 'fishing', level: 50 }, baseStats: { toolSpeedBonus: 0.32 }, vendorFloorPrice: 350 },
 
   // --- Steeds (Mounts) ---
-  steed_courser: { id: 'steed_courser', name: 'Eldorian Courser', category: 'steed', tier: 2, slot: 'steed', vendorFloorPrice: 20000, description: 'Grants walking speed haste on the road' }
+  steed_courser: { id: 'steed_courser', name: 'Eldorian Courser', category: 'steed', tier: 2, slot: 'steed', vendorFloorPrice: 20000, description: 'Grants walking speed haste on the road' },
+
+  // --- Tradeable Gem Packs (Paypal / In-game Economy) ---
+  gem_pack_small: { id: 'gem_pack_small', name: 'Small Gem Pack', category: 'misc', tier: 1, vendorFloorPrice: 0, stackable: true, description: 'Contains 50 Celestial Gems. Use to redeem, or trade on the player market.' },
+  gem_pack_medium: { id: 'gem_pack_medium', name: 'Medium Gem Pack', category: 'misc', tier: 2, vendorFloorPrice: 0, stackable: true, description: 'Contains 120 Celestial Gems. Use to redeem, or trade on the player market.' },
+  gem_pack_large: { id: 'gem_pack_large', name: 'Large Gem Pack', category: 'misc', tier: 3, vendorFloorPrice: 0, stackable: true, description: 'Contains 350 Celestial Gems. Use to redeem, or trade on the player market.' },
+  gem_pack_grand: { id: 'gem_pack_grand', name: 'Grand Gem Pack', category: 'misc', tier: 4, vendorFloorPrice: 0, stackable: true, description: 'Contains 900 Celestial Gems. Use to redeem, or trade on the player market.' },
+  gem_pack_colossal: { id: 'gem_pack_colossal', name: 'Colossal Gem Pack', category: 'misc', tier: 5, vendorFloorPrice: 0, stackable: true, description: 'Contains 2,000 Celestial Gems. Use to redeem, or trade on the player market.' }
 };
 
 export type StackingLocation = 'inventory' | 'bank' | 'storage';

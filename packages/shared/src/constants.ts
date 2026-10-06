@@ -5,8 +5,63 @@ export const MAX_OFFLINE_SECONDS_BLESSING = 168 * 3600; // 7 days (168 hours)
 
 export const DEFAULT_STORAGE_SLOTS = 75;
 export const OVERFLOW_TRAY_SLOTS = 10;
-export const MAX_TASK_QUEUE_DEFAULT = 1;
-export const MAX_TASK_QUEUE_MAX = 10;
+
+// Action Queue Slot Limits & Gem Costs (Easily editable configuration)
+export const QUEUE_SLOT_CONFIG = {
+  BASE_SLOTS: 2,
+  MAX_SLOTS: 5,
+  COSTS: {
+    3: 100, // Slot 3: 100 Gems
+    4: 250, // Slot 4: 250 Gems
+    5: 500, // Slot 5: 500 Gems
+  } as Record<number, number>,
+};
+
+export interface GemPackDef {
+  id: string;
+  name: string;
+  priceUsd: number;
+  gems: number;
+  description: string;
+}
+
+export const GEM_PACKS: Record<string, GemPackDef> = {
+  gem_pack_small: {
+    id: 'gem_pack_small',
+    name: 'Small Gem Pack',
+    priceUsd: 0.99,
+    gems: 50,
+    description: 'A pouch of glittering celestial gems. Yields 50 Gems when opened. Can be traded on the player market.',
+  },
+  gem_pack_medium: {
+    id: 'gem_pack_medium',
+    name: 'Medium Gem Pack',
+    priceUsd: 1.99,
+    gems: 120,
+    description: 'A sturdy satchel of celestial gems. Yields 120 Gems when opened. Can be traded on the player market.',
+  },
+  gem_pack_large: {
+    id: 'gem_pack_large',
+    name: 'Large Gem Pack',
+    priceUsd: 4.99,
+    gems: 350,
+    description: 'A heavy chest of celestial gems. Yields 350 Gems when opened. Can be traded on the player market.',
+  },
+  gem_pack_grand: {
+    id: 'gem_pack_grand',
+    name: 'Grand Gem Pack',
+    priceUsd: 9.99,
+    gems: 900,
+    description: 'A resplendent coffer of celestial gems. Yields 900 Gems when opened. Can be traded on the player market.',
+  },
+  gem_pack_colossal: {
+    id: 'gem_pack_colossal',
+    name: 'Colossal Gem Pack',
+    priceUsd: 19.99,
+    gems: 2000,
+    description: 'An immense hoard of celestial gems. Yields 2,000 Gems when opened. Can be traded on the player market.',
+  },
+};
 
 export type Rarity = 'plain' | 'uncommon' | 'rare' | 'epic' | 'legendary';
 

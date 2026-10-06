@@ -184,9 +184,15 @@ export interface ActiveTask {
 }
 
 export interface QueuedTask {
+  id: string;
   recipeId: string;
   skill: SkillType;
   targetQuantity: number;
+  targetNodeId?: string;
+  targetNodeX?: number;
+  targetNodeY?: number;
+  monsterId?: string;
+  targetLabel?: string;
 }
 
 export interface PlayerStats {
@@ -309,6 +315,7 @@ export interface PlayerData {
     nodeY?: number;
   } | null;
   taskQueue: QueuedTask[];
+  unlockedQueueSlots: number; // Defaults to 2, upgradable up to 5
   eatsAtHpPercent: number; // e.g. 50
   selectedFoodItemId?: string | null;
   currentHp: number;

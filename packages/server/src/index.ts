@@ -3,7 +3,7 @@ import path from 'node:path';
 import fs from 'node:fs';
 import express from 'express';
 import { WebSocketServer, WebSocket } from 'ws';
-import { ITEMS, RECIPES, MONSTERS, WORLD_BOSSES } from '@eldoria/shared';
+import { ITEMS, RECIPES, MONSTERS, WORLD_BOSSES, GEM_PACKS, addItemToSlots } from '@eldoria/shared';
 import { storage } from './storage.js';
 import { WORLD_NODES } from './world.js';
 import { gameEngine } from './gameEngine.js';
@@ -124,6 +124,153 @@ app.get('/api/data/items', (req, res) => {
 
 app.get('/api/data/recipes', (req, res) => {
   res.json({ recipes: RECIPES });
+});
+
+// --- Gem Packs & PayPal Payment Endpoints ---
+const PAYPAL_CLIENT_ID = process.env.PAYPAL_CLIENT_ID || '';
+const PAYPAL_SECRET = process.env.PAYPAL_SECRET || '';
+const PAYPAL_MODE = process.env.PAYPAL_MODE || 'sandbox';
+const PAYPAL_BASE_URL = PAYPAL_MODE === 'production'
+  ? 'https://api-m.paypal.com'
+  : 'https://api-m.sandbox.paypal.com';
+
+async function getPayPalAccessToken(): Promise<string> {
+  if (!PAYPAL_CLIENT_ID || !PAYPAL_SECRET) return '';
+  const auth = Buffer.from(`${PAYPAL_CLIENT_ID}:${PAYPAL_SECRET}`).toString('base64');
+  const resp = await fetch(`${PAYPAL_BASE_URL}/v1/oauth2/token`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Basic ${auth}`,
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: 'grant_type=client_credentials',
+  });
+  if (!resp.ok) {
+    throw new Error(`PayPal auth failed: ${resp.statusText}`);
+  }
+  const data = (await resp.json()) as any;
+  return data.access_token;
+}
+
+app.get('/api/gem-packs', (req, res) => {
+  res.json({
+    packs: Object.values(GEM_PACKS),
+    paypalClientId: PAYPAL_CLIENT_ID,
+    paypalMode: PAYPAL_MODE,
+  });
+});
+
+app.post('/api/paypal/create-order', async (req, res) => {
+  try {
+    const { packId, playerId } = req.body || {};
+    const pack = GEM_PACKS[packId];
+    if (!pack) {
+      res.status(400).json({ error: 'Invalid gem pack selected.' });
+      return;
+    }
+
+    if (PAYPAL_CLIENT_ID && PAYPAL_SECRET) {
+      const token = await getPayPalAccessToken();
+      const response = await fetch(`${PAYPAL_BASE_URL}/v2/checkout/orders`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          intent: 'CAPTURE',
+          purchase_units: [
+            {
+              reference_id: pack.id,
+              description: `${pack.name} (${pack.gems} Gems)`,
+              custom_id: playerId,
+              amount: {
+                currency_code: 'USD',
+                value: pack.priceUsd.toFixed(2),
+              },
+            },
+          ],
+        }),
+      });
+
+      if (!response.ok) {
+        const errText = await response.text();
+        console.error('PayPal create-order error:', errText);
+        res.status(500).json({ error: 'Failed to create PayPal order.' });
+        return;
+      }
+
+      const order = (await response.json()) as any;
+      res.json({ orderId: order.id });
+    } else {
+      // Development / sandbox test order ID
+      res.json({ orderId: `DEV_${Date.now()}_${packId}` });
+    }
+  } catch (err: any) {
+    console.error('PayPal create-order exception:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/paypal/capture-order', async (req, res) => {
+  try {
+    const { orderId, packId, playerId } = req.body || {};
+    const pack = GEM_PACKS[packId];
+    if (!pack) {
+      res.status(400).json({ error: 'Invalid gem pack.' });
+      return;
+    }
+
+    if (PAYPAL_CLIENT_ID && PAYPAL_SECRET) {
+      const token = await getPayPalAccessToken();
+      const response = await fetch(`${PAYPAL_BASE_URL}/v2/checkout/orders/${orderId}/capture`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errText = await response.text();
+        console.error('PayPal capture-order error:', errText);
+        res.status(500).json({ error: 'Failed to capture PayPal payment.' });
+        return;
+      }
+
+      const capture = (await response.json()) as any;
+      if (capture.status !== 'COMPLETED') {
+        res.status(400).json({ error: `PayPal payment not completed (status: ${capture.status})` });
+        return;
+      }
+    }
+
+    // Deliver tradeable Gem Pack item into player inventory (or overflow tray if full)
+    const player = storage.getPlayer(playerId);
+    if (!player) {
+      res.status(404).json({ error: 'Player character not found.' });
+      return;
+    }
+
+    const itemDef = storage.getItem(pack.id) || ITEMS[pack.id];
+    const addRes = addItemToSlots(player.inventory, 28, pack.id, 1, 'plain', 0, itemDef, 'inventory');
+    if (addRes.remainder > 0) {
+      if (!player.overflowTray) player.overflowTray = [];
+      player.overflowTray.push({ itemId: pack.id, quantity: addRes.remainder, rarity: 'plain', plus: 0 });
+    }
+
+    storage.savePlayer(player);
+    gameEngine.notifyPlayerPayment(playerId, pack.name, pack.id);
+
+    res.json({
+      success: true,
+      pack,
+      player,
+    });
+  } catch (err: any) {
+    console.error('PayPal capture-order exception:', err);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // Serve frontend dist if available (Single-port production serving)

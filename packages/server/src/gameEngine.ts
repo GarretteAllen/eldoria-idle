@@ -26,6 +26,9 @@ import {
   isItemStackable,
   getItemMaxStack,
   Rarity,
+  QUEUE_SLOT_CONFIG,
+  GEM_PACKS,
+  QueuedTask,
 } from '@eldoria/shared';
 import { storage } from './storage.js';
 
@@ -507,248 +510,37 @@ export class GameEngine {
 
       case 'INTERACT_NODE':
       case 'START_TASK':
-        if (msg.recipeId && RECIPES[msg.recipeId]) {
-          const rec = RECIPES[msg.recipeId];
-          const playerSkillLevel = player.skills[rec.skill]?.level || 1;
-          if (playerSkillLevel < rec.levelReq) {
-            this.send(session.ws, {
-              type: 'NOTIFICATION',
-              message: `Locked: Requires ${rec.skill} Level ${rec.levelReq}.`
-            });
-            break;
-          }
-
-          let targetX = typeof msg.targetX === 'number' ? msg.targetX : player.x;
-          let targetY = typeof msg.targetY === 'number' ? msg.targetY : player.y;
-          let nodeX = typeof msg.nodeX === 'number' ? msg.nodeX : targetX;
-          let nodeY = typeof msg.nodeY === 'number' ? msg.nodeY : targetY;
-          const targetQty = (typeof msg.quantity === 'number' && msg.quantity > 0) ? msg.quantity : Infinity;
-
-          // Universal station redirection:
-          // Cooking always takes place at the Hearth Firepit
-          if (rec.skill === 'cooking') {
-            const fireNode = storage.getWorldNodes().find(n => n.type === 'fire');
-            if (fireNode) {
-              const adj = this.getAdjacentWalkableTile(player.x, player.y, fireNode.x, fireNode.y);
-              targetX = adj.x;
-              targetY = adj.y;
-              nodeX = fireNode.x;
-              nodeY = fireNode.y;
-            }
-          } else if (rec.skill === 'smithing') {
-            // Smithing always takes place at the Ancestral Runeforge
-            const forgeNode = storage.getWorldNodes().find(n => n.type === 'forge');
-            if (forgeNode) {
-              const adj = this.getAdjacentWalkableTile(player.x, player.y, forgeNode.x, forgeNode.y);
-              targetX = adj.x;
-              targetY = adj.y;
-              nodeX = forgeNode.x;
-              nodeY = forgeNode.y;
-            }
-          } else if (rec.skill === 'farming') {
-            // Farming takes place at a Farm Plot
-            const farmNodes = storage.getWorldNodes().filter(n => n.type === 'farm');
-            if (farmNodes.length === 0) {
-              this.send(session.ws, {
-                type: 'NOTIFICATION',
-                message: 'No farm plot exists in the realm. Place one via Admin Panel.'
-              });
-              break;
-            }
-            let farmNode = farmNodes.find(n => Math.hypot(n.x - nodeX, n.y - nodeY) < 1.0);
-            if (!farmNode) {
-              farmNodes.sort((a, b) => Math.hypot(player.x - a.x, player.y - a.y) - Math.hypot(player.x - b.x, player.y - b.y));
-              farmNode = farmNodes[0];
-            }
-            const adj = this.getAdjacentWalkableTile(player.x, player.y, farmNode.x, farmNode.y);
-            targetX = adj.x;
-            targetY = adj.y;
-            nodeX = farmNode.x;
-            nodeY = farmNode.y;
-          } else if (rec.skill === 'crafting' || rec.skill === 'fletching') {
-            // Crafting and Fletching take place at an Artisan Workbench
-            const wbNodes = storage.getWorldNodes().filter(n => n.type === 'workbench');
-            if (wbNodes.length === 0) {
-              this.send(session.ws, {
-                type: 'NOTIFICATION',
-                message: "No Artisan's Workbench found in the realm. Place one via Admin Panel."
-              });
-              break;
-            }
-            let wbNode = wbNodes.find(n => Math.hypot(n.x - nodeX, n.y - nodeY) < 1.0);
-            if (!wbNode) {
-              wbNodes.sort((a, b) => Math.hypot(player.x - a.x, player.y - a.y) - Math.hypot(player.x - b.x, player.y - b.y));
-              wbNode = wbNodes[0];
-            }
-            const adj = this.getAdjacentWalkableTile(player.x, player.y, wbNode.x, wbNode.y);
-            targetX = adj.x;
-            targetY = adj.y;
-            nodeX = wbNode.x;
-            nodeY = wbNode.y;
-          } else if (rec.skill === 'alchemy') {
-            // Alchemy takes place at an Apothecary Cauldron
-            const cauldronNodes = storage.getWorldNodes().filter(n => n.type === 'cauldron');
-            if (cauldronNodes.length === 0) {
-              this.send(session.ws, {
-                type: 'NOTIFICATION',
-                message: "No Apothecary Cauldron found in the realm. Place one via Admin Panel."
-              });
-              break;
-            }
-            let cNode = cauldronNodes.find(n => Math.hypot(n.x - nodeX, n.y - nodeY) < 1.0);
-            if (!cNode) {
-              cauldronNodes.sort((a, b) => Math.hypot(player.x - a.x, player.y - a.y) - Math.hypot(player.x - b.x, player.y - b.y));
-              cNode = cauldronNodes[0];
-            }
-            const adj = this.getAdjacentWalkableTile(player.x, player.y, cNode.x, cNode.y);
-            targetX = adj.x;
-            targetY = adj.y;
-            nodeX = cNode.x;
-            nodeY = cNode.y;
-          } else if (rec.skill === 'attunement') {
-            // Attunement takes place at an Aether Monolith
-            const monoNodes = storage.getWorldNodes().filter(n => n.type === 'monolith');
-            if (monoNodes.length === 0) {
-              this.send(session.ws, {
-                type: 'NOTIFICATION',
-                message: "No Aether Monolith found in the realm. Place one via Admin Panel."
-              });
-              break;
-            }
-            let mNode = monoNodes.find(n => Math.hypot(n.x - nodeX, n.y - nodeY) < 1.0);
-            if (!mNode) {
-              monoNodes.sort((a, b) => Math.hypot(player.x - a.x, player.y - a.y) - Math.hypot(player.x - b.x, player.y - b.y));
-              mNode = monoNodes[0];
-            }
-            const adj = this.getAdjacentWalkableTile(player.x, player.y, mNode.x, mNode.y);
-            targetX = adj.x;
-            targetY = adj.y;
-            nodeX = mNode.x;
-            nodeY = mNode.y;
-          } else {
-            // For any node interaction, ensure destination is an adjacent walkable tile outside the node!
-            const isNodeTile = typeof nodeX === 'number' && typeof nodeY === 'number' && (targetX === nodeX && targetY === nodeY);
-            if (isNodeTile || storage.isCollidable(targetX, targetY)) {
-              const adj = this.getAdjacentWalkableTile(player.x, player.y, nodeX ?? targetX, nodeY ?? targetY);
-              targetX = adj.x;
-              targetY = adj.y;
-            }
-          }
-
-          const isGathering = ['mining', 'woodcutting', 'fishing', 'herbalism'].includes(rec.skill);
-          if (isGathering) {
-            const worldNodes = this.getAllWorldNodes();
-            const matchingNode = worldNodes.find(n =>
-              (n.recipeId === rec.id ||
-               (rec.skill === 'mining' && n.type === 'mine') ||
-               (rec.skill === 'woodcutting' && n.type === 'tree') ||
-               (rec.skill === 'fishing' && n.type === 'water') ||
-               (rec.skill === 'herbalism' && n.type === 'herb')) &&
-              Math.hypot(n.x - nodeX, n.y - nodeY) <= 3.0
-            );
-            if (!matchingNode) {
-              this.send(session.ws, {
-                type: 'NOTIFICATION',
-                message: `Couldn't find that spot anymore.`
-              });
-              break;
-            }
-          }
-
-          // Check if crafting recipe needs inputs not in bag
-          const hasReadyPlots = rec.skill === 'farming' && player.farmPlots &&
-            Object.values(player.farmPlots).some(p => p.status === 'ready');
-
-          const hasInputsInBag = hasReadyPlots || !rec.inputs || rec.inputs.length === 0 || rec.inputs.every(inp => {
-            const slot = player.inventory.find(s => s.itemId === inp.itemId && s.quantity >= inp.quantity);
-            return !!slot;
-          });
-
-          if (!hasInputsInBag && rec.inputs && rec.inputs.length > 0) {
-            const hasInStorage = rec.inputs.every(inp => {
-              return player.storage.some(s => s.itemId === inp.itemId && s.quantity >= inp.quantity);
-            });
-
-            if (hasInStorage) {
-              // Path to Hearth to withdraw materials first, then go to work!
-              const pending = { recipeId: msg.recipeId, targetX, targetY, quantity: targetQty, nodeX, nodeY };
-              session.pendingTask = pending;
-              player.pendingTask = pending;
-              const hearth = this.getHearthLocation(player.x, player.y);
-              const pathToHearth = this.findPathWithCollisions(player.x, player.y, hearth.x, hearth.y);
-              player.targetX = hearth.x;
-              player.targetY = hearth.y;
-              player.path = pathToHearth;
-              player.isMoving = true;
-              player.bankingState = 'walking_to_bank';
-              storage.savePlayer(player);
-              this.send(session.ws, {
-                type: 'NOTIFICATION',
-                message: `Drawing materials from Hearth for ${rec.name}... (${pathToHearth.length} steps)`
-              });
-              this.send(session.ws, { type: 'PLAYER_UPDATE', player });
-              this.broadcastWorldState();
-              break;
-            } else {
-              this.send(session.ws, {
-                type: 'NOTIFICATION',
-                message: `Insufficient materials for ${rec.name} in bag or Hearth storage.`
-              });
-              break;
-            }
-          }
-
-          // If not adjacent to or on the node, walk there first!
-          const distToDest = Math.hypot(player.x - targetX, player.y - targetY);
-          const distToNode = Math.hypot(player.x - nodeX, player.y - nodeY);
-          const isAdjacent = distToDest <= 1.5 || distToNode <= 1.5;
-
-          if (!isAdjacent) {
-            const path = this.findPathWithCollisions(player.x, player.y, targetX, targetY);
-            if (path.length > 0) {
-              const pending = { recipeId: msg.recipeId, targetX, targetY, quantity: targetQty, nodeX, nodeY };
-              session.pendingTask = pending;
-              player.pendingTask = pending;
-              player.targetX = targetX;
-              player.targetY = targetY;
-              player.path = path;
-              player.isMoving = true;
-              storage.savePlayer(player);
-              this.send(session.ws, {
-                type: 'NOTIFICATION',
-                message: `Traveling to ${RECIPES[msg.recipeId].name}... (${path.length} steps)`
-              });
-              this.send(session.ws, { type: 'PLAYER_UPDATE', player });
-              this.broadcastWorldState();
-              break;
-            }
-          }
-
-          // Already adjacent / arrived -> start immediately
-          player.currentTask = {
-            recipeId: msg.recipeId,
-            skill: rec.skill,
-            startedAtTick: this.tickCount,
-            targetQuantity: targetQty,
-            completedQuantity: 0,
-            targetNodeX: nodeX,
-            targetNodeY: nodeY,
-            standX: targetX,
-            standY: targetY,
-          };
-          player.pendingTask = null;
-          session.ticksInTask = 0;
-          session.pendingTask = null;
-          player.isMoving = false;
-          player.path = [];
-          storage.savePlayer(player);
-          storage.checkpoint();
-          this.send(session.ws, { type: 'PLAYER_UPDATE', player });
-          this.broadcastWorldState();
+        if (msg.enqueue) {
+          this.handleEnqueueTask(session, msg);
+        } else {
+          this.handleStartTask(session, msg);
         }
         break;
 
+      case 'ENQUEUE_TASK':
+        this.handleEnqueueTask(session, msg);
+        break;
+
+      case 'CANCEL_QUEUED_TASK':
+        this.handleCancelQueuedTask(session, msg);
+        break;
+
+      case 'REORDER_QUEUE':
+        this.handleReorderQueue(session, msg);
+        break;
+
+      case 'UNLOCK_QUEUE_SLOT':
+        this.handleUnlockQueueSlot(session);
+        break;
+
+      case 'REDEEM_GEM_PACK':
+        this.handleRedeemGemPack(session, msg.itemId);
+        break;
+
       case 'STOP_TASK':
+        if (msg.clearQueue) {
+          player.taskQueue = [];
+        }
         player.currentTask = null;
         player.pendingTask = null;
         session.ticksInTask = 0;
@@ -761,6 +553,9 @@ export class GameEngine {
         storage.checkpoint();
         this.send(session.ws, { type: 'PLAYER_UPDATE', player });
         this.broadcastWorldState();
+        if (msg.skipToNext && Array.isArray(player.taskQueue) && player.taskQueue.length > 0) {
+          this.startNextQueuedTask(session);
+        }
         break;
 
       case 'EQUIP_ITEM':
@@ -2703,10 +2498,11 @@ export class GameEngine {
           return;
         }
 
-        // Materials depleted in storage too
+        // Materials depleted in storage too - advance to next queued task
         player.currentTask = null;
-        this.send(ws, { type: 'NOTIFICATION', message: `Materials depleted for ${recipe.name}.` });
-        this.send(ws, { type: 'PLAYER_UPDATE', player });
+        this.send(ws, { type: 'NOTIFICATION', message: `Materials depleted for ${recipe.name} (${task.completedQuantity || 0} completed).` });
+        storage.savePlayer(player);
+        this.startNextQueuedTask(session);
         return;
       }
 
@@ -2817,23 +2613,13 @@ export class GameEngine {
     task.completedQuantity = (task.completedQuantity || 0) + 1;
     const hasQuota = typeof task.targetQuantity === 'number' && task.targetQuantity > 0 && task.targetQuantity !== Infinity;
     if (hasQuota && task.completedQuantity >= task.targetQuantity) {
-      // Complete or pull next from queue
-      if (player.taskQueue.length > 0) {
-        const next = player.taskQueue.shift()!;
-        player.currentTask = {
-          recipeId: next.recipeId,
-          skill: next.skill,
-          startedAtTick: this.tickCount,
-          targetQuantity: (typeof next.targetQuantity === 'number' && next.targetQuantity > 0) ? next.targetQuantity : Infinity,
-          completedQuantity: 0,
-        };
-      } else {
-        player.currentTask = null;
-        this.send(ws, {
-          type: 'NOTIFICATION',
-          message: `Finished task: Completed ${task.completedQuantity}x ${recipe.name}.`
-        });
-      }
+      this.send(ws, {
+        type: 'NOTIFICATION',
+        message: `Finished task: Completed ${task.completedQuantity}x ${recipe.name}.`
+      });
+      storage.savePlayer(player);
+      this.startNextQueuedTask(session);
+      return;
     }
 
     storage.savePlayer(player);
@@ -3062,19 +2848,10 @@ export class GameEngine {
           if (hasQuota && task.completedQuantity >= task.targetQuantity) {
             const anyGrowing = clusterPlots.some(p => player.farmPlots![p.id]?.status === 'growing' || player.farmPlots![p.id]?.status === 'ready');
             if (!anyGrowing) {
-              if (player.taskQueue.length > 0) {
-                const next = player.taskQueue.shift()!;
-                player.currentTask = {
-                  recipeId: next.recipeId,
-                  skill: next.skill,
-                  startedAtTick: this.tickCount,
-                  targetQuantity: (typeof next.targetQuantity === 'number' && next.targetQuantity > 0) ? next.targetQuantity : Infinity,
-                  completedQuantity: 0,
-                };
-              } else {
-                player.currentTask = null;
-                this.send(ws, { type: 'NOTIFICATION', message: `Completed farming task for ${recipe.name}.` });
-              }
+              this.send(ws, { type: 'NOTIFICATION', message: `Completed farming task for ${recipe.name}.` });
+              storage.savePlayer(player);
+              this.startNextQueuedTask(session);
+              return;
             }
           }
 
@@ -3109,8 +2886,7 @@ export class GameEngine {
               player.currentTask = null;
               this.send(ws, { type: 'NOTIFICATION', message: `Seeds depleted for ${recipe.name}.` });
               storage.savePlayer(player);
-              this.send(ws, { type: 'PLAYER_UPDATE', player });
-              this.broadcastWorldState();
+              this.startNextQueuedTask(session);
               return;
             }
           }
@@ -3122,22 +2898,10 @@ export class GameEngine {
     if (hasQuota && task.completedQuantity >= task.targetQuantity) {
       const anyGrowing = clusterPlots.some(p => player.farmPlots![p.id]?.status === 'growing' || player.farmPlots![p.id]?.status === 'ready');
       if (!anyGrowing) {
-        if (player.taskQueue.length > 0) {
-          const next = player.taskQueue.shift()!;
-          player.currentTask = {
-            recipeId: next.recipeId,
-            skill: next.skill,
-            startedAtTick: this.tickCount,
-            targetQuantity: (typeof next.targetQuantity === 'number' && next.targetQuantity > 0) ? next.targetQuantity : Infinity,
-            completedQuantity: 0,
-          };
-        } else {
-          player.currentTask = null;
-          this.send(ws, { type: 'NOTIFICATION', message: `Completed farming task for ${recipe.name}.` });
-        }
+        this.send(ws, { type: 'NOTIFICATION', message: `Completed farming task for ${recipe.name}.` });
         storage.savePlayer(player);
-        this.send(ws, { type: 'PLAYER_UPDATE', player });
-        this.broadcastWorldState();
+        this.startNextQueuedTask(session);
+        return;
       }
     }
   }
@@ -3374,6 +3138,507 @@ export class GameEngine {
       // Giving to self — update their own client
       this.send(ws, { type: 'PLAYER_UPDATE', player: targetPlayer });
     }
+  }
+
+  private resolveRecipeLocation(
+    player: PlayerData,
+    rec: RecipeDefinition,
+    preferredNodeX?: number,
+    preferredNodeY?: number
+  ): { targetX: number; targetY: number; nodeX: number; nodeY: number } {
+    let targetX = player.x;
+    let targetY = player.y;
+    let nodeX = preferredNodeX ?? player.x;
+    let nodeY = preferredNodeY ?? player.y;
+
+    if (rec.skill === 'cooking') {
+      const fireNode = storage.getWorldNodes().find(n => n.type === 'fire');
+      if (fireNode) {
+        const adj = this.getAdjacentWalkableTile(player.x, player.y, fireNode.x, fireNode.y);
+        return { targetX: adj.x, targetY: adj.y, nodeX: fireNode.x, nodeY: fireNode.y };
+      }
+    } else if (rec.skill === 'smithing') {
+      const forgeNode = storage.getWorldNodes().find(n => n.type === 'forge');
+      if (forgeNode) {
+        const adj = this.getAdjacentWalkableTile(player.x, player.y, forgeNode.x, forgeNode.y);
+        return { targetX: adj.x, targetY: adj.y, nodeX: forgeNode.x, nodeY: forgeNode.y };
+      }
+    } else if (rec.skill === 'farming') {
+      const farmNodes = storage.getWorldNodes().filter(n => n.type === 'farm');
+      if (farmNodes.length > 0) {
+        let farmNode = (preferredNodeX !== undefined && preferredNodeY !== undefined)
+          ? farmNodes.find(n => Math.hypot(n.x - preferredNodeX, n.y - preferredNodeY) < 1.0)
+          : undefined;
+        if (!farmNode) {
+          farmNodes.sort((a, b) => Math.hypot(player.x - a.x, player.y - a.y) - Math.hypot(player.x - b.x, player.y - b.y));
+          farmNode = farmNodes[0];
+        }
+        const adj = this.getAdjacentWalkableTile(player.x, player.y, farmNode.x, farmNode.y);
+        return { targetX: adj.x, targetY: adj.y, nodeX: farmNode.x, nodeY: farmNode.y };
+      }
+    } else if (rec.skill === 'crafting' || rec.skill === 'fletching') {
+      const wbNodes = storage.getWorldNodes().filter(n => n.type === 'workbench');
+      if (wbNodes.length > 0) {
+        let wbNode = (preferredNodeX !== undefined && preferredNodeY !== undefined)
+          ? wbNodes.find(n => Math.hypot(n.x - preferredNodeX, n.y - preferredNodeY) < 1.0)
+          : undefined;
+        if (!wbNode) {
+          wbNodes.sort((a, b) => Math.hypot(player.x - a.x, player.y - a.y) - Math.hypot(player.x - b.x, player.y - b.y));
+          wbNode = wbNodes[0];
+        }
+        const adj = this.getAdjacentWalkableTile(player.x, player.y, wbNode.x, wbNode.y);
+        return { targetX: adj.x, targetY: adj.y, nodeX: wbNode.x, nodeY: wbNode.y };
+      }
+    } else if (rec.skill === 'alchemy') {
+      const cNodes = storage.getWorldNodes().filter(n => n.type === 'cauldron');
+      if (cNodes.length > 0) {
+        let cNode = (preferredNodeX !== undefined && preferredNodeY !== undefined)
+          ? cNodes.find(n => Math.hypot(n.x - preferredNodeX, n.y - preferredNodeY) < 1.0)
+          : undefined;
+        if (!cNode) {
+          cNodes.sort((a, b) => Math.hypot(player.x - a.x, player.y - a.y) - Math.hypot(player.x - b.x, player.y - b.y));
+          cNode = cNodes[0];
+        }
+        const adj = this.getAdjacentWalkableTile(player.x, player.y, cNode.x, cNode.y);
+        return { targetX: adj.x, targetY: adj.y, nodeX: cNode.x, nodeY: cNode.y };
+      }
+    } else if (rec.skill === 'attunement') {
+      const mNodes = storage.getWorldNodes().filter(n => n.type === 'monolith');
+      if (mNodes.length > 0) {
+        let mNode = (preferredNodeX !== undefined && preferredNodeY !== undefined)
+          ? mNodes.find(n => Math.hypot(n.x - preferredNodeX, n.y - preferredNodeY) < 1.0)
+          : undefined;
+        if (!mNode) {
+          mNodes.sort((a, b) => Math.hypot(player.x - a.x, player.y - a.y) - Math.hypot(player.x - b.x, player.y - b.y));
+          mNode = mNodes[0];
+        }
+        const adj = this.getAdjacentWalkableTile(player.x, player.y, mNode.x, mNode.y);
+        return { targetX: adj.x, targetY: adj.y, nodeX: mNode.x, nodeY: mNode.y };
+      }
+    } else {
+      const worldNodes = this.getAllWorldNodes();
+      let matchingNode = (preferredNodeX !== undefined && preferredNodeY !== undefined)
+        ? worldNodes.find(n => (n.recipeId === rec.id || n.type === 'mine' || n.type === 'tree' || n.type === 'water' || n.type === 'herb') && Math.hypot(n.x - preferredNodeX, n.y - preferredNodeY) <= 3.0)
+        : undefined;
+      if (!matchingNode) {
+        const matches = worldNodes.filter(n => n.recipeId === rec.id ||
+          (rec.skill === 'mining' && n.type === 'mine') ||
+          (rec.skill === 'woodcutting' && n.type === 'tree') ||
+          (rec.skill === 'fishing' && n.type === 'water') ||
+          (rec.skill === 'herbalism' && n.type === 'herb')
+        );
+        if (matches.length > 0) {
+          matches.sort((a, b) => Math.hypot(player.x - a.x, player.y - a.y) - Math.hypot(player.x - b.x, player.y - b.y));
+          matchingNode = matches[0];
+        }
+      }
+      if (matchingNode) {
+        nodeX = matchingNode.x;
+        nodeY = matchingNode.y;
+        const adj = this.getAdjacentWalkableTile(player.x, player.y, nodeX, nodeY);
+        return { targetX: adj.x, targetY: adj.y, nodeX, nodeY };
+      }
+    }
+
+    const adj = this.getAdjacentWalkableTile(player.x, player.y, nodeX, nodeY);
+    return { targetX: adj.x, targetY: adj.y, nodeX, nodeY };
+  }
+
+  private startTaskExecution(
+    session: ConnectedSession,
+    rec: RecipeDefinition,
+    targetX: number,
+    targetY: number,
+    nodeX: number,
+    nodeY: number,
+    targetQty: number
+  ) {
+    const { player } = session;
+
+    const hasReadyPlots = rec.skill === 'farming' && player.farmPlots &&
+      Object.values(player.farmPlots).some(p => p.status === 'ready');
+
+    const hasInputsInBag = hasReadyPlots || !rec.inputs || rec.inputs.length === 0 || rec.inputs.every(inp => {
+      const slot = player.inventory.find(s => s.itemId === inp.itemId && s.quantity >= inp.quantity);
+      return !!slot;
+    });
+
+    if (!hasInputsInBag && rec.inputs && rec.inputs.length > 0) {
+      const hasInStorage = rec.inputs.every(inp => {
+        return player.storage.some(s => s.itemId === inp.itemId && s.quantity >= inp.quantity);
+      });
+
+      if (hasInStorage) {
+        const pending = { recipeId: rec.id, targetX, targetY, quantity: targetQty, nodeX, nodeY };
+        session.pendingTask = pending;
+        player.pendingTask = pending;
+        const hearth = this.getHearthLocation(player.x, player.y);
+        const pathToHearth = this.findPathWithCollisions(player.x, player.y, hearth.x, hearth.y);
+        player.targetX = hearth.x;
+        player.targetY = hearth.y;
+        player.path = pathToHearth;
+        player.isMoving = true;
+        player.bankingState = 'walking_to_bank';
+        storage.savePlayer(player);
+        this.send(session.ws, {
+          type: 'NOTIFICATION',
+          message: `Drawing materials from Hearth for ${rec.name}... (${pathToHearth.length} steps)`
+        });
+        this.send(session.ws, { type: 'PLAYER_UPDATE', player });
+        this.broadcastWorldState();
+        return;
+      } else {
+        this.send(session.ws, {
+          type: 'NOTIFICATION',
+          message: `Insufficient materials for ${rec.name} in bag or Hearth storage.`
+        });
+        return;
+      }
+    }
+
+    const distToDest = Math.hypot(player.x - targetX, player.y - targetY);
+    const distToNode = Math.hypot(player.x - nodeX, player.y - nodeY);
+    const isAdjacent = distToDest <= 1.5 || distToNode <= 1.5;
+
+    if (!isAdjacent) {
+      const path = this.findPathWithCollisions(player.x, player.y, targetX, targetY);
+      if (path.length > 0) {
+        const pending = { recipeId: rec.id, targetX, targetY, quantity: targetQty, nodeX, nodeY };
+        session.pendingTask = pending;
+        player.pendingTask = pending;
+        player.targetX = targetX;
+        player.targetY = targetY;
+        player.path = path;
+        player.isMoving = true;
+        storage.savePlayer(player);
+        this.send(session.ws, {
+          type: 'NOTIFICATION',
+          message: `Traveling to ${rec.name}... (${path.length} steps)`
+        });
+        this.send(session.ws, { type: 'PLAYER_UPDATE', player });
+        this.broadcastWorldState();
+        return;
+      }
+    }
+
+    player.currentTask = {
+      recipeId: rec.id,
+      skill: rec.skill,
+      startedAtTick: this.tickCount,
+      targetQuantity: targetQty,
+      completedQuantity: 0,
+      targetNodeX: nodeX,
+      targetNodeY: nodeY,
+      standX: targetX,
+      standY: targetY,
+    };
+    player.pendingTask = null;
+    session.ticksInTask = 0;
+    session.pendingTask = null;
+    player.isMoving = false;
+    player.path = [];
+    storage.savePlayer(player);
+    storage.checkpoint();
+    this.send(session.ws, { type: 'PLAYER_UPDATE', player });
+    this.broadcastWorldState();
+  }
+
+  private handleStartTask(session: ConnectedSession, msg: any) {
+    const { player, ws } = session;
+    if (!msg.recipeId || !RECIPES[msg.recipeId]) return;
+
+    const rec = RECIPES[msg.recipeId];
+    const playerSkillLevel = player.skills[rec.skill]?.level || 1;
+    if (playerSkillLevel < rec.levelReq) {
+      this.send(ws, {
+        type: 'NOTIFICATION',
+        message: `Locked: Requires ${rec.skill} Level ${rec.levelReq}.`
+      });
+      return;
+    }
+
+    const dest = this.resolveRecipeLocation(player, rec, msg.nodeX ?? msg.targetX, msg.nodeY ?? msg.targetY);
+    const targetQty = (typeof msg.quantity === 'number' && msg.quantity > 0) ? msg.quantity : Infinity;
+    this.startTaskExecution(session, rec, dest.targetX, dest.targetY, dest.nodeX, dest.nodeY, targetQty);
+  }
+
+  private handleEnqueueTask(session: ConnectedSession, msg: any) {
+    const { player, ws } = session;
+    const maxSlots = Math.min(QUEUE_SLOT_CONFIG.MAX_SLOTS, Math.max(QUEUE_SLOT_CONFIG.BASE_SLOTS, player.unlockedQueueSlots || 2));
+    if (!Array.isArray(player.taskQueue)) {
+      player.taskQueue = [];
+    }
+
+    if (player.taskQueue.length >= maxSlots) {
+      this.send(ws, {
+        type: 'NOTIFICATION',
+        message: `Task queue full (${player.taskQueue.length}/${maxSlots}). Unlock more queue slots with Gems!`
+      });
+      return;
+    }
+
+    let targetLabel = msg.targetLabel || 'Task';
+    let skill: any = msg.skill || 'mining';
+    const targetQty = (typeof msg.quantity === 'number' && msg.quantity > 0) ? msg.quantity : Infinity;
+
+    if (msg.monsterId) {
+      const mobDef = MONSTERS[msg.monsterId];
+      if (!mobDef) {
+        this.send(ws, { type: 'NOTIFICATION', message: `Unknown monster: ${msg.monsterId}` });
+        return;
+      }
+      targetLabel = mobDef.name;
+      skill = 'melee';
+    } else if (msg.recipeId) {
+      const rec = RECIPES[msg.recipeId];
+      if (!rec) {
+        this.send(ws, { type: 'NOTIFICATION', message: `Unknown recipe: ${msg.recipeId}` });
+        return;
+      }
+      targetLabel = rec.name;
+      skill = rec.skill;
+
+      const playerLevel = player.skills[rec.skill]?.level || 1;
+      if (playerLevel < rec.levelReq) {
+        this.send(ws, {
+          type: 'NOTIFICATION',
+          message: `Locked: Requires ${rec.skill} Level ${rec.levelReq}.`
+        });
+        return;
+      }
+    }
+
+    const queuedTask: QueuedTask = {
+      id: 'q_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+      recipeId: msg.recipeId || '',
+      monsterId: msg.monsterId,
+      skill,
+      targetQuantity: targetQty,
+      targetNodeId: msg.targetNodeId,
+      targetNodeX: msg.targetNodeX ?? msg.nodeX,
+      targetNodeY: msg.targetNodeY ?? msg.nodeY,
+      targetLabel,
+    };
+
+    // If player has NO active task, start it immediately!
+    if (!player.currentTask && !session.activeCombat && !player.isMoving && player.bankingState === 'idle') {
+      player.taskQueue.push(queuedTask);
+      this.startNextQueuedTask(session);
+      return;
+    }
+
+    player.taskQueue.push(queuedTask);
+    storage.savePlayer(player);
+    this.send(ws, { type: 'PLAYER_UPDATE', player });
+    const qtyStr = targetQty === Infinity ? '∞' : `${targetQty}x`;
+    this.send(ws, {
+      type: 'NOTIFICATION',
+      message: `Queued: ${targetLabel} (${qtyStr}). [Slot ${player.taskQueue.length}/${maxSlots}]`
+    });
+  }
+
+  private handleCancelQueuedTask(session: ConnectedSession, msg: any) {
+    const { player, ws } = session;
+    if (!Array.isArray(player.taskQueue) || player.taskQueue.length === 0) return;
+
+    if (typeof msg.index === 'number' && msg.index >= 0 && msg.index < player.taskQueue.length) {
+      const removed = player.taskQueue.splice(msg.index, 1)[0];
+      storage.savePlayer(player);
+      this.send(ws, { type: 'PLAYER_UPDATE', player });
+      this.send(ws, {
+        type: 'NOTIFICATION',
+        message: `Removed ${removed.targetLabel || 'task'} from queue.`
+      });
+    } else if (msg.id) {
+      const idx = player.taskQueue.findIndex(t => t.id === msg.id);
+      if (idx >= 0) {
+        const removed = player.taskQueue.splice(idx, 1)[0];
+        storage.savePlayer(player);
+        this.send(ws, { type: 'PLAYER_UPDATE', player });
+        this.send(ws, {
+          type: 'NOTIFICATION',
+          message: `Removed ${removed.targetLabel || 'task'} from queue.`
+        });
+      }
+    } else if (msg.clearAll) {
+      player.taskQueue = [];
+      storage.savePlayer(player);
+      this.send(ws, { type: 'PLAYER_UPDATE', player });
+      this.send(ws, { type: 'NOTIFICATION', message: 'Cleared all queued tasks.' });
+    }
+  }
+
+  private handleReorderQueue(session: ConnectedSession, msg: any) {
+    const { player, ws } = session;
+    if (!Array.isArray(player.taskQueue)) return;
+    const { fromIndex, toIndex } = msg;
+    if (
+      typeof fromIndex === 'number' &&
+      typeof toIndex === 'number' &&
+      fromIndex >= 0 &&
+      fromIndex < player.taskQueue.length &&
+      toIndex >= 0 &&
+      toIndex < player.taskQueue.length
+    ) {
+      const [item] = player.taskQueue.splice(fromIndex, 1);
+      player.taskQueue.splice(toIndex, 0, item);
+      storage.savePlayer(player);
+      this.send(ws, { type: 'PLAYER_UPDATE', player });
+    }
+  }
+
+  private handleUnlockQueueSlot(session: ConnectedSession) {
+    const { player, ws } = session;
+    const currentUnlocked = Math.max(QUEUE_SLOT_CONFIG.BASE_SLOTS, player.unlockedQueueSlots || 2);
+    if (currentUnlocked >= QUEUE_SLOT_CONFIG.MAX_SLOTS) {
+      this.send(ws, {
+        type: 'NOTIFICATION',
+        message: `You already have all ${QUEUE_SLOT_CONFIG.MAX_SLOTS} queue slots unlocked!`
+      });
+      return;
+    }
+
+    const nextSlot = currentUnlocked + 1;
+    const cost = QUEUE_SLOT_CONFIG.COSTS[nextSlot] || 500;
+
+    if ((player.gems || 0) < cost) {
+      this.send(ws, {
+        type: 'NOTIFICATION',
+        message: `Not enough gems! Unlocking Slot ${nextSlot} requires ${cost} Gems (You have ${player.gems || 0}).`
+      });
+      return;
+    }
+
+    player.gems -= cost;
+    player.unlockedQueueSlots = nextSlot;
+    storage.savePlayer(player);
+    this.send(ws, { type: 'PLAYER_UPDATE', player });
+    this.send(ws, {
+      type: 'NOTIFICATION',
+      message: `🎉 Unlocked Queue Slot ${nextSlot}! You can now queue up to ${nextSlot} tasks.`
+    });
+  }
+
+  private handleRedeemGemPack(session: ConnectedSession, itemId: string) {
+    const { player, ws } = session;
+    const packDef = GEM_PACKS[itemId];
+    if (!packDef) {
+      this.send(ws, { type: 'NOTIFICATION', message: 'Not a recognized Gem Pack.' });
+      return;
+    }
+
+    const invIdx = player.inventory.findIndex(s => s.itemId === itemId && s.quantity > 0);
+    if (invIdx < 0) {
+      this.send(ws, { type: 'NOTIFICATION', message: `You don't have a ${packDef.name} in your bag.` });
+      return;
+    }
+
+    player.inventory[invIdx].quantity -= 1;
+    if (player.inventory[invIdx].quantity <= 0) {
+      player.inventory.splice(invIdx, 1);
+    }
+
+    player.gems = (player.gems || 0) + packDef.gems;
+    storage.savePlayer(player);
+    this.send(ws, { type: 'PLAYER_UPDATE', player });
+    this.send(ws, {
+      type: 'NOTIFICATION',
+      message: `💎 Opened ${packDef.name}! Received +${packDef.gems.toLocaleString()} Celestial Gems (Total: ${player.gems.toLocaleString()}).`
+    });
+  }
+
+  public startNextQueuedTask(session: ConnectedSession): boolean {
+    const { player, ws } = session;
+    if (!Array.isArray(player.taskQueue) || player.taskQueue.length === 0) {
+      player.currentTask = null;
+      storage.savePlayer(player);
+      this.send(ws, { type: 'PLAYER_UPDATE', player });
+      return false;
+    }
+
+    const next = player.taskQueue.shift()!;
+    // If it's a monster combat task:
+    const isCombatTask = Boolean(next.monsterId || ((next.skill as string) === 'combat') || (next.recipeId && MONSTERS[next.recipeId]));
+    if (isCombatTask) {
+      const mobId = next.monsterId || next.recipeId;
+      const monDef = MONSTERS[mobId];
+      if (!monDef) {
+        this.send(ws, { type: 'NOTIFICATION', message: `Unknown monster in queue: ${mobId}. Skipping...` });
+        return this.startNextQueuedTask(session);
+      }
+
+      const allZones = storage.getMonsterZones();
+      const matchingZone = allZones.find(z => z.monsterId === mobId);
+      const nearestMob = this.findNearestAliveMonsterInZone(player.x, player.y, matchingZone?.id, mobId);
+      const targetNodeX = nearestMob ? nearestMob.x : (matchingZone ? matchingZone.x : player.x);
+      const targetNodeY = nearestMob ? nearestMob.y : (matchingZone ? matchingZone.y : player.y);
+
+      player.currentTask = {
+        recipeId: mobId,
+        skill: (next.skill && ['melee', 'ranged', 'magic', 'defence', 'hitpoints'].includes(next.skill)) ? next.skill : 'melee',
+        startedAtTick: this.tickCount,
+        targetQuantity: (typeof next.targetQuantity === 'number' && next.targetQuantity > 0) ? next.targetQuantity : Infinity,
+        completedQuantity: 0,
+        targetNodeX,
+        targetNodeY,
+      };
+
+      this.handleStartCombat(session, {
+        monsterId: mobId,
+        targetX: targetNodeX,
+        targetY: targetNodeY,
+        nodeId: nearestMob?.id,
+      });
+
+      storage.savePlayer(player);
+      this.send(ws, { type: 'PLAYER_UPDATE', player });
+      this.send(ws, {
+        type: 'NOTIFICATION',
+        message: `Queue advanced: Hunting ${monDef.name} (${next.targetQuantity === Infinity ? '∞' : next.targetQuantity}x).`
+      });
+      return true;
+    }
+
+    // It's a skilling / recipe task:
+    const rec = RECIPES[next.recipeId];
+    if (!rec) {
+      this.send(ws, { type: 'NOTIFICATION', message: `Unknown recipe in queue: ${next.recipeId}. Skipping...` });
+      return this.startNextQueuedTask(session);
+    }
+
+    const playerSkillLevel = player.skills[rec.skill]?.level || 1;
+    if (playerSkillLevel < rec.levelReq) {
+      this.send(ws, { type: 'NOTIFICATION', message: `Queue skipped ${rec.name}: Requires ${rec.skill} Level ${rec.levelReq}.` });
+      return this.startNextQueuedTask(session);
+    }
+
+    // Check materials for crafting/cooking recipes:
+    if (rec.inputs && rec.inputs.length > 0 && rec.skill !== 'farming') {
+      const hasInputsInBag = rec.inputs.every(inp => {
+        return player.inventory.some(s => s.itemId === inp.itemId && s.quantity >= inp.quantity);
+      });
+      const hasInputsInStorage = rec.inputs.every(inp => {
+        return player.storage.some(s => s.itemId === inp.itemId && s.quantity >= inp.quantity);
+      });
+
+      if (!hasInputsInBag && !hasInputsInStorage) {
+        this.send(ws, {
+          type: 'NOTIFICATION',
+          message: `Queue skipped ${rec.name}: No materials found in bag or Hearth storage.`
+        });
+        return this.startNextQueuedTask(session);
+      }
+    }
+
+    const dest = this.resolveRecipeLocation(player, rec, next.targetNodeX, next.targetNodeY);
+    const targetQty = (typeof next.targetQuantity === 'number' && next.targetQuantity > 0) ? next.targetQuantity : Infinity;
+
+    this.startTaskExecution(session, rec, dest.targetX, dest.targetY, dest.nodeX, dest.nodeY, targetQty);
+    this.send(ws, {
+      type: 'NOTIFICATION',
+      message: `Queue advanced: Starting ${rec.name} (${targetQty === Infinity ? '∞' : targetQty}x).`
+    });
+    return true;
   }
 
   private getPlayerCombatStyle(player: PlayerData): 'melee' | 'ranged' | 'magic' {
@@ -3783,6 +4048,18 @@ export class GameEngine {
         storage.savePlayer(player);
         this.broadcast({ type: 'WORLD_NODES_UPDATE', nodes: this.getAllWorldNodes() });
 
+        const task = player.currentTask;
+        const hasCombatQuota = task && typeof task.targetQuantity === 'number' && task.targetQuantity > 0 && task.targetQuantity !== Infinity;
+        if (hasCombatQuota && task.completedQuantity >= task.targetQuantity) {
+          session.activeCombat = null;
+          this.send(ws, {
+            type: 'NOTIFICATION',
+            message: `Completed combat quota: Slain ${task.completedQuantity}x ${monsterDef.name}.`
+          });
+          this.startNextQueuedTask(session);
+          return;
+        }
+
         // Search for next alive monster in the zone to hunt
         const nextMob = this.findNearestAliveMonsterInZone(player.x, player.y, combat.zoneId || mobInst?.zoneId, monsterDef.id);
         if (nextMob) {
@@ -4040,6 +4317,19 @@ export class GameEngine {
   private send(ws: WebSocket, payload: any) {
     if (ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify(payload));
+    }
+  }
+
+  public notifyPlayerPayment(playerId: string, packName: string, itemId: string) {
+    const session = this.sessions.get(playerId);
+    if (session) {
+      const player = storage.getPlayer(playerId) || session.player;
+      session.player = player;
+      this.send(session.ws, { type: 'PLAYER_UPDATE', player });
+      this.send(session.ws, {
+        type: 'NOTIFICATION',
+        message: `🎉 Payment received! 1x ${packName} added to your bag. Use it to redeem gems, or trade it on the market!`,
+      });
     }
   }
 
