@@ -2448,6 +2448,10 @@ class EldoriaClient {
           this.selectedRecipeId = recipe.id;
           this.updateSkillJobPopup();
         });
+      } else {
+        itemEl.addEventListener('click', () => {
+          this.showToast(`Locked: Requires ${recipe.skill.replace('_', ' ')} Level ${recipe.levelReq}!`);
+        });
       }
 
       jobsContainer.appendChild(itemEl);

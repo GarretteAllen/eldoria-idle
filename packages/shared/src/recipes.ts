@@ -389,7 +389,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
   forge_dawnburn_greatsword: {
     id: 'forge_dawnburn_greatsword',
     skill: 'smithing',
-    levelReq: 5,
+    levelReq: 1,
     name: 'Dawnburn Greatsword',
     inputs: [{ itemId: 'dawnburn_ingot', quantity: 3 }],
     outputItemId: 'dawnburn_greatsword',
