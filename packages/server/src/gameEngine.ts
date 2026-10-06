@@ -649,7 +649,7 @@ export class GameEngine {
             if (!matchingNode) {
               this.send(session.ws, {
                 type: 'NOTIFICATION',
-                message: `No valid ${rec.name} resource node found at that location.`
+                message: `Couldn't find that spot anymore.`
               });
               break;
             }
@@ -1715,7 +1715,7 @@ export class GameEngine {
 
       this.send(ws, {
         type: 'NOTIFICATION',
-        message: `Riding to the Hearth Storage Counter to deposit spoils... (${path.length} paces)`
+        message: 'Heading to the bank to drop off your items...'
       });
       this.send(ws, { type: 'PLAYER_UPDATE', player });
       this.broadcastWorldState();
@@ -1986,7 +1986,7 @@ export class GameEngine {
     }
 
     if (soldCount === 0) {
-      this.send(ws, { type: 'NOTIFICATION', message: 'No sellable common spoils in satchel.' });
+      this.send(ws, { type: 'NOTIFICATION', message: "You don't have anything in your bag to sell." });
       return;
     }
 
@@ -2478,8 +2478,8 @@ export class GameEngine {
             this.send(ws, {
               type: 'NOTIFICATION',
               message: count > 0
-                ? `Hearth reached! Deposited ${count} spoils. Out of materials in vault for ${rec.name}. Task halted.`
-                : `Out of materials in Hearth vault for ${rec.name}. Task halted.`
+                ? `Dropped off ${count} items in the bank. You ran out of materials for ${rec.name}!`
+                : `You ran out of materials in your bank for ${rec.name}!`
             });
             storage.savePlayer(player);
             storage.checkpoint();
@@ -2510,8 +2510,8 @@ export class GameEngine {
           this.send(ws, {
             type: 'NOTIFICATION',
             message: count > 0
-              ? `Hearth reached! Deposited ${count} items, but satchel remains full. Task halted.`
-              : `Hearth vault is full! Unable to deposit spoils. Task halted.`
+              ? `Dropped off ${count} items, but your bag is still full!`
+              : `Your bank is completely full! Can't deposit any more items right now.`
           });
           storage.savePlayer(player);
           storage.checkpoint();
@@ -2605,16 +2605,16 @@ export class GameEngine {
       this.send(ws, {
         type: 'NOTIFICATION',
         message: count > 0 
-          ? `Hearth reached! Deposited ${count} resources. Riding back to work...`
-          : `Hearth reached! Riding back to work...`
+          ? `Dropped off ${count} items in the bank! Heading back to work...`
+          : `Heading back to work...`
       });
     } else {
       player.bankingState = 'idle';
       this.send(ws, {
         type: 'NOTIFICATION',
         message: count > 0
-          ? `Deposited ${count} resources into the Hearth Reliquary.`
-          : `No spoils to deposit in satchel.`
+          ? `Deposited ${count} items into your bank.`
+          : `Nothing in your bag to deposit.`
       });
     }
 
@@ -2658,7 +2658,7 @@ export class GameEngine {
         player.isMoving = path.length > 0;
         this.send(ws, {
           type: 'NOTIFICATION',
-          message: `Satchel full (28/28)! Riding to the Hearth to bank resources... (${path.length} tiles)`
+          message: 'Your bag is full! Heading to the bank...'
         });
         this.send(ws, { type: 'PLAYER_UPDATE', player });
         this.broadcastWorldState();
@@ -2733,7 +2733,7 @@ export class GameEngine {
       if (addRes.remainder > 0) {
         // Inventory is full! Check auto-banking vs drop
         if (player.dropWhenFull) {
-          this.send(ws, { type: 'NOTIFICATION', message: `Satchel full! Discarded ${outDef?.name || 'spoils'}.` });
+          this.send(ws, { type: 'NOTIFICATION', message: `Your bag is full! Discarded ${outDef?.name || 'item'}.` });
         } else {
           // Trigger Autonomous Banking Run to the Hearth!
           player.bankReturnTask = { ...player.currentTask!, standX: player.x, standY: player.y };
@@ -2749,7 +2749,7 @@ export class GameEngine {
 
           this.send(ws, {
             type: 'NOTIFICATION',
-            message: `Satchel full (28/28)! Riding to the Hearth to bank resources... (${path.length} tiles)`
+            message: 'Your bag is full! Heading to the bank...'
           });
           this.send(ws, { type: 'PLAYER_UPDATE', player });
           this.broadcastWorldState();
@@ -3753,7 +3753,7 @@ export class GameEngine {
           player.isMoving = path.length > 0;
           this.send(ws, {
             type: 'NOTIFICATION',
-            message: `Satchel full (28/28)! Returning to Hearth to bank combat spoils...`,
+            message: 'Your bag is full! Heading to the bank to drop off your loot...',
           });
           storage.savePlayer(player);
           this.send(ws, { type: 'PLAYER_UPDATE', player });
@@ -3896,13 +3896,13 @@ export class GameEngine {
           if (hasBankFood) {
             this.send(ws, {
               type: 'NOTIFICATION',
-              message: `Out of rations! Returning to Hearth to bank spoils and restock sustenance...`,
+              message: 'Out of food! Heading to the bank to drop off loot and grab more food...',
             });
           } else {
             player.bankReturnTask = null;
             this.send(ws, {
               type: 'NOTIFICATION',
-              message: `Out of rations and vault is empty! Retreating to Hearth for safety.`,
+              message: 'Out of food and your bank is empty! Retreating to town for safety.',
             });
           }
 

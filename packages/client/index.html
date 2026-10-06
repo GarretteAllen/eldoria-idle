@@ -337,7 +337,7 @@
               <input type="number" id="qty-custom-input" class="qty-custom-input hidden" min="1" max="99999" placeholder="Amt" />
             </div>
           </div>
-          <div class="popup-note" id="popup-job-note">Continuous idle (∞): automatically banks spoils at the Hearth and resumes non-stop.</div>
+          <div class="popup-note" id="popup-job-note">Runs non-stop: automatically drops items off in your bank when your bag is full, then heads right back to work.</div>
           <div class="popup-action-row">
             <button id="btn-job-start" class="btn-start">Start (∞)</button>
             <button id="btn-job-stop" class="btn-stop">Stop</button>
@@ -392,7 +392,7 @@
               </select>
             </div>
             <div style="font-size: 0.68rem; color: #a0aec0; line-height: 1.3; margin-top: 6px;">
-              Auto-eats from satchel during combat. When rations run out, you will safely return to the Hearth to bank spoils and restock from your vault.
+              Automatically eats food from your bag during combat. If you run out of food, you'll head back to the bank to drop off your loot and grab more food.
             </div>
           </div>
 
@@ -401,7 +401,7 @@
 
           <div class="category-heading" style="margin-top: 14px; margin-bottom: 6px;">Skilling Toolbelt</div>
           <div style="font-size: 0.72rem; color: #a0aec0; margin-bottom: 8px; line-height: 1.3;">
-            Equipped tools are automatically drawn and animated during resource gathering and craft work.
+            Equipped tools appear on your character whenever you're working.
           </div>
           <div id="toolbelt-slots" class="equipment-list"></div>
         </div>
@@ -415,7 +415,7 @@
         </div>
         <div class="drawer-body">
           <div style="margin-bottom: 10px;">
-            <button id="btn-deposit-all" class="btn-start" style="width: 100%;">Deposit All Spoils</button>
+            <button id="btn-deposit-all" class="btn-start" style="width: 100%;">Deposit All</button>
           </div>
           <div id="storage-grid" class="rpg-item-grid"></div>
         </div>
@@ -440,7 +440,7 @@
             <div class="dv-subbar-actions">
               <button id="dv-btn-buy-slot" class="dv-sub-btn dv-btn-buy" title="Expand vault capacity by 5 slots">Buy a slot • 1,000</button>
               <button id="dv-btn-auto-arrange" class="dv-sub-btn" title="Auto arrange vault contents">Auto arrange</button>
-              <button id="dv-btn-home-depot" class="dv-sub-btn dv-btn-check" title="Quick deposit all spoils"><span id="dv-depot-check-icon" class="svg-icon-inline icon-sm"></span> Home depot</button>
+              <button id="dv-btn-home-depot" class="dv-sub-btn dv-btn-check" title="Deposit all items in bag"><span id="dv-depot-check-icon" class="svg-icon-inline icon-sm"></span> Deposit All</button>
             </div>
           </div>
 
@@ -520,37 +520,37 @@
 
 
 
-      <!-- WHILE IN SLUMBER MODAL (Away Progression) -->
+      <!-- WELCOME BACK MODAL (Away Progression) -->
       <div id="away-modal" class="modal-backdrop hidden">
         <div class="modal-box dark-oak-panel" style="width: 440px;">
           <div class="modal-header">
-            <h3>While In Slumber</h3>
+            <h3>Welcome Back!</h3>
             <button id="away-close-btn" class="icon-btn-micro"></button>
           </div>
           <div id="away-body" class="modal-content"></div>
           <div class="modal-footer" style="margin-top: 14px;">
-            <button id="away-ok-btn" class="btn-start" style="width: 100%;">Awaken & Collect</button>
+            <button id="away-ok-btn" class="btn-start" style="width: 100%;">Claim & Continue</button>
           </div>
         </div>
       </div>
 
-      <!-- AFK SLUMBER OVERLAY (Resource Saver for Inactive / Tabbed Out Players) -->
+      <!-- AFK OVERLAY -->
       <div id="afk-overlay" class="modal-backdrop afk-backdrop hidden">
         <div class="modal-box dark-oak-panel afk-box" style="width: 440px; text-align: center;">
           <div class="afk-icon-wrap" id="afk-icon-wrap"></div>
-          <h2 class="afk-title">Adventurer in Slumber</h2>
+          <h2 class="afk-title">You went AFK!</h2>
           <p class="afk-desc">
-            You have been away for 15+ minutes. System resources (GPU & 60 FPS canvas loop) have been suspended to conserve power.
+            You were away for a bit, so the game paused to rest. Your character kept working while you were gone!
           </p>
           <div class="afk-routine-card">
-            <div class="afk-routine-label">Active Routine:</div>
-            <div class="afk-routine-val" id="afk-routine-val">Resting at the Hearth</div>
+            <div class="afk-routine-label">Currently doing:</div>
+            <div class="afk-routine-val" id="afk-routine-val">Hanging out at the Hearth</div>
           </div>
           <p class="afk-note">
-            Your character's tasks, yields, and experience continue safely offline.
+            All your loot and XP were saved safely.
           </p>
           <button id="afk-resume-btn" class="btn-start" style="width: 100%; margin-top: 16px;">
-            Awaken & Resume
+            I'm Back!
           </button>
         </div>
       </div>

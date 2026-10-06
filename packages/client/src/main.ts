@@ -2815,7 +2815,7 @@ class EldoriaClient {
         div.onclick = () => {
           if (!isNearHearth) {
             this.sendWs({ type: 'MOVE_TO', x: hearth.x, y: hearth.y });
-            this.showToast('Riding to Hearth Storage Counter...');
+            this.showToast('Heading to the bank...');
           } else {
             const requestedQty = this.selectedTransferAmount === 'all' ? slot.quantity : this.selectedTransferAmount;
             this.sendWs({
@@ -2875,7 +2875,7 @@ class EldoriaClient {
           div.onclick = () => {
             if (!isNearHearth) {
               this.sendWs({ type: 'MOVE_TO', x: hearth.x, y: hearth.y });
-              this.showToast('Riding to Hearth Storage Counter...');
+              this.showToast('Heading to the bank...');
             } else {
               const requestedQty = this.selectedTransferAmount === 'all' ? slot.quantity : this.selectedTransferAmount;
               this.sendWs({
@@ -3769,7 +3769,7 @@ class EldoriaClient {
         const hearth = this.getHearthLocation(this.player?.x, this.player?.y);
         this.sendWs({ type: 'MOVE_TO', x: hearth.x, y: hearth.y });
         this.openStorageModal();
-        this.showToast('Returning to Hearth Reliquary...');
+        this.showToast('Heading to the bank...');
         e.preventDefault();
       } else if (e.code === 'KeyM') {
         this.toggleWorldMapModal();
@@ -3802,7 +3802,7 @@ class EldoriaClient {
       this.sendWs({ type: 'EAT_FOOD', inventoryIndex: foodIdx });
       this.showToast(`Ate ${def.name} (+${heal} HP)`);
     } else {
-      this.showToast('No edible food found in satchel!');
+      this.showToast("You don't have any food in your bag!");
     }
   }
 
@@ -4549,7 +4549,7 @@ class EldoriaClient {
           <div style="background: rgba(223, 166, 55, 0.15); border: 1px solid var(--gold-bright); border-radius: 6px; padding: 8px 10px; margin-top: 4px;">
             <div style="font-weight: 800; color: var(--gold-bright); font-size: 0.85rem; display: flex; align-items: center; gap: 6px;">
               <span class="svg-icon-inline icon-sm">${ICONS.star}</span>
-              <span>${skillCapitalized} Advanced: ${progression}${diff}!</span>
+              <span>${skillCapitalized} leveled up to ${progression}${diff}!</span>
             </div>
           </div>
         `;
@@ -4558,7 +4558,7 @@ class EldoriaClient {
           <div style="background: rgba(223, 166, 55, 0.15); border: 1px solid var(--gold-bright); border-radius: 6px; padding: 8px 10px; margin-top: 4px;">
             <div style="font-weight: 800; color: var(--gold-bright); font-size: 0.85rem; display: flex; align-items: center; gap: 6px;">
               <span class="svg-icon-inline icon-sm">${ICONS.star}</span>
-              <span>Ascension! Your skills advanced while you were away!</span>
+              <span>Level up! You gained levels while you were away!</span>
             </div>
           </div>
         `;
@@ -4569,7 +4569,7 @@ class EldoriaClient {
     if (summary.itemsGained && Object.keys(summary.itemsGained).length > 0) {
       itemsHtml = `
         <div style="margin-top: 6px;">
-          <div style="font-weight: 700; color: var(--gold-light); font-size: 0.74rem; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.05em;">Spoils Collected:</div>
+          <div style="font-weight: 700; color: var(--gold-light); font-size: 0.74rem; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.05em;">Loot Collected:</div>
           <div style="display: flex; flex-wrap: wrap; gap: 6px; max-height: 120px; overflow-y: auto;">
             ${Object.entries(summary.itemsGained).map(([id, qty]) => {
               const def = ITEMS[id];
@@ -4582,10 +4582,10 @@ class EldoriaClient {
     }
 
     body.innerHTML = `
-      <p style="margin-bottom: 8px; font-size: 0.88rem; color: #e2e8f0;">You rested for <b>${timeStr}</b> while away.</p>
+      <p style="margin-bottom: 8px; font-size: 0.88rem; color: #e2e8f0;">You were away for <b>${timeStr}</b>. Here's what you got done:</p>
       <div style="background: #1c1108; padding: 12px; border-radius: 6px; border: 1px solid #4a301a; display: flex; flex-direction: column; gap: 6px; font-size: 0.8rem;">
         <div style="display: flex; justify-content: space-between;">
-          <span style="color: var(--gold-light);">Actions Finished:</span>
+          <span style="color: var(--gold-light);">Actions Completed:</span>
           <b>${(summary.completedCycles || 0).toLocaleString()}</b>
         </div>
         <div style="display: flex; justify-content: space-between;">
@@ -4594,7 +4594,7 @@ class EldoriaClient {
         </div>
         ${levelUpHtml}
         ${itemsHtml}
-        ${summary.overflowOccurred ? `<div style="color: #f6ad55; font-size: 0.74rem; margin-top: 4px; display: flex; align-items: center; gap: 5px;"><span class="svg-icon-inline icon-sm">${ICONS.storage}</span> Satchel filled: Extra spoils safely deposited at Hearth Storage.</div>` : ''}
+        ${summary.overflowOccurred ? `<div style="color: #f6ad55; font-size: 0.74rem; margin-top: 4px; display: flex; align-items: center; gap: 5px;"><span class="svg-icon-inline icon-sm">${ICONS.storage}</span> Your bag filled up, so extra items were safely sent to your bank.</div>` : ''}
       </div>
     `;
 
@@ -4679,10 +4679,9 @@ class EldoriaClient {
         const rec = RECIPES[this.player.currentTask.recipeId];
         const mob = MONSTERS[this.player.currentTask.recipeId];
         const taskName = rec?.name || mob?.name || this.player.currentTask.recipeId;
-        const skill = this.player.currentTask.skill ? this.player.currentTask.skill.toUpperCase() : 'ROUTINE';
-        taskVal.textContent = `${taskName} (${skill})`;
+        taskVal.textContent = taskName;
       } else {
-        taskVal.textContent = 'Resting at the Hearth';
+        taskVal.textContent = 'Hanging out at the Hearth';
       }
     }
 
@@ -4693,7 +4692,7 @@ class EldoriaClient {
 
   private resumeFromAfk() {
     if (!this.isAfk) return;
-    console.log('[AFK] Resuming from slumber...');
+    console.log('[AFK] Welcome back! Resuming...');
     this.isAfk = false;
     this.lastUserActivity = Date.now();
     this.hiddenSince = null;
