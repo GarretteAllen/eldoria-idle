@@ -41,3 +41,40 @@ This document establishes the permanent design, UI/UX, and copy standards for El
    - When elements sit on the same side of the screen (e.g., Active Task card and Bounties & Quests card), wrap them in a shared vertical flex container (`.left-cards-stack`) so they flow naturally and never overlap when content grows or collapses.
 2. **Vector Icons Must Always Be Sized & Wrapped**:
    - Inline SVG icons must always be wrapped in `.svg-icon-inline` with explicit dimension constraints (`icon-sm`, `icon-lg`), never raw untamed `<svg>` nodes that stretch to 100% container width.
+
+---
+
+## 4. Current Core Game Systems Reference
+
+### 1. Game Tick & Movement
+- **Tick Rate**: 600ms server tick (`TICK_MS = 600`), standard OSRS style.
+- **Pathfinding & Travel**: Grid-based pathfinding with walking and mounted speed modifiers (`t/t` = tiles per tick).
+- **Steeds (Mounts)**: Equippable steed slot with rarity bonuses and enhancement (+0 to +15), accelerating tile movement speed across all road networks.
+
+### 2. Auto-Banking & Inventory Loop
+- **Capacity**: 28 satchel slots, 75 base Hearth bank storage slots (expandable).
+- **Automated Trips**: When an inventory fills while gathering (mining, woodcutting, fishing, foraging), the character auto-walks/rides to the central Hearth storage counter, deposits harvested goods, and automatically walks/rides back to the resource node.
+- **Overflow Tray**: Up to 10 overflow slots protect items when inventory is strictly full upon receiving quest rewards, drops, or shop purchases.
+
+### 3. Action Queue System
+- **Slots**: Starts with 2 slots, upgradable to 5 via Celestial Gems (100, 250, 500 gems).
+- **Flow**: FIFO task list with target quantities (or infinite).
+- **Clean Transitions**: If materials run dry or a quota finishes early (e.g., asked for 100 cooked fish but only 70 raw fish available), the remaining tasks transition smoothly to the next queued job without stalling.
+
+### 4. Trade Skills (Refining & Gathering)
+- **Gathering**: Mining (ores), Woodcutting (timbers), Fishing (seafood), Herbalism (wild plants), Farming (timed crop plots with 2x online growth speed).
+- **Refining**: Smithing (Ancestral Runeforge), Cooking (Hearth Firepit), Fletching & Crafting (Artisan's Workbench), Alchemy (Apothecary Cauldron).
+- **Economy**: Thieving (Town Market Stalls) for quick coins, cloth bolts, and loot.
+
+### 5. Combat & Food Loop
+- **Styles**: Melee, Ranged, Magic with distinct equipment slots (weapon, shield/quiver/grimoire, helm, chest, legs).
+- **Automated Sustenance**: Players select their emergency food and HP trigger threshold (e.g., auto-eat at 50% HP). When auto-banking after combat, the character automatically retains up to 15 food items from the bank before returning to the monsters.
+- **Encounter Zones**: Level-zoned monster grounds from Lv 2 Mire-Rats to Lv 12+ Carrion Scarabs and world boss arenas.
+
+### 6. Enhancement & Soul Attunement
+- **Rarities**: Plain, Uncommon, Rare, Epic, Legendary with progressive stat scaling (1.0x to 3.0x).
+- **Enhancement (+0 to +15)**: Runeforge upgrades using Anima and Gold, protected from down-ranking via Ward Scrolls.
+
+### 7. Monetization & Player Economy
+- **Celestial Gems**: Premium currency used exclusively for conveniences (Action Queue slots, cosmetics).
+- **Tradeable Gem Packs**: Purchased via clean checkout (5 tiers from $0.99 to $19.99). Delivered as inventory items that players can either crack open for personal gems or sell to other players on the open market for in-game gold.
