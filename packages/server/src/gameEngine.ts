@@ -292,6 +292,25 @@ export class GameEngine {
       storage.savePlayer(player);
     }
 
+    // Auto-clean/convert legacy placeholder items from previous daily reward test
+    let cleanedItems = false;
+    const convertItemSlots = (slots: any[]) => {
+      for (const slot of slots) {
+        if (slot.itemId === 'iron_ration') {
+          slot.itemId = 'crusty_bread';
+          cleanedItems = true;
+        } else if (slot.itemId === 'seed_carrot') {
+          slot.itemId = 'earthtuber_seed';
+          cleanedItems = true;
+        }
+      }
+    };
+    if (player.inventory) convertItemSlots(player.inventory);
+    if (player.storage) convertItemSlots(player.storage);
+    if (cleanedItems) {
+      storage.savePlayer(player);
+    }
+
     player.lastActiveTimestamp = Date.now();
     this.catchUpFarmPlots(player);
     player.moveSpeedTilesPerTick = calculatePlayerMoveSpeed(player);
@@ -2452,18 +2471,25 @@ export class GameEngine {
     player.gems = (player.gems || 0) + gemsReward;
     player.lastDailyRewardTimestamp = now;
 
-    // Give 5 iron rations and 3 carrot seeds
-    const rationDef = storage.getItem('iron_ration') || ITEMS['iron_ration'];
-    const carrotDef = storage.getItem('seed_carrot') || ITEMS['seed_carrot'];
-    addItemToSlots(player.inventory, 28, 'iron_ration', 5, 'plain', 0, rationDef, 'inventory');
-    addItemToSlots(player.inventory, 28, 'seed_carrot', 3, 'plain', 0, carrotDef, 'inventory');
+    // Give real game items: 5x Crusty Bread (warm food for sustain) and 3x Earthtuber Seeds (farming)
+    const breadDef = storage.getItem('crusty_bread') || ITEMS['crusty_bread'];
+    const seedDef = storage.getItem('earthtuber_seed') || ITEMS['earthtuber_seed'];
+
+    // Clean up any bogus placeholder items if present
+    player.inventory = player.inventory.filter(s => s.itemId !== 'iron_ration' && s.itemId !== 'seed_carrot');
+    if (player.storage) {
+      player.storage = player.storage.filter(s => s.itemId !== 'iron_ration' && s.itemId !== 'seed_carrot');
+    }
+
+    addItemToSlots(player.inventory, 28, 'crusty_bread', 5, 'plain', 0, breadDef, 'inventory');
+    addItemToSlots(player.inventory, 28, 'earthtuber_seed', 3, 'plain', 0, seedDef, 'inventory');
 
     storage.savePlayer(player);
     storage.checkpoint();
 
     this.send(ws, {
       type: 'NOTIFICATION',
-      message: `Daily Adventurer Chest opened! Received +${goldReward.toLocaleString()} Gold, +${gemsReward} Celestial Gems, 5x Rations, and 3x Seeds!`
+      message: `Daily Adventurer Chest opened! Received +${goldReward.toLocaleString()} Gold, +${gemsReward} Celestial Gems, 5x Crusty Bread, and 3x Earthtuber Seeds!`
     });
     this.send(ws, { type: 'PLAYER_UPDATE', player });
   }
