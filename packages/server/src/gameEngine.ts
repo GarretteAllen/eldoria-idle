@@ -33,6 +33,7 @@ import {
   QueuedTask,
   MarketListing,
   MarketMailboxItem,
+  getStorageSlotUpgradeCost,
 } from '@eldoria/shared';
 import { storage } from './storage.js';
 
@@ -70,6 +71,9 @@ interface ConnectedSession {
   } | null;
   lastBossAttackTime?: number;
   lastActivityTimestamp?: number;
+  messageRateWindowStart?: number;
+  messageCountInWindow?: number;
+  lastChatTimestamp?: number;
 }
 
 
@@ -475,6 +479,24 @@ export class GameEngine {
     session.lastActivityTimestamp = Date.now();
     const { player } = session;
 
+    // Rate Limiter: max 35 actions per second per connection
+    const now = Date.now();
+    if (!session.messageRateWindowStart || now - session.messageRateWindowStart > 1000) {
+      session.messageRateWindowStart = now;
+      session.messageCountInWindow = 1;
+    } else {
+      session.messageCountInWindow = (session.messageCountInWindow || 0) + 1;
+      if (session.messageCountInWindow > 35) {
+        if (session.messageCountInWindow === 36) {
+          this.send(session.ws, {
+            type: 'NOTIFICATION',
+            message: 'Sending actions too quickly! Please slow down.'
+          });
+        }
+        return;
+      }
+    }
+
     switch (msg.type) {
       case 'HEARTBEAT':
         break;
@@ -650,8 +672,22 @@ export class GameEngine {
         this.send(session.ws, { type: 'PLAYER_UPDATE', player });
         break;
 
+      case 'CLAIM_DAILY_REWARD':
+        this.handleClaimDailyReward(session);
+        break;
+
       case 'CHAT':
         if (typeof msg.text === 'string' && msg.text.trim().length > 0) {
+          const now = Date.now();
+          if (session.lastChatTimestamp && now - session.lastChatTimestamp < 1500) {
+            this.send(session.ws, {
+              type: 'NOTIFICATION',
+              message: 'Chatting too fast! Please wait 1.5 seconds between messages.'
+            });
+            break;
+          }
+          session.lastChatTimestamp = now;
+
           const trimmed = msg.text.trim();
 
           // Set name command: /name <username> or /nick <username>
@@ -760,6 +796,15 @@ export class GameEngine {
             }
           }
 
+          // Sanitize chat HTML characters
+          const sanitizedText = trimmed
+            .slice(0, 150)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+
           const chatPayload = {
             type: 'CHAT_BROADCAST',
             channel: msg.channel || 'All',
@@ -768,7 +813,7 @@ export class GameEngine {
             role: player.role || 'player',
             isAdmin: player.role === 'admin',
             title: player.activeTitle,
-            text: trimmed.slice(0, 150),
+            text: sanitizedText,
             timestamp: Date.now(),
             x: player.x,
             y: player.y,
@@ -1727,17 +1772,18 @@ export class GameEngine {
 
   private handleBuyStorageSlot(session: ConnectedSession) {
     const { player, ws } = session;
-    const cost = 1000;
+    const currentSlots = player.storageSlotsMax || 75;
+    const cost = getStorageSlotUpgradeCost(currentSlots);
     if ((player.gold || 0) < cost) {
       this.send(ws, {
         type: 'NOTIFICATION',
-        message: `Insufficient gold. Expanding vault requires ${cost.toLocaleString()} gold.`
+        message: `Insufficient gold. Expanding vault to ${currentSlots + 5} slots requires ${cost.toLocaleString()} gold.`
       });
       return;
     }
 
     player.gold -= cost;
-    player.storageSlotsMax = (player.storageSlotsMax || 75) + 5;
+    player.storageSlotsMax = currentSlots + 5;
     storage.savePlayer(player);
     storage.checkpoint();
     this.send(ws, {
@@ -1881,6 +1927,16 @@ export class GameEngine {
     const distToHearth = Math.hypot(player.x - hearth.x, player.y - hearth.y);
     if (distToHearth > 3.5) {
       this.send(ws, { type: 'NOTIFICATION', message: 'You must be at the Hearth to list items on the marketplace.' });
+      return;
+    }
+
+    // Limit active listings per player to prevent market spam/bloat
+    const playerActiveListings = storage.getMarketListings().filter(l => l.sellerId === player.id);
+    if (playerActiveListings.length >= 10) {
+      this.send(ws, {
+        type: 'NOTIFICATION',
+        message: 'You have reached the limit of 10 active market listings. Cancel an existing listing first.'
+      });
       return;
     }
 
@@ -2039,7 +2095,11 @@ export class GameEngine {
         // Deduct gold from buyer
         player.gold = (player.gold || 0) - cost;
 
-        // Credit gold to seller
+        // Calculate 2% sales tax (minimum 1 gold) burned from the economy
+        const tax = Math.max(1, Math.floor(cost * 0.02));
+        const sellerPayout = Math.max(0, cost - tax);
+
+        // Credit gold to seller (minus tax)
         let sellerSession: ConnectedSession | undefined;
         for (const s of this.sessions.values()) {
           if (s.player.id === listing.sellerId) {
@@ -2049,18 +2109,18 @@ export class GameEngine {
         }
 
         if (sellerSession) {
-          sellerSession.player.gold = (sellerSession.player.gold || 0) + cost;
+          sellerSession.player.gold = (sellerSession.player.gold || 0) + sellerPayout;
           storage.savePlayer(sellerSession.player);
           this.send(sellerSession.ws, {
             type: 'NOTIFICATION',
-            message: `${player.username} bought ${buyQty}x ${itemDef?.name || listing.itemId} from your listing for +${cost.toLocaleString()} gold!`
+            message: `${player.username} bought ${buyQty}x ${itemDef?.name || listing.itemId} from your listing for +${sellerPayout.toLocaleString()} gold (2% tax: ${tax.toLocaleString()}g).`
           });
           this.send(sellerSession.ws, { type: 'PLAYER_UPDATE', player: sellerSession.player });
         } else {
           // Seller is offline: load player from DB, credit gold, and persist
           const offlineSeller = storage.getPlayer(listing.sellerId);
           if (offlineSeller) {
-            offlineSeller.gold = (offlineSeller.gold || 0) + cost;
+            offlineSeller.gold = (offlineSeller.gold || 0) + sellerPayout;
             storage.savePlayer(offlineSeller);
           }
         }
@@ -2196,6 +2256,48 @@ export class GameEngine {
       type: 'MARKET_LISTINGS',
       listings: storage.getMarketListings(),
     });
+  }
+
+  private handleClaimDailyReward(session: ConnectedSession) {
+    const { player, ws } = session;
+    const now = Date.now();
+    const COOLDOWN_MS = 20 * 60 * 60 * 1000; // 20 hours
+    const lastClaim = player.lastDailyRewardTimestamp || 0;
+
+    if (now - lastClaim < COOLDOWN_MS) {
+      const remainingMs = COOLDOWN_MS - (now - lastClaim);
+      const hours = Math.floor(remainingMs / (1000 * 60 * 60));
+      const mins = Math.floor((remainingMs % (1000 * 60 * 60)) / (1000 * 60));
+      this.send(ws, {
+        type: 'NOTIFICATION',
+        message: `Daily Reward on cooldown. Available in ${hours}h ${mins}m.`
+      });
+      return;
+    }
+
+    // Reward scaling based on total player level
+    const totalLevel = Object.values(player.skills || {}).reduce((acc: number, s: any) => acc + (s.level || 1), 0);
+    const goldReward = Math.min(25000, 250 + totalLevel * 15);
+    const gemsReward = 5;
+
+    player.gold = (player.gold || 0) + goldReward;
+    player.gems = (player.gems || 0) + gemsReward;
+    player.lastDailyRewardTimestamp = now;
+
+    // Give 5 iron rations and 3 carrot seeds
+    const rationDef = storage.getItem('iron_ration') || ITEMS['iron_ration'];
+    const carrotDef = storage.getItem('seed_carrot') || ITEMS['seed_carrot'];
+    addItemToSlots(player.inventory, 28, 'iron_ration', 5, 'plain', 0, rationDef, 'inventory');
+    addItemToSlots(player.inventory, 28, 'seed_carrot', 3, 'plain', 0, carrotDef, 'inventory');
+
+    storage.savePlayer(player);
+    storage.checkpoint();
+
+    this.send(ws, {
+      type: 'NOTIFICATION',
+      message: `Daily Adventurer Chest opened! Received +${goldReward.toLocaleString()} Gold, +${gemsReward} Celestial Gems, 5x Rations, and 3x Seeds!`
+    });
+    this.send(ws, { type: 'PLAYER_UPDATE', player });
   }
 
   private handleClaimMarketMailbox(session: ConnectedSession, mailboxItemId?: string, destination: 'inventory' | 'storage' = 'inventory') {

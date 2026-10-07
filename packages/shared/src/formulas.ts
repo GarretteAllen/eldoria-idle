@@ -572,3 +572,14 @@ export function simulateOfflineCatchUp(
 
   return summary;
 }
+
+/**
+ * Calculates the graduated gold cost to expand Hearth Vault storage by +5 slots.
+ * Scales smoothly to provide a perpetual gold sink across character progression.
+ */
+export function getStorageSlotUpgradeCost(currentSlots: number): number {
+  const tier = Math.max(0, Math.floor(((currentSlots || 75) - 75) / 5));
+  const costs = [1000, 2500, 5000, 10000, 25000, 50000, 100000];
+  if (tier < costs.length) return costs[tier];
+  return 100000 + (tier - costs.length + 1) * 50000;
+}

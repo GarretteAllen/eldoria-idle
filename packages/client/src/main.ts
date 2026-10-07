@@ -23,6 +23,7 @@ import {
   QueuedTask,
   MarketListing,
   ChangelogEntry,
+  getStorageSlotUpgradeCost,
 } from '@eldoria/shared';
 import { WorldRenderer, WorldNodeDisplay, TILE_SIZE } from './canvas.js';
 import { loadLdtkWorld } from './ldtkLoader.js';
@@ -169,6 +170,7 @@ class EldoriaClient {
     this.setupCombatSustenance();
     this.setupAdminEditor();
     this.setupChangelogModal();
+    this.setupDailyReward();
     this.setupChangelogEditor();
     this.setupSoundAndMinimap();
     this.setupWorldMapModal();
@@ -1188,6 +1190,24 @@ class EldoriaClient {
     if (coordsEl) {
       const vc = this.renderer.getVisualCoords();
       coordsEl.textContent = `${vc.x}, ${vc.y}`;
+    }
+
+    // Daily Reward Button Status
+    const dailyBtn = document.getElementById('btn-daily-reward');
+    if (dailyBtn) {
+      const COOLDOWN_MS = 20 * 60 * 60 * 1000;
+      const lastClaim = this.player.lastDailyRewardTimestamp || 0;
+      const diff = Date.now() - lastClaim;
+      if (diff >= COOLDOWN_MS) {
+        dailyBtn.classList.add('ready');
+        dailyBtn.title = 'Daily Adventurer Supply Chest is ready! Click to claim rewards.';
+      } else {
+        dailyBtn.classList.remove('ready');
+        const remMs = COOLDOWN_MS - diff;
+        const hrs = Math.floor(remMs / (1000 * 60 * 60));
+        const mins = Math.floor((remMs % (1000 * 60 * 60)) / (1000 * 60));
+        dailyBtn.title = `Daily Adventurer Chest on cooldown (${hrs}h ${mins}m remaining).`;
+      }
     }
 
     // 2. Tasks Card (Top-Left)
@@ -3351,11 +3371,14 @@ class EldoriaClient {
       counterEl.textContent = `${this.player.storage.length} / ${maxSlots} slots`;
     }
 
-    // Buy slot affordability styling
+    // Buy slot affordability styling & cost text
     const btnBuy = document.getElementById('dv-btn-buy-slot');
     if (btnBuy) {
-      const canAfford = (this.player.gold || 0) >= 1000;
+      const upgradeCost = getStorageSlotUpgradeCost(maxSlots);
+      const canAfford = (this.player.gold || 0) >= upgradeCost;
       btnBuy.style.opacity = canAfford ? '1' : '0.6';
+      btnBuy.title = `Expand Hearth Vault (+5 Slots) - Cost: ${upgradeCost.toLocaleString()} Gold`;
+      btnBuy.innerHTML = `<span class="svg-icon-inline icon-xs">${ICONS.gold || ''}</span> +5 Slots (${upgradeCost.toLocaleString()}g)`;
     }
 
     // Sync vault combat sustenance controls
@@ -7176,6 +7199,17 @@ class EldoriaClient {
     if (closeBtn && modal) {
       closeBtn.innerHTML = ICONS.close;
       closeBtn.onclick = () => modal.classList.add('hidden');
+    }
+  }
+
+  private setupDailyReward() {
+    const btn = document.getElementById('btn-daily-reward');
+    if (btn) {
+      btn.innerHTML = ICONS.gift || ICONS.crate;
+      btn.onclick = () => {
+        sound.play('ding');
+        this.sendWs({ type: 'CLAIM_DAILY_REWARD' });
+      };
     }
   }
 

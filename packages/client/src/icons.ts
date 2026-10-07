@@ -60,6 +60,7 @@ import {
   ChevronRight,
   ArrowLeft,
   MoonStar,
+  Gift,
   IconNode,
 } from 'lucide';
 
@@ -125,6 +126,7 @@ export const ICONS: Record<string, string> = {
   compass: toSvg(Compass),
   worldMap: toSvg(Map),
   scroll: toSvg(Scroll),
+  gift: toSvg(Gift),
   changelog: toSvg(BookOpen),
   bestiary: toSvg(BookOpen),
   star: toSvg(Sparkles),

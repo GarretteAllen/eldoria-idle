@@ -346,6 +346,7 @@ export interface PlayerData {
   selectedFoodItemId?: string | null;
   currentHp: number;
   lastActiveTimestamp: number;
+  lastDailyRewardTimestamp?: number;
   completedQuests?: string[];
   questProgress?: Record<string, number>;
 }
