@@ -292,7 +292,13 @@ export function simulateOfflineCatchUp(
         : 'melee';
       const combatLvl = player.skills[combatStyle]?.level || 1;
       const weaponItem = player.equipment?.weapon ? ITEMS[player.equipment.weapon.itemId] : undefined;
-      const strBonus = weaponItem?.baseStats?.strength || 0;
+      let strBonus = 0;
+      for (const eq of Object.values(player.equipment || {})) {
+        if (eq) {
+          const it = ITEMS[eq.itemId];
+          if (it?.baseStats?.strength) strBonus += it.baseStats.strength;
+        }
+      }
       const avgHit = Math.max(1, Math.floor((combatLvl + strBonus) / 10) + 1);
       const swingsToKill = Math.ceil(monster.hp / avgHit);
       const swingSec = weaponItem?.baseStats?.swingSpeedSeconds || (combatStyle === 'ranged' ? 1.8 : combatStyle === 'magic' ? 3.6 : 2.4);
@@ -433,6 +439,16 @@ export function simulateOfflineCatchUp(
       const toolItem = player.equipment?.tool_rod || player.equipment?.tool;
       if (toolItem && ITEMS[toolItem.itemId]?.baseStats?.toolSpeedBonus) {
         toolBonus = ITEMS[toolItem.itemId].baseStats!.toolSpeedBonus!;
+      }
+    }
+
+    // Add tool speed bonuses from other equipped items (e.g. Ring of the Prospector)
+    for (const [slotKey, eq] of Object.entries(player.equipment || {})) {
+      if (eq && !slotKey.startsWith('tool') && slotKey !== 'weapon') {
+        const item = ITEMS[eq.itemId];
+        if (item?.baseStats?.toolSpeedBonus) {
+          toolBonus += item.baseStats.toolSpeedBonus;
+        }
       }
     }
 

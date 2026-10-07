@@ -2608,6 +2608,16 @@ export class GameEngine {
             }
           }
 
+          // Add tool speed bonuses from other equipped items (e.g. Ring of the Prospector)
+          for (const [slotKey, eq] of Object.entries(player.equipment || {})) {
+            if (eq && !slotKey.startsWith('tool') && slotKey !== 'weapon') {
+              const item = ITEMS[eq.itemId];
+              if (item?.baseStats?.toolSpeedBonus) {
+                toolBonus += item.baseStats.toolSpeedBonus;
+              }
+            }
+          }
+
           const effectiveInterval = Math.max(0.6, recipe.intervalSeconds / (speedMult * (1 + toolBonus)));
           const requiredTicks = Math.max(1, Math.round(effectiveInterval / (TICK_MS / 1000)));
 
