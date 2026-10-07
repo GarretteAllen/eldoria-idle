@@ -3078,13 +3078,56 @@ export class GameEngine {
           const outDef = rec.outputItemId !== 'gold' ? (storage.getItem(rec.outputItemId) || ITEMS[rec.outputItemId]) : null;
           const isNonStackableOutput = outDef ? !isItemStackable(outDef, 'inventory') : false;
 
-          // If output is non-stackable, ensure we reserve at least 1 free slot for the crafted product
+          // If output is non-stackable, reserve 1 free slot for crafting output so bag doesn't jam
           let availableSlots = 28 - player.inventory.length;
           if (isNonStackableOutput && availableSlots > 1) {
             availableSlots -= 1;
           }
-          const maxBatchesBySlots = Math.max(1, Math.floor(availableSlots / Math.max(1, rec.inputs.length)));
-          const batches = Math.max(1, Math.min(20, maxBatchesBySlots, remainingQuota));
+
+          // Compute slots needed per craft batch
+          // If an input is non-stackable, each 1 item takes 1 slot (so inp.quantity slots)
+          // If an input is stackable, it only takes 1 slot if not already in inventory, or 0 if existing slot has room
+          let slotsPerBatch = 0;
+          let anyInputNonStackable = false;
+          for (const inp of rec.inputs) {
+            const inpDef = storage.getItem(inp.itemId) || ITEMS[inp.itemId];
+            const isStackable = isItemStackable(inpDef, 'inventory');
+            if (!isStackable) {
+              slotsPerBatch += inp.quantity;
+              anyInputNonStackable = true;
+            } else {
+              // Stackable in inventory
+              slotsPerBatch += 0;
+            }
+          }
+
+          let maxBatchesBySlots = Infinity;
+          if (slotsPerBatch > 0) {
+            // Non-stackable inputs take slotsPerBatch slots each batch
+            maxBatchesBySlots = Math.floor(availableSlots / slotsPerBatch);
+          } else {
+            // All inputs stack in inventory: each distinct input takes at most 1 slot
+            const distinctInputsNeeded = rec.inputs.filter(inp => !player.inventory.some(s => s.itemId === inp.itemId)).length;
+            if (distinctInputsNeeded > availableSlots) {
+              maxBatchesBySlots = 0;
+            } else {
+              // Stackable inputs: can take full batches up to bank limit or sensible trip cap
+              maxBatchesBySlots = 200;
+            }
+          }
+
+          // Also check max batches supported by current bank quantities
+          let maxBatchesByBank = Infinity;
+          for (const inp of rec.inputs) {
+            const totalInBank = player.storage.reduce((sum, s) => s.itemId === inp.itemId ? sum + s.quantity : sum, 0);
+            const possible = Math.floor(totalInBank / inp.quantity);
+            if (possible < maxBatchesByBank) {
+              maxBatchesByBank = possible;
+            }
+          }
+
+          const tripCap = anyInputNonStackable ? 20 : 200;
+          const batches = Math.max(1, Math.min(tripCap, maxBatchesBySlots, maxBatchesByBank, remainingQuota));
 
           for (const inp of rec.inputs) {
             let toTake = inp.quantity * batches;
