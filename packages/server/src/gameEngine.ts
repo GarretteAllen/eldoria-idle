@@ -404,6 +404,7 @@ export class GameEngine {
       collisions: Array.from(storage.getCollisions()),
       items: storage.getItems(),
       changelogs: storage.getChangelogs(),
+      recentChat: storage.getRecentChatMessages(60),
     });
 
     this.broadcastWorldState();
@@ -679,6 +680,18 @@ export class GameEngine {
       case 'CHAT':
         if (typeof msg.text === 'string' && msg.text.trim().length > 0) {
           const now = Date.now();
+
+          // Check if player is muted
+          if (player.mutedUntil && player.mutedUntil > now) {
+            const remSec = Math.ceil((player.mutedUntil - now) / 1000);
+            const reasonStr = player.muteReason ? ` (Reason: ${player.muteReason})` : '';
+            this.send(session.ws, {
+              type: 'NOTIFICATION',
+              message: `You are muted for ${remSec}s${reasonStr}.`
+            });
+            break;
+          }
+
           if (session.lastChatTimestamp && now - session.lastChatTimestamp < 1500) {
             this.send(session.ws, {
               type: 'NOTIFICATION',
@@ -796,6 +809,123 @@ export class GameEngine {
             }
           }
 
+          // Admin Mute command: /mute <targetUser> [minutes] [reason]
+          if (trimmed.startsWith('/mute ')) {
+            if (player.role !== 'admin') {
+              this.send(session.ws, { type: 'NOTIFICATION', message: 'Admin privileges required.' });
+              break;
+            }
+            const parts = trimmed.split(/\s+/).slice(1);
+            if (parts.length === 0) {
+              this.send(session.ws, { type: 'NOTIFICATION', message: 'Usage: /mute <targetUser> [minutes] [reason]' });
+              break;
+            }
+            const targetUsername = parts[0].toLowerCase();
+            const minutes = parts.length > 1 && !isNaN(Number(parts[1])) ? Math.max(1, Number(parts[1])) : 15;
+            const reason = parts.length > 2 ? parts.slice(2).join(' ') : 'Behavior violation';
+            const muteDurationMs = minutes * 60 * 1000;
+            const muteUntil = now + muteDurationMs;
+
+            let targetSession: ConnectedSession | undefined;
+            for (const s of this.sessions.values()) {
+              if (s.player.username.toLowerCase() === targetUsername) {
+                targetSession = s;
+                break;
+              }
+            }
+
+            if (targetSession) {
+              targetSession.player.mutedUntil = muteUntil;
+              targetSession.player.muteReason = reason;
+              storage.savePlayer(targetSession.player);
+              this.send(targetSession.ws, {
+                type: 'NOTIFICATION',
+                message: `You have been muted for ${minutes} minute(s). Reason: ${reason}`
+              });
+              this.send(session.ws, {
+                type: 'NOTIFICATION',
+                message: `Muted ${targetSession.player.username} for ${minutes}m.`
+              });
+            } else {
+              // Try finding player in database
+              const allPlayers = (storage as any).stmtGetPlayer;
+              // Check session accounts / players table
+              const account = storage.getAccountByUsername(targetUsername);
+              if (account) {
+                const targetP = storage.getPlayer(account.playerId);
+                if (targetP) {
+                  targetP.mutedUntil = muteUntil;
+                  targetP.muteReason = reason;
+                  storage.savePlayer(targetP);
+                  this.send(session.ws, {
+                    type: 'NOTIFICATION',
+                    message: `Muted offline player ${targetP.username} for ${minutes}m.`
+                  });
+                  break;
+                }
+              }
+              this.send(session.ws, { type: 'NOTIFICATION', message: `Player "${parts[0]}" not found.` });
+            }
+            break;
+          }
+
+          // Admin Unmute command: /unmute <targetUser>
+          if (trimmed.startsWith('/unmute ')) {
+            if (player.role !== 'admin') {
+              this.send(session.ws, { type: 'NOTIFICATION', message: 'Admin privileges required.' });
+              break;
+            }
+            const targetUsername = trimmed.split(/\s+/).slice(1).join(' ').trim().toLowerCase();
+            let targetSession: ConnectedSession | undefined;
+            for (const s of this.sessions.values()) {
+              if (s.player.username.toLowerCase() === targetUsername) {
+                targetSession = s;
+                break;
+              }
+            }
+
+            if (targetSession) {
+              delete targetSession.player.mutedUntil;
+              delete targetSession.player.muteReason;
+              storage.savePlayer(targetSession.player);
+              this.send(targetSession.ws, { type: 'NOTIFICATION', message: 'Your mute has been lifted.' });
+              this.send(session.ws, { type: 'NOTIFICATION', message: `Unmuted ${targetSession.player.username}.` });
+            } else {
+              const account = storage.getAccountByUsername(targetUsername);
+              if (account) {
+                const targetP = storage.getPlayer(account.playerId);
+                if (targetP) {
+                  delete targetP.mutedUntil;
+                  delete targetP.muteReason;
+                  storage.savePlayer(targetP);
+                  this.send(session.ws, { type: 'NOTIFICATION', message: `Unmuted offline player ${targetP.username}.` });
+                  break;
+                }
+              }
+              this.send(session.ws, { type: 'NOTIFICATION', message: `Player "${targetUsername}" not found.` });
+            }
+            break;
+          }
+
+          // Admin Clear Chat command: /clearchat
+          if (trimmed === '/clearchat' || trimmed === '/clear') {
+            if (player.role !== 'admin') {
+              this.send(session.ws, { type: 'NOTIFICATION', message: 'Admin privileges required.' });
+              break;
+            }
+            // Clear recent database records
+            storage.pruneOldChatMessages(0);
+            this.broadcast({
+              type: 'CHAT_CLEARED',
+              clearedBy: player.username,
+            });
+            this.broadcast({
+              type: 'NOTIFICATION',
+              message: `Chat was cleared by [ADMIN] ${player.username}.`
+            });
+            break;
+          }
+
           // Sanitize chat HTML characters
           const sanitizedText = trimmed
             .slice(0, 150)
@@ -805,16 +935,34 @@ export class GameEngine {
             .replace(/"/g, '&quot;')
             .replace(/'/g, '&#39;');
 
+          const msgId = `chat_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+          const timestamp = Date.now();
+          const channel = msg.channel || 'All';
+
+          // Persist to SQLite
+          storage.saveChatMessage({
+            id: msgId,
+            senderId: player.id,
+            senderName: player.username,
+            role: player.role || 'player',
+            isAdmin: player.role === 'admin',
+            title: player.activeTitle,
+            channel: channel,
+            text: sanitizedText,
+            timestamp: timestamp,
+          });
+
           const chatPayload = {
             type: 'CHAT_BROADCAST',
-            channel: msg.channel || 'All',
+            id: msgId,
+            channel: channel,
             senderId: player.id,
             senderName: player.username,
             role: player.role || 'player',
             isAdmin: player.role === 'admin',
             title: player.activeTitle,
             text: sanitizedText,
-            timestamp: Date.now(),
+            timestamp: timestamp,
             x: player.x,
             y: player.y,
           };
@@ -1136,6 +1284,26 @@ export class GameEngine {
           this.send(session.ws, {
             type: 'NOTIFICATION',
             message: `Deleted changelog entry.`
+          });
+        }
+        break;
+
+      case 'ADMIN_DELETE_CHAT_MESSAGE':
+        if (player.role !== 'admin') {
+          this.send(session.ws, { type: 'NOTIFICATION', message: 'Admin privileges required.' });
+          break;
+        }
+        if (msg.messageId || msg.id) {
+          const targetMsgId = msg.messageId || msg.id;
+          storage.deleteChatMessage(targetMsgId);
+          this.broadcast({
+            type: 'CHAT_MESSAGE_DELETED',
+            messageId: targetMsgId,
+            deletedBy: player.username,
+          });
+          this.send(session.ws, {
+            type: 'NOTIFICATION',
+            message: `Chat message removed.`
           });
         }
         break;

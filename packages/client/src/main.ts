@@ -133,7 +133,7 @@ class EldoriaClient {
   private previousCompletedQty: number = 0;
 
   // Chat History & Filtering
-  private chatHistory: Array<{ time: string; senderName?: string; text: string; channel: 'Combat' | 'Loot' | 'Global' | 'System'; isAdmin?: boolean }> = [];
+  private chatHistory: Array<{ id?: string; time: string; senderId?: string; senderName?: string; text: string; channel: string; isAdmin?: boolean; timestamp?: number }> = [];
 
   // Pinned Quests State
   private acceptedQuests: Set<string> = new Set();
@@ -730,6 +730,12 @@ class EldoriaClient {
           this.changelogs = msg.changelogs;
           this.renderEditorChangelogs();
         }
+        if (Array.isArray(msg.recentChat) && msg.recentChat.length > 0) {
+          for (const item of msg.recentChat) {
+            this.appendChatMessage(item, false);
+          }
+          this.renderChatMessages();
+        }
 
         if (msg.boss) this.updateBossBanner(msg.boss);
         if (msg.onlineCount !== undefined) {
@@ -930,6 +936,18 @@ class EldoriaClient {
         if (msg.senderId) {
           this.renderer.addChatBubble(msg.senderId, msg.text);
         }
+        break;
+
+      case 'CHAT_MESSAGE_DELETED':
+        if (msg.messageId) {
+          this.chatHistory = this.chatHistory.filter(m => m.id !== msg.messageId);
+          this.renderChatMessages();
+        }
+        break;
+
+      case 'CHAT_CLEARED':
+        this.chatHistory = [];
+        this.renderChatMessages();
         break;
 
       case 'BOSS_UPDATE':
@@ -3827,32 +3845,44 @@ class EldoriaClient {
     }
   }
 
-  private appendChatMessage(msg: any) {
-    const now = new Date();
-    const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+  private appendChatMessage(msg: any, renderNow = true) {
+    const ts = msg.timestamp ? new Date(msg.timestamp) : new Date();
+    const timeStr = msg.time || `${ts.getHours().toString().padStart(2, '0')}:${ts.getMinutes().toString().padStart(2, '0')}`;
     const sender = msg.senderName || 'Wanderer';
     const channel = msg.channel || 'Global';
     const cleanText = (msg.text || '').replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, '').trim();
 
+    // Avoid duplicate insertions
+    if (msg.id && this.chatHistory.some(m => m.id === msg.id)) {
+      return;
+    }
+
     this.chatHistory.push({
+      id: msg.id,
+      senderId: msg.senderId,
       time: timeStr,
       senderName: sender,
       text: cleanText,
-      channel: channel as any,
+      channel: channel,
       isAdmin: msg.isAdmin,
+      timestamp: msg.timestamp || ts.getTime(),
     });
 
-    if (this.chatHistory.length > 200) {
+    if (this.chatHistory.length > 250) {
       this.chatHistory.shift();
     }
 
-    this.renderChatMessages();
+    if (renderNow) {
+      this.renderChatMessages();
+    }
   }
 
   private renderChatMessages() {
     const log = document.getElementById('chat-messages');
     if (!log) return;
     log.innerHTML = '';
+
+    const isAdmin = this.player?.role === 'admin';
 
     const filtered = this.chatHistory.filter(m => {
       if (this.activeChannel === 'All') {
@@ -3879,11 +3909,70 @@ class EldoriaClient {
       else if (msg.channel === 'Loot') chanColor = '#ecc94b';
       else if (msg.channel === 'System') chanColor = '#a0aec0';
 
+      const senderSpan = msg.senderName
+        ? `<span class="chat-sender" style="color:${chanColor}; cursor:pointer;" title="Click to mention or moderate">${msg.senderName}:</span>`
+        : '';
+
+      let modButtonsHtml = '';
+      if (isAdmin && msg.id) {
+        modButtonsHtml = `
+          <span class="chat-mod-tools" style="float:right; display:none; gap:3px;">
+            <button class="chat-mod-btn-del" title="Delete message" style="background:none; border:none; color:#e53e3e; cursor:pointer; padding:0 2px; font-size:0.65rem;">✕</button>
+            ${msg.senderName && !msg.isAdmin ? `<button class="chat-mod-btn-mute" title="Mute player (15m)" style="background:none; border:none; color:#ecc94b; cursor:pointer; padding:0 2px; font-size:0.65rem;">🔇</button>` : ''}
+          </span>
+        `;
+      }
+
       line.innerHTML = `
-        <span class="chat-time">${msg.time}</span>
-        ${adminTag ? `${adminTag} ` : ''}${msg.senderName ? `<span class="chat-sender" style="color:${chanColor};">${msg.senderName}:</span>` : ''}
+        <span class="chat-time" title="${msg.timestamp ? new Date(msg.timestamp).toLocaleString() : ''}">${msg.time}</span>
+        ${adminTag ? `${adminTag} ` : ''}${senderSpan}
         <span>${msg.text}</span>
+        ${modButtonsHtml}
       `;
+
+      // Admin hover & click interactions
+      if (isAdmin && msg.id) {
+        const modTools = line.querySelector('.chat-mod-tools') as HTMLElement | null;
+        if (modTools) {
+          line.addEventListener('mouseenter', () => { modTools.style.display = 'inline-flex'; });
+          line.addEventListener('mouseleave', () => { modTools.style.display = 'none'; });
+
+          const delBtn = line.querySelector('.chat-mod-btn-del') as HTMLElement | null;
+          if (delBtn) {
+            delBtn.onclick = (e) => {
+              e.stopPropagation();
+              this.sendWs({ type: 'ADMIN_DELETE_CHAT_MESSAGE', messageId: msg.id });
+            };
+          }
+
+          const muteBtn = line.querySelector('.chat-mod-btn-mute') as HTMLElement | null;
+          if (muteBtn && msg.senderName) {
+            muteBtn.onclick = (e) => {
+              e.stopPropagation();
+              if (confirm(`Mute ${msg.senderName} for 15 minutes?`)) {
+                this.sendWs({ type: 'CHAT', text: `/mute ${msg.senderName} 15` });
+              }
+            };
+          }
+        }
+      }
+
+      // Clicking sender adds mention or quick-mute shortcut to input
+      const senderEl = line.querySelector('.chat-sender') as HTMLElement | null;
+      if (senderEl && msg.senderName) {
+        senderEl.onclick = () => {
+          const chatInput = document.getElementById('chat-input') as HTMLInputElement | null;
+          if (chatInput) {
+            chatInput.focus();
+            if (isAdmin) {
+              chatInput.value = `/mute ${msg.senderName} 15 `;
+            } else {
+              chatInput.value = `@${msg.senderName} `;
+            }
+          }
+        };
+      }
+
       log.appendChild(line);
     }
     log.scrollTop = log.scrollHeight;

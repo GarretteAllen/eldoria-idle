@@ -61,6 +61,7 @@ import {
   ArrowLeft,
   MoonStar,
   Gift,
+  Trash2,
   IconNode,
 } from 'lucide';
 
@@ -119,6 +120,7 @@ export const ICONS: Record<string, string> = {
   lock: toSvg(Lock),
   check: toSvg(Check),
   close: toSvg(X),
+  trash: toSvg(Trash2),
 
   // === Audio & Top Utilities ===
   soundOn: toSvg(Volume2),

@@ -347,8 +347,22 @@ export interface PlayerData {
   currentHp: number;
   lastActiveTimestamp: number;
   lastDailyRewardTimestamp?: number;
+  mutedUntil?: number; // timestamp until when player is muted
+  muteReason?: string;
   completedQuests?: string[];
   questProgress?: Record<string, number>;
+}
+
+export interface StoredChatMessage {
+  id: string;
+  senderId?: string;
+  senderName: string;
+  role?: 'admin' | 'player';
+  isAdmin?: boolean;
+  title?: string;
+  channel: string;
+  text: string;
+  timestamp: number;
 }
 
 export interface ChangelogEntry {

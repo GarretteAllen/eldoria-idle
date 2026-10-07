@@ -3,7 +3,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import Database from 'better-sqlite3';
-import { PlayerData, SkillType, WorldNode, NpcDefinition, QuestDefinition, MonsterSpawnZone, getLevelFromXp, ItemDefinition, ITEMS, LevelBounds, parseLdtkLevelBounds, isTileInAnyLevel, InventorySlot, MarketListing, ChangelogEntry } from '@eldoria/shared';
+import { PlayerData, SkillType, WorldNode, NpcDefinition, QuestDefinition, MonsterSpawnZone, getLevelFromXp, ItemDefinition, ITEMS, LevelBounds, parseLdtkLevelBounds, isTileInAnyLevel, InventorySlot, MarketListing, ChangelogEntry, StoredChatMessage } from '@eldoria/shared';
 import { WORLD_NODES as DEFAULT_WORLD_NODES } from './world.js';
 
 export const DEFAULT_MONSTER_ZONES: MonsterSpawnZone[] = [
@@ -233,6 +233,10 @@ class StorageManager {
   private stmtGetChangelogs: Database.Statement;
   private stmtUpsertChangelog: Database.Statement;
   private stmtDeleteChangelog: Database.Statement;
+  private stmtInsertChatMessage: Database.Statement;
+  private stmtGetRecentChatMessages: Database.Statement;
+  private stmtDeleteChatMessage: Database.Statement;
+  private stmtPruneOldChatMessages: Database.Statement;
   private changelogsCache: ChangelogEntry[] = [];
   private itemsCache: Record<string, ItemDefinition> = {};
   private monsterZonesCache: MonsterSpawnZone[] = [];
@@ -337,6 +341,19 @@ class StorageManager {
     );
     this.stmtDeleteChangelog = this.db.prepare('DELETE FROM changelogs WHERE id = ?');
 
+    this.stmtInsertChatMessage = this.db.prepare(
+      `INSERT INTO chat_messages (id, sender_id, sender_name, role, is_admin, title, channel, text, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    );
+    this.stmtGetRecentChatMessages = this.db.prepare(
+      `SELECT id, sender_id as senderId, sender_name as senderName, role, is_admin as isAdmin, title, channel, text, created_at as timestamp
+       FROM chat_messages
+       ORDER BY created_at DESC
+       LIMIT ?`
+    );
+    this.stmtDeleteChatMessage = this.db.prepare('DELETE FROM chat_messages WHERE id = ?');
+    this.stmtPruneOldChatMessages = this.db.prepare('DELETE FROM chat_messages WHERE created_at < ?');
+
     // Run automatic migration from legacy json files if upgrading
     this.migrateLegacyJson();
 
@@ -428,11 +445,24 @@ class StorageManager {
         data TEXT NOT NULL
       );
 
+      CREATE TABLE IF NOT EXISTS chat_messages (
+        id TEXT PRIMARY KEY,
+        sender_id TEXT,
+        sender_name TEXT NOT NULL,
+        role TEXT NOT NULL DEFAULT 'player',
+        is_admin INTEGER NOT NULL DEFAULT 0,
+        title TEXT,
+        channel TEXT NOT NULL DEFAULT 'All',
+        text TEXT NOT NULL,
+        created_at INTEGER NOT NULL
+      );
+
       CREATE INDEX IF NOT EXISTS idx_accounts_norm_user ON accounts(normalized_username);
       CREATE INDEX IF NOT EXISTS idx_sessions_account ON sessions(account_id);
       CREATE INDEX IF NOT EXISTS idx_market_item ON market_listings(item_id);
       CREATE INDEX IF NOT EXISTS idx_market_seller ON market_listings(seller_id);
       CREATE INDEX IF NOT EXISTS idx_changelogs_created ON changelogs(created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_chat_messages_created ON chat_messages(created_at DESC);
     `);
   }
 
@@ -1469,6 +1499,56 @@ class StorageManager {
     this.stmtDeleteChangelog.run(id);
     this.changelogsCache = this.changelogsCache.filter(c => c.id !== id);
     this.checkpoint();
+  }
+
+  // --- Persistent Chat Methods ---
+  public saveChatMessage(msg: StoredChatMessage): void {
+    this.stmtInsertChatMessage.run(
+      msg.id,
+      msg.senderId || null,
+      msg.senderName,
+      msg.role || 'player',
+      msg.isAdmin ? 1 : 0,
+      msg.title || null,
+      msg.channel || 'All',
+      msg.text,
+      msg.timestamp || Date.now()
+    );
+  }
+
+  public getRecentChatMessages(limit = 60): StoredChatMessage[] {
+    const rows = this.stmtGetRecentChatMessages.all(limit) as Array<{
+      id: string;
+      senderId?: string;
+      senderName: string;
+      role: 'admin' | 'player';
+      isAdmin: number;
+      title?: string;
+      channel: string;
+      text: string;
+      timestamp: number;
+    }>;
+
+    return rows.reverse().map(r => ({
+      id: r.id,
+      senderId: r.senderId || undefined,
+      senderName: r.senderName,
+      role: r.role,
+      isAdmin: Boolean(r.isAdmin),
+      title: r.title || undefined,
+      channel: r.channel,
+      text: r.text,
+      timestamp: r.timestamp,
+    }));
+  }
+
+  public deleteChatMessage(id: string): void {
+    this.stmtDeleteChatMessage.run(id);
+  }
+
+  public pruneOldChatMessages(maxAgeMs = 7 * 24 * 60 * 60 * 1000): void {
+    const cutoff = Date.now() - maxAgeMs;
+    this.stmtPruneOldChatMessages.run(cutoff);
   }
 
   // Execute in an atomic SQLite transaction
