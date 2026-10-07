@@ -3888,7 +3888,11 @@ class EldoriaClient {
           if (slot) {
             if (slot.itemId.startsWith('gem_pack_')) {
               sound.play('ding');
-              this.sendWs({ type: 'REDEEM_GEM_PACK', inventoryIndex: this.selectedInventoryIndex });
+              this.sendWs({
+                type: 'REDEEM_GEM_PACK',
+                inventoryIndex: this.selectedInventoryIndex,
+                itemId: slot.itemId,
+              });
               ctxMenu.classList.add('hidden');
               return;
             }

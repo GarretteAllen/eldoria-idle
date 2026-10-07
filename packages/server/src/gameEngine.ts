@@ -536,7 +536,7 @@ export class GameEngine {
         break;
 
       case 'REDEEM_GEM_PACK':
-        this.handleRedeemGemPack(session, msg.itemId);
+        this.handleRedeemGemPack(session, msg.itemId, msg.inventoryIndex);
         break;
 
       case 'USE_WARP':
@@ -4132,15 +4132,36 @@ export class GameEngine {
     });
   }
 
-  private handleRedeemGemPack(session: ConnectedSession, itemId: string) {
+  private handleRedeemGemPack(session: ConnectedSession, itemId?: string, inventoryIndex?: number) {
     const { player, ws } = session;
-    const packDef = GEM_PACKS[itemId];
+
+    // Resolve target item from inventoryIndex or itemId
+    let targetItemId = itemId;
+    let invIdx = -1;
+
+    if (typeof inventoryIndex === 'number' && inventoryIndex >= 0 && inventoryIndex < player.inventory.length) {
+      const slot = player.inventory[inventoryIndex];
+      if (slot && slot.quantity > 0) {
+        invIdx = inventoryIndex;
+        targetItemId = slot.itemId;
+      }
+    }
+
+    if (!targetItemId) {
+      this.send(ws, { type: 'NOTIFICATION', message: 'Not a recognized Gem Pack.' });
+      return;
+    }
+
+    const packDef = GEM_PACKS[targetItemId];
     if (!packDef) {
       this.send(ws, { type: 'NOTIFICATION', message: 'Not a recognized Gem Pack.' });
       return;
     }
 
-    const invIdx = player.inventory.findIndex(s => s.itemId === itemId && s.quantity > 0);
+    if (invIdx < 0) {
+      invIdx = player.inventory.findIndex(s => s.itemId === targetItemId && s.quantity > 0);
+    }
+
     if (invIdx < 0) {
       this.send(ws, { type: 'NOTIFICATION', message: `You don't have a ${packDef.name} in your bag.` });
       return;
