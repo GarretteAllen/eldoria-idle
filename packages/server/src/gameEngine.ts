@@ -14,6 +14,7 @@ import {
   calculateHitChance,
   calculateMaxHit,
   simulateOfflineCatchUp,
+  formatOfflineDuration,
   WorldBossDefinition,
   RecipeDefinition,
   EquipSlot,
@@ -27,6 +28,7 @@ import {
   getItemMaxStack,
   Rarity,
   QUEUE_SLOT_CONFIG,
+  OFFLINE_TIME_CONFIG,
   GEM_PACKS,
   QueuedTask,
   MarketListing,
@@ -533,6 +535,10 @@ export class GameEngine {
 
       case 'UNLOCK_QUEUE_SLOT':
         this.handleUnlockQueueSlot(session);
+        break;
+
+      case 'UPGRADE_OFFLINE_TIME':
+        this.handleUpgradeOfflineTime(session);
         break;
 
       case 'REDEEM_GEM_PACK':
@@ -4129,6 +4135,32 @@ export class GameEngine {
     this.send(ws, {
       type: 'NOTIFICATION',
       message: `🎉 Unlocked Queue Slot ${nextSlot}! You can now queue up to ${nextSlot} tasks.`
+    });
+  }
+
+  private handleUpgradeOfflineTime(session: ConnectedSession) {
+    const { player, ws } = session;
+    const cost = OFFLINE_TIME_CONFIG.COST_PER_INCREMENT;
+
+    if ((player.gems || 0) < cost) {
+      this.send(ws, {
+        type: 'NOTIFICATION',
+        message: `Not enough gems! Extending max offline progression time by +15m requires ${cost} Gems (You have ${player.gems || 0}).`
+      });
+      return;
+    }
+
+    const currentMax = player.maxOfflineSeconds || OFFLINE_TIME_CONFIG.BASE_SECONDS;
+    const newMax = currentMax + OFFLINE_TIME_CONFIG.INCREMENT_SECONDS;
+
+    player.gems = (player.gems || 0) - cost;
+    player.maxOfflineSeconds = newMax;
+    storage.savePlayer(player);
+
+    this.send(ws, { type: 'PLAYER_UPDATE', player });
+    this.send(ws, {
+      type: 'NOTIFICATION',
+      message: `🎉 Max offline progression extended by +15m! New cap: ${formatOfflineDuration(newMax)}.`
     });
   }
 

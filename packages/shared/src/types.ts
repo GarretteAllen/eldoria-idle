@@ -341,6 +341,7 @@ export interface PlayerData {
   } | null;
   taskQueue: QueuedTask[];
   unlockedQueueSlots: number; // Defaults to 2, upgradable up to 5
+  maxOfflineSeconds?: number; // Defaults to 24*3600, upgradable in +15m (900s) increments
   eatsAtHpPercent: number; // e.g. 50
   selectedFoodItemId?: string | null;
   currentHp: number;

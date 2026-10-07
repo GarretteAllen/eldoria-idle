@@ -6,6 +6,13 @@ export const MAX_OFFLINE_SECONDS_BLESSING = 168 * 3600; // 7 days (168 hours)
 export const DEFAULT_STORAGE_SLOTS = 75;
 export const OVERFLOW_TRAY_SLOTS = 10;
 
+// Offline Progression Time Configuration
+export const OFFLINE_TIME_CONFIG = {
+  BASE_SECONDS: 24 * 3600, // 24 hours default base
+  INCREMENT_SECONDS: 15 * 60, // +15 minutes per upgrade (900 seconds)
+  COST_PER_INCREMENT: 25, // 25 Gems per +15m
+};
+
 // Action Queue Slot Limits & Gem Costs (Easily editable configuration)
 export const QUEUE_SLOT_CONFIG = {
   BASE_SLOTS: 2,

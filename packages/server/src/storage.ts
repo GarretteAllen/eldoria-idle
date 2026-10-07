@@ -672,6 +672,9 @@ class StorageManager {
       if (typeof player.unlockedQueueSlots !== 'number' || player.unlockedQueueSlots < 2) {
         player.unlockedQueueSlots = 2;
       }
+      if (typeof player.maxOfflineSeconds !== 'number' || player.maxOfflineSeconds < 24 * 3600) {
+        player.maxOfflineSeconds = 24 * 3600;
+      }
       if (!Array.isArray(player.taskQueue)) {
         player.taskQueue = [];
       }
@@ -824,6 +827,7 @@ class StorageManager {
       },
       taskQueue: [],
       unlockedQueueSlots: 2,
+      maxOfflineSeconds: 24 * 3600,
       eatsAtHpPercent: 50,
       selectedFoodItemId: null,
       currentHp: 10,
@@ -944,6 +948,7 @@ class StorageManager {
       },
       taskQueue: [],
       unlockedQueueSlots: 2,
+      maxOfflineSeconds: 24 * 3600,
       eatsAtHpPercent: 50,
       selectedFoodItemId: null,
       currentHp: 10,

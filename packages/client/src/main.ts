@@ -16,6 +16,8 @@ import {
   isTileInAnyLevel,
   MonsterSpawnZone,
   QUEUE_SLOT_CONFIG,
+  OFFLINE_TIME_CONFIG,
+  formatOfflineDuration,
   GEM_PACKS,
   GemPackDef,
   QueuedTask,
@@ -137,7 +139,7 @@ class EldoriaClient {
   private lastToastTime: number = 0;
 
   // Gem Store & Payment State
-  private currentGemStoreTab: 'queue' | 'packs' = 'queue';
+  private currentGemStoreTab: 'queue' | 'packs' | 'offline' = 'queue';
   private gemPacksData: GemPackDef[] = Object.values(GEM_PACKS);
 
   // AFK Resource Saving State (15 minutes threshold)
@@ -200,6 +202,7 @@ class EldoriaClient {
       gemStoreCloseBtn.onclick = () => this.closeGemStoreModal();
     }
     document.getElementById('tab-gem-queue')?.addEventListener('click', () => this.renderGemStoreTab('queue'));
+    document.getElementById('tab-gem-offline')?.addEventListener('click', () => this.renderGemStoreTab('offline'));
     document.getElementById('tab-gem-packs')?.addEventListener('click', () => this.renderGemStoreTab('packs'));
     this.fetchGemPacks();
 
@@ -5371,6 +5374,11 @@ class EldoriaClient {
         if (usernameEl) usernameEl.textContent = this.player.username;
         if (idCode) idCode.textContent = this.player.id;
 
+        const offlineTimeEl = document.getElementById('profile-offline-time');
+        if (offlineTimeEl) {
+          offlineTimeEl.textContent = formatOfflineDuration(this.player.maxOfflineSeconds || OFFLINE_TIME_CONFIG.BASE_SECONDS);
+        }
+
         if (this.player.isGuest) {
           if (roleBadge) {
             roleBadge.textContent = 'GUEST';
@@ -5727,7 +5735,12 @@ class EldoriaClient {
     const overlay = document.getElementById('afk-overlay');
     const taskVal = document.getElementById('afk-routine-val');
     const iconWrap = document.getElementById('afk-icon-wrap');
+    const afkMaxOfflineEl = document.getElementById('afk-max-offline-time');
     if (iconWrap) iconWrap.innerHTML = ICONS.slumber;
+
+    if (afkMaxOfflineEl && this.player) {
+      afkMaxOfflineEl.textContent = formatOfflineDuration(this.player.maxOfflineSeconds || OFFLINE_TIME_CONFIG.BASE_SECONDS);
+    }
 
     if (taskVal && this.player) {
       if (this.player.currentTask) {
@@ -7161,7 +7174,7 @@ class EldoriaClient {
     }
   }
 
-  public openGemStoreModal(tab: 'queue' | 'packs' = 'queue') {
+  public openGemStoreModal(tab: 'queue' | 'packs' | 'offline' = 'queue') {
     const modal = document.getElementById('gem-store-modal');
     if (!modal) return;
     sound.play('ding');
@@ -7176,7 +7189,7 @@ class EldoriaClient {
     modal.classList.add('hidden');
   }
 
-  public renderGemStoreTab(tab: 'queue' | 'packs') {
+  public renderGemStoreTab(tab: 'queue' | 'packs' | 'offline') {
     this.currentGemStoreTab = tab;
     const bodyEl = document.getElementById('gem-store-body');
     const balanceVal = document.getElementById('gem-store-balance-val');
@@ -7191,8 +7204,10 @@ class EldoriaClient {
 
     // Toggle tab active classes
     const tabQueue = document.getElementById('tab-gem-queue');
+    const tabOffline = document.getElementById('tab-gem-offline');
     const tabPacks = document.getElementById('tab-gem-packs');
     tabQueue?.classList.toggle('active', tab === 'queue');
+    tabOffline?.classList.toggle('active', tab === 'offline');
     tabPacks?.classList.toggle('active', tab === 'packs');
 
     if (!bodyEl || !this.player) return;
@@ -7284,6 +7299,82 @@ class EldoriaClient {
         slotsList.appendChild(slotRow);
       }
       container.appendChild(slotsList);
+      bodyEl.appendChild(container);
+
+    } else if (tab === 'offline') {
+      const currentMax = this.player.maxOfflineSeconds || OFFLINE_TIME_CONFIG.BASE_SECONDS;
+      const formattedCurrent = formatOfflineDuration(currentMax);
+      const formattedNext = formatOfflineDuration(currentMax + OFFLINE_TIME_CONFIG.INCREMENT_SECONDS);
+      const cost = OFFLINE_TIME_CONFIG.COST_PER_INCREMENT;
+      const canAfford = (this.player.gems || 0) >= cost;
+
+      const container = document.createElement('div');
+      container.style.display = 'flex';
+      container.style.flexDirection = 'column';
+      container.style.gap = '14px';
+
+      const descBox = document.createElement('div');
+      descBox.style.fontSize = '0.78rem';
+      descBox.style.color = '#cbd5e0';
+      descBox.style.lineHeight = '1.45';
+      descBox.innerHTML = `
+        Your character automatically gathers resources, trains combat, and progresses action queues while offline or tabbed out.
+        Expand your maximum offline simulation window with celestial gems.
+      `;
+      container.appendChild(descBox);
+
+      // Current Cap Card
+      const currentCard = document.createElement('div');
+      currentCard.style.display = 'flex';
+      currentCard.style.justifyContent = 'space-between';
+      currentCard.style.alignItems = 'center';
+      currentCard.style.padding = '12px 14px';
+      currentCard.style.background = 'rgba(72, 187, 120, 0.08)';
+      currentCard.style.border = '1px solid rgba(72, 187, 120, 0.25)';
+      currentCard.style.borderRadius = '6px';
+      currentCard.innerHTML = `
+        <div>
+          <div style="font-size: 0.72rem; color: #a0aec0; text-transform: uppercase; letter-spacing: 0.5px;">Current Offline Limit</div>
+          <div style="font-size: 1.1rem; font-weight: 800; color: #68d391; margin-top: 2px;">${formattedCurrent}</div>
+        </div>
+        <div style="font-size: 0.72rem; color: #48bb78; background: rgba(72, 187, 120, 0.15); padding: 4px 8px; border-radius: 4px; font-weight: 600;">
+          Active Cap
+        </div>
+      `;
+      container.appendChild(currentCard);
+
+      // Upgrade Action Card
+      const upgradeCard = document.createElement('div');
+      upgradeCard.style.display = 'flex';
+      upgradeCard.style.justifyContent = 'space-between';
+      upgradeCard.style.alignItems = 'center';
+      upgradeCard.style.padding = '12px 14px';
+      upgradeCard.style.background = 'rgba(56, 189, 248, 0.08)';
+      upgradeCard.style.border = '1px solid rgba(56, 189, 248, 0.25)';
+      upgradeCard.style.borderRadius = '6px';
+      upgradeCard.innerHTML = `
+        <div>
+          <div style="font-size: 0.84rem; font-weight: 700; color: #e2e8f0;">+15 Minutes Progression Time</div>
+          <div style="font-size: 0.72rem; color: #a0aec0; margin-top: 2px;">
+            Increases cap from <strong style="color: #cbd5e0;">${formattedCurrent}</strong> to <strong style="color: #38bdf8;">${formattedNext}</strong>
+          </div>
+        </div>
+        <button id="btn-buy-offline-time" class="btn-oak" style="padding: 6px 14px; font-size: 0.78rem; font-weight: 700; background: ${canAfford ? '#3182ce' : '#4a5568'};">
+          +15m (${cost} 💎)
+        </button>
+      `;
+      const btnBuy = upgradeCard.querySelector('#btn-buy-offline-time') as HTMLButtonElement;
+      btnBuy.onclick = () => {
+        if (!canAfford) {
+          this.showToast(`You need ${cost} gems to extend offline progression time.`);
+          this.renderGemStoreTab('packs');
+          return;
+        }
+        sound.play('ding');
+        this.sendWs({ type: 'UPGRADE_OFFLINE_TIME' });
+      };
+      container.appendChild(upgradeCard);
+
       bodyEl.appendChild(container);
 
     } else if (tab === 'packs') {

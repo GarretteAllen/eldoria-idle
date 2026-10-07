@@ -208,6 +208,22 @@ export interface CatchUpSummary {
 }
 
 /**
+ * Formats a duration in seconds into a clean human readable string (e.g. 24h 00m, 24h 15m).
+ */
+export function formatOfflineDuration(seconds: number): string {
+  const safeSeconds = Math.max(0, Math.floor(seconds));
+  const hours = Math.floor(safeSeconds / 3600);
+  const minutes = Math.floor((safeSeconds % 3600) / 60);
+  if (hours > 0 && minutes > 0) {
+    return `${hours}h ${minutes}m`;
+  } else if (hours > 0) {
+    return `${hours}h 00m`;
+  } else {
+    return `${minutes}m`;
+  }
+}
+
+/**
  * Deterministic Offline Catch-Up Engine:
  * Simulates actions while player was away without running 600ms loops in real-time.
  * Automatically advances through queued tasks when currentTask completes its target quantity.
@@ -215,9 +231,10 @@ export interface CatchUpSummary {
 export function simulateOfflineCatchUp(
   player: PlayerData,
   elapsedSeconds: number,
-  maxOfflineSeconds: number = 24 * 3600
+  maxOfflineSeconds?: number
 ): CatchUpSummary {
-  let remainingTime = Math.min(elapsedSeconds, maxOfflineSeconds);
+  const effectiveMaxSeconds = maxOfflineSeconds ?? player.maxOfflineSeconds ?? (24 * 3600);
+  let remainingTime = Math.min(elapsedSeconds, effectiveMaxSeconds);
   const summary: CatchUpSummary = {
     elapsedSeconds: remainingTime,
     completedCycles: 0,

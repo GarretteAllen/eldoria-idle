@@ -615,6 +615,10 @@
           <div class="afk-routine-card">
             <div class="afk-routine-label">Currently doing:</div>
             <div class="afk-routine-val" id="afk-routine-val">Hanging out at the Hearth</div>
+            <div style="font-size: 0.72rem; color: #a0aec0; margin-top: 6px; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 6px; display: flex; justify-content: space-between; align-items: center;">
+              <span>Max Offline Progress Cap:</span>
+              <strong id="afk-max-offline-time" style="color: #68d391;">24h 00m</strong>
+            </div>
           </div>
           <p class="afk-note">
             All your loot and XP were saved safely.
@@ -1302,6 +1306,10 @@
               </div>
               <div style="font-size: 0.7rem; color: var(--text-muted);" id="profile-account-status">Temporary Guest Character</div>
               <div style="font-size: 0.65rem; color: var(--text-dim);">ID: <code id="profile-id-code" style="color: var(--gold-bright);">guest_...</code></div>
+              <div style="font-size: 0.72rem; color: #a0aec0; margin-top: 4px; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 4px; display: flex; justify-content: space-between;">
+                <span>Max Offline Time:</span>
+                <strong id="profile-offline-time" style="color: #68d391;">24h 00m</strong>
+              </div>
             </div>
 
             <!-- Guest Upgrade Prompt -->
@@ -1423,6 +1431,7 @@
 
           <div class="gem-store-tabs">
             <button id="tab-gem-queue" class="gem-tab active">Queue Slots</button>
+            <button id="tab-gem-offline" class="gem-tab">Offline Time</button>
             <button id="tab-gem-packs" class="gem-tab">Gem Packs</button>
           </div>
 
