@@ -349,3 +349,12 @@ export interface PlayerData {
   completedQuests?: string[];
   questProgress?: Record<string, number>;
 }
+
+export interface ChangelogEntry {
+  id: string;
+  version: string;
+  title: string;
+  content: string; // BBCode formatted
+  author?: string;
+  createdAt: number;
+}

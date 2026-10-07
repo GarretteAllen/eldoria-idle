@@ -399,6 +399,7 @@ export class GameEngine {
       quests: storage.getQuests(),
       collisions: Array.from(storage.getCollisions()),
       items: storage.getItems(),
+      changelogs: storage.getChangelogs(),
     });
 
     this.broadcastWorldState();
@@ -1052,6 +1053,44 @@ export class GameEngine {
           this.send(session.ws, {
             type: 'NOTIFICATION',
             message: `Deleted / reset item "${msg.id}".`
+          });
+        }
+        break;
+
+      case 'ADMIN_SAVE_CHANGELOG':
+        if (player.role !== 'admin') {
+          this.send(session.ws, { type: 'NOTIFICATION', message: 'Admin privileges required.' });
+          break;
+        }
+        if (msg.changelog && msg.changelog.title) {
+          const entry = {
+            id: msg.changelog.id || `cl_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+            version: msg.changelog.version || 'v1.0.0',
+            title: msg.changelog.title.trim(),
+            content: msg.changelog.content || '',
+            author: player.username || 'Admin',
+            createdAt: msg.changelog.createdAt || Date.now(),
+          };
+          storage.saveChangelog(entry);
+          this.broadcast({ type: 'CHANGELOGS_UPDATE', changelogs: storage.getChangelogs() });
+          this.send(session.ws, {
+            type: 'NOTIFICATION',
+            message: `🎉 Saved changelog "${entry.title}" (${entry.version}).`
+          });
+        }
+        break;
+
+      case 'ADMIN_DELETE_CHANGELOG':
+        if (player.role !== 'admin') {
+          this.send(session.ws, { type: 'NOTIFICATION', message: 'Admin privileges required.' });
+          break;
+        }
+        if (msg.id) {
+          storage.deleteChangelog(msg.id);
+          this.broadcast({ type: 'CHANGELOGS_UPDATE', changelogs: storage.getChangelogs() });
+          this.send(session.ws, {
+            type: 'NOTIFICATION',
+            message: `Deleted changelog entry.`
           });
         }
         break;

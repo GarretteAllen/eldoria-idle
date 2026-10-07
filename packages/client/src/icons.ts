@@ -125,6 +125,7 @@ export const ICONS: Record<string, string> = {
   compass: toSvg(Compass),
   worldMap: toSvg(Map),
   scroll: toSvg(Scroll),
+  changelog: toSvg(BookOpen),
   bestiary: toSvg(BookOpen),
   star: toSvg(Sparkles),
   levelUp: toSvg(Sparkles),

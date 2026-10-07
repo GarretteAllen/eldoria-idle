@@ -137,6 +137,7 @@
           </div>
           <button id="btn-minimap-toggle" class="top-util-btn" title="Toggle Realm Radar"></button>
           <button id="btn-worldmap-toggle" class="top-util-btn" title="Open World Atlas [M]"></button>
+          <button id="btn-changelog-toggle" class="top-util-btn" title="View Realm Updates & Changelogs"></button>
 
           <button id="btn-top-logout" class="top-logout-btn" title="Log Out of Character">Log Out</button>
 
@@ -647,6 +648,7 @@
           <button class="editor-tab" data-tab="collisions">Collision</button>
           <button class="editor-tab" data-tab="giveitems">Give Items</button>
           <button class="editor-tab" data-tab="items">Items</button>
+          <button class="editor-tab" data-tab="changelogs">Changelogs</button>
         </div>
 
         <div class="drawer-body" style="padding: 8px;">
@@ -1199,6 +1201,42 @@
             <div id="editor-items-list" class="editor-entities-list" style="max-height: 440px; overflow-y: auto;"></div>
           </div>
 
+          <!-- TAB 8: CHANGELOGS (ADMIN POSTING & EDITING) -->
+          <div id="tab-content-changelogs" class="editor-tab-content hidden">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+              <span style="font-size: 0.75rem; color: var(--gold-main); font-weight: 700;">Realm Changelogs & Updates</span>
+              <button id="btn-add-changelog" class="btn-oak" style="font-size: 0.7rem; padding: 2px 6px;">+ New Changelog</button>
+            </div>
+
+            <!-- Form to Post / Edit Changelog -->
+            <form id="editor-changelog-form" class="editor-form-box hidden" style="margin-bottom: 10px;">
+              <input type="hidden" id="changelog-form-id" />
+              <div class="form-row">
+                <label>Version Tag:</label>
+                <input type="text" id="changelog-form-version" placeholder="e.g. v1.1.0" required style="font-weight: 700;" />
+              </div>
+              <div class="form-row">
+                <label>Title:</label>
+                <input type="text" id="changelog-form-title" placeholder="e.g. Monster Loot Overhaul & New Gear" required />
+              </div>
+              <div class="form-row">
+                <label>Body (BBCode Supported):</label>
+                <div style="font-size: 0.65rem; color: #a0aec0; margin-bottom: 4px;">
+                  Tags: <code>[b]bold[/b]</code>, <code>[i]italic[/i]</code>, <code>[color=hex]text[/color]</code>, <code>[h1]heading[/h1]</code>, <code>[h2]subheading[/h2]</code>, <code>[list][*]item[/list]</code>, <code>[badge=gold]label[/badge]</code>
+                </div>
+                <textarea id="changelog-form-content" rows="10" placeholder="Type your changelog here..." required style="width: 100%; font-family: monospace; font-size: 0.75rem; padding: 6px; background: rgba(0,0,0,0.5); border: 1px solid #4a3622; border-radius: 4px; color: #fff;"></textarea>
+              </div>
+              <div style="display: flex; gap: 6px; margin-top: 8px;">
+                <button type="submit" class="btn-start" style="flex: 2;">Publish Update</button>
+                <button type="button" id="btn-delete-changelog" class="btn-oak" style="color: #fc8181; flex: 1; display: none;">Delete</button>
+                <button type="button" id="btn-cancel-changelog" class="btn-oak" style="flex: 1;">Cancel</button>
+              </div>
+            </form>
+
+            <!-- Changelogs List in Admin Drawer -->
+            <div id="editor-changelogs-list" class="editor-entities-list" style="max-height: 440px; overflow-y: auto;"></div>
+          </div>
+
         </div>
       </div>
 
@@ -1436,6 +1474,26 @@
           </div>
 
           <div id="gem-store-body" class="gem-store-body">
+            <!-- Rendered dynamically in main.ts -->
+          </div>
+        </div>
+      </div>
+
+      <!-- REALM UPDATES & CHANGELOGS MODAL -->
+      <div id="changelog-modal" class="modal-backdrop hidden" style="z-index: 2400;">
+        <div class="modal-box dark-oak-panel" style="max-width: 620px; width: 92vw; max-height: 85vh; display: flex; flex-direction: column; padding: 18px 22px;">
+          <div class="modal-header" style="margin-bottom: 12px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); padding-bottom: 10px;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <span id="changelog-modal-icon" class="svg-icon-inline icon-lg"></span>
+              <div>
+                <h3 style="color: var(--gold-bright); margin: 0; font-size: 1.1rem;">Realm Updates & Changelog</h3>
+                <div style="font-size: 0.72rem; color: #a0aec0;">Recent patches, balance adjustments, and realm history</div>
+              </div>
+            </div>
+            <button id="changelog-modal-close-btn" class="dv-close-circle-btn" title="Close Changelog"></button>
+          </div>
+
+          <div id="changelog-modal-content" style="flex: 1; overflow-y: auto; padding-right: 6px; display: flex; flex-direction: column; gap: 16px;">
             <!-- Rendered dynamically in main.ts -->
           </div>
         </div>

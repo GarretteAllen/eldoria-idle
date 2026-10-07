@@ -22,6 +22,7 @@ import {
   GemPackDef,
   QueuedTask,
   MarketListing,
+  ChangelogEntry,
 } from '@eldoria/shared';
 import { WorldRenderer, WorldNodeDisplay, TILE_SIZE } from './canvas.js';
 import { loadLdtkWorld } from './ldtkLoader.js';
@@ -102,8 +103,11 @@ class EldoriaClient {
   private marketSearchQuery: string = '';
   private marketFilterCategory: string = 'all';
 
+  // Changelogs State
+  private changelogs: ChangelogEntry[] = [];
+
   // Editor State
-  private activeEditorTab: 'nodes' | 'monsters' | 'npcs' | 'quests' | 'collisions' | 'giveitems' | 'items' = 'nodes';
+  private activeEditorTab: 'nodes' | 'monsters' | 'npcs' | 'quests' | 'collisions' | 'giveitems' | 'items' | 'changelogs' = 'nodes';
   private collisionBrush: 'paint' | 'erase' = 'paint';
   private adminNodeSearchQuery: string = '';
   private adminNodeTypeFilter: string = 'all';
@@ -164,6 +168,8 @@ class EldoriaClient {
     this.setupLeaderboardModal();
     this.setupCombatSustenance();
     this.setupAdminEditor();
+    this.setupChangelogModal();
+    this.setupChangelogEditor();
     this.setupSoundAndMinimap();
     this.setupWorldMapModal();
     this.setupQuestTracker();
@@ -718,6 +724,10 @@ class EldoriaClient {
           this.renderStorageDrawer();
           this.renderEditorItems();
         }
+        if (msg.changelogs) {
+          this.changelogs = msg.changelogs;
+          this.renderEditorChangelogs();
+        }
 
         if (msg.boss) this.updateBossBanner(msg.boss);
         if (msg.onlineCount !== undefined) {
@@ -901,6 +911,15 @@ class EldoriaClient {
           this.renderStorageDrawer();
           this.renderEditorItems();
           this.showToast('Item registry updated in real time.');
+        }
+        break;
+
+      case 'CHANGELOGS_UPDATE':
+        this.changelogs = msg.changelogs || [];
+        this.renderEditorChangelogs();
+        const changelogModal = document.getElementById('changelog-modal');
+        if (changelogModal && !changelogModal.classList.contains('hidden')) {
+          this.renderChangelogModal();
         }
         break;
 
@@ -6295,15 +6314,19 @@ class EldoriaClient {
     }
   }
 
-  private switchEditorTab(tab: 'nodes' | 'monsters' | 'npcs' | 'quests' | 'collisions' | 'giveitems' | 'items') {
+  private switchEditorTab(tab: 'nodes' | 'monsters' | 'npcs' | 'quests' | 'collisions' | 'giveitems' | 'items' | 'changelogs') {
     this.activeEditorTab = tab;
-    const tabContents = ['nodes', 'monsters', 'npcs', 'quests', 'collisions', 'giveitems', 'items'];
+    const tabContents = ['nodes', 'monsters', 'npcs', 'quests', 'collisions', 'giveitems', 'items', 'changelogs'];
     for (const t of tabContents) {
       const el = document.getElementById(`tab-content-${t}`);
       if (el) {
         if (t === tab) el.classList.remove('hidden');
         else el.classList.add('hidden');
       }
+    }
+
+    if (tab === 'changelogs') {
+      this.renderEditorChangelogs();
     }
 
     if (tab === 'items') {
@@ -7069,6 +7092,274 @@ class EldoriaClient {
       });
 
       container.appendChild(card);
+    }
+  }
+
+  // --- BBCode Parser for Changelogs ---
+  private parseBBCode(text: string): string {
+    if (!text) return '';
+    let html = text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+
+    // Headings
+    html = html.replace(/\[h1\]([\s\S]*?)\[\/h1\]/gi, '<h3 style="color:var(--gold-bright); margin:12px 0 6px 0; font-size:1.05rem; border-bottom:1px solid rgba(255,255,255,0.08); padding-bottom:4px;">$1</h3>');
+    html = html.replace(/\[h2\]([\s\S]*?)\[\/h2\]/gi, '<h4 style="color:#63b3ed; margin:10px 0 4px 0; font-size:0.9rem;">$1</h4>');
+    html = html.replace(/\[h3\]([\s\S]*?)\[\/h3\]/gi, '<h5 style="color:#cbd5e0; margin:8px 0 3px 0; font-size:0.82rem; text-transform:uppercase; letter-spacing:0.5px;">$1</h5>');
+
+    // Bold, Italic, Underline, Strikethrough
+    html = html.replace(/\[b\]([\s\S]*?)\[\/b\]/gi, '<strong style="color:#fff;">$1</strong>');
+    html = html.replace(/\[i\]([\s\S]*?)\[\/i\]/gi, '<em>$1</em>');
+    html = html.replace(/\[u\]([\s\S]*?)\[\/u\]/gi, '<u>$1</u>');
+    html = html.replace(/\[s\]([\s\S]*?)\[\/s\]/gi, '<del style="opacity:0.6;">$1</del>');
+
+    // Badges / Tags
+    html = html.replace(/\[badge=([a-zA-Z0-9#_-]+)\]([\s\S]*?)\[\/badge\]/gi, (_match, color, content) => {
+      let bg = 'rgba(255,255,255,0.1)';
+      let textCol = '#fff';
+      let border = 'rgba(255,255,255,0.2)';
+      if (color === 'gold' || color === 'yellow') {
+        bg = 'rgba(236,201,75,0.15)'; textCol = '#ecc94b'; border = '#d69e2e';
+      } else if (color === 'green' || color === 'buff') {
+        bg = 'rgba(72,187,120,0.15)'; textCol = '#68d391'; border = '#38a169';
+      } else if (color === 'blue' || color === 'info') {
+        bg = 'rgba(66,153,225,0.15)'; textCol = '#63b3ed'; border = '#3182ce';
+      } else if (color === 'red' || color === 'nerf') {
+        bg = 'rgba(245,101,101,0.15)'; textCol = '#fc8181'; border = '#e53e3e';
+      } else if (color === 'purple') {
+        bg = 'rgba(159,122,234,0.15)'; textCol = '#b794f4'; border = '#805ad5';
+      } else {
+        textCol = color;
+      }
+      return `<span style="display:inline-block; font-size:0.65rem; font-weight:700; padding:1px 6px; border-radius:3px; background:${bg}; color:${textCol}; border:1px solid ${border}; margin-right:4px;">${content}</span>`;
+    });
+
+    // Color tags
+    html = html.replace(/\[color=([a-zA-Z0-9#]+)\]([\s\S]*?)\[\/color\]/gi, '<span style="color:$1;">$2</span>');
+
+    // Code tags
+    html = html.replace(/\[code\]([\s\S]*?)\[\/code\]/gi, '<code style="background:rgba(0,0,0,0.4); padding:2px 5px; border-radius:3px; color:#ffd699; font-size:0.75rem;">$1</code>');
+
+    // Lists
+    html = html.replace(/\[list\]([\s\S]*?)\[\/list\]/gi, (_match, items) => {
+      const parsedItems = items
+        .split(/\[\*\]/g)
+        .filter((s: string) => s.trim().length > 0)
+        .map((s: string) => `<li style="margin: 3px 0;">${s.trim()}</li>`)
+        .join('');
+      return `<ul style="margin:6px 0 8px 18px; padding-left:0; font-size:0.78rem; line-height:1.45; color:#cbd5e0;">${parsedItems}</ul>`;
+    });
+
+    // Line breaks
+    html = html.replace(/\r\n/g, '<br/>').replace(/\n/g, '<br/>');
+
+    return html;
+  }
+
+  // --- Changelog Player Modal ---
+  private setupChangelogModal() {
+    const toggleBtn = document.getElementById('btn-changelog-toggle');
+    const modal = document.getElementById('changelog-modal');
+    const closeBtn = document.getElementById('changelog-modal-close-btn');
+    const modalIcon = document.getElementById('changelog-modal-icon');
+
+    if (toggleBtn) {
+      toggleBtn.innerHTML = ICONS.changelog || ICONS.scroll;
+      toggleBtn.onclick = () => this.openChangelogModal();
+    }
+
+    if (modalIcon) {
+      modalIcon.innerHTML = ICONS.changelog || ICONS.scroll;
+    }
+
+    if (closeBtn && modal) {
+      closeBtn.innerHTML = ICONS.close;
+      closeBtn.onclick = () => modal.classList.add('hidden');
+    }
+  }
+
+  public openChangelogModal() {
+    const modal = document.getElementById('changelog-modal');
+    if (!modal) return;
+    sound.play('ding');
+    this.renderChangelogModal();
+    modal.classList.remove('hidden');
+  }
+
+  public renderChangelogModal() {
+    const container = document.getElementById('changelog-modal-content');
+    if (!container) return;
+    container.innerHTML = '';
+
+    if (!this.changelogs || this.changelogs.length === 0) {
+      container.innerHTML = `
+        <div style="text-align:center; padding:32px 16px; color:#a0aec0;">
+          <div style="font-size:1.8rem; margin-bottom:8px;">📜</div>
+          <div style="font-weight:700; color:#e2e8f0; font-size:0.95rem;">No updates posted yet</div>
+          <div style="font-size:0.75rem; margin-top:4px;">Check back soon for patch notes and major updates from the developers!</div>
+        </div>
+      `;
+      return;
+    }
+
+    for (const entry of this.changelogs) {
+      const card = document.createElement('div');
+      card.style.background = 'rgba(0, 0, 0, 0.35)';
+      card.style.border = '1px solid rgba(255, 255, 255, 0.08)';
+      card.style.borderRadius = '6px';
+      card.style.padding = '14px 16px';
+      card.style.display = 'flex';
+      card.style.flexDirection = 'column';
+      card.style.gap = '8px';
+
+      const dateStr = new Date(entry.createdAt).toLocaleDateString(undefined, {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+      });
+
+      card.innerHTML = `
+        <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid rgba(255,255,255,0.06); padding-bottom:8px;">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span style="font-size:0.72rem; font-weight:800; background:rgba(56,189,248,0.15); color:#38bdf8; border:1px solid rgba(56,189,248,0.3); padding:2px 8px; border-radius:4px;">
+              ${entry.version}
+            </span>
+            <span style="font-size:0.92rem; font-weight:800; color:#fff;">${entry.title}</span>
+          </div>
+          <div style="font-size:0.68rem; color:#a0aec0;">
+            ${dateStr} ${entry.author ? `• by <strong style="color:var(--gold-bright);">${entry.author}</strong>` : ''}
+          </div>
+        </div>
+        <div class="changelog-entry-body" style="font-size:0.78rem; line-height:1.5; color:#cbd5e0;">
+          ${this.parseBBCode(entry.content)}
+        </div>
+      `;
+
+      container.appendChild(card);
+    }
+  }
+
+  // --- Admin Changelog Editor ---
+  private setupChangelogEditor() {
+    const btnAdd = document.getElementById('btn-add-changelog');
+    const form = document.getElementById('editor-changelog-form') as HTMLFormElement | null;
+    const btnCancel = document.getElementById('btn-cancel-changelog');
+    const btnDelete = document.getElementById('btn-delete-changelog');
+
+    if (btnAdd && form) {
+      btnAdd.onclick = () => {
+        form.classList.remove('hidden');
+        (document.getElementById('changelog-form-id') as HTMLInputElement).value = '';
+        (document.getElementById('changelog-form-version') as HTMLInputElement).value = 'v1.0.0';
+        (document.getElementById('changelog-form-title') as HTMLInputElement).value = '';
+        (document.getElementById('changelog-form-content') as HTMLTextAreaElement).value = '';
+        if (btnDelete) btnDelete.style.display = 'none';
+      };
+    }
+
+    if (btnCancel && form) {
+      btnCancel.onclick = () => form.classList.add('hidden');
+    }
+
+    if (btnDelete) {
+      btnDelete.onclick = () => {
+        const id = (document.getElementById('changelog-form-id') as HTMLInputElement).value;
+        if (!id) return;
+        this.showInGameConfirm({
+          title: 'Delete Changelog',
+          message: 'Are you sure you want to permanently delete this changelog entry?',
+          confirmText: 'Delete',
+          cancelText: 'Cancel',
+          onConfirm: () => {
+            this.sendWs({ type: 'ADMIN_DELETE_CHANGELOG', id });
+            if (form) form.classList.add('hidden');
+          },
+        });
+      };
+    }
+
+    if (form) {
+      form.onsubmit = (e) => {
+        e.preventDefault();
+        const id = (document.getElementById('changelog-form-id') as HTMLInputElement).value;
+        const version = (document.getElementById('changelog-form-version') as HTMLInputElement).value.trim();
+        const title = (document.getElementById('changelog-form-title') as HTMLInputElement).value.trim();
+        const content = (document.getElementById('changelog-form-content') as HTMLTextAreaElement).value.trim();
+
+        if (!title || !content) {
+          this.showToast('Please enter both a title and changelog body.');
+          return;
+        }
+
+        const existing = this.changelogs.find(c => c.id === id);
+        const changelog: ChangelogEntry = {
+          id: id || `cl_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+          version: version || 'v1.0.0',
+          title,
+          content,
+          author: existing?.author || this.player?.username || 'Admin',
+          createdAt: existing?.createdAt || Date.now(),
+        };
+
+        this.sendWs({
+          type: 'ADMIN_SAVE_CHANGELOG',
+          changelog,
+        });
+
+        form.classList.add('hidden');
+      };
+    }
+  }
+
+  private renderEditorChangelogs() {
+    const listEl = document.getElementById('editor-changelogs-list');
+    if (!listEl) return;
+    listEl.innerHTML = '';
+
+    if (!this.changelogs || this.changelogs.length === 0) {
+      listEl.innerHTML = `<div style="text-align:center; padding:16px; font-size:0.75rem; color:#a0aec0;">No changelogs created yet. Click "+ New Changelog" to post an update.</div>`;
+      return;
+    }
+
+    for (const cl of this.changelogs) {
+      const card = document.createElement('div');
+      card.className = 'editor-entity-card';
+      card.style.cursor = 'pointer';
+      const dateStr = new Date(cl.createdAt).toLocaleDateString(undefined, {
+        month: 'short',
+        day: 'numeric',
+      });
+
+      card.innerHTML = `
+        <div class="editor-entity-info">
+          <div class="editor-entity-title" style="display:flex; align-items:center; gap:6px;">
+            <span style="font-size:0.65rem; background:#3182ce; color:#fff; padding:1px 5px; border-radius:3px; font-weight:700;">${cl.version}</span>
+            <span>${cl.title}</span>
+          </div>
+          <div class="editor-entity-meta" style="font-size:0.68rem; color:#a0aec0;">
+            ${dateStr} · By ${cl.author || 'Admin'}
+          </div>
+        </div>
+        <div class="editor-entity-actions">
+          <button class="btn-micro-edit" data-id="${cl.id}">Edit</button>
+        </div>
+      `;
+
+      card.addEventListener('click', () => {
+        const form = document.getElementById('editor-changelog-form') as HTMLFormElement | null;
+        const btnDelete = document.getElementById('btn-delete-changelog');
+        if (form) {
+          form.classList.remove('hidden');
+          (document.getElementById('changelog-form-id') as HTMLInputElement).value = cl.id;
+          (document.getElementById('changelog-form-version') as HTMLInputElement).value = cl.version;
+          (document.getElementById('changelog-form-title') as HTMLInputElement).value = cl.title;
+          (document.getElementById('changelog-form-content') as HTMLTextAreaElement).value = cl.content;
+          if (btnDelete) btnDelete.style.display = 'inline-block';
+        }
+      });
+
+      listEl.appendChild(card);
     }
   }
 

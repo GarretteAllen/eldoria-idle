@@ -3,7 +3,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import Database from 'better-sqlite3';
-import { PlayerData, SkillType, WorldNode, NpcDefinition, QuestDefinition, MonsterSpawnZone, getLevelFromXp, ItemDefinition, ITEMS, LevelBounds, parseLdtkLevelBounds, isTileInAnyLevel, InventorySlot, MarketListing } from '@eldoria/shared';
+import { PlayerData, SkillType, WorldNode, NpcDefinition, QuestDefinition, MonsterSpawnZone, getLevelFromXp, ItemDefinition, ITEMS, LevelBounds, parseLdtkLevelBounds, isTileInAnyLevel, InventorySlot, MarketListing, ChangelogEntry } from '@eldoria/shared';
 import { WORLD_NODES as DEFAULT_WORLD_NODES } from './world.js';
 
 export const DEFAULT_MONSTER_ZONES: MonsterSpawnZone[] = [
@@ -230,6 +230,10 @@ class StorageManager {
   private stmtGetMarketListingById: Database.Statement;
   private stmtInsertMarketListing: Database.Statement;
   private stmtDeleteMarketListing: Database.Statement;
+  private stmtGetChangelogs: Database.Statement;
+  private stmtUpsertChangelog: Database.Statement;
+  private stmtDeleteChangelog: Database.Statement;
+  private changelogsCache: ChangelogEntry[] = [];
   private itemsCache: Record<string, ItemDefinition> = {};
   private monsterZonesCache: MonsterSpawnZone[] = [];
 
@@ -326,6 +330,13 @@ class StorageManager {
     );
     this.stmtDeleteMarketListing = this.db.prepare('DELETE FROM market_listings WHERE id = ?');
 
+    this.stmtGetChangelogs = this.db.prepare('SELECT data FROM changelogs ORDER BY created_at DESC');
+    this.stmtUpsertChangelog = this.db.prepare(
+      `INSERT INTO changelogs (id, version, created_at, data) VALUES (?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET version = excluded.version, data = excluded.data`
+    );
+    this.stmtDeleteChangelog = this.db.prepare('DELETE FROM changelogs WHERE id = ?');
+
     // Run automatic migration from legacy json files if upgrading
     this.migrateLegacyJson();
 
@@ -410,10 +421,18 @@ class StorageManager {
         created_at INTEGER NOT NULL
       );
 
+      CREATE TABLE IF NOT EXISTS changelogs (
+        id TEXT PRIMARY KEY,
+        version TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        data TEXT NOT NULL
+      );
+
       CREATE INDEX IF NOT EXISTS idx_accounts_norm_user ON accounts(normalized_username);
       CREATE INDEX IF NOT EXISTS idx_sessions_account ON sessions(account_id);
       CREATE INDEX IF NOT EXISTS idx_market_item ON market_listings(item_id);
       CREATE INDEX IF NOT EXISTS idx_market_seller ON market_listings(seller_id);
+      CREATE INDEX IF NOT EXISTS idx_changelogs_created ON changelogs(created_at DESC);
     `);
   }
 
@@ -579,6 +598,10 @@ class StorageManager {
     // Collisions
     const collRows = this.stmtGetCollisions.all() as Array<{ coord: string }>;
     this.collisionsCache = new Set<string>(collRows.map(r => r.coord));
+
+    // Changelogs
+    const changelogRows = this.stmtGetChangelogs.all() as Array<{ data: string }>;
+    this.changelogsCache = changelogRows.map(r => JSON.parse(r.data));
 
     // Items
     this.itemsCache = { ...ITEMS };
@@ -1438,6 +1461,29 @@ class StorageManager {
 
   public removeMarketListing(id: string): void {
     this.stmtDeleteMarketListing.run(id);
+    this.checkpoint();
+  }
+
+  public getChangelogs(): ChangelogEntry[] {
+    return [...this.changelogsCache];
+  }
+
+  public saveChangelog(entry: ChangelogEntry): void {
+    const payload = JSON.stringify(entry);
+    this.stmtUpsertChangelog.run(entry.id, entry.version, entry.createdAt, payload);
+    const idx = this.changelogsCache.findIndex(c => c.id === entry.id);
+    if (idx >= 0) {
+      this.changelogsCache[idx] = entry;
+    } else {
+      this.changelogsCache.unshift(entry);
+      this.changelogsCache.sort((a, b) => b.createdAt - a.createdAt);
+    }
+    this.checkpoint();
+  }
+
+  public deleteChangelog(id: string): void {
+    this.stmtDeleteChangelog.run(id);
+    this.changelogsCache = this.changelogsCache.filter(c => c.id !== id);
     this.checkpoint();
   }
 
