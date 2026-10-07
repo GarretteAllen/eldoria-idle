@@ -817,12 +817,19 @@ body, html {
   flex-direction: column;
   align-items: center;
   padding: 8px 0;
-  gap: 6px;
+  gap: 5px;
   z-index: 90;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: none;
+}
+#right-toolbar::-webkit-scrollbar {
+  display: none;
 }
 .tool-btn {
   width: 28px;
   height: 28px;
+  flex-shrink: 0;
   background: var(--bg-panel);
   border: 1px solid var(--border-oak);
   border-radius: 4px;
@@ -853,7 +860,7 @@ body, html {
   position: absolute;
   top: 38px;
   right: 44px;
-  width: 236px;
+  width: 284px;
   bottom: 12px;
   background: var(--bg-panel);
   border: 1px solid var(--border-oak);
@@ -901,9 +908,27 @@ body, html {
 .drawer-footer {
   display: flex;
   gap: 6px;
-  padding: 6px 8px;
+  padding: 8px 10px;
   background: var(--bg-darkest);
   border-top: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+}
+.drawer-footer > .btn-oak,
+.drawer-footer > .btn-start {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 4px;
+  font-size: 0.74rem;
+  white-space: nowrap;
+  gap: 4px;
+  justify-content: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.drawer-footer .btn-icon {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
 }
 
 /* Oak Action Buttons */
@@ -2185,7 +2210,7 @@ body, html {
     top: 36px;
     right: 42px;
     width: calc(100vw - 48px);
-    max-width: 300px;
+    max-width: 320px;
     bottom: 6px;
   }
   .popup-panel {
@@ -2194,6 +2219,82 @@ body, html {
     width: calc(100vw - 48px);
     max-width: 310px;
     z-index: 86;
+  }
+  .drawer-footer {
+    padding: 6px 8px;
+    gap: 4px;
+  }
+  .drawer-footer > .btn-oak {
+    font-size: 0.72rem;
+    padding: 5px 3px;
+    gap: 3px;
+  }
+}
+
+/* Compact scaling for shorter vertical displays (laptops, rotated phones, split-screen) */
+@media (max-height: 720px) {
+  #right-toolbar {
+    padding: 4px 0;
+    gap: 4px;
+  }
+  .tool-btn {
+    width: 26px;
+    height: 26px;
+    padding: 3px;
+  }
+  #right-toolbar .tool-btn svg,
+  #right-toolbar .tool-btn .lucide-icon {
+    width: 14px;
+    height: 14px;
+  }
+  .drawer-panel {
+    bottom: 6px;
+    top: 36px;
+  }
+  .drawer-header {
+    padding: 6px 8px;
+  }
+  .drawer-body {
+    padding: 6px;
+    gap: 6px;
+  }
+  .drawer-footer {
+    padding: 5px 8px;
+    gap: 4px;
+  }
+  .drawer-footer > .btn-oak {
+    min-height: 30px;
+    font-size: 0.7rem;
+    padding: 4px 2px;
+  }
+}
+
+@media (max-height: 560px) {
+  #right-toolbar {
+    padding: 2px 0;
+    gap: 2px;
+  }
+  .tool-btn {
+    width: 23px;
+    height: 23px;
+    padding: 2px;
+  }
+  #right-toolbar .tool-btn svg,
+  #right-toolbar .tool-btn .lucide-icon {
+    width: 13px;
+    height: 13px;
+  }
+  .drawer-footer {
+    padding: 4px 6px;
+  }
+  .drawer-footer > .btn-oak {
+    min-height: 26px;
+    font-size: 0.68rem;
+    gap: 2px;
+  }
+  .drawer-footer .btn-icon {
+    width: 12px;
+    height: 12px;
   }
 }
 
