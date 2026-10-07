@@ -341,6 +341,20 @@ export function simulateOfflineCatchUp(
           summary.itemsGained[monster.guaranteedDropItemId] = (summary.itemsGained[monster.guaranteedDropItemId] || 0) + 1;
         }
 
+        // Roll rare drop for offline combat
+        if (monster.rareDrop && Math.random() < monster.rareDrop.chance && ITEMS[monster.rareDrop.itemId]) {
+          const rareDef = ITEMS[monster.rareDrop.itemId];
+          const rareRes = addItemToSlots(player.inventory, 28, monster.rareDrop.itemId, 1, 'plain', 0, rareDef, 'inventory');
+          if (rareRes.remainder > 0) {
+            const maxStorage = player.storageSlotsMax || 75;
+            const bankRes = addItemToSlots(player.storage, maxStorage, monster.rareDrop.itemId, rareRes.remainder, 'plain', 0, rareDef, 'bank');
+            if (bankRes.remainder > 0) {
+              summary.overflowOccurred = true;
+            }
+          }
+          summary.itemsGained[monster.rareDrop.itemId] = (summary.itemsGained[monster.rareDrop.itemId] || 0) + 1;
+        }
+
         totalStyleXp += (monster.hp * 4) + monster.xp;
         totalHpXp += Math.floor(monster.hp * 1.33);
         executed++;
