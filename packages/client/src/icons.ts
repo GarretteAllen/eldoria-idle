@@ -205,6 +205,8 @@ export function getItemIconSvg(itemId: string, _category?: string): string {
   let safeId = itemId.trim().toLowerCase();
   if (safeId === 'pelt_jerkin') safeId = 'leather_tunic';
   if (safeId === 'pelt_quiver') safeId = 'leather_quiver';
+  if (safeId === 'bogling_hide') safeId = 'ghoul_hide';
+  if (safeId === 'bogskin_quiver') safeId = 'ghoulskin_quiver';
 
   // Fallbacks for cloth mage robes to base wizard/tunic icons
   if (safeId.includes('robe_top')) safeId = 'tunic_cloth';
@@ -216,6 +218,6 @@ export function getItemIconSvg(itemId: string, _category?: string): string {
   else if (safeId.endsWith('_chaps') || safeId.endsWith('_leggings')) safeId = 'leather_chaps';
   else if (safeId.endsWith('_hood') || safeId.endsWith('_cowl')) safeId = 'ranger_hood';
 
-  return `<img src="/icons/items/${safeId}.png" class="dv-slot-svg item-icon-img" alt="${safeId}" loading="lazy" onerror="if(!this.dataset.triedFallback){this.dataset.triedFallback='true';if('${safeId}'==='leather_tunic'){this.src='/icons/items/pelt_jerkin.png';return;}if('${safeId}'==='leather_quiver'){this.src='/icons/items/pelt_quiver.png';return;}}this.onerror=null;this.style.display='none';" />`;
+  return `<img src="/icons/items/${safeId}.png" class="dv-slot-svg item-icon-img" alt="${safeId}" loading="lazy" onerror="if(!this.dataset.triedFallback){this.dataset.triedFallback='true';if('${safeId}'==='leather_tunic'){this.src='/icons/items/pelt_jerkin.png';return;}if('${safeId}'==='leather_quiver'){this.src='/icons/items/pelt_quiver.png';return;}if('${safeId}'==='ghoul_hide'){this.src='/icons/items/bogling_hide.png';return;}if('${safeId}'==='ghoulskin_quiver'){this.src='/icons/items/bogskin_quiver.png';return;}}this.onerror=null;this.style.display='none';" />`;
 }
 
