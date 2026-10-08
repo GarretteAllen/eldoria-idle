@@ -1839,6 +1839,7 @@ class EldoriaClient {
       `;
 
       card.addEventListener('click', () => {
+        this.hideAllTooltips();
         if (COMBAT_SKILLS.includes(skillKey)) {
           this.openCombatDirectory(skillKey);
         } else {
@@ -5112,12 +5113,22 @@ class EldoriaClient {
     }
   }
 
+  public hideAllTooltips() {
+    const tooltip = document.getElementById('item-hover-tooltip');
+    if (tooltip) tooltip.classList.add('hidden');
+    const skillTooltip = document.getElementById('skill-hover-tooltip');
+    if (skillTooltip) skillTooltip.classList.add('hidden');
+  }
+
   private setupItemTooltips() {
-    window.addEventListener('blur', () => {
-      const tooltip = document.getElementById('item-hover-tooltip');
-      if (tooltip) tooltip.classList.add('hidden');
-      const skillTooltip = document.getElementById('skill-hover-tooltip');
-      if (skillTooltip) skillTooltip.classList.add('hidden');
+    window.addEventListener('blur', () => this.hideAllTooltips());
+    window.addEventListener('touchstart', () => this.hideAllTooltips(), { passive: true });
+    window.addEventListener('pointerdown', (e) => {
+      if (e.pointerType === 'touch') this.hideAllTooltips();
+    }, { passive: true });
+    window.addEventListener('scroll', () => this.hideAllTooltips(), { passive: true });
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) this.hideAllTooltips();
     });
   }
 
@@ -5126,6 +5137,7 @@ class EldoriaClient {
     if (!tooltip) return;
 
     el.addEventListener('mouseenter', (e: MouseEvent) => {
+      if (window.matchMedia('(hover: none)').matches || window.innerWidth <= 768) return;
       if (!this.player) return;
       const record = this.player.skills[skillKey] || { level: 1, xp: 0 };
       const currentXp = Math.floor(record.xp || 0);
@@ -5190,6 +5202,7 @@ class EldoriaClient {
     if (!tooltip) return;
 
     el.addEventListener('mouseenter', (e: MouseEvent) => {
+      if (window.matchMedia('(hover: none)').matches || window.innerWidth <= 768) return;
       const nameEl = document.getElementById('tooltip-name');
       const typeEl = document.getElementById('tooltip-type');
       const statsListEl = document.getElementById('tooltip-stats');

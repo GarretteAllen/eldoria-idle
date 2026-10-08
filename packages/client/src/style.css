@@ -2519,6 +2519,17 @@ body, html {
   .bestiary-grid {
     grid-template-columns: 1fr !important;
   }
+
+  /* 9. DISABLE STICKY HOVER TOOLTIPS ON TOUCH & MOBILE */
+  .skill-hover-tooltip {
+    display: none !important;
+  }
+}
+
+@media (hover: none), (pointer: coarse) {
+  .skill-hover-tooltip {
+    display: none !important;
+  }
 }
 
 /* Compact phones (Portrait mode <= 480px) */
