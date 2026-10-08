@@ -83,6 +83,7 @@ class EldoriaClient {
   private renderer: WorldRenderer;
   private activeChannel = 'All';
   private selectedInventoryIndex: number | null = null;
+  private selectedStorageIndex: number | null = null;
   private worldNodes: WorldNodeDisplay[] = [];
   private npcs: NpcDefinition[] = [];
   private quests: QuestDefinition[] = [];
@@ -3465,6 +3466,9 @@ class EldoriaClient {
     const modal = document.getElementById('deepvein-storage-modal');
     if (!modal) return;
     modal.classList.add('hidden');
+    const storageMenu = document.getElementById('storage-context-menu');
+    if (storageMenu) storageMenu.classList.add('hidden');
+    this.selectedStorageIndex = null;
   }
 
   private renderStorageModal() {
@@ -3536,20 +3540,22 @@ class EldoriaClient {
           <span class="dv-slot-qty">${qtyFormatted}</span>
         `;
         div.removeAttribute('title');
-        const transferQty = this.selectedTransferAmount === 'all' ? 'all' : this.selectedTransferAmount;
-        this.attachItemTooltip(div, slot, undefined, `Click to withdraw ${transferQty}`);
+        this.attachItemTooltip(div, slot, undefined, 'Click for actions (Withdraw / Sell) • Shift-click to quick withdraw');
 
-        div.onclick = () => {
+        div.onclick = (e: MouseEvent) => {
+          e.stopPropagation();
           if (!isNearHearth) {
             this.sendWs({ type: 'MOVE_TO', x: hearth.x, y: hearth.y });
             this.showToast('Heading to the bank...');
-          } else {
+          } else if (e.shiftKey) {
             const requestedQty = this.selectedTransferAmount === 'all' ? slot.quantity : this.selectedTransferAmount;
             this.sendWs({
               type: 'WITHDRAW_ITEM',
               storageIndex: item.originalIndex,
               quantity: requestedQty,
             });
+          } else {
+            this.openStorageContextMenu(item.originalIndex, e);
           }
         };
 
@@ -4245,6 +4251,8 @@ class EldoriaClient {
         }
       };
     }
+
+    this.setupStorageContextMenu();
 
     const topLogoutBtn = document.getElementById('btn-top-logout');
     if (topLogoutBtn) {
@@ -5894,6 +5902,280 @@ class EldoriaClient {
 
     menu.style.left = `${Math.round(left)}px`;
     menu.style.top = `${Math.round(top)}px`;
+  }
+
+  private openStorageContextMenu(storageIndex: number, e: MouseEvent) {
+    this.selectedStorageIndex = storageIndex;
+    const slot = this.player?.storage[storageIndex];
+    if (!slot) return;
+    const def = ITEMS[slot.itemId];
+    if (!def) return;
+
+    const menu = document.getElementById('storage-context-menu');
+    if (!menu) return;
+
+    this.hideAllTooltips();
+
+    const titleEl = document.getElementById('storage-ctx-item-name');
+    if (titleEl) {
+      titleEl.textContent = def.name;
+      const rarityColor = slot.rarity === 'legendary' ? '#f59e0b' :
+                          slot.rarity === 'epic' ? '#a855f7' :
+                          slot.rarity === 'rare' ? '#3b82f6' :
+                          slot.rarity === 'uncommon' ? '#22c55e' : '#ffd700';
+      titleEl.style.color = rarityColor;
+    }
+
+    const unitPrice = def.vendorFloorPrice || 1;
+    const totalGold = unitPrice * slot.quantity;
+
+    const statsEl = document.getElementById('storage-ctx-item-stats');
+    if (statsEl) {
+      statsEl.innerHTML = `<span style="color:#e2e8f0;">In Vault: <strong>${slot.quantity.toLocaleString()}</strong></span> • <span style="color:#ffd700;">${unitPrice.toLocaleString()}g each</span>`;
+    }
+
+    // Configure Withdraw buttons
+    const w1Btn = document.getElementById('storage-ctx-btn-withdraw-1');
+    if (w1Btn) {
+      w1Btn.style.display = 'flex';
+      w1Btn.textContent = 'Withdraw 1';
+    }
+
+    const w5Btn = document.getElementById('storage-ctx-btn-withdraw-5');
+    if (w5Btn) {
+      w5Btn.style.display = slot.quantity >= 5 ? 'flex' : 'none';
+      w5Btn.textContent = 'Withdraw 5';
+    }
+
+    const wXBtn = document.getElementById('storage-ctx-btn-withdraw-x');
+    if (wXBtn) {
+      wXBtn.style.display = slot.quantity > 1 ? 'flex' : 'none';
+      wXBtn.textContent = 'Withdraw X...';
+    }
+
+    const wAllBtn = document.getElementById('storage-ctx-btn-withdraw-all');
+    if (wAllBtn) {
+      wAllBtn.style.display = 'flex';
+      wAllBtn.textContent = slot.quantity > 1 ? `Withdraw All (${slot.quantity.toLocaleString()})` : 'Withdraw All';
+    }
+
+    // Configure Sell buttons
+    const s1Btn = document.getElementById('storage-ctx-btn-sell-1');
+    if (s1Btn) {
+      s1Btn.style.display = 'flex';
+      s1Btn.innerHTML = `Sell 1 <span style="margin-left:auto; color:#ffd700; font-size:0.75rem;">+${unitPrice.toLocaleString()}g</span>`;
+    }
+
+    const s5Btn = document.getElementById('storage-ctx-btn-sell-5');
+    if (s5Btn) {
+      s5Btn.style.display = slot.quantity >= 5 ? 'flex' : 'none';
+      s5Btn.innerHTML = `Sell 5 <span style="margin-left:auto; color:#ffd700; font-size:0.75rem;">+${(unitPrice * 5).toLocaleString()}g</span>`;
+    }
+
+    const sXBtn = document.getElementById('storage-ctx-btn-sell-x');
+    if (sXBtn) {
+      sXBtn.style.display = slot.quantity > 1 ? 'flex' : 'none';
+      sXBtn.innerHTML = `Sell X... <span style="margin-left:auto; color:#ecc94b; font-size:0.72rem;">custom</span>`;
+    }
+
+    const sAllBtn = document.getElementById('storage-ctx-btn-sell-all');
+    if (sAllBtn) {
+      sAllBtn.style.display = 'flex';
+      sAllBtn.innerHTML = `Sell All (${slot.quantity.toLocaleString()}) <span style="margin-left:auto; color:#ffd700; font-size:0.75rem;">+${totalGold.toLocaleString()}g</span>`;
+    }
+
+    // Position menu adjacent to the clicked slot
+    menu.classList.remove('hidden');
+
+    const menuWidth = 240;
+    const menuHeight = menu.offsetHeight || 290;
+    const target = e.currentTarget as HTMLElement;
+    const rect = target && target.getBoundingClientRect ? target.getBoundingClientRect() : { left: e.clientX, top: e.clientY, width: 36, right: e.clientX + 36 };
+
+    let left: number;
+    let top: number;
+    if (window.innerWidth <= 600) {
+      left = Math.max(10, Math.round((window.innerWidth - menuWidth) / 2));
+      top = Math.max(20, Math.min(window.innerHeight - menuHeight - 20, rect.top));
+    } else {
+      left = rect.right + 6;
+      if (left + menuWidth > window.innerWidth - 10) {
+        left = rect.left - menuWidth - 6;
+      }
+      if (left < 10) left = 10;
+
+      top = rect.top;
+      if (top + menuHeight > window.innerHeight - 10) {
+        top = Math.max(10, window.innerHeight - menuHeight - 10);
+      }
+      if (top < 10) top = 10;
+    }
+
+    menu.style.left = `${Math.round(left)}px`;
+    menu.style.top = `${Math.round(top)}px`;
+  }
+
+  private setupStorageContextMenu() {
+    const storageMenu = document.getElementById('storage-context-menu');
+    const storageClose = document.getElementById('storage-ctx-close-btn');
+    if (storageClose && storageMenu) {
+      storageClose.onclick = (e) => {
+        e.stopPropagation();
+        storageMenu.classList.add('hidden');
+        this.selectedStorageIndex = null;
+      };
+    }
+
+    document.addEventListener('pointerdown', (e) => {
+      if (storageMenu && !storageMenu.classList.contains('hidden')) {
+        if (!storageMenu.contains(e.target as Node)) {
+          storageMenu.classList.add('hidden');
+          this.selectedStorageIndex = null;
+        }
+      }
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && storageMenu) {
+        storageMenu.classList.add('hidden');
+        this.selectedStorageIndex = null;
+      }
+    });
+
+    // Withdraw 1
+    const w1Btn = document.getElementById('storage-ctx-btn-withdraw-1');
+    if (w1Btn && storageMenu) {
+      w1Btn.onclick = () => {
+        if (this.selectedStorageIndex !== null) {
+          this.sendWs({ type: 'WITHDRAW_ITEM', storageIndex: this.selectedStorageIndex, quantity: 1 });
+          storageMenu.classList.add('hidden');
+          this.selectedStorageIndex = null;
+        }
+      };
+    }
+
+    // Withdraw 5
+    const w5Btn = document.getElementById('storage-ctx-btn-withdraw-5');
+    if (w5Btn && storageMenu) {
+      w5Btn.onclick = () => {
+        if (this.selectedStorageIndex !== null) {
+          this.sendWs({ type: 'WITHDRAW_ITEM', storageIndex: this.selectedStorageIndex, quantity: 5 });
+          storageMenu.classList.add('hidden');
+          this.selectedStorageIndex = null;
+        }
+      };
+    }
+
+    // Withdraw X
+    const wXBtn = document.getElementById('storage-ctx-btn-withdraw-x');
+    if (wXBtn && storageMenu) {
+      wXBtn.onclick = () => {
+        if (this.selectedStorageIndex !== null && this.player) {
+          const idx = this.selectedStorageIndex;
+          const slot = this.player.storage[idx];
+          if (slot) {
+            const def = ITEMS[slot.itemId];
+            this.showInGamePrompt({
+              title: 'Withdraw from Vault',
+              message: `How many ${def?.name || 'items'} to withdraw?`,
+              defaultValue: slot.quantity,
+              min: 1,
+              max: slot.quantity,
+              confirmText: 'Withdraw',
+              onConfirm: (count) => {
+                this.sendWs({ type: 'WITHDRAW_ITEM', storageIndex: idx, quantity: count });
+              },
+            });
+          }
+          storageMenu.classList.add('hidden');
+          this.selectedStorageIndex = null;
+        }
+      };
+    }
+
+    // Withdraw All
+    const wAllBtn = document.getElementById('storage-ctx-btn-withdraw-all');
+    if (wAllBtn && storageMenu) {
+      wAllBtn.onclick = () => {
+        if (this.selectedStorageIndex !== null && this.player) {
+          const slot = this.player.storage[this.selectedStorageIndex];
+          const qty = slot ? slot.quantity : undefined;
+          this.sendWs({ type: 'WITHDRAW_ITEM', storageIndex: this.selectedStorageIndex, quantity: qty });
+          storageMenu.classList.add('hidden');
+          this.selectedStorageIndex = null;
+        }
+      };
+    }
+
+    // Sell 1
+    const s1Btn = document.getElementById('storage-ctx-btn-sell-1');
+    if (s1Btn && storageMenu) {
+      s1Btn.onclick = () => {
+        if (this.selectedStorageIndex !== null) {
+          sound.play('coin');
+          this.sendWs({ type: 'SELL_ITEM', storageIndex: this.selectedStorageIndex, quantity: 1 });
+          storageMenu.classList.add('hidden');
+          this.selectedStorageIndex = null;
+        }
+      };
+    }
+
+    // Sell 5
+    const s5Btn = document.getElementById('storage-ctx-btn-sell-5');
+    if (s5Btn && storageMenu) {
+      s5Btn.onclick = () => {
+        if (this.selectedStorageIndex !== null) {
+          sound.play('coin');
+          this.sendWs({ type: 'SELL_ITEM', storageIndex: this.selectedStorageIndex, quantity: 5 });
+          storageMenu.classList.add('hidden');
+          this.selectedStorageIndex = null;
+        }
+      };
+    }
+
+    // Sell X
+    const sXBtn = document.getElementById('storage-ctx-btn-sell-x');
+    if (sXBtn && storageMenu) {
+      sXBtn.onclick = () => {
+        if (this.selectedStorageIndex !== null && this.player) {
+          const idx = this.selectedStorageIndex;
+          const slot = this.player.storage[idx];
+          if (slot) {
+            const def = ITEMS[slot.itemId];
+            const unitPrice = def?.vendorFloorPrice || 1;
+            this.showInGamePrompt({
+              title: 'Sell from Storage',
+              message: `How many ${def?.name || 'items'} to sell? (${unitPrice.toLocaleString()}g each)`,
+              defaultValue: slot.quantity,
+              min: 1,
+              max: slot.quantity,
+              confirmText: 'Sell',
+              onConfirm: (count) => {
+                sound.play('coin');
+                this.sendWs({ type: 'SELL_ITEM', storageIndex: idx, quantity: count });
+              },
+            });
+          }
+          storageMenu.classList.add('hidden');
+          this.selectedStorageIndex = null;
+        }
+      };
+    }
+
+    // Sell All
+    const sAllBtn = document.getElementById('storage-ctx-btn-sell-all');
+    if (sAllBtn && storageMenu) {
+      sAllBtn.onclick = () => {
+        if (this.selectedStorageIndex !== null && this.player) {
+          const slot = this.player.storage[this.selectedStorageIndex];
+          const qty = slot ? slot.quantity : undefined;
+          sound.play('coin');
+          this.sendWs({ type: 'SELL_ITEM', storageIndex: this.selectedStorageIndex, quantity: qty });
+          storageMenu.classList.add('hidden');
+          this.selectedStorageIndex = null;
+        }
+      };
+    }
   }
 
 

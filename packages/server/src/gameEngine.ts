@@ -651,7 +651,9 @@ export class GameEngine {
         break;
 
       case 'SELL_ITEM':
-        if (typeof msg.inventoryIndex === 'number') {
+        if (typeof msg.storageIndex === 'number') {
+          this.handleSellStorageItem(session, msg.storageIndex, msg.quantity);
+        } else if (typeof msg.inventoryIndex === 'number') {
           this.handleSellItem(session, msg.inventoryIndex, msg.quantity);
         }
         break;
@@ -2057,6 +2059,52 @@ export class GameEngine {
     this.send(ws, {
       type: 'NOTIFICATION',
       message: `Sold ${qtyToSell}x ${def?.name || slot.itemId} for ${totalGold.toLocaleString()} gold.`
+    });
+    this.send(ws, { type: 'PLAYER_UPDATE', player });
+  }
+
+  private handleSellStorageItem(session: ConnectedSession, storageIndex: number, requestedQty?: number) {
+    const { player, ws } = session;
+    const hearth = this.getHearthLocation(player.x, player.y);
+    const distToHearth = Math.hypot(player.x - hearth.x, player.y - hearth.y);
+    const nearbyNpc = storage.getNpcs().some(n => Math.hypot(player.x - n.x, player.y - n.y) <= 3.5);
+    if (distToHearth > 3.5 && !nearbyNpc) {
+      this.send(ws, {
+        type: 'NOTIFICATION',
+        message: 'Must be at the Hearth Counter or near a Merchant NPC to sell items.'
+      });
+      return;
+    }
+
+    const slot = player.storage[storageIndex];
+    if (!slot) return;
+    const def = ITEMS[slot.itemId];
+    const unitPrice = def?.vendorFloorPrice || 1;
+
+    let validSellQty: number | undefined = undefined;
+    if (typeof requestedQty === 'number') {
+      if (!Number.isFinite(requestedQty) || requestedQty <= 0) return;
+      validSellQty = Math.floor(requestedQty);
+      if (validSellQty <= 0) return;
+    }
+
+    const qtyToSell = (typeof validSellQty === 'number')
+      ? Math.min(slot.quantity, validSellQty)
+      : slot.quantity;
+
+    slot.quantity -= qtyToSell;
+    if (slot.quantity <= 0) {
+      player.storage.splice(storageIndex, 1);
+    }
+
+    const totalGold = unitPrice * qtyToSell;
+    player.gold = (player.gold || 0) + totalGold;
+
+    storage.savePlayer(player);
+    storage.checkpoint();
+    this.send(ws, {
+      type: 'NOTIFICATION',
+      message: `Sold ${qtyToSell}x ${def?.name || slot.itemId} from storage for ${totalGold.toLocaleString()} gold.`
     });
     this.send(ws, { type: 'PLAYER_UPDATE', player });
   }
