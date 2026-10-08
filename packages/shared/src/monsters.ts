@@ -54,7 +54,7 @@ export const MONSTERS: Record<string, MonsterDefinition> = {
     swingSpeedSeconds: 2.4,
     minCoins: 2,
     maxCoins: 4,
-    guaranteedDropItemId: 'bogling_hide',
+    guaranteedDropItemId: 'ghoul_hide',
     rareDrop: { itemId: 'bog_pearl', chance: 1 / 1667 },
   },
   carrion_scarab: {
@@ -68,7 +68,7 @@ export const MONSTERS: Record<string, MonsterDefinition> = {
     swingSpeedSeconds: 2.4,
     minCoins: 4,
     maxCoins: 9,
-    guaranteedDropItemId: 'bogling_hide',
+    guaranteedDropItemId: 'ghoul_hide',
     rareDrop: { itemId: 'bog_pearl', chance: 1 / 1667 },
   },
   trench_skulker: {
@@ -82,7 +82,7 @@ export const MONSTERS: Record<string, MonsterDefinition> = {
     swingSpeedSeconds: 2.4,
     minCoins: 9,
     maxCoins: 18,
-    guaranteedDropItemId: 'bogling_hide',
+    guaranteedDropItemId: 'ghoul_hide',
     rareDrop: { itemId: 'bog_pearl', chance: 1 / 1429 },
   },
   dust_revenant: {

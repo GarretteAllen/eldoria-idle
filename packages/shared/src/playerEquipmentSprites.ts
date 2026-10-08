@@ -22,6 +22,8 @@ export const PLAYER_EQUIPMENT_SPRITES: Record<string, EquipmentSpriteCoord> = {
   tunic_cloth: { col: 0, row: 1, slot: 'body' },
   leather_tunic: { col: 1, row: 1, slot: 'body' },
   pelt_jerkin: { col: 1, row: 1, slot: 'body' },
+  ghoulskin_tunic: { col: 1, row: 1, slot: 'body' },
+  bogskin_tunic: { col: 1, row: 1, slot: 'body' },
   dawnburn_plate: { col: 2, row: 1, slot: 'body' },
   cold_iron_plate: { col: 3, row: 1, slot: 'body' },
   steel_plate: { col: 4, row: 1, slot: 'body' },
@@ -32,6 +34,8 @@ export const PLAYER_EQUIPMENT_SPRITES: Record<string, EquipmentSpriteCoord> = {
   // Leg Armor (Row 2)
   tunic_pants: { col: 0, row: 2, slot: 'legs' },
   leather_chaps: { col: 1, row: 2, slot: 'legs' },
+  ghoulskin_chaps: { col: 1, row: 2, slot: 'legs' },
+  bogskin_chaps: { col: 1, row: 2, slot: 'legs' },
   dawnburn_legs: { col: 2, row: 2, slot: 'legs' },
   cold_iron_legs: { col: 3, row: 2, slot: 'legs' },
   steel_legs: { col: 4, row: 2, slot: 'legs' },
@@ -42,6 +46,8 @@ export const PLAYER_EQUIPMENT_SPRITES: Record<string, EquipmentSpriteCoord> = {
   // Helmets & Headgear (Row 3)
   wizard_hat: { col: 0, row: 3, slot: 'helmet' },
   ranger_hood: { col: 1, row: 3, slot: 'helmet' },
+  ghoulskin_hood: { col: 1, row: 3, slot: 'helmet' },
+  bogskin_hood: { col: 1, row: 3, slot: 'helmet' },
   steel_helm: { col: 2, row: 3, slot: 'helmet' },
   dawnburn_helm: { col: 3, row: 3, slot: 'helmet' },
   azurite_helm: { col: 4, row: 3, slot: 'helmet' },
@@ -116,6 +122,7 @@ export const PLAYER_EQUIPMENT_SPRITES: Record<string, EquipmentSpriteCoord> = {
   primordial_shield: { col: 5, row: 7, slot: 'shield' },
   leather_quiver: { col: 6, row: 7, slot: 'shield' },
   pelt_quiver: { col: 6, row: 7, slot: 'shield' },
+  ghoulskin_quiver: { col: 6, row: 7, slot: 'shield' },
   bogskin_quiver: { col: 6, row: 7, slot: 'shield' },
   chitin_quiver: { col: 6, row: 7, slot: 'shield' },
   fur_quiver: { col: 6, row: 7, slot: 'shield' },
@@ -128,6 +135,8 @@ export const PLAYER_EQUIPMENT_SPRITES: Record<string, EquipmentSpriteCoord> = {
   // Mounted Riding Legs (draped across horse flank, knee bent, boot in stirrup)
   mounted_tunic_pants: { col: 0, row: 8, slot: 'legs', pixelW: 27, pixelH: 23 },
   mounted_leather_chaps: { col: 2, row: 8, slot: 'legs', pixelW: 27, pixelH: 23 },
+  mounted_ghoulskin_chaps: { col: 2, row: 8, slot: 'legs', pixelW: 27, pixelH: 23 },
+  mounted_bogskin_chaps: { col: 2, row: 8, slot: 'legs', pixelW: 27, pixelH: 23 },
   mounted_dawnburn_legs: { col: 4, row: 8, slot: 'legs', pixelW: 27, pixelH: 23 },
   mounted_cold_iron_legs: { col: 6, row: 8, slot: 'legs', pixelW: 27, pixelH: 23 },
   mounted_steel_legs: { col: 8, row: 8, slot: 'legs', pixelW: 27, pixelH: 23 },

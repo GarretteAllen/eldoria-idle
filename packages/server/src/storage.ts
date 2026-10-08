@@ -753,21 +753,47 @@ class StorageManager {
         if (!slot) return;
         if (slot.itemId === 'pelt_jerkin') slot.itemId = 'leather_tunic';
         if (slot.itemId === 'pelt_quiver') slot.itemId = 'leather_quiver';
+        if (slot.itemId === 'bogling_hide') slot.itemId = 'ghoul_hide';
+        if (slot.itemId === 'bogskin_hood') slot.itemId = 'ghoulskin_hood';
+        if (slot.itemId === 'bogskin_tunic') slot.itemId = 'ghoulskin_tunic';
+        if (slot.itemId === 'bogskin_chaps') slot.itemId = 'ghoulskin_chaps';
+        if (slot.itemId === 'bogskin_quiver') slot.itemId = 'ghoulskin_quiver';
       };
       if (player.inventory) player.inventory.forEach(migrateSlot);
       if (player.storage) player.storage.forEach(migrateSlot);
       if (player.overflowTray) player.overflowTray.forEach(migrateSlot);
+      if (player.marketMailbox) {
+        player.marketMailbox.forEach((m: any) => {
+          if (m && m.itemId === 'bogling_hide') m.itemId = 'ghoul_hide';
+          if (m && m.itemId === 'bogskin_hood') m.itemId = 'ghoulskin_hood';
+          if (m && m.itemId === 'bogskin_tunic') m.itemId = 'ghoulskin_tunic';
+          if (m && m.itemId === 'bogskin_chaps') m.itemId = 'ghoulskin_chaps';
+          if (m && m.itemId === 'bogskin_quiver') m.itemId = 'ghoulskin_quiver';
+        });
+      }
       if (player.equipment) {
         if (player.equipment.body?.itemId === 'pelt_jerkin') player.equipment.body.itemId = 'leather_tunic';
         if (player.equipment.shield?.itemId === 'pelt_quiver') player.equipment.shield.itemId = 'leather_quiver';
+        if (player.equipment.helmet?.itemId === 'bogskin_hood') player.equipment.helmet.itemId = 'ghoulskin_hood';
+        if (player.equipment.body?.itemId === 'bogskin_tunic') player.equipment.body.itemId = 'ghoulskin_tunic';
+        if (player.equipment.legs?.itemId === 'bogskin_chaps') player.equipment.legs.itemId = 'ghoulskin_chaps';
+        if (player.equipment.shield?.itemId === 'bogskin_quiver') player.equipment.shield.itemId = 'ghoulskin_quiver';
       }
       if (player.currentTask) {
         if (player.currentTask.recipeId === 'craft_pelt_jerkin') player.currentTask.recipeId = 'craft_leather_tunic';
         if (player.currentTask.recipeId === 'fletch_pelt_quiver') player.currentTask.recipeId = 'fletch_leather_quiver';
+        if (player.currentTask.recipeId === 'craft_bogskin_hood') player.currentTask.recipeId = 'craft_ghoulskin_hood';
+        if (player.currentTask.recipeId === 'craft_bogskin_tunic') player.currentTask.recipeId = 'craft_ghoulskin_tunic';
+        if (player.currentTask.recipeId === 'craft_bogskin_chaps') player.currentTask.recipeId = 'craft_ghoulskin_chaps';
+        if (player.currentTask.recipeId === 'fletch_bogskin_quiver') player.currentTask.recipeId = 'fletch_ghoulskin_quiver';
       }
       if (player.bankReturnTask) {
         if (player.bankReturnTask.recipeId === 'craft_pelt_jerkin') player.bankReturnTask.recipeId = 'craft_leather_tunic';
         if (player.bankReturnTask.recipeId === 'fletch_pelt_quiver') player.bankReturnTask.recipeId = 'fletch_leather_quiver';
+        if (player.bankReturnTask.recipeId === 'craft_bogskin_hood') player.bankReturnTask.recipeId = 'craft_ghoulskin_hood';
+        if (player.bankReturnTask.recipeId === 'craft_bogskin_tunic') player.bankReturnTask.recipeId = 'craft_ghoulskin_tunic';
+        if (player.bankReturnTask.recipeId === 'craft_bogskin_chaps') player.bankReturnTask.recipeId = 'craft_ghoulskin_chaps';
+        if (player.bankReturnTask.recipeId === 'fletch_bogskin_quiver') player.bankReturnTask.recipeId = 'fletch_ghoulskin_quiver';
       }
       return player;
     } catch (err) {
@@ -1424,13 +1450,22 @@ class StorageManager {
   }
 
   // --- Marketplace Methods ---
+  private normalizeMarketItemId(id: string): string {
+    if (id === 'bogling_hide') return 'ghoul_hide';
+    if (id === 'bogskin_hood') return 'ghoulskin_hood';
+    if (id === 'bogskin_tunic') return 'ghoulskin_tunic';
+    if (id === 'bogskin_chaps') return 'ghoulskin_chaps';
+    if (id === 'bogskin_quiver') return 'ghoulskin_quiver';
+    return id;
+  }
+
   public getMarketListings(): MarketListing[] {
     const rows = this.stmtGetMarketListings.all() as any[];
     return rows.map(r => ({
       id: r.id,
       sellerId: r.seller_id,
       sellerName: r.seller_name,
-      itemId: r.item_id,
+      itemId: this.normalizeMarketItemId(r.item_id),
       quantity: r.quantity,
       unitPrice: r.unit_price,
       totalPrice: r.total_price,
@@ -1447,7 +1482,7 @@ class StorageManager {
       id: r.id,
       sellerId: r.seller_id,
       sellerName: r.seller_name,
-      itemId: r.item_id,
+      itemId: this.normalizeMarketItemId(r.item_id),
       quantity: r.quantity,
       unitPrice: r.unit_price,
       totalPrice: r.total_price,
