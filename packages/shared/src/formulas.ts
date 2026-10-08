@@ -555,6 +555,7 @@ export function simulateOfflineCatchUp(
     // Check if task finished its target quantity
     if (targetQuantity !== Infinity && player.currentTask.completedQuantity >= targetQuantity) {
       player.currentTask = null;
+      player.bankReturnTask = null;
       if (Array.isArray(player.taskQueue) && player.taskQueue.length > 0) {
         const next = player.taskQueue.shift()!;
         const mobId = next.monsterId || next.recipeId;

@@ -353,24 +353,41 @@ export class GameEngine {
       }
     } else if (player.bankingState === 'returning_to_work') {
       const targetTask = player.bankReturnTask || player.currentTask;
-      if (targetTask && typeof targetTask.targetNodeX === 'number' && typeof targetTask.targetNodeY === 'number') {
-        const dist = Math.hypot(player.x - targetTask.targetNodeX, player.y - targetTask.targetNodeY);
-        if (dist <= 1.5) {
-          player.bankingState = 'idle';
-          if (player.bankReturnTask) {
-            player.currentTask = player.bankReturnTask;
-            player.bankReturnTask = null;
+      if (targetTask) {
+        let destX: number | undefined = targetTask.targetNodeX;
+        let destY: number | undefined = targetTask.targetNodeY;
+        const rec = targetTask.recipeId ? RECIPES[targetTask.recipeId] : null;
+        if (rec) {
+          const resolved = this.resolveRecipeLocation(player, rec, targetTask.targetNodeX, targetTask.targetNodeY);
+          destX = resolved.nodeX;
+          destY = resolved.nodeY;
+          targetTask.targetNodeX = resolved.nodeX;
+          targetTask.targetNodeY = resolved.nodeY;
+          targetTask.standX = resolved.targetX;
+          targetTask.standY = resolved.targetY;
+        }
+
+        if (typeof destX === 'number' && typeof destY === 'number') {
+          const dist = Math.hypot(player.x - destX, player.y - destY);
+          if (dist <= 1.5) {
+            player.bankingState = 'idle';
+            if (player.bankReturnTask) {
+              player.currentTask = player.bankReturnTask;
+              player.bankReturnTask = null;
+            }
+            if (MONSTERS[player.currentTask?.recipeId || '']) {
+              this.resumeCombatSession(session, player.currentTask!.recipeId, destX, destY, targetTask.targetNodeId);
+            }
+          } else if (!player.isMoving || !player.path || player.path.length === 0) {
+            const adj = (typeof targetTask.standX === 'number' && typeof targetTask.standY === 'number' && !storage.isCollidable(targetTask.standX, targetTask.standY))
+              ? { x: targetTask.standX, y: targetTask.standY }
+              : this.getAdjacentWalkableTile(player.x, player.y, destX, destY);
+            const path = this.findPathWithCollisions(player.x, player.y, adj.x, adj.y);
+            player.targetX = adj.x;
+            player.targetY = adj.y;
+            player.path = path;
+            player.isMoving = path.length > 0;
           }
-          if (MONSTERS[player.currentTask?.recipeId || '']) {
-            this.resumeCombatSession(session, player.currentTask!.recipeId, targetTask.targetNodeX, targetTask.targetNodeY, targetTask.targetNodeId);
-          }
-        } else if (!player.isMoving || !player.path || player.path.length === 0) {
-          const adj = this.getAdjacentWalkableTile(player.x, player.y, targetTask.targetNodeX, targetTask.targetNodeY);
-          const path = this.findPathWithCollisions(player.x, player.y, adj.x, adj.y);
-          player.targetX = adj.x;
-          player.targetY = adj.y;
-          player.path = path;
-          player.isMoving = path.length > 0;
         }
       }
     } else if (player.bankReturnTask && !player.currentTask) {
@@ -3434,20 +3451,24 @@ export class GameEngine {
     let destY: number | undefined;
 
     if (player.bankReturnTask) {
-      const nodeX = player.bankReturnTask.targetNodeX;
-      const nodeY = player.bankReturnTask.targetNodeY;
-      const isStandOnNode = typeof nodeX === 'number' && typeof nodeY === 'number' && player.bankReturnTask.standX === nodeX && player.bankReturnTask.standY === nodeY;
-      if (!isStandOnNode && typeof player.bankReturnTask.standX === 'number' && typeof player.bankReturnTask.standY === 'number' && !storage.isCollidable(player.bankReturnTask.standX, player.bankReturnTask.standY)) {
-        destX = player.bankReturnTask.standX;
-        destY = player.bankReturnTask.standY;
-      } else if (typeof nodeX === 'number' && typeof nodeY === 'number') {
-        const adj = this.getAdjacentWalkableTile(player.x, player.y, nodeX, nodeY);
-        destX = adj.x;
-        destY = adj.y;
-      } else if (player.bankReturnTask.recipeId) {
-        const matching = storage.getWorldNodes().find(n => n.recipeId === player.bankReturnTask!.recipeId);
-        if (matching) {
-          const adj = this.getAdjacentWalkableTile(player.x, player.y, matching.x, matching.y);
+      const rec = player.bankReturnTask.recipeId ? RECIPES[player.bankReturnTask.recipeId] : null;
+      if (rec) {
+        const dest = this.resolveRecipeLocation(player, rec, player.bankReturnTask.targetNodeX, player.bankReturnTask.targetNodeY);
+        destX = dest.targetX;
+        destY = dest.targetY;
+        player.bankReturnTask.targetNodeX = dest.nodeX;
+        player.bankReturnTask.targetNodeY = dest.nodeY;
+        player.bankReturnTask.standX = dest.targetX;
+        player.bankReturnTask.standY = dest.targetY;
+      } else {
+        const nodeX = player.bankReturnTask.targetNodeX;
+        const nodeY = player.bankReturnTask.targetNodeY;
+        const isStandOnNode = typeof nodeX === 'number' && typeof nodeY === 'number' && player.bankReturnTask.standX === nodeX && player.bankReturnTask.standY === nodeY;
+        if (!isStandOnNode && typeof player.bankReturnTask.standX === 'number' && typeof player.bankReturnTask.standY === 'number' && !storage.isCollidable(player.bankReturnTask.standX, player.bankReturnTask.standY)) {
+          destX = player.bankReturnTask.standX;
+          destY = player.bankReturnTask.standY;
+        } else if (typeof nodeX === 'number' && typeof nodeY === 'number') {
+          const adj = this.getAdjacentWalkableTile(player.x, player.y, nodeX, nodeY);
           destX = adj.x;
           destY = adj.y;
         }
@@ -3455,11 +3476,22 @@ export class GameEngine {
     } else if (session.pendingTask || player.pendingTask) {
       const pending = session.pendingTask || player.pendingTask;
       if (pending) {
-        const nodeX = pending.nodeX ?? pending.targetX;
-        const nodeY = pending.nodeY ?? pending.targetY;
-        const adj = this.getAdjacentWalkableTile(player.x, player.y, nodeX, nodeY);
-        destX = adj.x;
-        destY = adj.y;
+        const rec = pending.recipeId ? RECIPES[pending.recipeId] : null;
+        if (rec) {
+          const dest = this.resolveRecipeLocation(player, rec, pending.nodeX, pending.nodeY);
+          destX = dest.targetX;
+          destY = dest.targetY;
+          pending.nodeX = dest.nodeX;
+          pending.nodeY = dest.nodeY;
+          pending.targetX = dest.targetX;
+          pending.targetY = dest.targetY;
+        } else {
+          const nodeX = pending.nodeX ?? pending.targetX;
+          const nodeY = pending.nodeY ?? pending.targetY;
+          const adj = this.getAdjacentWalkableTile(player.x, player.y, nodeX, nodeY);
+          destX = adj.x;
+          destY = adj.y;
+        }
       }
     }
 
@@ -4752,10 +4784,16 @@ export class GameEngine {
     const { player, ws } = session;
     if (!Array.isArray(player.taskQueue) || player.taskQueue.length === 0) {
       player.currentTask = null;
+      player.bankReturnTask = null;
+      player.bankingState = 'idle';
       storage.savePlayer(player);
       this.send(ws, { type: 'PLAYER_UPDATE', player });
       return false;
     }
+
+    // Clear any stale banking return task from the previous queued activity
+    player.bankReturnTask = null;
+    player.bankingState = 'idle';
 
     const next = player.taskQueue.shift()!;
     // If it's a monster combat task:
