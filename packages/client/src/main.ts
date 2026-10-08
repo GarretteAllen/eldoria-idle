@@ -181,6 +181,12 @@ class EldoriaClient {
     this.setupBestiary();
     this.setupItemTooltips();
     this.setupAfkSystem();
+
+    // On mobile devices, start with drawers closed so the world canvas is immediately playable
+    if (window.innerWidth <= 768) {
+      this.closeDrawer();
+    }
+
     this.fetchNodesAndInit();
   }
 
@@ -297,6 +303,28 @@ class EldoriaClient {
     const oldActionClose = document.getElementById('item-action-close-btn');
     if (oldActionClose) oldActionClose.innerHTML = ICONS.close;
     document.getElementById('away-close-btn')!.innerHTML = ICONS.close;
+
+    // Drawer Close Buttons
+    const skillsClose = document.getElementById('skills-drawer-close-btn');
+    if (skillsClose) {
+      skillsClose.innerHTML = ICONS.close;
+      skillsClose.onclick = () => this.closeDrawer();
+    }
+    const invClose = document.getElementById('inventory-drawer-close-btn');
+    if (invClose) {
+      invClose.innerHTML = ICONS.close;
+      invClose.onclick = () => this.closeDrawer();
+    }
+    const equipClose = document.getElementById('equipment-drawer-close-btn');
+    if (equipClose) {
+      equipClose.innerHTML = ICONS.close;
+      equipClose.onclick = () => this.closeDrawer();
+    }
+    const storageClose = document.getElementById('storage-drawer-close-btn');
+    if (storageClose) {
+      storageClose.innerHTML = ICONS.close;
+      storageClose.onclick = () => this.closeDrawer();
+    }
 
     const editorDrawerClose = document.getElementById('editor-drawer-close-btn');
     if (editorDrawerClose) editorDrawerClose.innerHTML = ICONS.close;
@@ -1660,6 +1688,27 @@ class EldoriaClient {
       this.sendWs({ type: 'MOVE_TO', x: hearth.x, y: hearth.y });
       this.openStorageModal();
     };
+  }
+
+  private closeDrawer() {
+    const drawers = [
+      document.getElementById('skills-drawer'),
+      document.getElementById('inventory-drawer'),
+      document.getElementById('equipment-drawer'),
+      document.getElementById('storage-drawer'),
+      document.getElementById('admin-editor-drawer'),
+    ];
+    drawers.forEach(d => d?.classList.add('hidden'));
+
+    const popup = document.getElementById('skill-job-popup');
+    if (popup) popup.classList.add('hidden');
+    this.isPopupOpen = false;
+
+    const buttons = document.querySelectorAll('.tool-btn');
+    buttons.forEach(b => {
+      if (b.getAttribute('data-panel') !== 'chat') b.classList.remove('active');
+    });
+    this.activeDrawer = null;
   }
 
   private switchDrawer(drawer: 'skills' | 'inventory' | 'equipment' | 'storage' | 'editor') {

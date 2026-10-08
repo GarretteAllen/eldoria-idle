@@ -2184,10 +2184,12 @@ body, html {
    11. RESPONSIVE MOBILE & TABLET LAYOUTS
    ======================================================== */
 @media (max-width: 768px) {
-  /* 1. TOP BAR COMPACTING */
+  /* 1. TOP BAR COMPACTING & SAFE AREA */
   #top-bar {
-    padding: 0 6px;
-    height: 34px;
+    padding-left: max(6px, env(safe-area-inset-left));
+    padding-right: max(6px, env(safe-area-inset-right));
+    padding-top: env(safe-area-inset-top, 0px);
+    height: calc(34px + env(safe-area-inset-top, 0px));
   }
   .online-indicator {
     display: none !important;
@@ -2239,58 +2241,79 @@ body, html {
     font-size: 0.68rem;
   }
 
-  /* 2. BOTTOM TOOLBAR NAVIGATION (OSRS-Style Thumb Bar) */
+  /* 2. BOTTOM TOOLBAR NAVIGATION (OSRS-Style Thumb Bar with iOS Home Bar Safe Area) */
   #right-toolbar {
-    top: auto;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    width: 100%;
-    height: 48px;
-    flex-direction: row;
-    justify-content: space-around;
-    align-items: center;
-    padding: 0 4px;
-    border-left: none;
-    border-top: 1px solid var(--border-oak);
-    box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.7);
-    background: #150f0a;
-    z-index: 100;
+    top: auto !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    width: 100% !important;
+    height: calc(52px + env(safe-area-inset-bottom, 0px)) !important;
+    flex-direction: row !important;
+    justify-content: space-around !important;
+    align-items: flex-start !important;
+    padding-top: 5px !important;
+    padding-left: max(6px, env(safe-area-inset-left)) !important;
+    padding-right: max(6px, env(safe-area-inset-right)) !important;
+    padding-bottom: max(5px, env(safe-area-inset-bottom, 0px)) !important;
+    border-left: none !important;
+    border-top: 1px solid var(--border-oak) !important;
+    box-shadow: 0 -3px 12px rgba(0, 0, 0, 0.85) !important;
+    background: #140d07 !important;
+    z-index: 100 !important;
   }
   .tool-btn {
-    width: 38px;
-    height: 38px;
-    padding: 6px;
-    border-radius: 6px;
+    width: 40px !important;
+    height: 40px !important;
+    padding: 6px !important;
+    border-radius: 6px !important;
+    background: #23160d !important;
   }
   .tool-btn svg,
   .tool-btn .lucide-icon {
-    width: 20px;
-    height: 20px;
+    width: 22px !important;
+    height: 22px !important;
   }
 
-  /* 3. DRAWERS & POPUPS ABOVE BOTTOM BAR */
+  /* 3. DRAWERS & POPUPS ABOVE BOTTOM BAR & SAFE AREAS */
   .drawer-panel {
-    top: 38px;
-    left: 8px;
-    right: 8px;
-    bottom: 54px;
-    width: auto;
-    max-width: 420px;
-    margin: 0 auto;
-    border-radius: 8px;
-    z-index: 95;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.85);
+    top: calc(38px + env(safe-area-inset-top, 0px)) !important;
+    left: max(8px, env(safe-area-inset-left)) !important;
+    right: max(8px, env(safe-area-inset-right)) !important;
+    bottom: calc(58px + env(safe-area-inset-bottom, 0px)) !important;
+    width: auto !important;
+    max-width: 440px !important;
+    margin: 0 auto !important;
+    border-radius: 8px !important;
+    z-index: 95 !important;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.9) !important;
+  }
+  .drawer-close-btn {
+    display: inline-flex !important;
+    width: 24px;
+    height: 24px;
+    background: #2a1a0e;
+    border: 1px solid var(--border-oak);
+    border-radius: 4px;
+    color: var(--text-dim);
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 14px;
+  }
+  .drawer-close-btn:hover {
+    color: #fff;
+    border-color: var(--gold-main);
   }
   .popup-panel {
-    top: 38px;
-    left: 8px;
-    right: 8px;
-    bottom: 54px;
-    width: auto;
-    max-width: 420px;
-    margin: 0 auto;
-    z-index: 96;
+    top: calc(38px + env(safe-area-inset-top, 0px)) !important;
+    left: max(8px, env(safe-area-inset-left)) !important;
+    right: max(8px, env(safe-area-inset-right)) !important;
+    bottom: calc(58px + env(safe-area-inset-bottom, 0px)) !important;
+    width: auto !important;
+    max-width: 440px !important;
+    margin: 0 auto !important;
+    z-index: 96 !important;
   }
   .drawer-footer {
     padding: 6px 8px;
@@ -2305,11 +2328,11 @@ body, html {
 
   /* 4. LEFT HUD CARDS & CHAT STACKING */
   .left-cards-stack {
-    top: 38px;
-    left: 6px;
-    width: min(280px, calc(100vw - 12px));
-    gap: 6px;
-    z-index: 45;
+    top: calc(38px + env(safe-area-inset-top, 0px)) !important;
+    left: max(6px, env(safe-area-inset-left)) !important;
+    width: min(280px, calc(100vw - 12px)) !important;
+    gap: 6px !important;
+    z-index: 45 !important;
   }
   .parchment-card {
     padding: 5px 8px;
@@ -2318,16 +2341,16 @@ body, html {
     font-size: 0.82rem;
   }
   .dark-oak-card {
-    bottom: 54px;
-    left: 6px;
-    width: min(320px, calc(100vw - 12px));
-    max-height: 210px;
-    z-index: 46;
+    bottom: calc(58px + env(safe-area-inset-bottom, 0px)) !important;
+    left: max(6px, env(safe-area-inset-left)) !important;
+    width: min(320px, calc(100vw - 12px)) !important;
+    max-height: 210px !important;
+    z-index: 46 !important;
   }
 
   /* 5. COMBAT HUD ON MOBILE */
   .combat-encounter-hud {
-    top: 38px;
+    top: calc(38px + env(safe-area-inset-top, 0px)) !important;
     width: calc(100vw - 16px);
     max-width: 360px;
     padding: 4px 8px;
@@ -2335,9 +2358,9 @@ body, html {
 
   /* 6. RADAR / MINIMAP COMPACTNESS */
   .minimap-card {
-    top: 38px;
-    right: 6px;
-    z-index: 40;
+    top: calc(38px + env(safe-area-inset-top, 0px)) !important;
+    right: max(6px, env(safe-area-inset-right)) !important;
+    z-index: 40 !important;
   }
   .minimap-body canvas {
     width: 100px;
@@ -2348,7 +2371,7 @@ body, html {
   .dv-storage-container {
     width: 96vw;
     max-width: 96vw;
-    max-height: 90vh;
+    max-height: calc(100vh - 40px - env(safe-area-inset-bottom, 0px));
     overflow-y: auto;
     padding: 10px;
     margin: auto;
@@ -2396,7 +2419,7 @@ body, html {
   .world-map-card {
     width: 96vw !important;
     max-width: 96vw !important;
-    max-height: 90vh;
+    max-height: calc(100vh - 40px - env(safe-area-inset-bottom, 0px));
     padding: 10px;
   }
   .bestiary-grid {
@@ -2407,8 +2430,9 @@ body, html {
 /* Compact phones (Portrait mode <= 480px) */
 @media (max-width: 480px) {
   #top-bar {
-    height: 32px;
-    padding: 0 4px;
+    height: calc(32px + env(safe-area-inset-top, 0px));
+    padding-left: max(4px, env(safe-area-inset-left));
+    padding-right: max(4px, env(safe-area-inset-right));
   }
   .brand-name {
     display: none;
@@ -2432,13 +2456,13 @@ body, html {
   }
   .drawer-panel,
   .popup-panel {
-    left: 4px;
-    right: 4px;
+    left: max(4px, env(safe-area-inset-left)) !important;
+    right: max(4px, env(safe-area-inset-right)) !important;
   }
 }
 
-/* Compact scaling for shorter vertical displays (laptops, rotated phones, split-screen) */
-@media (max-height: 720px) {
+/* Compact desktop/laptop scaling for shorter vertical displays (only when NOT on mobile) */
+@media (min-width: 769px) and (max-height: 720px) {
   #right-toolbar {
     padding: 4px 0;
     gap: 4px;
@@ -2475,7 +2499,7 @@ body, html {
   }
 }
 
-@media (max-height: 560px) {
+@media (min-width: 769px) and (max-height: 560px) {
   #right-toolbar {
     padding: 2px 0;
     gap: 2px;

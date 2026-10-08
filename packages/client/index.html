@@ -298,7 +298,10 @@
       <div id="skills-drawer" class="drawer-panel dark-oak-panel open">
         <div class="drawer-header">
           <h3>Skills</h3>
-          <span class="total-rank-label">total <span id="skills-total-badge">16</span></span>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span class="total-rank-label">total <span id="skills-total-badge">16</span></span>
+            <button id="skills-drawer-close-btn" class="icon-btn-micro drawer-close-btn" title="Close Skills"></button>
+          </div>
         </div>
         <div class="drawer-body">
           <div class="skill-category">
@@ -371,7 +374,10 @@
       <div id="inventory-drawer" class="drawer-panel dark-oak-panel hidden">
         <div class="drawer-header">
           <h3>Inventory</h3>
-          <span class="total-rank-label"><span id="inv-count">0</span>/28</span>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span class="total-rank-label"><span id="inv-count">0</span>/28</span>
+            <button id="inventory-drawer-close-btn" class="icon-btn-micro drawer-close-btn" title="Close Inventory"></button>
+          </div>
         </div>
         <div class="drawer-body">
           <div id="inventory-grid" class="rpg-item-grid"></div>
@@ -386,6 +392,7 @@
       <div id="equipment-drawer" class="drawer-panel dark-oak-panel hidden">
         <div class="drawer-header">
           <h3>Worn Equipment & Toolbelt</h3>
+          <button id="equipment-drawer-close-btn" class="icon-btn-micro drawer-close-btn" title="Close Equipment"></button>
         </div>
         <div class="drawer-body">
           <div class="combat-stats-panel">
@@ -433,7 +440,10 @@
       <div id="storage-drawer" class="drawer-panel dark-oak-panel hidden">
         <div class="drawer-header">
           <h3>The Hearth Reliquary</h3>
-          <span class="total-rank-label"><span id="storage-count">0</span>/75</span>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span class="total-rank-label"><span id="storage-count">0</span>/75</span>
+            <button id="storage-drawer-close-btn" class="icon-btn-micro drawer-close-btn" title="Close Storage"></button>
+          </div>
         </div>
         <div class="drawer-body">
           <div style="margin-bottom: 10px;">
