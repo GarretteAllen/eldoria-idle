@@ -2669,7 +2669,6 @@ class EldoriaClient {
 
       if (slot) {
         const def = ITEMS[slot.itemId];
-        const name = def ? def.name : slot.itemId;
         if (slot.rarity && slot.rarity !== 'plain') {
           slotEl.classList.add(`rarity-${slot.rarity}`);
         }
@@ -2680,8 +2679,8 @@ class EldoriaClient {
           ${iconSvg}
           <span class="item-qty">${slot.quantity > 1 ? qtyFormatted : ''}</span>
         `;
-        slotEl.title = `${name} (${slot.rarity || 'plain'})\nClick for actions`;
-        this.attachItemTooltip(slotEl, slot);
+        slotEl.removeAttribute('title');
+        this.attachItemTooltip(slotEl, slot, undefined, 'Click for actions');
         slotEl.addEventListener('click', (e: MouseEvent) => {
           e.stopPropagation();
           this.openItemContextMenu(i, e);
@@ -2899,8 +2898,8 @@ class EldoriaClient {
           </div>
           <button class="btn-oak" style="padding:2px 8px; font-size:0.68rem; height:22px;">Unequip</button>
         `;
-        div.title = `${def?.name || itemSlot.itemId}\nClick to unequip into satchel`;
-        this.attachItemTooltip(div, itemSlot, slotDef.key);
+        div.removeAttribute('title');
+        this.attachItemTooltip(div, itemSlot, slotDef.key, 'Click to unequip into satchel');
         div.onclick = () => {
           this.sendWs({ type: 'UNEQUIP_ITEM', slot: slotDef.key });
         };
@@ -2975,8 +2974,8 @@ class EldoriaClient {
             </div>
             <button class="btn-oak" style="padding:2px 8px; font-size:0.68rem; height:22px;">Unequip</button>
           `;
-          div.title = `${def?.name || itemSlot.itemId} (${speedBonus})\nClick to unequip into satchel`;
-          this.attachItemTooltip(div, itemSlot, actualSlotKey);
+          div.removeAttribute('title');
+          this.attachItemTooltip(div, itemSlot, actualSlotKey, 'Click to unequip into satchel');
           div.onclick = () => {
             this.sendWs({ type: 'UNEQUIP_ITEM', slot: actualSlotKey });
           };
@@ -3023,10 +3022,11 @@ class EldoriaClient {
         ${iconSvg}
         <span class="item-qty">${qtyFormatted}</span>
       `;
-      div.title = isNearHearth 
-        ? `${def?.name || slot.itemId} (x${slot.quantity.toLocaleString()}). Click to withdraw into satchel` 
-        : `${def?.name || slot.itemId} (x${slot.quantity.toLocaleString()}). Travel to Hearth to withdraw`;
-      this.attachItemTooltip(div, slot);
+      div.removeAttribute('title');
+      const actionHint = isNearHearth
+        ? 'Click to withdraw into satchel'
+        : 'Travel to Hearth to withdraw';
+      this.attachItemTooltip(div, slot, undefined, actionHint);
       div.onclick = () => {
         if (!isNearHearth) {
           this.sendWs({ type: 'MOVE_TO', x: hearth.x, y: hearth.y });
@@ -3438,8 +3438,9 @@ class EldoriaClient {
           ${iconSvg}
           <span class="dv-slot-qty">${qtyFormatted}</span>
         `;
-        div.title = `${def?.name || slot.itemId} (x${slot.quantity.toLocaleString()}). Click to withdraw ${this.selectedTransferAmount === 'all' ? 'all' : this.selectedTransferAmount}`;
-        this.attachItemTooltip(div, slot);
+        div.removeAttribute('title');
+        const transferQty = this.selectedTransferAmount === 'all' ? 'all' : this.selectedTransferAmount;
+        this.attachItemTooltip(div, slot, undefined, `Click to withdraw ${transferQty}`);
 
         div.onclick = () => {
           if (!isNearHearth) {
@@ -3497,8 +3498,9 @@ class EldoriaClient {
             ${iconSvg}
             <span class="dv-slot-qty">${qtyFormatted}</span>
           `;
-          div.title = `${def?.name || slot.itemId} (x${slot.quantity.toLocaleString()}). Click to deposit ${this.selectedTransferAmount === 'all' ? 'all' : this.selectedTransferAmount}`;
-          this.attachItemTooltip(div, slot);
+          div.removeAttribute('title');
+          const transferQty = this.selectedTransferAmount === 'all' ? 'all' : this.selectedTransferAmount;
+          this.attachItemTooltip(div, slot, undefined, `Click to deposit ${transferQty}`);
 
           const index = i;
           div.onclick = () => {
@@ -3598,8 +3600,8 @@ class EldoriaClient {
           ${iconSvg}
           <span class="dv-slot-qty">${qtyFormatted}</span>
         `;
-        div.title = `${def?.name || slot.itemId} (x${slot.quantity}). Click to sell for ${totalPrice.toLocaleString()} Gold (${pricePerUnit} each)`;
-        this.attachItemTooltip(div, slot);
+        div.removeAttribute('title');
+        this.attachItemTooltip(div, slot, undefined, `Click to sell for ${totalPrice.toLocaleString()} Gold (${pricePerUnit} each)`);
 
         const index = i;
         div.onclick = () => {
@@ -3703,7 +3705,7 @@ class EldoriaClient {
           itemCell.className = `dv-mkt-item-cell ${rarityClass}`;
           itemCell.innerHTML = `
             ${iconSvg}
-            <span class="dv-mkt-item-name" title="${itemDef?.name || listing.itemId}">${itemDef?.name || listing.itemId}${plusLabel}</span>
+            <span class="dv-mkt-item-name">${itemDef?.name || listing.itemId}${plusLabel}</span>
           `;
 
           const qtyCell = document.createElement('div');
@@ -3789,8 +3791,8 @@ class EldoriaClient {
             ${iconSvg}
             <span class="dv-slot-qty">${qtyFormatted}</span>
           `;
-          div.title = `${def?.name || slot.itemId} (x${slot.quantity}). Click to create a marketplace listing.`;
-          this.attachItemTooltip(div, slot);
+          div.removeAttribute('title');
+          this.attachItemTooltip(div, slot, undefined, 'Click to create a marketplace listing');
 
           const index = i;
           div.onclick = () => {
@@ -5070,7 +5072,12 @@ class EldoriaClient {
     });
   }
 
-  private attachItemTooltip(el: HTMLElement, slot: { itemId: string; rarity?: string; plus?: number } | null, equipSlotType?: EquipSlot) {
+  private attachItemTooltip(
+    el: HTMLElement,
+    slot: { itemId: string; rarity?: string; plus?: number } | null,
+    equipSlotType?: EquipSlot,
+    actionHint?: string
+  ) {
     if (!slot) return;
     const def = ITEMS[slot.itemId];
     if (!def) return;
@@ -5084,6 +5091,7 @@ class EldoriaClient {
       const statsListEl = document.getElementById('tooltip-stats');
       const compEl = document.getElementById('tooltip-comparison');
       const flavorEl = document.getElementById('tooltip-flavor');
+      const actionEl = document.getElementById('tooltip-action');
 
       const rarityColor = slot.rarity === 'legendary' ? '#f59e0b' :
                           slot.rarity === 'epic' ? '#a855f7' :
@@ -5182,6 +5190,16 @@ class EldoriaClient {
           flavorEl.textContent = 'Cooked food. Restores health when eaten.';
         } else {
           flavorEl.textContent = '';
+        }
+      }
+
+      if (actionEl) {
+        if (actionHint) {
+          actionEl.textContent = actionHint;
+          actionEl.classList.remove('hidden');
+        } else {
+          actionEl.textContent = '';
+          actionEl.classList.add('hidden');
         }
       }
 
