@@ -321,21 +321,22 @@ export function isItemStackable(item?: ItemDefinition, location: StackingLocatio
 
   if (isBank) {
     if (item.stackableInBank !== undefined) return item.stackableInBank;
-  } else {
-    if (item.stackableInInventory !== undefined) return item.stackableInInventory;
+    // All items stack in Hearth vault / bank by default
+    return true;
   }
 
+  if (item.stackableInInventory !== undefined) return item.stackableInInventory;
+
   if (item.stackable !== undefined) {
-    if (!item.stackable) return isBank ? true : false;
     return item.stackable;
   }
 
-  // Cooked food stacks in bank, but occupies 1 slot per item in inventory
+  // Cooked food occupies 1 slot per item in inventory
   if (item.category === 'cooked_food') {
-    return isBank;
+    return false;
   }
 
-  // Non-stackable by default: weapon, armour, tool, steed
+  // Non-stackable by default in satchel inventory: weapon, armour, tool, steed
   if (['weapon', 'armour', 'tool', 'steed'].includes(item.category)) {
     return false;
   }

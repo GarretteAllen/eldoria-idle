@@ -1995,6 +1995,35 @@ export class GameEngine {
 
   private handleSortStorage(session: ConnectedSession) {
     const { player, ws } = session;
+
+    // Consolidate identical stackable items in storage
+    const consolidatedStorage: InventorySlot[] = [];
+    for (const slot of player.storage) {
+      const def = storage.getItem(slot.itemId) || ITEMS[slot.itemId];
+      const isStack = isItemStackable(def, 'bank');
+      const maxStack = getItemMaxStack(def, 'bank');
+      let remaining = slot.quantity;
+      if (isStack) {
+        for (const target of consolidatedStorage) {
+          if (
+            target.itemId === slot.itemId &&
+            (target.rarity || 'plain') === (slot.rarity || 'plain') &&
+            (target.plus || 0) === (slot.plus || 0) &&
+            target.quantity < maxStack
+          ) {
+            const canAdd = Math.min(remaining, maxStack - target.quantity);
+            target.quantity += canAdd;
+            remaining -= canAdd;
+            if (remaining <= 0) break;
+          }
+        }
+      }
+      if (remaining > 0) {
+        consolidatedStorage.push({ ...slot, quantity: remaining });
+      }
+    }
+    player.storage = consolidatedStorage;
+
     const categoryOrder: Record<string, number> = {
       tool: 1, weapon: 2, shield: 3, armor: 4, bar: 5, ore: 6,
       log: 7, cooked_food: 8, raw_food: 9, crop: 10, seed: 11,

@@ -3,7 +3,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import Database from 'better-sqlite3';
-import { PlayerData, SkillType, WorldNode, NpcDefinition, QuestDefinition, MonsterSpawnZone, getLevelFromXp, ItemDefinition, ITEMS, LevelBounds, parseLdtkLevelBounds, isTileInAnyLevel, InventorySlot, MarketListing, ChangelogEntry, StoredChatMessage } from '@eldoria/shared';
+import { PlayerData, SkillType, WorldNode, NpcDefinition, QuestDefinition, MonsterSpawnZone, getLevelFromXp, ItemDefinition, ITEMS, LevelBounds, parseLdtkLevelBounds, isTileInAnyLevel, InventorySlot, MarketListing, ChangelogEntry, StoredChatMessage, isItemStackable, getItemMaxStack } from '@eldoria/shared';
 import { WORLD_NODES as DEFAULT_WORLD_NODES } from './world.js';
 
 export const DEFAULT_MONSTER_ZONES: MonsterSpawnZone[] = [
@@ -795,6 +795,37 @@ class StorageManager {
         if (player.bankReturnTask.recipeId === 'craft_bogskin_chaps') player.bankReturnTask.recipeId = 'craft_ghoulskin_chaps';
         if (player.bankReturnTask.recipeId === 'fletch_bogskin_quiver') player.bankReturnTask.recipeId = 'fletch_ghoulskin_quiver';
       }
+
+      // Auto-consolidate stackable items in Hearth vault storage
+      if (player.storage && player.storage.length > 0) {
+        const consolidatedStorage: InventorySlot[] = [];
+        for (const slot of player.storage) {
+          const def = this.itemsCache[slot.itemId] || ITEMS[slot.itemId];
+          const isStack = isItemStackable(def, 'bank');
+          const maxStack = getItemMaxStack(def, 'bank');
+          let remaining = slot.quantity;
+          if (isStack) {
+            for (const target of consolidatedStorage) {
+              if (
+                target.itemId === slot.itemId &&
+                (target.rarity || 'plain') === (slot.rarity || 'plain') &&
+                (target.plus || 0) === (slot.plus || 0) &&
+                target.quantity < maxStack
+              ) {
+                const canAdd = Math.min(remaining, maxStack - target.quantity);
+                target.quantity += canAdd;
+                remaining -= canAdd;
+                if (remaining <= 0) break;
+              }
+            }
+          }
+          if (remaining > 0) {
+            consolidatedStorage.push({ ...slot, quantity: remaining });
+          }
+        }
+        player.storage = consolidatedStorage;
+      }
+
       return player;
     } catch (err) {
       console.error('SQLite getPlayer error', err);
