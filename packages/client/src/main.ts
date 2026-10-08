@@ -89,7 +89,7 @@ class EldoriaClient {
   private monsterZones: MonsterSpawnZone[] = [];
 
   // Deep Vein UI State
-  private activeDrawer: 'skills' | 'inventory' | 'equipment' | 'storage' | 'editor' = 'skills';
+  private activeDrawer: 'skills' | 'inventory' | 'equipment' | 'storage' | 'editor' | null = 'skills';
   private selectedSkillKey: SkillType = 'mining';
   private selectedRecipeId: string = 'mine_pyrite';
   private selectedSkillCategory: string | null = null;
@@ -1631,10 +1631,21 @@ class EldoriaClient {
           return;
         }
 
-        buttons.forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-
         if (panel === 'skills' || panel === 'inventory' || panel === 'equipment') {
+          // If on mobile/small display and tapping currently active open drawer, toggle it closed
+          const targetDrawerEl = document.getElementById(`${panel}-drawer`);
+          const isCurrentlyVisible = targetDrawerEl && !targetDrawerEl.classList.contains('hidden');
+          const isMobile = window.innerWidth <= 768;
+
+          if (isMobile && isCurrentlyVisible && this.activeDrawer === panel) {
+            targetDrawerEl.classList.add('hidden');
+            buttons.forEach(b => b.classList.remove('active'));
+            this.activeDrawer = null;
+            return;
+          }
+
+          buttons.forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
           this.switchDrawer(panel);
         }
       });

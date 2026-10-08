@@ -2184,50 +2184,256 @@ body, html {
    11. RESPONSIVE MOBILE & TABLET LAYOUTS
    ======================================================== */
 @media (max-width: 768px) {
+  /* 1. TOP BAR COMPACTING */
   #top-bar {
     padding: 0 6px;
-    height: 32px;
+    height: 34px;
   }
   .online-indicator {
-    display: none;
+    display: none !important;
+  }
+  #btn-top-logout {
+    padding: 2px 6px;
+    font-size: 0.68rem;
   }
   .currencies {
     gap: 4px;
+    margin-left: 0;
   }
-  .parchment-card {
-    top: 36px;
-    left: 6px;
-    width: calc(100vw - 52px);
-    max-width: 280px;
+  .currency-chip {
+    padding: 1px 4px;
+    font-size: 0.68rem;
+    gap: 3px;
   }
-  .dark-oak-card {
-    bottom: 6px;
-    left: 6px;
-    width: calc(100vw - 52px);
-    max-width: 310px;
+  .stat-badge {
+    padding: 1px 4px;
+    height: 20px;
+    font-size: 0.65rem;
   }
+  .hp-bar-pill {
+    padding: 1px 4px;
+    height: 20px;
+  }
+  .hp-bar-track {
+    width: 36px;
+    height: 10px;
+  }
+  #hp-text {
+    font-size: 0.55rem;
+  }
+  .speed-pill {
+    padding: 1px 4px;
+    height: 20px;
+    font-size: 0.65rem;
+  }
+  .top-right {
+    gap: 4px;
+  }
+  .top-util-btn {
+    width: 24px;
+    height: 24px;
+  }
+  .sound-pill-btn {
+    height: 22px;
+    padding: 0 5px;
+    font-size: 0.68rem;
+  }
+
+  /* 2. BOTTOM TOOLBAR NAVIGATION (OSRS-Style Thumb Bar) */
+  #right-toolbar {
+    top: auto;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    height: 48px;
+    flex-direction: row;
+    justify-content: space-around;
+    align-items: center;
+    padding: 0 4px;
+    border-left: none;
+    border-top: 1px solid var(--border-oak);
+    box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.7);
+    background: #150f0a;
+    z-index: 100;
+  }
+  .tool-btn {
+    width: 38px;
+    height: 38px;
+    padding: 6px;
+    border-radius: 6px;
+  }
+  .tool-btn svg,
+  .tool-btn .lucide-icon {
+    width: 20px;
+    height: 20px;
+  }
+
+  /* 3. DRAWERS & POPUPS ABOVE BOTTOM BAR */
   .drawer-panel {
-    top: 36px;
-    right: 42px;
-    width: calc(100vw - 48px);
-    max-width: 320px;
-    bottom: 6px;
+    top: 38px;
+    left: 8px;
+    right: 8px;
+    bottom: 54px;
+    width: auto;
+    max-width: 420px;
+    margin: 0 auto;
+    border-radius: 8px;
+    z-index: 95;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.85);
   }
   .popup-panel {
-    top: 36px;
-    right: 42px;
-    width: calc(100vw - 48px);
-    max-width: 310px;
-    z-index: 86;
+    top: 38px;
+    left: 8px;
+    right: 8px;
+    bottom: 54px;
+    width: auto;
+    max-width: 420px;
+    margin: 0 auto;
+    z-index: 96;
   }
   .drawer-footer {
     padding: 6px 8px;
     gap: 4px;
   }
   .drawer-footer > .btn-oak {
-    font-size: 0.72rem;
-    padding: 5px 3px;
+    font-size: 0.75rem;
+    padding: 6px 4px;
+    gap: 4px;
+    min-height: 32px;
+  }
+
+  /* 4. LEFT HUD CARDS & CHAT STACKING */
+  .left-cards-stack {
+    top: 38px;
+    left: 6px;
+    width: min(280px, calc(100vw - 12px));
+    gap: 6px;
+    z-index: 45;
+  }
+  .parchment-card {
+    padding: 5px 8px;
+  }
+  .tasks-card-header {
+    font-size: 0.82rem;
+  }
+  .dark-oak-card {
+    bottom: 54px;
+    left: 6px;
+    width: min(320px, calc(100vw - 12px));
+    max-height: 210px;
+    z-index: 46;
+  }
+
+  /* 5. COMBAT HUD ON MOBILE */
+  .combat-encounter-hud {
+    top: 38px;
+    width: calc(100vw - 16px);
+    max-width: 360px;
+    padding: 4px 8px;
+  }
+
+  /* 6. RADAR / MINIMAP COMPACTNESS */
+  .minimap-card {
+    top: 38px;
+    right: 6px;
+    z-index: 40;
+  }
+  .minimap-body canvas {
+    width: 100px;
+    height: 100px;
+  }
+
+  /* 7. HEARTH VAULT & VENDOR STORAGE MODAL RESPONSIVENESS */
+  .dv-storage-container {
+    width: 96vw;
+    max-width: 96vw;
+    max-height: 90vh;
+    overflow-y: auto;
+    padding: 10px;
+    margin: auto;
+  }
+  .dv-storage-grid {
+    grid-template-columns: repeat(6, 1fr) !important;
+    max-height: 210px;
     gap: 3px;
+  }
+  .dv-carrying-grid {
+    grid-template-columns: repeat(7, 1fr) !important;
+    gap: 3px;
+  }
+  .dv-storage-subbar {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .dv-filter-box {
+    width: 100%;
+    order: 1;
+  }
+  .dv-subbar-actions {
+    width: 100%;
+    justify-content: space-between;
+    order: 2;
+  }
+  .dv-amount-bar {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .dv-market-listings-header,
+  .dv-market-listing-row {
+    grid-template-columns: 2fr 0.8fr 1fr 1fr;
+    font-size: 0.72rem;
+  }
+  .dv-market-listings-header div:nth-child(4),
+  .dv-market-listings-header div:nth-child(5),
+  .dv-market-listing-row div:nth-child(4),
+  .dv-market-listing-row div:nth-child(5) {
+    display: none;
+  }
+
+  /* 8. BESTIARY & WORLD ATLAS ON MOBILE */
+  .bestiary-card,
+  .world-map-card {
+    width: 96vw !important;
+    max-width: 96vw !important;
+    max-height: 90vh;
+    padding: 10px;
+  }
+  .bestiary-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* Compact phones (Portrait mode <= 480px) */
+@media (max-width: 480px) {
+  #top-bar {
+    height: 32px;
+    padding: 0 4px;
+  }
+  .brand-name {
+    display: none;
+  }
+  .currency-chip.gems,
+  .currency-chip.anima {
+    display: none;
+  }
+  #speed-chip {
+    display: none;
+  }
+  .character-pill {
+    padding: 1px 4px;
+    font-size: 0.68rem;
+  }
+  .dv-storage-grid {
+    grid-template-columns: repeat(5, 1fr) !important;
+  }
+  .dv-carrying-grid {
+    grid-template-columns: repeat(7, 1fr) !important;
+  }
+  .drawer-panel,
+  .popup-panel {
+    left: 4px;
+    right: 4px;
   }
 }
 
