@@ -513,12 +513,25 @@
 
           <!-- Vendor Tab Content Area -->
           <div id="dv-vendor-tab-view" class="hidden">
-            <div class="dv-vendor-info">
-              <p style="margin: 6px 0; font-size: 0.8rem; color: #d8c8b8;">Click any item in your satchel below to sell it for merchant gold.</p>
+            <!-- Purchase Goods Section -->
+            <div class="dv-vendor-section">
+              <div class="dv-vendor-section-header" style="font-weight: 700; font-size: 0.85rem; color: var(--gold-bright); margin-bottom: 6px; display: flex; align-items: center; justify-content: space-between;">
+                <span>Purchase Goods</span>
+                <span style="font-size: 0.72rem; color: #a0aec0;">Merchant Wares</span>
+              </div>
+              <div id="dv-vendor-goods-list" class="dv-vendor-goods-list" style="display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px;"></div>
             </div>
-            <div id="dv-vendor-carrying-grid" class="dv-item-grid dv-carrying-grid" style="margin-top: 10px;"></div>
-            <div class="dv-vendor-footer" style="margin-top: 14px;">
-              <button id="dv-btn-sell-all-junk" class="dv-btn-deposit-primary" style="width: 100%;">Sell All Common Spoils</button>
+
+            <!-- Sell Items Section -->
+            <div class="dv-vendor-section">
+              <div class="dv-vendor-section-header" style="font-weight: 700; font-size: 0.85rem; color: #e2e8f0; margin-bottom: 4px; display: flex; align-items: center; justify-content: space-between;">
+                <span>Sell Spoils</span>
+                <span style="font-size: 0.72rem; color: #a0aec0;">Click an item to sell</span>
+              </div>
+              <div id="dv-vendor-carrying-grid" class="dv-item-grid dv-carrying-grid" style="margin-top: 6px;"></div>
+              <div class="dv-vendor-footer" style="margin-top: 10px;">
+                <button id="dv-btn-sell-all-junk" class="dv-btn-deposit-primary" style="width: 100%;">Sell All Common Spoils</button>
+              </div>
             </div>
           </div>
 

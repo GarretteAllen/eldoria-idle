@@ -34,6 +34,7 @@ import {
   MarketListing,
   MarketMailboxItem,
   getStorageSlotUpgradeCost,
+  VENDOR_GOODS,
 } from '@eldoria/shared';
 import { storage } from './storage.js';
 
@@ -657,6 +658,12 @@ export class GameEngine {
 
       case 'SELL_ALL_JUNK':
         this.handleSellAllJunk(session);
+        break;
+
+      case 'BUY_VENDOR_ITEM':
+        if (typeof msg.itemId === 'string') {
+          this.handleBuyVendorItem(session, msg.itemId);
+        }
         break;
 
       case 'GET_MARKET_LISTINGS':
@@ -2096,6 +2103,61 @@ export class GameEngine {
     this.send(ws, {
       type: 'NOTIFICATION',
       message: `Sold ${soldCount} items to merchant for ${totalGold.toLocaleString()} gold.`
+    });
+    this.send(ws, { type: 'PLAYER_UPDATE', player });
+  }
+
+  private handleBuyVendorItem(session: ConnectedSession, itemId: string) {
+    const { player, ws } = session;
+    const hearth = this.getHearthLocation(player.x, player.y);
+    const distToHearth = Math.hypot(player.x - hearth.x, player.y - hearth.y);
+    const nearbyNpc = storage.getNpcs().some(n => Math.hypot(player.x - n.x, player.y - n.y) <= 3.5);
+    if (distToHearth > 3.5 && !nearbyNpc) {
+      this.send(ws, {
+        type: 'NOTIFICATION',
+        message: 'Must be at the Hearth Counter or near a Merchant NPC to buy items.'
+      });
+      return;
+    }
+
+    const good = VENDOR_GOODS.find(g => g.itemId === itemId);
+    if (!good) {
+      this.send(ws, { type: 'NOTIFICATION', message: 'Item is not for sale.' });
+      return;
+    }
+
+    const itemDef = storage.getItem(itemId) || ITEMS[itemId];
+    if (!itemDef) {
+      this.send(ws, { type: 'NOTIFICATION', message: 'Invalid item.' });
+      return;
+    }
+
+    const price = good.price;
+    if ((player.gold || 0) < price) {
+      this.send(ws, {
+        type: 'NOTIFICATION',
+        message: `Insufficient gold. Purchasing ${itemDef.name} requires ${price.toLocaleString()} gold.`
+      });
+      return;
+    }
+
+    // Try adding to inventory (28 slots)
+    const addRes = addItemToSlots(player.inventory, 28, itemId, 1, 'plain', 0, itemDef, 'inventory');
+    if (addRes.added < 1) {
+      this.send(ws, {
+        type: 'NOTIFICATION',
+        message: 'Satchel full! Free up a slot in your bag first.'
+      });
+      return;
+    }
+
+    player.gold -= price;
+    storage.savePlayer(player);
+    storage.checkpoint();
+
+    this.send(ws, {
+      type: 'NOTIFICATION',
+      message: `Purchased ${itemDef.name} for ${price.toLocaleString()} gold!`
     });
     this.send(ws, { type: 'PLAYER_UPDATE', player });
   }

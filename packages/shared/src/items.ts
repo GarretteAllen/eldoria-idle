@@ -235,7 +235,7 @@ export const ITEMS: Record<string, ItemDefinition> = {
   fishing_rod_yew: { id: 'fishing_rod_yew', name: 'Yew Deep-Sea Rod', category: 'tool', tier: 4, slot: 'tool_rod', equipReq: { skill: 'fishing', level: 50 }, baseStats: { toolSpeedBonus: 0.32 }, vendorFloorPrice: 350, description: 'A heavy-duty yew rod providing a 32% catch speed bonus.' },
 
   // --- Steeds (Mounts) ---
-  steed_courser: { id: 'steed_courser', name: 'Eldorian Courser', category: 'steed', tier: 2, slot: 'steed', vendorFloorPrice: 20000, description: 'A trusty Eldorian riding horse that hastens travel across the world.' },
+  steed_courser: { id: 'steed_courser', name: 'Eldorian Courser', category: 'steed', tier: 2, slot: 'steed', vendorFloorPrice: 15000, description: 'A trusty Eldorian riding horse that hastens travel across the world.' },
 
   // --- Tradeable Gem Packs (Paypal / In-game Economy) ---
   gem_pack_small: { id: 'gem_pack_small', name: 'Small Gem Pack', category: 'misc', tier: 1, vendorFloorPrice: 0, stackable: true, description: 'Contains 50 Celestial Gems. Open to redeem, or trade to players in the market.' },
@@ -370,3 +370,12 @@ export function addItemToSlots(
     remainder: remaining,
   };
 }
+
+export interface VendorGood {
+  itemId: string;
+  price: number;
+}
+
+export const VENDOR_GOODS: VendorGood[] = [
+  { itemId: 'steed_courser', price: 15000 },
+];

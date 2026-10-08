@@ -24,6 +24,7 @@ import {
   MarketListing,
   ChangelogEntry,
   getStorageSlotUpgradeCost,
+  VENDOR_GOODS,
 } from '@eldoria/shared';
 import { WorldRenderer, WorldNodeDisplay, TILE_SIZE } from './canvas.js';
 import { loadLdtkWorld } from './ldtkLoader.js';
@@ -3524,6 +3525,56 @@ class EldoriaClient {
 
   private renderVendorView() {
     if (!this.player) return;
+
+    // 1. Render Purchase Goods
+    const goodsList = document.getElementById('dv-vendor-goods-list');
+    if (goodsList) {
+      goodsList.innerHTML = '';
+      for (const good of VENDOR_GOODS) {
+        const itemDef = ITEMS[good.itemId];
+        if (!itemDef) continue;
+
+        const row = document.createElement('div');
+        row.className = 'dv-vendor-good-row';
+        row.style.cssText = 'display: flex; align-items: center; justify-content: space-between; background: rgba(0,0,0,0.3); border: 1px solid var(--border-oak-light); border-radius: 4px; padding: 6px 10px; gap: 10px;';
+
+        const canAfford = (this.player.gold || 0) >= good.price;
+        const iconSvg = getItemIconSvg(good.itemId, itemDef.category);
+
+        row.innerHTML = `
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <div style="width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center;">
+              ${iconSvg}
+            </div>
+            <div>
+              <div style="font-weight: 700; font-size: 0.8rem; color: #fff;">${itemDef.name}</div>
+              <div style="font-size: 0.68rem; color: #a0aec0;">${itemDef.description || ''}</div>
+            </div>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="font-size: 0.78rem; font-weight: 700; color: var(--gold-bright); white-space: nowrap;">
+              ${good.price.toLocaleString()} Gold
+            </span>
+            <button class="btn-vendor-buy" style="padding: 4px 10px; font-size: 0.72rem; font-weight: 700; background: ${canAfford ? 'var(--btn-start-bg, #3182ce)' : '#4a5568'}; color: #fff; border: 1px solid ${canAfford ? 'var(--gold-bright)' : '#718096'}; border-radius: 3px; cursor: ${canAfford ? 'pointer' : 'not-allowed'}; opacity: ${canAfford ? '1' : '0.6'};" ${canAfford ? '' : 'disabled'}>
+              Buy
+            </button>
+          </div>
+        `;
+
+        const buyBtn = row.querySelector('.btn-vendor-buy') as HTMLButtonElement | null;
+        if (buyBtn && canAfford) {
+          buyBtn.onclick = () => {
+            this.sendWs({
+              type: 'BUY_VENDOR_ITEM',
+              itemId: good.itemId,
+            });
+          };
+        }
+
+        goodsList.appendChild(row);
+      }
+    }
+
     const vendorGrid = document.getElementById('dv-vendor-carrying-grid');
     if (!vendorGrid) return;
     vendorGrid.innerHTML = '';
