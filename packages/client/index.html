@@ -211,9 +211,12 @@
         <div id="tasks-card" class="parchment-card tasks-card">
           <div class="tasks-card-header" style="display: flex; justify-content: space-between; align-items: center;">
             <span class="tasks-title">Active Task</span>
-            <button id="queue-slots-chip" class="queue-chip" title="Click to open Celestial Gem Store & Queue Upgrades">
-              <span id="queue-slots-count">2/2</span> Slots
-            </button>
+            <div style="display: flex; align-items: center; gap: 4px;">
+              <button id="queue-slots-chip" class="queue-chip" title="Click to open Celestial Gem Store & Queue Upgrades">
+                <span id="queue-slots-count">2/2</span> Slots
+              </button>
+              <button id="tasks-card-toggle-btn" class="icon-btn-micro" title="Collapse/Expand Tasks"></button>
+            </div>
           </div>
           <div class="tasks-card-body">
             <div id="task-running-row" class="task-running-row">

@@ -71,8 +71,9 @@
 }
 
 body, html {
-  width: 100vw;
-  height: 100vh;
+  width: 100%;
+  height: 100%;
+  height: 100dvh;
   background: #000;
   color: var(--text-main);
   font-family: var(--font-ui);
@@ -84,8 +85,9 @@ body, html {
 
 #app {
   position: relative;
-  width: 100vw;
-  height: 100vh;
+  width: 100%;
+  height: 100%;
+  height: 100dvh;
   overflow: hidden;
   background: #0b0704;
 }
@@ -97,10 +99,11 @@ body, html {
   position: absolute;
   top: 0;
   left: 0;
-  width: 100vw;
-  height: 100vh;
+  width: 100%;
+  height: 100%;
   display: block;
   z-index: 1;
+  touch-action: none;
 }
 
 /* ========================================================
@@ -662,6 +665,25 @@ body, html {
   overflow: hidden;
   backdrop-filter: blur(4px);
 }
+.tasks-card.collapsed .tasks-card-body {
+  display: none !important;
+}
+.tasks-card.collapsed {
+  padding-bottom: 4px !important;
+}
+
+.dark-oak-card.collapsed {
+  max-height: 28px !important;
+  min-height: 28px !important;
+  height: 28px !important;
+  overflow: hidden !important;
+}
+.dark-oak-card.collapsed .chat-channels,
+.dark-oak-card.collapsed .chat-messages,
+.dark-oak-card.collapsed .chat-input-row {
+  display: none !important;
+}
+
 .chat-card-header {
   display: flex;
   align-items: center;
@@ -671,6 +693,7 @@ body, html {
   border-bottom: 1px solid var(--border-subtle);
   font-size: 0.76rem;
   font-weight: 700;
+  cursor: pointer;
 }
 .chat-header-title {
   display: flex;
@@ -2328,24 +2351,95 @@ body, html {
 
   /* 4. LEFT HUD CARDS & CHAT STACKING */
   .left-cards-stack {
-    top: calc(38px + env(safe-area-inset-top, 0px)) !important;
+    top: calc(36px + env(safe-area-inset-top, 0px)) !important;
     left: max(6px, env(safe-area-inset-left)) !important;
-    width: min(280px, calc(100vw - 12px)) !important;
-    gap: 6px !important;
+    width: min(210px, calc(100vw - 16px)) !important;
+    gap: 4px !important;
     z-index: 45 !important;
   }
   .parchment-card {
-    padding: 5px 8px;
+    padding: 4px 7px !important;
   }
   .tasks-card-header {
-    font-size: 0.82rem;
+    font-size: 0.74rem !important;
+    margin-bottom: 2px !important;
   }
+  .tasks-title {
+    font-size: 0.74rem !important;
+  }
+  .queue-chip {
+    padding: 1px 4px !important;
+    font-size: 0.58rem !important;
+  }
+  .task-running-row {
+    margin-bottom: 2px !important;
+    gap: 3px !important;
+  }
+  .task-leading {
+    gap: 3px !important;
+    max-width: 115px !important;
+  }
+  .task-icon-wrap {
+    width: 14px !important;
+    height: 14px !important;
+  }
+  .task-icon-wrap svg {
+    width: 14px !important;
+    height: 14px !important;
+  }
+  .task-name {
+    font-size: 0.68rem !important;
+  }
+  .status-tag {
+    font-size: 0.55rem !important;
+    padding: 0px 3px !important;
+  }
+  .icon-btn-micro {
+    width: 20px !important;
+    height: 20px !important;
+    padding: 2px !important;
+  }
+  .task-bar-container {
+    height: 3px !important;
+    margin-bottom: 2px !important;
+  }
+  /* On mobile, hide the static subtext instructions and long upcoming task queue to keep HUD card slim */
+  #task-subtext {
+    display: none !important;
+  }
+  #task-queue-section {
+    display: none !important;
+  }
+  .tasks-card.collapsed .tasks-card-body {
+    display: none !important;
+  }
+  .tasks-card.collapsed {
+    padding: 3px 6px !important;
+  }
+  #quest-tracker-card.collapsed #quest-tracker-content {
+    display: none !important;
+  }
+  #quest-tracker-card.collapsed {
+    padding: 3px 6px !important;
+  }
+
   .dark-oak-card {
-    bottom: calc(58px + env(safe-area-inset-bottom, 0px)) !important;
+    bottom: calc(56px + env(safe-area-inset-bottom, 0px)) !important;
     left: max(6px, env(safe-area-inset-left)) !important;
-    width: min(320px, calc(100vw - 12px)) !important;
-    max-height: 210px !important;
+    width: min(260px, calc(100vw - 16px)) !important;
+    max-height: 200px !important;
     z-index: 46 !important;
+  }
+  .dark-oak-card.collapsed {
+    max-height: 28px !important;
+    min-height: 28px !important;
+    height: 28px !important;
+    overflow: hidden !important;
+  }
+  .dark-oak-card.collapsed .chat-channels,
+  .dark-oak-card.collapsed .chat-messages,
+  .dark-oak-card.collapsed .chat-input-row {
+    display: none !important;
   }
 
   /* 5. COMBAT HUD ON MOBILE */

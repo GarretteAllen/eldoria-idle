@@ -182,9 +182,22 @@ class EldoriaClient {
     this.setupItemTooltips();
     this.setupAfkSystem();
 
-    // On mobile devices, start with drawers closed so the world canvas is immediately playable
+    // On mobile devices, start with drawers closed and HUD compact so the world canvas is immediately playable
     if (window.innerWidth <= 768) {
       this.closeDrawer();
+      const questCard = document.getElementById('quest-tracker-card');
+      const questToggleBtn = document.getElementById('quest-tracker-toggle-btn');
+      if (questCard && questToggleBtn) {
+        questCard.classList.add('collapsed');
+        questToggleBtn.innerHTML = ICONS.chevronUp;
+      }
+      const chatCard = document.getElementById('chat-card');
+      const chatCollapseBtn = document.getElementById('chat-collapse-btn');
+      if (chatCard && chatCollapseBtn) {
+        this.chatCollapsed = true;
+        chatCard.classList.add('collapsed');
+        chatCollapseBtn.innerHTML = ICONS.chevronUp;
+      }
     }
 
     this.fetchNodesAndInit();
@@ -224,6 +237,8 @@ class EldoriaClient {
     // Tasks Card
     document.getElementById('task-home-btn')!.innerHTML = ICONS.hearth;
     document.getElementById('task-stop-btn')!.innerHTML = ICONS.stop;
+    const tasksCardToggleBtn = document.getElementById('tasks-card-toggle-btn');
+    if (tasksCardToggleBtn) tasksCardToggleBtn.innerHTML = ICONS.chevronDown;
 
     // Top Controls & Radar
     const soundBtn = document.getElementById('btn-sound-toggle');
@@ -1626,6 +1641,27 @@ class EldoriaClient {
       this.sendWs({ type: 'MOVE_TO', x: hearth.x, y: hearth.y });
       this.openStorageModal();
     };
+
+    const toggleBtn = document.getElementById('tasks-card-toggle-btn');
+    const tasksCard = document.getElementById('tasks-card');
+    if (toggleBtn && tasksCard) {
+      toggleBtn.onclick = (e) => {
+        e.stopPropagation();
+        tasksCard.classList.toggle('collapsed');
+        toggleBtn.innerHTML = tasksCard.classList.contains('collapsed') ? ICONS.chevronUp : ICONS.chevronDown;
+      };
+    }
+
+    const tasksHeader = document.querySelector('.tasks-card-header');
+    if (tasksHeader && tasksCard && toggleBtn) {
+      tasksHeader.addEventListener('click', (e) => {
+        if ((e.target as HTMLElement).closest('#queue-slots-chip') || (e.target as HTMLElement).closest('#tasks-card-toggle-btn')) {
+          return;
+        }
+        tasksCard.classList.toggle('collapsed');
+        toggleBtn.innerHTML = tasksCard.classList.contains('collapsed') ? ICONS.chevronUp : ICONS.chevronDown;
+      });
+    }
   }
 
   private setupRightToolbar() {
@@ -3909,16 +3945,24 @@ class EldoriaClient {
     const collapseBtn = document.getElementById('chat-collapse-btn')!;
     const chatCard = document.getElementById('chat-card')!;
 
-    collapseBtn.onclick = () => {
+    const toggleChatCollapse = () => {
       this.chatCollapsed = !this.chatCollapsed;
-      if (this.chatCollapsed) {
-        chatCard.style.maxHeight = '34px';
-        collapseBtn.innerHTML = ICONS.chevronUp;
-      } else {
-        chatCard.style.maxHeight = '280px';
-        collapseBtn.innerHTML = ICONS.chevronDown;
-      }
+      chatCard.classList.toggle('collapsed', this.chatCollapsed);
+      collapseBtn.innerHTML = this.chatCollapsed ? ICONS.chevronUp : ICONS.chevronDown;
     };
+
+    collapseBtn.onclick = (e) => {
+      e.stopPropagation();
+      toggleChatCollapse();
+    };
+
+    const header = chatCard.querySelector('.chat-card-header');
+    if (header) {
+      header.addEventListener('click', (e) => {
+        if ((e.target as HTMLElement).closest('#chat-collapse-btn')) return;
+        toggleChatCollapse();
+      });
+    }
 
     const chanBtns = document.querySelectorAll('.chan-btn');
     chanBtns.forEach(btn => {

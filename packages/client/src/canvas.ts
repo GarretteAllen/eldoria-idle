@@ -322,6 +322,10 @@ export class WorldRenderer {
 
     this.resize();
     window.addEventListener('resize', () => this.resize());
+    window.addEventListener('orientationchange', () => this.resize());
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', () => this.resize());
+    }
     this.setupInput();
 
     this.animFrameId = requestAnimationFrame((ts) => this.render(ts));
@@ -414,8 +418,13 @@ export class WorldRenderer {
   }
 
   private resize() {
-    this.canvas.width = this.canvas.parentElement?.clientWidth || window.innerWidth;
-    this.canvas.height = this.canvas.parentElement?.clientHeight || window.innerHeight;
+    const rect = this.canvas.getBoundingClientRect();
+    const w = Math.round(rect.width || this.canvas.clientWidth || window.innerWidth);
+    const h = Math.round(rect.height || this.canvas.clientHeight || window.innerHeight);
+    if (w > 0 && h > 0 && (this.canvas.width !== w || this.canvas.height !== h)) {
+      this.canvas.width = w;
+      this.canvas.height = h;
+    }
   }
 
   private setupInput() {
@@ -645,6 +654,7 @@ export class WorldRenderer {
 
   private render(timestamp: number) {
     this.animTick = timestamp;
+    this.resize();
     const { ctx, canvas } = this;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
