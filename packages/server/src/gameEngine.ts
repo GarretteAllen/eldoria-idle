@@ -5040,7 +5040,17 @@ export class GameEngine {
 
     const combatStyle = this.getPlayerCombatStyle(player);
     const weaponItem = player.equipment?.weapon ? ITEMS[player.equipment.weapon.itemId] : null;
-    const swingSpeedSec = weaponItem?.baseStats?.swingSpeedSeconds || (combatStyle === 'ranged' ? 1.8 : combatStyle === 'magic' ? 3.6 : 2.4);
+    let attackSpeedBonus = 0;
+    for (const slot of Object.values(player.equipment || {})) {
+      if (slot) {
+        const item = ITEMS[slot.itemId];
+        if (item?.baseStats?.attackSpeedBonus) {
+          attackSpeedBonus += item.baseStats.attackSpeedBonus;
+        }
+      }
+    }
+    const baseSwingSpeedSec = weaponItem?.baseStats?.swingSpeedSeconds || (combatStyle === 'ranged' ? 1.8 : combatStyle === 'magic' ? 3.6 : 2.4);
+    const swingSpeedSec = baseSwingSpeedSec / (1 + attackSpeedBonus);
     const playerRequiredTicks = Math.max(2, Math.round(swingSpeedSec / (TICK_MS / 1000)));
 
     const monsterSwingSec = monsterDef.swingSpeedSeconds || 2.4;

@@ -293,16 +293,19 @@ export function simulateOfflineCatchUp(
       const combatLvl = player.skills[combatStyle]?.level || 1;
       const weaponItem = player.equipment?.weapon ? ITEMS[player.equipment.weapon.itemId] : undefined;
       let strBonus = 0;
+      let gearSpeedBonus = 0;
       for (const eq of Object.values(player.equipment || {})) {
         if (eq) {
           const it = ITEMS[eq.itemId];
           if (it?.baseStats?.strength) strBonus += it.baseStats.strength;
+          if (it?.baseStats?.attackSpeedBonus) gearSpeedBonus += it.baseStats.attackSpeedBonus;
         }
       }
       const avgHit = Math.max(1, Math.floor((combatLvl + strBonus) / 10) + 1);
       const swingsToKill = Math.ceil(monster.hp / avgHit);
-      const swingSec = weaponItem?.baseStats?.swingSpeedSeconds || (combatStyle === 'ranged' ? 1.8 : combatStyle === 'magic' ? 3.6 : 2.4);
-      const killSec = Math.max(2.4, swingsToKill * swingSec);
+      const baseSwingSec = weaponItem?.baseStats?.swingSpeedSeconds || (combatStyle === 'ranged' ? 1.8 : combatStyle === 'magic' ? 3.6 : 2.4);
+      const swingSec = baseSwingSec / (1 + gearSpeedBonus);
+      const killSec = Math.max(1.2, swingsToKill * swingSec);
 
       const rawTarget: number | undefined = player.currentTask.targetQuantity;
       const targetQuantity: number = (typeof rawTarget === 'number' && rawTarget > 0) ? rawTarget : Infinity;

@@ -5117,6 +5117,9 @@ class EldoriaClient {
           if (def.baseStats.toolSpeedBonus) {
             statsListEl.innerHTML += `<div class="tooltip-stat-row" style="color:#ecc94b;"><span>Gathering Bonus</span><span>+${Math.round(def.baseStats.toolSpeedBonus * 100)}%</span></div>`;
           }
+          if (def.baseStats.attackSpeedBonus) {
+            statsListEl.innerHTML += `<div class="tooltip-stat-row" style="color:#63b3ed;"><span>Attack Speed</span><span>+${Math.round(def.baseStats.attackSpeedBonus * 100)}%</span></div>`;
+          }
         }
         if (def.vendorFloorPrice) {
           statsListEl.innerHTML += `<div class="tooltip-stat-row" style="color:#e2e8f0; font-size:0.68rem;"><span>Vendor Value</span><span>${def.vendorFloorPrice} Coins</span></div>`;
@@ -5143,6 +5146,10 @@ class EldoriaClient {
           const eqDefVal = eqDef?.baseStats?.defence || 0;
           const diffDef = myDef - eqDefVal;
 
+          const myAtkSpd = Math.round((def.baseStats?.attackSpeedBonus || 0) * 100);
+          const eqAtkSpd = Math.round((eqDef?.baseStats?.attackSpeedBonus || 0) * 100);
+          const diffAtkSpd = myAtkSpd - eqAtkSpd;
+
           const diffParts: string[] = [];
           if (diffAcc !== 0) {
             diffParts.push(`<span class="${diffAcc > 0 ? 'stat-diff-positive' : 'stat-diff-negative'}">${diffAcc > 0 ? '+' : ''}${diffAcc} Acc</span>`);
@@ -5152,6 +5159,9 @@ class EldoriaClient {
           }
           if (diffDef !== 0) {
             diffParts.push(`<span class="${diffDef > 0 ? 'stat-diff-positive' : 'stat-diff-negative'}">${diffDef > 0 ? '+' : ''}${diffDef} Def</span>`);
+          }
+          if (diffAtkSpd !== 0) {
+            diffParts.push(`<span class="${diffAtkSpd > 0 ? 'stat-diff-positive' : 'stat-diff-negative'}">${diffAtkSpd > 0 ? '+' : ''}${diffAtkSpd}% Spd</span>`);
           }
 
           if (diffParts.length > 0) {

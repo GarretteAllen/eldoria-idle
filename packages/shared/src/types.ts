@@ -74,6 +74,7 @@ export interface ItemDefinition {
     strength?: number;
     defence?: number;
     swingSpeedSeconds?: number;
+    attackSpeedBonus?: number; // e.g. 0.05 for +5% attack speed
     healing?: number;
     toolSpeedBonus?: number;
   };
