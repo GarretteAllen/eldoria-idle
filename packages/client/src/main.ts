@@ -6062,6 +6062,11 @@ class EldoriaClient {
       sAllBtn.innerHTML = `Sell All (${slot.quantity.toLocaleString()}) <span style="margin-left:auto; color:#ffd700; font-size:0.75rem;">+${totalGold.toLocaleString()}g</span>`;
     }
 
+    const mktBtn = document.getElementById('storage-ctx-btn-list-market');
+    if (mktBtn) {
+      mktBtn.style.display = slot.itemId === 'gold' ? 'none' : 'flex';
+    }
+
     // Position menu adjacent to the clicked slot
     menu.classList.remove('hidden');
 
@@ -6249,6 +6254,68 @@ class EldoriaClient {
           const qty = slot ? slot.quantity : undefined;
           sound.play('coin');
           this.sendWs({ type: 'SELL_ITEM', storageIndex: this.selectedStorageIndex, quantity: qty });
+          storageMenu.classList.add('hidden');
+          this.selectedStorageIndex = null;
+        }
+      };
+    }
+
+    // List on Marketplace
+    const mktBtn = document.getElementById('storage-ctx-btn-list-market');
+    if (mktBtn && storageMenu) {
+      mktBtn.onclick = () => {
+        if (this.selectedStorageIndex !== null && this.player) {
+          const idx = this.selectedStorageIndex;
+          const slot = this.player.storage[idx];
+          if (!slot) {
+            storageMenu.classList.add('hidden');
+            this.selectedStorageIndex = null;
+            return;
+          }
+
+          if (slot.itemId === 'gold') {
+            this.showToast('Cannot list gold coins on the marketplace.');
+            storageMenu.classList.add('hidden');
+            this.selectedStorageIndex = null;
+            return;
+          }
+
+          const def = ITEMS[slot.itemId];
+          const promptForPrice = (sellQty: number) => {
+            const defaultUnitPrice = Math.max(1, Math.floor((def?.vendorFloorPrice || 2) * 1.5));
+            this.showInGamePrompt({
+              title: 'Set Price',
+              message: `Set unit price in Gold for each ${def?.name || slot.itemId}:`,
+              defaultValue: defaultUnitPrice,
+              min: 1,
+              confirmText: 'List Item',
+              onConfirm: (parsedPrice) => {
+                this.sendWs({
+                  type: 'CREATE_MARKET_LISTING',
+                  storageIndex: idx,
+                  quantity: sellQty,
+                  unitPrice: parsedPrice,
+                });
+              },
+            });
+          };
+
+          if (slot.quantity > 1) {
+            this.showInGamePrompt({
+              title: 'List for Sale',
+              message: `How many ${def?.name || slot.itemId} to list for sale from vault? (1 to ${slot.quantity})`,
+              defaultValue: slot.quantity,
+              min: 1,
+              max: slot.quantity,
+              confirmText: 'Next',
+              onConfirm: (sellQty) => {
+                promptForPrice(sellQty);
+              },
+            });
+          } else {
+            promptForPrice(1);
+          }
+
           storageMenu.classList.add('hidden');
           this.selectedStorageIndex = null;
         }

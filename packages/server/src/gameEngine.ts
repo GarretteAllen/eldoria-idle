@@ -673,7 +673,11 @@ export class GameEngine {
         break;
 
       case 'CREATE_MARKET_LISTING':
-        this.handleCreateMarketListing(session, msg.inventoryIndex, msg.quantity, msg.unitPrice);
+        if (typeof msg.storageIndex === 'number') {
+          this.handleCreateMarketListing(session, undefined, msg.quantity, msg.unitPrice, msg.storageIndex);
+        } else {
+          this.handleCreateMarketListing(session, msg.inventoryIndex, msg.quantity, msg.unitPrice);
+        }
         break;
 
       case 'BUY_MARKET_LISTING':
@@ -2218,7 +2222,7 @@ export class GameEngine {
     });
   }
 
-  private handleCreateMarketListing(session: ConnectedSession, inventoryIndex: number, quantity: number, unitPrice: number) {
+  private handleCreateMarketListing(session: ConnectedSession, inventoryIndex: number | undefined, quantity: number, unitPrice: number, storageIndex?: number) {
     const { player, ws } = session;
     const hearth = this.getHearthLocation(player.x, player.y);
     const distToHearth = Math.hypot(player.x - hearth.x, player.y - hearth.y);
@@ -2237,14 +2241,18 @@ export class GameEngine {
       return;
     }
 
-    if (typeof inventoryIndex !== 'number' || inventoryIndex < 0 || inventoryIndex >= player.inventory.length) {
+    const isFromStorage = typeof storageIndex === 'number';
+    const sourceArray = isFromStorage ? player.storage : player.inventory;
+    const sourceIdx = isFromStorage ? storageIndex : inventoryIndex;
+
+    if (typeof sourceIdx !== 'number' || sourceIdx < 0 || sourceIdx >= sourceArray.length) {
       this.send(ws, { type: 'NOTIFICATION', message: 'Invalid item selected.' });
       return;
     }
 
-    const slot = player.inventory[inventoryIndex];
+    const slot = sourceArray[sourceIdx];
     if (!slot) {
-      this.send(ws, { type: 'NOTIFICATION', message: 'Item no longer exists in satchel.' });
+      this.send(ws, { type: 'NOTIFICATION', message: isFromStorage ? 'Item no longer exists in vault.' : 'Item no longer exists in satchel.' });
       return;
     }
 
@@ -2276,14 +2284,14 @@ export class GameEngine {
       return;
     }
 
-    // Deduct item from inventory immediately (escrow)
+    // Deduct item from source immediately (escrow)
     slot.quantity -= safeQty;
     const itemRarity = slot.rarity || 'plain';
     const itemPlus = slot.plus || 0;
     const itemId = slot.itemId;
 
     if (slot.quantity <= 0) {
-      player.inventory.splice(inventoryIndex, 1);
+      sourceArray.splice(sourceIdx, 1);
     }
 
     const listingId = `mkt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
