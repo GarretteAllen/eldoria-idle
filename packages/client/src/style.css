@@ -3082,9 +3082,22 @@ body, html {
 /* Marketplace Tab Styles */
 .dv-market-subbar {
   display: flex;
+  flex-direction: column;
   gap: 8px;
-  align-items: center;
   margin-bottom: 10px;
+}
+
+.dv-market-search-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.dv-market-search-row .dv-filter-box {
+  flex: 1;
+  min-width: 0;
+  width: auto;
 }
 
 .dv-market-tabs {
@@ -3094,20 +3107,31 @@ body, html {
   background: rgba(14, 9, 5, 0.9);
   border: 1px solid #432e1c;
   border-radius: 5px;
-  padding: 2px 3px;
+  padding: 3px;
+  width: 100%;
+  box-sizing: border-box;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.dv-market-tabs::-webkit-scrollbar {
+  display: none;
 }
 
 .dv-mkt-tab-btn {
+  flex: 1;
   background: none;
   border: 1px solid transparent;
   border-radius: 4px;
   color: #a0aec0;
   font-size: 0.74rem;
   font-weight: 600;
-  padding: 4px 10px;
+  padding: 5px 6px;
   cursor: pointer;
   transition: all 0.12s;
   font-family: inherit;
+  text-align: center;
+  white-space: nowrap;
 }
 
 .dv-mkt-tab-btn:hover {
