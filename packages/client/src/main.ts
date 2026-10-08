@@ -2396,6 +2396,7 @@ class EldoriaClient {
     this.isPopupOpen = false;
     this.selectedSkillCategory = null;
     document.getElementById('skill-job-popup')!.classList.add('hidden');
+    document.getElementById('item-hover-tooltip')?.classList.add('hidden');
     this.renderSkillsDrawer();
   }
 
@@ -2625,6 +2626,7 @@ class EldoriaClient {
         `;
         backBar.querySelector('#btn-category-back')?.addEventListener('click', () => {
           this.selectedSkillCategory = null;
+          document.getElementById('item-hover-tooltip')?.classList.add('hidden');
           this.updateSkillJobPopup();
         });
         jobsContainer.appendChild(backBar);
@@ -2734,9 +2736,18 @@ class EldoriaClient {
         });
       }
 
+      if (recipe.outputItemId && ITEMS[recipe.outputItemId]) {
+        const outItem = ITEMS[recipe.outputItemId];
+        const actionHint = isUnlocked
+          ? (isSelected ? 'Currently selected' : 'Click to select this project')
+          : `Requires Lv ${recipe.levelReq} ${recipe.skill.replace('_', ' ')}`;
+        this.attachItemTooltip(itemEl, { itemId: recipe.outputItemId, rarity: outItem.category === 'relic' ? 'epic' : 'common' }, outItem.slot, actionHint);
+      }
+
       if (isUnlocked) {
         itemEl.addEventListener('click', () => {
           this.selectedRecipeId = recipe.id;
+          document.getElementById('item-hover-tooltip')?.classList.add('hidden');
           this.updateSkillJobPopup();
         });
       } else {
