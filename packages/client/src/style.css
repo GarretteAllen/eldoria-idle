@@ -3087,19 +3087,39 @@ body, html {
   margin-bottom: 10px;
 }
 
-.dv-market-select {
-  background: #140d08;
+.dv-market-tabs {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  background: rgba(14, 9, 5, 0.9);
   border: 1px solid #432e1c;
-  border-radius: 4px;
-  color: #ffd699;
-  font-size: 0.78rem;
-  padding: 5px 8px;
-  font-family: inherit;
-  outline: none;
+  border-radius: 5px;
+  padding: 2px 3px;
 }
 
-.dv-market-select:focus {
-  border-color: #d97706;
+.dv-mkt-tab-btn {
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: #a0aec0;
+  font-size: 0.74rem;
+  font-weight: 600;
+  padding: 4px 10px;
+  cursor: pointer;
+  transition: all 0.12s;
+  font-family: inherit;
+}
+
+.dv-mkt-tab-btn:hover {
+  color: #f7fafc;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.dv-mkt-tab-btn.active {
+  background: #3e2614;
+  color: #ffd466;
+  border-color: #7c532b;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
 }
 
 .dv-market-mailbox-bar {
@@ -3198,26 +3218,68 @@ body, html {
 .dv-mkt-item-cell {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  cursor: pointer;
+  transition: opacity 0.1s;
 }
 
-.dv-mkt-item-icon {
-  width: 22px;
-  height: 22px;
-  object-fit: contain;
-  image-rendering: pixelated;
-  flex-shrink: 0;
+.dv-mkt-item-cell:hover {
+  opacity: 0.88;
 }
+
+.dv-mkt-icon-wrap {
+  width: 24px;
+  height: 24px;
+  background: rgba(20, 13, 8, 0.9);
+  border: 1px solid #432e1c;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  padding: 2px;
+}
+.dv-mkt-icon-wrap svg {
+  width: 18px;
+  height: 18px;
+}
+.dv-mkt-icon-wrap.rarity-uncommon { border-color: #22c55e; background: rgba(34, 197, 94, 0.1); }
+.dv-mkt-icon-wrap.rarity-rare { border-color: #3b82f6; background: rgba(59, 130, 246, 0.1); }
+.dv-mkt-icon-wrap.rarity-epic { border-color: #a855f7; background: rgba(168, 85, 247, 0.1); }
+.dv-mkt-icon-wrap.rarity-legendary { border-color: #f59e0b; background: rgba(245, 158, 11, 0.15); box-shadow: 0 0 6px rgba(245, 158, 11, 0.4); }
 
 .dv-mkt-item-name {
   font-weight: 600;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  color: #f7fafc;
 }
+
+.dv-mkt-item-cell.rarity-uncommon .dv-mkt-item-name { color: #22c55e; }
+.dv-mkt-item-cell.rarity-rare .dv-mkt-item-name { color: #3b82f6; }
+.dv-mkt-item-cell.rarity-epic .dv-mkt-item-name { color: #a855f7; }
+.dv-mkt-item-cell.rarity-legendary .dv-mkt-item-name { color: #f59e0b; font-weight: 700; text-shadow: 0 0 6px rgba(245, 158, 11, 0.4); }
+
+.dv-mkt-rarity-badge {
+  font-size: 0.58rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 1px 4px;
+  border-radius: 3px;
+  letter-spacing: 0.03em;
+  margin-left: 2px;
+  flex-shrink: 0;
+  display: inline-block;
+  line-height: 1.1;
+}
+.dv-mkt-rarity-badge.uncommon { background: rgba(34, 197, 94, 0.15); color: #22c55e; border: 1px solid rgba(34, 197, 94, 0.35); }
+.dv-mkt-rarity-badge.rare { background: rgba(59, 130, 246, 0.15); color: #3b82f6; border: 1px solid rgba(59, 130, 246, 0.35); }
+.dv-mkt-rarity-badge.epic { background: rgba(168, 85, 247, 0.15); color: #a855f7; border: 1px solid rgba(168, 85, 247, 0.35); }
+.dv-mkt-rarity-badge.legendary { background: rgba(245, 158, 11, 0.15); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.35); }
 
 .dv-mkt-gold-text {
   color: #ffd699;

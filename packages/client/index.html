@@ -551,14 +551,14 @@
           <!-- Marketplace Tab Content Area -->
           <div id="dv-market-tab-view" class="hidden">
             <div class="dv-market-subbar">
-              <input type="text" id="dv-market-search-input" class="dv-filter-box" placeholder="Search marketplace..." style="flex: 1;" />
-              <select id="dv-market-filter-type" class="dv-market-select">
-                <option value="all">All Items</option>
-                <option value="my_listings">My Listings</option>
-                <option value="materials">Materials</option>
-                <option value="equipment">Equipment</option>
-                <option value="consumables">Consumables</option>
-              </select>
+              <input type="text" id="dv-market-search-input" class="dv-filter-box" placeholder="Search marketplace..." style="flex: 1; min-width: 130px;" />
+              <div id="dv-market-filter-tabs" class="dv-market-tabs">
+                <button class="dv-mkt-tab-btn active" data-cat="all">All</button>
+                <button class="dv-mkt-tab-btn" data-cat="materials">Materials</button>
+                <button class="dv-mkt-tab-btn" data-cat="equipment">Equipment</button>
+                <button class="dv-mkt-tab-btn" data-cat="consumables">Consumables</button>
+                <button class="dv-mkt-tab-btn" data-cat="my_listings">My Listings</button>
+              </div>
               <button id="dv-market-refresh-btn" class="dv-sub-btn">Refresh</button>
             </div>
 

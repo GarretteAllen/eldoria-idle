@@ -3217,13 +3217,15 @@ class EldoriaClient {
       };
     }
 
-    const mktType = document.getElementById('dv-market-filter-type') as HTMLSelectElement | null;
-    if (mktType) {
-      mktType.onchange = () => {
-        this.marketFilterCategory = mktType.value;
+    const mktTabBtns = document.querySelectorAll('.dv-mkt-tab-btn');
+    mktTabBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        mktTabBtns.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        this.marketFilterCategory = btn.getAttribute('data-cat') || 'all';
         this.renderMarketView();
-      };
-    }
+      });
+    });
 
     const mktRefresh = document.getElementById('dv-market-refresh-btn');
     if (mktRefresh) {
@@ -3751,6 +3753,16 @@ class EldoriaClient {
       }
     }
 
+    // Sync active filter tab pill
+    const mktTabBtns = document.querySelectorAll('.dv-mkt-tab-btn');
+    mktTabBtns.forEach(b => {
+      if (b.getAttribute('data-cat') === this.marketFilterCategory) {
+        b.classList.add('active');
+      } else {
+        b.classList.remove('active');
+      }
+    });
+
     const listingsContainer = document.getElementById('dv-market-listings-list');
     if (listingsContainer) {
       listingsContainer.innerHTML = '';
@@ -3806,10 +3818,27 @@ class EldoriaClient {
 
           const itemCell = document.createElement('div');
           itemCell.className = `dv-mkt-item-cell ${rarityClass}`;
+
+          let rarityBadgeHtml = '';
+          if (listing.rarity && listing.rarity !== 'plain') {
+            rarityBadgeHtml = `<span class="dv-mkt-rarity-badge ${listing.rarity}">${listing.rarity}</span>`;
+          }
+
           itemCell.innerHTML = `
-            ${iconSvg}
+            <div class="dv-mkt-icon-wrap ${rarityClass}">
+              ${iconSvg}
+            </div>
             <span class="dv-mkt-item-name">${itemDef?.name || listing.itemId}${plusLabel}</span>
+            ${rarityBadgeHtml}
           `;
+
+          // Attach rich hover tooltip showing stats, rarity, and description
+          this.attachItemTooltip(
+            itemCell,
+            { itemId: listing.itemId, rarity: listing.rarity, plus: listing.plus },
+            undefined,
+            isMine ? 'Your active listing' : `Click Buy to purchase for ${listing.unitPrice.toLocaleString()}g each`
+          );
 
           const qtyCell = document.createElement('div');
           qtyCell.textContent = listing.quantity.toLocaleString();
