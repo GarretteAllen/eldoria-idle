@@ -30,6 +30,7 @@ export const PLAYER_EQUIPMENT_SPRITES: Record<string, EquipmentSpriteCoord> = {
   azurite_plate: { col: 5, row: 1, slot: 'body' },
   astralite_plate: { col: 6, row: 1, slot: 'body' },
   primordial_plate: { col: 7, row: 1, slot: 'body' },
+  ranger_tunic: { col: 10, row: 1, slot: 'body' },
 
   // Leg Armor (Row 2)
   tunic_pants: { col: 0, row: 2, slot: 'legs' },
@@ -42,6 +43,7 @@ export const PLAYER_EQUIPMENT_SPRITES: Record<string, EquipmentSpriteCoord> = {
   azurite_legs: { col: 5, row: 2, slot: 'legs' },
   astralite_legs: { col: 6, row: 2, slot: 'legs' },
   primordial_legs: { col: 7, row: 2, slot: 'legs' },
+  ranger_chaps: { col: 10, row: 2, slot: 'legs' },
 
   // Helmets & Headgear (Row 3)
   wizard_hat: { col: 0, row: 3, slot: 'helmet' },
@@ -53,6 +55,7 @@ export const PLAYER_EQUIPMENT_SPRITES: Record<string, EquipmentSpriteCoord> = {
   azurite_helm: { col: 4, row: 3, slot: 'helmet' },
   astralite_helm: { col: 5, row: 3, slot: 'helmet' },
   primordial_helm: { col: 6, row: 3, slot: 'helmet' },
+  ranger_hat: { col: 10, row: 0, slot: 'helmet' },
 
   // Weapons - Blades & Greatswords (Row 4)
   dawnburn_blade: { col: 0, row: 4, slot: 'weapon' },
