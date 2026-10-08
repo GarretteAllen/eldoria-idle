@@ -3195,6 +3195,10 @@ body, html {
   border-radius: 6px;
   padding: 6px 8px;
   margin-bottom: 12px;
+  min-height: 236px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
 }
 
 .dv-market-listings-header {
@@ -3210,12 +3214,14 @@ body, html {
 }
 
 .dv-market-listings-list {
+  min-height: 196px;
   max-height: 200px;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 3px;
   padding-top: 4px;
+  flex: 1;
 }
 
 .dv-market-listing-row {

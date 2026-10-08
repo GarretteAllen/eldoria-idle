@@ -5118,6 +5118,9 @@ export class GameEngine {
           const item = ITEMS[slot.itemId];
           if (item?.baseStats?.accuracy) gearAccuracy += item.baseStats.accuracy;
           if (item?.baseStats?.strength) gearStrength += item.baseStats.strength;
+          if (combatStyle === 'melee' && item?.baseStats?.meleeStrength) gearStrength += item.baseStats.meleeStrength;
+          if (combatStyle === 'ranged' && item?.baseStats?.rangedStrength) gearStrength += item.baseStats.rangedStrength;
+          if (combatStyle === 'magic' && item?.baseStats?.magicStrength) gearStrength += item.baseStats.magicStrength;
         }
       }
 

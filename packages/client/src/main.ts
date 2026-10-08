@@ -22,6 +22,7 @@ import {
   GemPackDef,
   QueuedTask,
   MarketListing,
+  calculateMaxHit,
   ChangelogEntry,
   getStorageSlotUpgradeCost,
   VENDOR_GOODS,
@@ -2098,7 +2099,10 @@ class EldoriaClient {
       if (item?.slot === 'amulet') return { id: 'amulets', name: 'Amulets', icon: 'amulet' };
       if (item?.id.includes('grimoire') || item?.slot === 'shield') return { id: 'grimoires', name: 'Grimoires', icon: 'magic' };
       if (item?.id.includes('gem') || item?.category === 'relic') return { id: 'gems', name: 'Gems', icon: 'gems' };
-      if (item?.category === 'armour') return { id: 'leather', name: 'Armour', icon: 'body' };
+      if (item?.equipReq?.skill === 'magic' || item?.id.includes('robe') || item?.id.includes('wizard') || item?.id.includes('skirt') || item?.id.includes('mystic')) {
+        return { id: 'robes', name: 'Robes', icon: 'magic' };
+      }
+      if (item?.category === 'armour') return { id: 'leather', name: 'Leather', icon: 'ranged' };
       return { id: 'artisan', name: 'Artisan', icon: 'crafting' };
     }
 
@@ -2938,8 +2942,10 @@ class EldoriaClient {
     if (!this.player) return;
 
     // 1. Calculate & Update Combat Stats
-    let totalAcc = (this.player.skills.melee?.level || 1) * 2;
-    let totalStr = (this.player.skills.melee?.level || 1);
+    const currentStyle = this.getPlayerCombatStyle();
+    const styleLevel = this.player.skills[currentStyle]?.level || 1;
+    let totalAcc = styleLevel * 2;
+    let totalStr = styleLevel;
     let totalDef = (this.player.skills.defence?.level || 1);
     for (const item of Object.values(this.player.equipment)) {
       if (!item) continue;
@@ -2947,10 +2953,13 @@ class EldoriaClient {
       if (def?.baseStats) {
         if (def.baseStats.accuracy) totalAcc += def.baseStats.accuracy;
         if (def.baseStats.strength) totalStr += def.baseStats.strength;
+        if (currentStyle === 'melee' && def.baseStats.meleeStrength) totalStr += def.baseStats.meleeStrength;
+        if (currentStyle === 'ranged' && def.baseStats.rangedStrength) totalStr += def.baseStats.rangedStrength;
+        if (currentStyle === 'magic' && def.baseStats.magicStrength) totalStr += def.baseStats.magicStrength;
         if (def.baseStats.defence) totalDef += def.baseStats.defence;
       }
     }
-    const maxHit = Math.max(1, Math.floor(1 + totalStr * 0.4));
+    const maxHit = calculateMaxHit(styleLevel, totalStr - styleLevel, 0);
     const accEl = document.getElementById('stat-acc');
     const strEl = document.getElementById('stat-str');
     const defEl = document.getElementById('stat-def');
@@ -5283,6 +5292,15 @@ class EldoriaClient {
           if (def.baseStats.strength) {
             statsListEl.innerHTML += `<div class="tooltip-stat-row"><span>Strength</span><span>+${def.baseStats.strength}</span></div>`;
           }
+          if (def.baseStats.meleeStrength) {
+            statsListEl.innerHTML += `<div class="tooltip-stat-row" style="color:#f6ad55;"><span>Melee Strength</span><span>+${def.baseStats.meleeStrength}</span></div>`;
+          }
+          if (def.baseStats.rangedStrength) {
+            statsListEl.innerHTML += `<div class="tooltip-stat-row" style="color:#68d391;"><span>Ranged Strength</span><span>+${def.baseStats.rangedStrength}</span></div>`;
+          }
+          if (def.baseStats.magicStrength) {
+            statsListEl.innerHTML += `<div class="tooltip-stat-row" style="color:#63b3ed;"><span>Magic Strength</span><span>+${def.baseStats.magicStrength}</span></div>`;
+          }
           if (def.baseStats.defence) {
             statsListEl.innerHTML += `<div class="tooltip-stat-row"><span>Defence</span><span>+${def.baseStats.defence}</span></div>`;
           }
@@ -5331,6 +5349,24 @@ class EldoriaClient {
           }
           if (diffStr !== 0) {
             diffParts.push(`<span class="${diffStr > 0 ? 'stat-diff-positive' : 'stat-diff-negative'}">${diffStr > 0 ? '+' : ''}${diffStr} Str</span>`);
+          }
+          const myMel = def.baseStats?.meleeStrength || 0;
+          const eqMel = eqDef?.baseStats?.meleeStrength || 0;
+          if (myMel !== eqMel) {
+            const diff = myMel - eqMel;
+            diffParts.push(`<span class="${diff > 0 ? 'stat-diff-positive' : 'stat-diff-negative'}">${diff > 0 ? '+' : ''}${diff} Melee</span>`);
+          }
+          const myRng = def.baseStats?.rangedStrength || 0;
+          const eqRng = eqDef?.baseStats?.rangedStrength || 0;
+          if (myRng !== eqRng) {
+            const diff = myRng - eqRng;
+            diffParts.push(`<span class="${diff > 0 ? 'stat-diff-positive' : 'stat-diff-negative'}">${diff > 0 ? '+' : ''}${diff} Range</span>`);
+          }
+          const myMag = def.baseStats?.magicStrength || 0;
+          const eqMag = eqDef?.baseStats?.magicStrength || 0;
+          if (myMag !== eqMag) {
+            const diff = myMag - eqMag;
+            diffParts.push(`<span class="${diff > 0 ? 'stat-diff-positive' : 'stat-diff-negative'}">${diff > 0 ? '+' : ''}${diff} Magic</span>`);
           }
           if (diffDef !== 0) {
             diffParts.push(`<span class="${diffDef > 0 ? 'stat-diff-positive' : 'stat-diff-negative'}">${diffDef > 0 ? '+' : ''}${diffDef} Def</span>`);

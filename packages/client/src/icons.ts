@@ -205,6 +205,17 @@ export function getItemIconSvg(itemId: string, _category?: string): string {
   let safeId = itemId.trim().toLowerCase();
   if (safeId === 'pelt_jerkin') safeId = 'leather_tunic';
   if (safeId === 'pelt_quiver') safeId = 'leather_quiver';
+
+  // Fallbacks for cloth mage robes to base wizard/tunic icons
+  if (safeId.includes('robe_top')) safeId = 'tunic_cloth';
+  else if (safeId.includes('robe_bottom') || safeId.includes('skirt')) safeId = 'tunic_pants';
+  else if (safeId.includes('mage_hat') || safeId.includes('mystic_hat') || safeId === 'celestial_crown') safeId = 'wizard_hat';
+
+  // Fallbacks for ranger armor to base leather/hood icons
+  else if (safeId.endsWith('_tunic') || safeId.endsWith('_vest') || safeId.endsWith('_jerkin') || safeId.endsWith('_hauberk')) safeId = 'leather_tunic';
+  else if (safeId.endsWith('_chaps') || safeId.endsWith('_leggings')) safeId = 'leather_chaps';
+  else if (safeId.endsWith('_hood') || safeId.endsWith('_cowl')) safeId = 'ranger_hood';
+
   return `<img src="/icons/items/${safeId}.png" class="dv-slot-svg item-icon-img" alt="${safeId}" loading="lazy" onerror="if(!this.dataset.triedFallback){this.dataset.triedFallback='true';if('${safeId}'==='leather_tunic'){this.src='/icons/items/pelt_jerkin.png';return;}if('${safeId}'==='leather_quiver'){this.src='/icons/items/pelt_quiver.png';return;}}this.onerror=null;this.style.display='none';" />`;
 }
 
