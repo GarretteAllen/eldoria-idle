@@ -466,6 +466,8 @@ export class WorldRenderer {
       }
     });
 
+    let justFinishedZoneDrag = false;
+
     this.canvas.addEventListener('mousedown', () => {
       isMouseDown = true;
       if (this.editorMode === 'draw_zone') {
@@ -487,13 +489,15 @@ export class WorldRenderer {
         this.zoneDragStart = null;
         this.zoneDragCur = null;
         this.editorMode = 'none';
+        justFinishedZoneDrag = true;
+        setTimeout(() => { justFinishedZoneDrag = false; }, 100);
         this.onZoneDrawn?.({ x: minX, y: minY, width, height });
       }
       isMouseDown = false;
     });
 
     this.canvas.addEventListener('click', (e) => {
-      if (this.editorMode === 'draw_zone') {
+      if (this.editorMode === 'draw_zone' || justFinishedZoneDrag) {
         return;
       }
       const rect = this.canvas.getBoundingClientRect();
