@@ -2094,6 +2094,8 @@ class EldoriaClient {
     }
 
     if (recipe.skill === 'crafting') {
+      if (item?.slot === 'ring') return { id: 'rings', name: 'Rings', icon: 'ring' };
+      if (item?.slot === 'amulet') return { id: 'amulets', name: 'Amulets', icon: 'amulet' };
       if (item?.id.includes('grimoire') || item?.slot === 'shield') return { id: 'grimoires', name: 'Grimoires', icon: 'magic' };
       if (item?.id.includes('gem') || item?.category === 'relic') return { id: 'gems', name: 'Gems', icon: 'gems' };
       if (item?.category === 'armour') return { id: 'leather', name: 'Armour', icon: 'body' };
