@@ -33,8 +33,67 @@ export function calculatePlayerMoveSpeed(player: PlayerData): number {
 }
 
 /**
+ * Fast Min-Binary Heap for A* pathfinding
+ */
+class MinBinaryHeap<T> {
+  private heap: Array<{ f: number; val: T }> = [];
+
+  public push(f: number, val: T): void {
+    this.heap.push({ f, val });
+    this.up(this.heap.length - 1);
+  }
+
+  public pop(): T | null {
+    if (this.heap.length === 0) return null;
+    const top = this.heap[0];
+    const bottom = this.heap.pop()!;
+    if (this.heap.length > 0) {
+      this.heap[0] = bottom;
+      this.down(0);
+    }
+    return top.val;
+  }
+
+  public get size(): number {
+    return this.heap.length;
+  }
+
+  private up(i: number): void {
+    while (i > 0) {
+      const p = (i - 1) >> 1;
+      if (this.heap[i].f < this.heap[p].f) {
+        const tmp = this.heap[i];
+        this.heap[i] = this.heap[p];
+        this.heap[p] = tmp;
+        i = p;
+      } else {
+        break;
+      }
+    }
+  }
+
+  private down(i: number): void {
+    const len = this.heap.length;
+    while (true) {
+      const left = (i << 1) + 1;
+      const right = left + 1;
+      let smallest = i;
+      if (left < len && this.heap[left].f < this.heap[smallest].f) smallest = left;
+      if (right < len && this.heap[right].f < this.heap[smallest].f) smallest = right;
+      if (smallest !== i) {
+        const tmp = this.heap[i];
+        this.heap[i] = this.heap[smallest];
+        this.heap[smallest] = tmp;
+        i = smallest;
+      } else {
+        break;
+      }
+    }
+  }
+}
+
 /**
- * Grid BFS Pathfinding (8-directional with collision avoidance, unbounded / dynamic map bounds).
+ * Grid A* Pathfinding (8-directional with diagonal corner-cutting prevention, unbounded / dynamic map bounds).
  */
 export function findPath(
   startX: number,
@@ -82,37 +141,50 @@ export function findPath(
   const encode = (x: number, y: number) => (((x + 20000) & 0xffff) << 16) | ((y + 20000) & 0xffff);
   const decode = (code: number) => ({ x: ((code >>> 16) & 0xffff) - 20000, y: (code & 0xffff) - 20000 });
 
-  const queue: Array<{ x: number; y: number }> = [{ x: sx, y: sy }];
+  const startCode = encode(sx, sy);
+  const targetCode = encode(tx, ty);
+
+  // Octile distance heuristic for 8-directional movement
+  const heuristic = (x: number, y: number): number => {
+    const dx = Math.abs(x - tx);
+    const dy = Math.abs(y - ty);
+    return Math.max(dx, dy) + 0.414 * Math.min(dx, dy);
+  };
+
+  const heap = new MinBinaryHeap<{ x: number; y: number; code: number }>();
+  const gScore = new Map<number, number>();
   const cameFrom = new Map<number, number>();
   const visited = new Set<number>();
 
-  const startCode = encode(sx, sy);
-  const targetCode = encode(tx, ty);
-  visited.add(startCode);
+  gScore.set(startCode, 0);
+  heap.push(heuristic(sx, sy), { x: sx, y: sy, code: startCode });
 
   const directions = [
-    { dx: 0, dy: -1 },
-    { dx: 0, dy: 1 },
-    { dx: -1, dy: 0 },
-    { dx: 1, dy: 0 },
-    { dx: -1, dy: -1 },
-    { dx: 1, dy: -1 },
-    { dx: -1, dy: 1 },
-    { dx: 1, dy: 1 },
+    { dx: 0, dy: -1, cost: 1.0 },
+    { dx: 0, dy: 1, cost: 1.0 },
+    { dx: -1, dy: 0, cost: 1.0 },
+    { dx: 1, dy: 0, cost: 1.0 },
+    { dx: -1, dy: -1, cost: 1.414 },
+    { dx: 1, dy: -1, cost: 1.414 },
+    { dx: -1, dy: 1, cost: 1.414 },
+    { dx: 1, dy: 1, cost: 1.414 },
   ];
 
   let found = false;
   let steps = 0;
-  const MAX_STEPS = 8000;
+  const MAX_STEPS = 30000;
 
-  while (queue.length > 0 && steps++ < MAX_STEPS) {
-    const curr = queue.shift()!;
-    const currCode = encode(curr.x, curr.y);
-
+  while (heap.size > 0 && steps++ < MAX_STEPS) {
+    const curr = heap.pop()!;
     if (curr.x === tx && curr.y === ty) {
       found = true;
       break;
     }
+
+    if (visited.has(curr.code)) continue;
+    visited.add(curr.code);
+
+    const currG = gScore.get(curr.code) ?? 0;
 
     for (const d of directions) {
       const nx = clampX(curr.x + d.dx);
@@ -131,11 +203,15 @@ export function findPath(
       }
 
       const nCode = encode(nx, ny);
+      if (visited.has(nCode)) continue;
 
-      if (!visited.has(nCode)) {
-        visited.add(nCode);
-        cameFrom.set(nCode, currCode);
-        queue.push({ x: nx, y: ny });
+      const tentG = currG + d.cost;
+      const prevG = gScore.get(nCode);
+
+      if (prevG === undefined || tentG < prevG) {
+        gScore.set(nCode, tentG);
+        cameFrom.set(nCode, curr.code);
+        heap.push(tentG + heuristic(nx, ny), { x: nx, y: ny, code: nCode });
       }
     }
   }

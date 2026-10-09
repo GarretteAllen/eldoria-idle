@@ -68,8 +68,8 @@ export const MONSTERS: Record<string, MonsterDefinition> = {
     swingSpeedSeconds: 2.4,
     minCoins: 4,
     maxCoins: 9,
-    guaranteedDropItemId: 'ghoul_hide',
-    rareDrop: { itemId: 'bog_pearl', chance: 1 / 1667 },
+    guaranteedDropItemId: 'crypt_carapace',
+    rareDrop: { itemId: 'dry_sigil', chance: 1 / 1667 },
   },
   trench_skulker: {
     id: 'trench_skulker',
