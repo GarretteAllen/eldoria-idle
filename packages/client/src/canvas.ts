@@ -410,9 +410,18 @@ export class WorldRenderer {
   }
 
   public addChatBubble(senderId: string, text: string) {
+    // Decode HTML entities (e.g. &#39; -> ', &quot; -> ", &amp; -> &, &lt; -> <, &gt; -> >) for canvas 2D rendering
+    let decoded = text
+      .replace(/&#39;/g, "'")
+      .replace(/&apos;/g, "'")
+      .replace(/&quot;/g, '"')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&amp;/g, '&');
+
     this.chatBubbles.push({
       senderId,
-      text,
+      text: decoded,
       expiresAt: Date.now() + 5000,
     });
   }
