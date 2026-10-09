@@ -4432,6 +4432,18 @@ export class GameEngine {
   ) {
     const { player } = session;
 
+    if (rec.skill === 'herbalism') {
+      const allNodes = this.getAllWorldNodes();
+      const hasHerbNode = allNodes.some(n => n.recipeId === rec.id || n.type === 'herb');
+      if (!hasHerbNode) {
+        this.send(session.ws, {
+          type: 'NOTIFICATION',
+          message: 'No wild herb node found in the realm. Place one via Admin Editor.'
+        });
+        return;
+      }
+    }
+
     const hasReadyPlots = rec.skill === 'farming' && player.farmPlots &&
       Object.values(player.farmPlots).some(p => p.status === 'ready');
 

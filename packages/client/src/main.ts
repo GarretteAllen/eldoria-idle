@@ -1922,7 +1922,7 @@ class EldoriaClient {
           this.showToast('No Runeforge found in the realm. Place one via Admin Editor.');
           return;
         }
-      } else if (rec.skill === 'farming' || rec.skill === 'herbalism') {
+      } else if (rec.skill === 'farming') {
         const farmNodes = this.worldNodes.filter(n => n.type === 'farm');
         if (farmNodes.length === 0) {
           this.showToast('No farm plot found in the realm. Place one via Admin Editor.');
@@ -1934,6 +1934,14 @@ class EldoriaClient {
           farmNodes.sort((a, b) => Math.hypot(this.player!.x - a.x, this.player!.y - a.y) - Math.hypot(this.player!.x - b.x, this.player!.y - b.y));
           matchingNode = farmNodes[0];
         }
+      } else if (rec.skill === 'herbalism') {
+        const herbNodes = this.worldNodes.filter(n => n.recipeId === rec.id || n.type === 'herb');
+        if (herbNodes.length === 0) {
+          this.showToast('No wild herb node found in the realm. Place one via Admin Editor.');
+          return;
+        }
+        herbNodes.sort((a, b) => Math.hypot(this.player!.x - a.x, this.player!.y - a.y) - Math.hypot(this.player!.x - b.x, this.player!.y - b.y));
+        matchingNode = herbNodes[0];
       } else if (rec.skill === 'crafting' || rec.skill === 'fletching') {
         const wbNodes = this.worldNodes.filter(n => n.type === 'workbench');
         if (wbNodes.length === 0) {
@@ -2035,6 +2043,16 @@ class EldoriaClient {
           matchingNode = this.worldNodes.find(n => n.type === 'cauldron');
         } else if (rec.skill === 'attunement') {
           matchingNode = this.worldNodes.find(n => n.type === 'monolith');
+        } else if (rec.skill === 'farming') {
+          matchingNode = this.worldNodes.find(n => n.type === 'farm');
+        } else if (rec.skill === 'herbalism') {
+          const herbNodes = this.worldNodes.filter(n => n.recipeId === rec.id || n.type === 'herb');
+          if (herbNodes.length === 0) {
+            this.showToast('No wild herb node found in the realm. Place one via Admin Editor.');
+            return;
+          }
+          herbNodes.sort((a, b) => Math.hypot(this.player!.x - a.x, this.player!.y - a.y) - Math.hypot(this.player!.x - b.x, this.player!.y - b.y));
+          matchingNode = herbNodes[0];
         } else {
           matchingNode = this.worldNodes.find(n => n.recipeId === rec.id);
         }
@@ -2689,8 +2707,10 @@ class EldoriaClient {
         matchingNode = this.worldNodes.find(n => n.type === 'fire');
       } else if (recipe.skill === 'smithing') {
         matchingNode = this.worldNodes.find(n => n.type === 'forge');
-      } else if (recipe.skill === 'farming' || recipe.skill === 'herbalism') {
+      } else if (recipe.skill === 'farming') {
         matchingNode = this.worldNodes.find(n => n.type === 'farm');
+      } else if (recipe.skill === 'herbalism') {
+        matchingNode = this.worldNodes.find(n => n.recipeId === recipe.id || n.type === 'herb');
       } else if (recipe.skill === 'crafting' || recipe.skill === 'fletching') {
         matchingNode = this.worldNodes.find(n => n.type === 'workbench');
       } else if (recipe.skill === 'alchemy') {
