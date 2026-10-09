@@ -6024,6 +6024,40 @@ class EldoriaClient {
         }
       };
     }
+
+    const btnRestoreGuest = document.getElementById('btn-restore-guest');
+    if (btnRestoreGuest) {
+      btnRestoreGuest.onclick = () => this.handleRestorePreviousCharacter();
+    }
+  }
+
+  private async handleRestorePreviousCharacter() {
+    this.showToast('Checking for previous character session...');
+    try {
+      const legacyAuth = await this.queryLegacyDomainAuth();
+      if (!legacyAuth || (!legacyAuth.guestId && !legacyAuth.token)) {
+        this.showToast('No previous character session was found on this device.');
+        return;
+      }
+
+      this.showInGameConfirm({
+        title: 'Restore Previous Character',
+        message: 'A previous adventurer session was found on this device! Would you like to restore it and continue your journey?',
+        confirmText: 'Restore Character',
+        cancelText: 'Keep Current',
+        onConfirm: () => {
+          if (legacyAuth.token) {
+            localStorage.setItem('eldoria_session_token', legacyAuth.token);
+          }
+          if (legacyAuth.guestId) {
+            localStorage.setItem('eldoria_guest_id', legacyAuth.guestId);
+          }
+          window.location.reload();
+        },
+      });
+    } catch {
+      this.showToast('Unable to check for previous character session.');
+    }
   }
 
   private setupProfileModal() {
@@ -6116,6 +6150,14 @@ class EldoriaClient {
             window.location.reload();
           },
         });
+      };
+    }
+
+    const btnProfileRestore = document.getElementById('btn-profile-restore-old');
+    if (btnProfileRestore) {
+      btnProfileRestore.onclick = () => {
+        modal?.classList.add('hidden');
+        this.handleRestorePreviousCharacter();
       };
     }
 
