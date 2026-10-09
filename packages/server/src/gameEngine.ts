@@ -146,6 +146,26 @@ export class GameEngine {
         this.liveMonsters.delete(instId);
       }
     }
+
+    // Also populate liveMonsters for any monster nodes present in world_nodes
+    const staticMonsterNodes = storage.getWorldNodes().filter(n => n.type === 'monster');
+    for (const node of staticMonsterNodes) {
+      if (!node.monsterId) continue;
+      const def = MONSTERS[node.monsterId];
+      if (!def) continue;
+      if (!this.liveMonsters.has(node.id)) {
+        this.liveMonsters.set(node.id, {
+          id: node.id,
+          zoneId: node.zoneId || `zone_${node.monsterId}`,
+          monsterId: node.monsterId,
+          name: node.name || def.name,
+          x: node.x,
+          y: node.y,
+          currentHp: def.hp,
+          maxHp: def.hp,
+        });
+      }
+    }
   }
 
   public findWalkableTileInZone(zone: MonsterSpawnZone, occupiedCoords: Set<string>): { x: number; y: number } {
@@ -2902,6 +2922,16 @@ export class GameEngine {
           inst.respawnAtTick = undefined;
           inst.nextMoveTick = this.tickCount + Math.floor(Math.random() * 8) + 4;
           monstersChanged = true;
+        } else {
+          // Static node respawn at original location
+          const node = storage.getWorldNodes().find(n => n.id === inst.id);
+          if (node) {
+            inst.x = node.x;
+            inst.y = node.y;
+          }
+          inst.currentHp = inst.maxHp;
+          inst.respawnAtTick = undefined;
+          monstersChanged = true;
         }
       }
     }
@@ -5244,8 +5274,42 @@ export class GameEngine {
     }
 
     const maxRange = this.getCombatMaxRange(player);
-    const dist = Math.hypot(player.x - combat.targetX, player.y - combat.targetY);
+    let targetX = combat.targetX;
+    let targetY = combat.targetY;
+    if (combat.nodeId) {
+      const mobInst = this.liveMonsters.get(combat.nodeId);
+      if (mobInst && mobInst.currentHp > 0) {
+        targetX = mobInst.x;
+        targetY = mobInst.y;
+        combat.targetX = targetX;
+        combat.targetY = targetY;
+      }
+    }
+    const dist = Math.hypot(player.x - targetX, player.y - targetY);
     if (dist > maxRange + 0.5) {
+      // Step towards monster to close the gap rather than dropping combat and going idle!
+      const adj = this.getAdjacentWalkableTile(player.x, player.y, targetX, targetY);
+      const path = this.findPathWithCollisions(player.x, player.y, adj.x, adj.y);
+      if (path.length > 0) {
+        player.targetX = adj.x;
+        player.targetY = adj.y;
+        player.path = path;
+        player.isMoving = true;
+        session.pendingCombat = {
+          monsterId: combat.monsterId,
+          targetX,
+          targetY,
+          nodeId: combat.nodeId,
+          zoneId: combat.zoneId,
+          quantity: player.currentTask?.targetQuantity,
+        };
+        session.activeCombat = null;
+        this.send(ws, { type: 'PLAYER_UPDATE', player });
+        this.broadcastWorldState();
+        return;
+      }
+
+      // If no path is reachable, cancel combat
       session.activeCombat = null;
       player.currentTask = null;
       this.send(ws, { type: 'PLAYER_UPDATE', player });
@@ -5298,11 +5362,22 @@ export class GameEngine {
       const hitChance = calculateHitChance(combatLevel * 2 + gearAccuracy + 10, monsterDef.level * 3);
       let damage = 0;
       if (Math.random() < hitChance) {
-        const maxHit = calculateMaxHit(combatLevel, gearStrength, Math.floor(monsterDef.level / 4));
+        const maxHit = calculateMaxHit(combatLevel, gearStrength, Math.floor(monsterDef.level / 6));
         damage = Math.floor(1 + Math.random() * maxHit);
       }
 
       combat.currentHp = Math.max(0, combat.currentHp - damage);
+
+      // Sync persistent HP to live monster instance so monsters do not reset/heal
+      let mobInst = combat.nodeId ? this.liveMonsters.get(combat.nodeId) : undefined;
+      if (!mobInst) {
+        mobInst = Array.from(this.liveMonsters.values()).find(
+          m => m.x === combat.targetX && m.y === combat.targetY
+        );
+      }
+      if (mobInst) {
+        mobInst.currentHp = combat.currentHp;
+      }
 
       // XP gains to the matching combat style!
       const styleXp = Math.max(2, damage * 4);
@@ -5416,8 +5491,12 @@ export class GameEngine {
           return;
         }
 
-        // Search for next alive monster in the zone to hunt
-        const nextMob = this.findNearestAliveMonsterInZone(player.x, player.y, combat.zoneId || mobInst?.zoneId, monsterDef.id);
+        // Search for next alive monster in the zone to hunt, or nearby matching monster
+        let nextMob = this.findNearestAliveMonsterInZone(player.x, player.y, combat.zoneId || mobInst?.zoneId, monsterDef.id);
+        if (!nextMob) {
+          nextMob = this.findNearestAliveMonsterInZone(player.x, player.y, undefined, monsterDef.id);
+        }
+
         if (nextMob) {
           this.handleStartCombat(session, {
             monsterId: nextMob.monsterId,

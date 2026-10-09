@@ -568,15 +568,27 @@ class StorageManager {
     // (If the table is empty, that is an intentional admin action like deleting all NPCs or nodes.)
     const seeded = this.stmtGetMeta.get('world_seeded') as { val: string } | undefined;
     if (seeded) {
+      // Ensure monster_zones has been initialized if upgrading from a version before zones existed
+      const zoneCount = (this.db.prepare('SELECT COUNT(*) as count FROM monster_zones').get() as { count: number }).count;
+      if (zoneCount === 0) {
+        console.log('[World] SQLite: Seeding default monster zones into existing world.');
+        this.saveMonsterZones(DEFAULT_MONSTER_ZONES);
+        this.checkpoint();
+      }
       return;
     }
 
     // If accounts or players already exist, this is an active database with custom data.
-    // Preserve all existing data and do not re-seed defaults!
+    // Preserve custom NPCs, nodes, and quests, but ensure monster spawn zones are seeded if empty!
     const existingAccounts = (this.db.prepare('SELECT COUNT(*) as count FROM accounts').get() as { count: number }).count;
     const existingPlayers = (this.db.prepare('SELECT COUNT(*) as count FROM players').get() as { count: number }).count;
     if (existingAccounts > 0 || existingPlayers > 0) {
-      console.log('[World] SQLite: Active world detected. Preserving custom NPCs, nodes, and quests without overwriting.');
+      console.log('[World] SQLite: Active world detected. Preserving custom NPCs, nodes, and quests.');
+      const zoneCount = (this.db.prepare('SELECT COUNT(*) as count FROM monster_zones').get() as { count: number }).count;
+      if (zoneCount === 0) {
+        console.log('[World] SQLite: Seeding default monster zones into active world.');
+        this.saveMonsterZones(DEFAULT_MONSTER_ZONES);
+      }
       this.stmtSetMeta.run('world_seeded', 'true');
       this.checkpoint();
       return;
