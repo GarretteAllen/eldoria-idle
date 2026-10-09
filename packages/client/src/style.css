@@ -2710,12 +2710,16 @@ body, html {
   border-radius: 8px;
   box-shadow: 0 16px 48px rgba(0, 0, 0, 0.95), inset 0 1px 0 rgba(255, 230, 180, 0.15), inset 0 0 16px rgba(0, 0, 0, 0.7);
   width: 95vw;
-  max-width: 530px;
-  padding: 14px 16px;
+  max-width: 780px;
+  height: 690px;
+  max-height: 92vh;
+  padding: 14px 18px;
   box-sizing: border-box;
   color: #f3e8dc;
   font-family: inherit;
   user-select: none;
+  display: flex;
+  flex-direction: column;
 }
 
 .dv-storage-header {
@@ -2863,7 +2867,7 @@ body, html {
 
 .dv-storage-grid {
   grid-template-columns: repeat(10, 1fr);
-  max-height: 260px;
+  max-height: 335px;
   overflow-y: auto;
   padding: 2px;
   scrollbar-width: thin;
@@ -3096,14 +3100,78 @@ body, html {
 
 .dv-market-search-row .dv-filter-box {
   flex: 1;
-  min-width: 0;
+  min-width: 140px;
   width: auto;
+}
+
+.dv-market-sort-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #110c08;
+  border: 1px solid #45301e;
+  border-radius: 4px;
+  padding: 2px 8px;
+}
+
+.dv-sort-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #a49382;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.dv-sort-select {
+  background: transparent;
+  border: none;
+  color: #ffd699;
+  font-size: 0.75rem;
+  font-weight: 600;
+  outline: none;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.dv-sort-select option {
+  background: #19110a;
+  color: #f3e8dc;
+}
+
+.dv-market-view-toggle {
+  display: flex;
+  border: 1px solid #45301e;
+  border-radius: 4px;
+  overflow: hidden;
+  background: #110c08;
+}
+
+.dv-view-mode-btn {
+  background: transparent;
+  border: none;
+  color: #a0aec0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 4px 10px;
+  cursor: pointer;
+  transition: all 0.12s;
+  font-family: inherit;
+}
+
+.dv-view-mode-btn:hover {
+  color: #f7fafc;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.dv-view-mode-btn.active {
+  background: #3e2614;
+  color: #ffd466;
 }
 
 .dv-market-tabs {
   display: flex;
   align-items: center;
-  gap: 3px;
+  gap: 4px;
   background: rgba(14, 9, 5, 0.9);
   border: 1px solid #432e1c;
   border-radius: 5px;
@@ -3124,9 +3192,9 @@ body, html {
   border: 1px solid transparent;
   border-radius: 4px;
   color: #a0aec0;
-  font-size: 0.74rem;
+  font-size: 0.75rem;
   font-weight: 600;
-  padding: 5px 6px;
+  padding: 5px 8px;
   cursor: pointer;
   transition: all 0.12s;
   font-family: inherit;
@@ -3193,9 +3261,9 @@ body, html {
   background: rgba(0, 0, 0, 0.45);
   border: 1px solid #432e1c;
   border-radius: 6px;
-  padding: 6px 8px;
-  margin-bottom: 12px;
-  min-height: 236px;
+  padding: 8px 10px;
+  margin-bottom: 10px;
+  height: 335px;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
@@ -3211,17 +3279,153 @@ body, html {
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   text-transform: uppercase;
   letter-spacing: 0.5px;
+  margin-bottom: 4px;
 }
 
 .dv-market-listings-list {
-  min-height: 196px;
-  max-height: 200px;
+  flex: 1;
   overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #573c24 #140d07;
+  padding-right: 4px;
+}
+
+/* Cards Exploration Mode */
+.dv-market-listings-list.dv-cards-mode {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 8px;
+  align-content: start;
+}
+
+.dv-mkt-card {
+  background: linear-gradient(180deg, rgba(32, 22, 14, 0.85) 0%, rgba(20, 13, 8, 0.95) 100%);
+  border: 1px solid #432e1c;
+  border-radius: 6px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 8px;
+  transition: all 0.15s ease;
+  position: relative;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+}
+
+.dv-mkt-card:hover {
+  background: linear-gradient(180deg, rgba(46, 32, 20, 0.95) 0%, rgba(28, 18, 11, 0.98) 100%);
+  border-color: #8c6038;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.6);
+}
+
+.dv-mkt-card.my-listing {
+  border-left: 3px solid #3b82f6;
+}
+
+.dv-mkt-card-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.dv-mkt-card-icon {
+  width: 38px;
+  height: 38px;
+  background: rgba(14, 9, 5, 0.9);
+  border: 1px solid #432e1c;
+  border-radius: 5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  position: relative;
+}
+
+.dv-mkt-card-icon svg {
+  width: 26px;
+  height: 26px;
+}
+
+.dv-mkt-card-badge {
+  position: absolute;
+  bottom: -2px;
+  right: -2px;
+  background: #110c08;
+  border: 1px solid #432e1c;
+  border-radius: 3px;
+  padding: 1px 4px;
+  font-size: 0.65rem;
+  font-weight: 800;
+  color: #fff;
+  font-family: monospace;
+}
+
+.dv-mkt-card-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.dv-mkt-card-title {
+  font-size: 0.84rem;
+  font-weight: 700;
+  color: #fff;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dv-mkt-card-subtitle {
+  font-size: 0.68rem;
+  color: #a0aec0;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 2px;
+}
+
+.dv-mkt-card-pricing {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  border-radius: 4px;
+  padding: 6px 8px;
+}
+
+.dv-mkt-card-price-unit {
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: #ffd699;
+}
+
+.dv-mkt-card-price-total {
+  font-size: 0.68rem;
+  color: #cbd5e1;
+}
+
+.dv-mkt-card-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.dv-mkt-card-seller {
+  font-size: 0.7rem;
+  color: #9c8a79;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+/* Compact Ledger Table Mode */
+.dv-market-listings-list.dv-table-mode {
   display: flex;
   flex-direction: column;
   gap: 3px;
-  padding-top: 4px;
-  flex: 1;
 }
 
 .dv-market-listing-row {
@@ -3276,10 +3480,10 @@ body, html {
   width: 18px;
   height: 18px;
 }
-.dv-mkt-icon-wrap.rarity-uncommon { border-color: #22c55e; background: rgba(34, 197, 94, 0.1); }
-.dv-mkt-icon-wrap.rarity-rare { border-color: #3b82f6; background: rgba(59, 130, 246, 0.1); }
-.dv-mkt-icon-wrap.rarity-epic { border-color: #a855f7; background: rgba(168, 85, 247, 0.1); }
-.dv-mkt-icon-wrap.rarity-legendary { border-color: #f59e0b; background: rgba(245, 158, 11, 0.15); box-shadow: 0 0 6px rgba(245, 158, 11, 0.4); }
+.dv-mkt-icon-wrap.rarity-uncommon, .dv-mkt-card-icon.rarity-uncommon { border-color: #22c55e; background: rgba(34, 197, 94, 0.12); }
+.dv-mkt-icon-wrap.rarity-rare, .dv-mkt-card-icon.rarity-rare { border-color: #3b82f6; background: rgba(59, 130, 246, 0.12); }
+.dv-mkt-icon-wrap.rarity-epic, .dv-mkt-card-icon.rarity-epic { border-color: #a855f7; background: rgba(168, 85, 247, 0.12); }
+.dv-mkt-icon-wrap.rarity-legendary, .dv-mkt-card-icon.rarity-legendary { border-color: #f59e0b; background: rgba(245, 158, 11, 0.15); box-shadow: 0 0 6px rgba(245, 158, 11, 0.4); }
 
 .dv-mkt-item-name {
   font-weight: 600;
@@ -3289,10 +3493,10 @@ body, html {
   color: #f7fafc;
 }
 
-.dv-mkt-item-cell.rarity-uncommon .dv-mkt-item-name { color: #22c55e; }
-.dv-mkt-item-cell.rarity-rare .dv-mkt-item-name { color: #3b82f6; }
-.dv-mkt-item-cell.rarity-epic .dv-mkt-item-name { color: #a855f7; }
-.dv-mkt-item-cell.rarity-legendary .dv-mkt-item-name { color: #f59e0b; font-weight: 700; text-shadow: 0 0 6px rgba(245, 158, 11, 0.4); }
+.dv-mkt-item-cell.rarity-uncommon .dv-mkt-item-name, .dv-mkt-card.rarity-uncommon .dv-mkt-card-title { color: #22c55e; }
+.dv-mkt-item-cell.rarity-rare .dv-mkt-item-name, .dv-mkt-card.rarity-rare .dv-mkt-card-title { color: #3b82f6; }
+.dv-mkt-item-cell.rarity-epic .dv-mkt-item-name, .dv-mkt-card.rarity-epic .dv-mkt-card-title { color: #a855f7; }
+.dv-mkt-item-cell.rarity-legendary .dv-mkt-item-name, .dv-mkt-card.rarity-legendary .dv-mkt-card-title { color: #f59e0b; font-weight: 700; text-shadow: 0 0 6px rgba(245, 158, 11, 0.4); }
 
 .dv-mkt-rarity-badge {
   font-size: 0.58rem;
@@ -3328,12 +3532,13 @@ body, html {
   background: linear-gradient(180deg, #10b981 0%, #059669 100%);
   color: #fff;
   border: 1px solid #34d399;
-  border-radius: 3px;
-  font-size: 0.72rem;
+  border-radius: 4px;
+  font-size: 0.74rem;
   font-weight: 700;
-  padding: 3px 8px;
+  padding: 4px 10px;
   cursor: pointer;
   transition: all 0.12s;
+  white-space: nowrap;
 }
 
 .dv-market-btn-buy:hover {
@@ -3345,12 +3550,13 @@ body, html {
   background: linear-gradient(180deg, #ef4444 0%, #dc2626 100%);
   color: #fff;
   border: 1px solid #f87171;
-  border-radius: 3px;
-  font-size: 0.72rem;
+  border-radius: 4px;
+  font-size: 0.74rem;
   font-weight: 700;
-  padding: 3px 8px;
+  padding: 4px 10px;
   cursor: pointer;
   transition: all 0.12s;
+  white-space: nowrap;
 }
 
 .dv-market-btn-cancel:hover {
@@ -3360,9 +3566,10 @@ body, html {
 
 .dv-market-empty-msg {
   text-align: center;
-  color: #84613b;
-  font-size: 0.8rem;
-  padding: 24px 0;
+  color: #a49382;
+  font-size: 0.82rem;
+  padding: 36px 0;
+  grid-column: 1 / -1;
 }
 
 .dv-market-sell-section {

@@ -106,6 +106,8 @@ class EldoriaClient {
   private marketListings: MarketListing[] = [];
   private marketSearchQuery: string = '';
   private marketFilterCategory: string = 'all';
+  private marketViewMode: 'cards' | 'table' = 'cards';
+  private marketSortOption: 'newest' | 'price_asc' | 'price_desc' | 'rarity_desc' | 'name_asc' = 'newest';
 
   // Changelogs State
   private changelogs: ChangelogEntry[] = [];
@@ -3259,6 +3261,31 @@ class EldoriaClient {
       };
     }
 
+    const mktSortSelect = document.getElementById('dv-market-sort-select') as HTMLSelectElement | null;
+    if (mktSortSelect) {
+      mktSortSelect.onchange = () => {
+        this.marketSortOption = (mktSortSelect.value as any) || 'newest';
+        this.renderMarketView();
+      };
+    }
+
+    const btnViewCards = document.getElementById('dv-mkt-view-cards');
+    const btnViewTable = document.getElementById('dv-mkt-view-table');
+    if (btnViewCards && btnViewTable) {
+      btnViewCards.onclick = () => {
+        this.marketViewMode = 'cards';
+        btnViewCards.classList.add('active');
+        btnViewTable.classList.remove('active');
+        this.renderMarketView();
+      };
+      btnViewTable.onclick = () => {
+        this.marketViewMode = 'table';
+        btnViewTable.classList.add('active');
+        btnViewCards.classList.remove('active');
+        this.renderMarketView();
+      };
+    }
+
     const mktTabBtns = document.querySelectorAll('.dv-mkt-tab-btn');
     mktTabBtns.forEach(btn => {
       btn.addEventListener('click', () => {
@@ -3805,15 +3832,39 @@ class EldoriaClient {
       }
     });
 
+    // Sync sort dropdown and view buttons
+    const mktSortSelect = document.getElementById('dv-market-sort-select') as HTMLSelectElement | null;
+    if (mktSortSelect && mktSortSelect.value !== this.marketSortOption) {
+      mktSortSelect.value = this.marketSortOption;
+    }
+
+    const btnViewCards = document.getElementById('dv-mkt-view-cards');
+    const btnViewTable = document.getElementById('dv-mkt-view-table');
+    if (btnViewCards && btnViewTable) {
+      btnViewCards.classList.toggle('active', this.marketViewMode === 'cards');
+      btnViewTable.classList.toggle('active', this.marketViewMode === 'table');
+    }
+
+    const tableHeader = document.getElementById('dv-market-table-header');
+    if (tableHeader) {
+      if (this.marketViewMode === 'table') {
+        tableHeader.classList.remove('hidden');
+      } else {
+        tableHeader.classList.add('hidden');
+      }
+    }
+
     const listingsContainer = document.getElementById('dv-market-listings-list');
     if (listingsContainer) {
       listingsContainer.innerHTML = '';
+      listingsContainer.classList.toggle('dv-cards-mode', this.marketViewMode === 'cards');
+      listingsContainer.classList.toggle('dv-table-mode', this.marketViewMode === 'table');
 
       // Filter listings by search query and category
       const query = this.marketSearchQuery;
       const category = this.marketFilterCategory;
 
-      const filtered = this.marketListings.filter(listing => {
+      let filtered = this.marketListings.filter(listing => {
         const itemDef = ITEMS[listing.itemId];
         const name = (itemDef?.name || listing.itemId).toLowerCase();
 
@@ -3840,6 +3891,27 @@ class EldoriaClient {
         return true;
       });
 
+      // Apply sorting
+      const rarityRank: Record<string, number> = { plain: 0, uncommon: 1, rare: 2, epic: 3, legendary: 4 };
+      filtered.sort((a, b) => {
+        if (this.marketSortOption === 'price_asc') {
+          return a.unitPrice - b.unitPrice;
+        } else if (this.marketSortOption === 'price_desc') {
+          return b.unitPrice - a.unitPrice;
+        } else if (this.marketSortOption === 'rarity_desc') {
+          const rA = (rarityRank[a.rarity || 'plain'] || 0) + (a.plus || 0) * 0.1;
+          const rB = (rarityRank[b.rarity || 'plain'] || 0) + (b.plus || 0) * 0.1;
+          return rB - rA;
+        } else if (this.marketSortOption === 'name_asc') {
+          const nameA = (ITEMS[a.itemId]?.name || a.itemId).toLowerCase();
+          const nameB = (ITEMS[b.itemId]?.name || b.itemId).toLowerCase();
+          return nameA.localeCompare(nameB);
+        } else {
+          // newest default
+          return (b.createdAt || 0) - (a.createdAt || 0);
+        }
+      });
+
       if (filtered.length === 0) {
         const emptyDiv = document.createElement('div');
         emptyDiv.className = 'dv-market-empty-msg';
@@ -3854,92 +3926,143 @@ class EldoriaClient {
           const iconSvg = getItemIconSvg(listing.itemId, itemDef?.category);
           const plusLabel = listing.plus > 0 ? ` +${listing.plus}` : '';
           const rarityClass = listing.rarity && listing.rarity !== 'plain' ? `rarity-${listing.rarity}` : '';
+          const rarityLabel = listing.rarity && listing.rarity !== 'plain' ? listing.rarity.toUpperCase() : 'COMMON';
 
-          const row = document.createElement('div');
-          row.className = `dv-market-listing-row ${isMine ? 'my-listing' : ''}`;
+          const createActionBtn = () => {
+            if (isMine) {
+              const cancelBtn = document.createElement('button');
+              cancelBtn.className = 'dv-market-btn-cancel';
+              cancelBtn.textContent = 'Cancel';
+              cancelBtn.title = 'Cancel listing and return items';
+              cancelBtn.onclick = (e) => {
+                e.stopPropagation();
+                this.sendWs({ type: 'CANCEL_MARKET_LISTING', listingId: listing.id });
+              };
+              return cancelBtn;
+            } else {
+              const buyBtn = document.createElement('button');
+              buyBtn.className = 'dv-market-btn-buy';
+              buyBtn.textContent = `Buy (${listing.unitPrice.toLocaleString()} G)`;
+              buyBtn.title = `Buy from ${listing.sellerName}`;
+              buyBtn.onclick = (e) => {
+                e.stopPropagation();
+                if (listing.quantity > 1) {
+                  this.showInGamePrompt({
+                    title: 'Buy Listing',
+                    message: `How many ${itemDef?.name || 'items'} would you like to buy? (1 to ${listing.quantity})`,
+                    defaultValue: listing.quantity,
+                    min: 1,
+                    max: listing.quantity,
+                    confirmText: 'Buy',
+                    onConfirm: (buyQty) => {
+                      this.sendWs({ type: 'BUY_MARKET_LISTING', listingId: listing.id, quantity: Math.min(listing.quantity, buyQty) });
+                    },
+                  });
+                } else {
+                  this.sendWs({ type: 'BUY_MARKET_LISTING', listingId: listing.id, quantity: 1 });
+                }
+              };
+              return buyBtn;
+            }
+          };
 
-          const itemCell = document.createElement('div');
-          itemCell.className = `dv-mkt-item-cell ${rarityClass}`;
+          if (this.marketViewMode === 'cards') {
+            // Render Card Layout
+            const card = document.createElement('div');
+            card.className = `dv-mkt-card ${rarityClass} ${isMine ? 'my-listing' : ''}`;
 
-          let rarityBadgeHtml = '';
-          if (listing.rarity && listing.rarity !== 'plain') {
-            rarityBadgeHtml = `<span class="dv-mkt-rarity-badge ${listing.rarity}">${listing.rarity}</span>`;
-          }
+            card.innerHTML = `
+              <div class="dv-mkt-card-header">
+                <div class="dv-mkt-card-icon ${rarityClass}">
+                  ${iconSvg}
+                  <span class="dv-mkt-card-badge">${listing.quantity.toLocaleString()}</span>
+                </div>
+                <div class="dv-mkt-card-info">
+                  <div class="dv-mkt-card-title">${itemDef?.name || listing.itemId}${plusLabel}</div>
+                  <div class="dv-mkt-card-subtitle">
+                    <span class="dv-mkt-rarity-badge ${listing.rarity || 'common'}">${rarityLabel}</span>
+                    <span>${itemDef?.category ? itemDef.category.replace('_', ' ') : 'Item'}</span>
+                  </div>
+                </div>
+              </div>
+              <div class="dv-mkt-card-pricing">
+                <span class="dv-mkt-card-price-unit">${listing.unitPrice.toLocaleString()} G <span style="font-size:0.65rem; color:#a0aec0; font-weight:normal;">each</span></span>
+                <span class="dv-mkt-card-price-total">Total: ${listing.totalPrice.toLocaleString()} G</span>
+              </div>
+              <div class="dv-mkt-card-footer">
+                <span class="dv-mkt-card-seller">By ${isMine ? '<strong style="color:#60a5fa;">You</strong>' : listing.sellerName}</span>
+                <div class="dv-mkt-card-btn-wrap"></div>
+              </div>
+            `;
 
-          itemCell.innerHTML = `
-            <div class="dv-mkt-icon-wrap ${rarityClass}">
-              ${iconSvg}
-            </div>
-            <span class="dv-mkt-item-name">${itemDef?.name || listing.itemId}${plusLabel}</span>
-            ${rarityBadgeHtml}
-          `;
+            this.attachItemTooltip(
+              card,
+              { itemId: listing.itemId, rarity: listing.rarity, plus: listing.plus },
+              undefined,
+              isMine ? 'Your active listing' : `Click Buy to purchase for ${listing.unitPrice.toLocaleString()}g each`
+            );
 
-          // Attach rich hover tooltip showing stats, rarity, and description
-          this.attachItemTooltip(
-            itemCell,
-            { itemId: listing.itemId, rarity: listing.rarity, plus: listing.plus },
-            undefined,
-            isMine ? 'Your active listing' : `Click Buy to purchase for ${listing.unitPrice.toLocaleString()}g each`
-          );
+            const btnWrap = card.querySelector('.dv-mkt-card-btn-wrap');
+            if (btnWrap) {
+              btnWrap.appendChild(createActionBtn());
+            }
 
-          const qtyCell = document.createElement('div');
-          qtyCell.textContent = listing.quantity.toLocaleString();
-
-          const priceCell = document.createElement('div');
-          priceCell.className = 'dv-mkt-gold-text';
-          priceCell.textContent = `${listing.unitPrice.toLocaleString()} G`;
-
-          const totalCell = document.createElement('div');
-          totalCell.className = 'dv-mkt-gold-text';
-          totalCell.textContent = `${listing.totalPrice.toLocaleString()} G`;
-
-          const sellerCell = document.createElement('div');
-          sellerCell.className = 'dv-mkt-seller-name';
-          sellerCell.textContent = isMine ? 'You' : listing.sellerName;
-
-          const actionCell = document.createElement('div');
-          if (isMine) {
-            const cancelBtn = document.createElement('button');
-            cancelBtn.className = 'dv-market-btn-cancel';
-            cancelBtn.textContent = 'Cancel';
-            cancelBtn.title = 'Cancel listing and return items to satchel or vault';
-            cancelBtn.onclick = () => {
-              this.sendWs({ type: 'CANCEL_MARKET_LISTING', listingId: listing.id });
-            };
-            actionCell.appendChild(cancelBtn);
+            listingsContainer.appendChild(card);
           } else {
-            const buyBtn = document.createElement('button');
-            buyBtn.className = 'dv-market-btn-buy';
-            buyBtn.textContent = 'Buy';
-            buyBtn.title = `Buy from ${listing.sellerName}`;
-            buyBtn.onclick = () => {
-              if (listing.quantity > 1) {
-                this.showInGamePrompt({
-                  title: 'Buy Listing',
-                  message: `How many ${itemDef?.name || 'items'} would you like to buy? (1 to ${listing.quantity})`,
-                  defaultValue: listing.quantity,
-                  min: 1,
-                  max: listing.quantity,
-                  confirmText: 'Buy',
-                  onConfirm: (buyQty) => {
-                    this.sendWs({ type: 'BUY_MARKET_LISTING', listingId: listing.id, quantity: Math.min(listing.quantity, buyQty) });
-                  },
-                });
-              } else {
-                this.sendWs({ type: 'BUY_MARKET_LISTING', listingId: listing.id, quantity: 1 });
-              }
-            };
-            actionCell.appendChild(buyBtn);
+            // Render Compact Ledger Table Layout
+            const row = document.createElement('div');
+            row.className = `dv-market-listing-row ${isMine ? 'my-listing' : ''}`;
+
+            const itemCell = document.createElement('div');
+            itemCell.className = `dv-mkt-item-cell ${rarityClass}`;
+
+            let rarityBadgeHtml = '';
+            if (listing.rarity && listing.rarity !== 'plain') {
+              rarityBadgeHtml = `<span class="dv-mkt-rarity-badge ${listing.rarity}">${listing.rarity}</span>`;
+            }
+
+            itemCell.innerHTML = `
+              <div class="dv-mkt-icon-wrap ${rarityClass}">
+                ${iconSvg}
+              </div>
+              <span class="dv-mkt-item-name">${itemDef?.name || listing.itemId}${plusLabel}</span>
+              ${rarityBadgeHtml}
+            `;
+
+            this.attachItemTooltip(
+              itemCell,
+              { itemId: listing.itemId, rarity: listing.rarity, plus: listing.plus },
+              undefined,
+              isMine ? 'Your active listing' : `Click Buy to purchase for ${listing.unitPrice.toLocaleString()}g each`
+            );
+
+            const qtyCell = document.createElement('div');
+            qtyCell.textContent = listing.quantity.toLocaleString();
+
+            const priceCell = document.createElement('div');
+            priceCell.className = 'dv-mkt-gold-text';
+            priceCell.textContent = `${listing.unitPrice.toLocaleString()} G`;
+
+            const totalCell = document.createElement('div');
+            totalCell.className = 'dv-mkt-gold-text';
+            totalCell.textContent = `${listing.totalPrice.toLocaleString()} G`;
+
+            const sellerCell = document.createElement('div');
+            sellerCell.className = 'dv-mkt-seller-name';
+            sellerCell.textContent = isMine ? 'You' : listing.sellerName;
+
+            const actionCell = document.createElement('div');
+            actionCell.appendChild(createActionBtn());
+
+            row.appendChild(itemCell);
+            row.appendChild(qtyCell);
+            row.appendChild(priceCell);
+            row.appendChild(totalCell);
+            row.appendChild(sellerCell);
+            row.appendChild(actionCell);
+
+            listingsContainer.appendChild(row);
           }
-
-          row.appendChild(itemCell);
-          row.appendChild(qtyCell);
-          row.appendChild(priceCell);
-          row.appendChild(totalCell);
-          row.appendChild(sellerCell);
-          row.appendChild(actionCell);
-
-          listingsContainer.appendChild(row);
         });
       }
     }
