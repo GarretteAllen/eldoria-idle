@@ -441,6 +441,8 @@ export class GameEngine {
       collisions: Array.from(storage.getCollisions()),
       items: storage.getItems(),
       changelogs: storage.getChangelogs(),
+      polls: storage.getPolls(),
+      playerVotes: storage.getPlayerVotesForPolls(player.id),
       recentChat: storage.getRecentChatMessages(60),
     });
 
@@ -1334,6 +1336,87 @@ export class GameEngine {
             type: 'NOTIFICATION',
             message: `Deleted changelog entry.`
           });
+        }
+        break;
+
+      case 'ADMIN_SAVE_POLL':
+        if (player.role !== 'admin') {
+          this.send(session.ws, { type: 'NOTIFICATION', message: 'Admin privileges required.' });
+          break;
+        }
+        if (msg.poll && msg.poll.question && Array.isArray(msg.poll.options) && msg.poll.options.length >= 2) {
+          const pollId = msg.poll.id || `poll_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+          const existing = storage.getPolls().find(p => p.id === pollId);
+          const options = msg.poll.options.map((opt: any, idx: number) => {
+            const existingOpt = existing?.options.find(o => o.id === opt.id);
+            return {
+              id: opt.id || `opt_${idx + 1}_${Math.random().toString(36).slice(2, 6)}`,
+              text: String(opt.text || '').trim(),
+              voteCount: existingOpt?.voteCount || opt.voteCount || 0,
+            };
+          }).filter((opt: any) => opt.text.length > 0);
+
+          if (options.length < 2) {
+            this.send(session.ws, { type: 'NOTIFICATION', message: 'A poll must have at least 2 non-empty options.' });
+            break;
+          }
+
+          const totalVotes = options.reduce((sum: number, o: any) => sum + (o.voteCount || 0), 0);
+          const poll = {
+            id: pollId,
+            question: String(msg.poll.question).trim(),
+            description: msg.poll.description ? String(msg.poll.description).trim() : undefined,
+            options,
+            isActive: msg.poll.isActive !== undefined ? Boolean(msg.poll.isActive) : true,
+            totalVotes,
+            createdAt: existing?.createdAt || msg.poll.createdAt || Date.now(),
+            closedAt: msg.poll.isActive === false ? (existing?.closedAt || Date.now()) : undefined,
+          };
+
+          storage.savePoll(poll);
+          this.broadcast({ type: 'POLLS_UPDATE', polls: storage.getPolls() });
+          this.send(session.ws, {
+            type: 'NOTIFICATION',
+            message: `🗳️ Saved poll "${poll.question}".`
+          });
+        }
+        break;
+
+      case 'ADMIN_DELETE_POLL':
+        if (player.role !== 'admin') {
+          this.send(session.ws, { type: 'NOTIFICATION', message: 'Admin privileges required.' });
+          break;
+        }
+        if (msg.id) {
+          storage.deletePoll(msg.id);
+          this.broadcast({ type: 'POLLS_UPDATE', polls: storage.getPolls() });
+          this.send(session.ws, {
+            type: 'NOTIFICATION',
+            message: `Deleted poll.`
+          });
+        }
+        break;
+
+      case 'VOTE_POLL':
+        if (msg.pollId && msg.optionId) {
+          const success = storage.recordVote(msg.pollId, player.id, msg.optionId);
+          if (success) {
+            this.send(session.ws, {
+              type: 'POLL_VOTED',
+              pollId: msg.pollId,
+              optionId: msg.optionId,
+            });
+            this.broadcast({ type: 'POLLS_UPDATE', polls: storage.getPolls() });
+            this.send(session.ws, {
+              type: 'NOTIFICATION',
+              message: `🗳️ Your vote has been recorded! Thank you for your feedback.`
+            });
+          } else {
+            this.send(session.ws, {
+              type: 'NOTIFICATION',
+              message: `Unable to submit vote (you may have already voted or poll is closed).`
+            });
+          }
         }
         break;
 

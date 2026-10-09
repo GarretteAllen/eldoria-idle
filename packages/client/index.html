@@ -138,6 +138,9 @@
           <button id="btn-minimap-toggle" class="top-util-btn" title="Toggle Realm Radar"></button>
           <button id="btn-worldmap-toggle" class="top-util-btn" title="Open World Atlas [M]"></button>
           <button id="btn-daily-reward" class="top-util-btn daily-gift-btn" title="Claim Daily Adventurer Supply Chest"></button>
+          <button id="btn-poll-toggle" class="top-util-btn poll-btn" title="Realm Community Poll">
+            <span id="poll-notification-badge" class="poll-badge hidden">!</span>
+          </button>
           <button id="btn-changelog-toggle" class="top-util-btn" title="View Realm Updates & Changelogs"></button>
 
           <button id="btn-top-logout" class="top-logout-btn" title="Log Out of Character">Log Out</button>
@@ -720,6 +723,7 @@
           <button class="editor-tab" data-tab="giveitems">Give Items</button>
           <button class="editor-tab" data-tab="items">Items</button>
           <button class="editor-tab" data-tab="changelogs">Changelogs</button>
+          <button class="editor-tab" data-tab="polls">Polls</button>
         </div>
 
         <div class="drawer-body" style="padding: 8px;">
@@ -1308,6 +1312,50 @@
             <div id="editor-changelogs-list" class="editor-entities-list" style="max-height: 440px; overflow-y: auto;"></div>
           </div>
 
+          <!-- TAB 9: POLLS EDITOR -->
+          <div id="tab-content-polls" class="tab-content hidden">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+              <span style="font-weight: 700; color: var(--gold-bright); font-size: 0.85rem;">Player Polls & Feedback</span>
+              <button id="btn-new-poll" class="btn-oak" style="padding: 2px 8px; font-size: 0.7rem;">+ Create Poll</button>
+            </div>
+
+            <!-- Form to Create / Edit Poll -->
+            <form id="editor-poll-form" class="editor-form-box hidden" style="margin-bottom: 10px;">
+              <input type="hidden" id="poll-form-id" />
+              <div class="form-row">
+                <label>Question / Prompt:</label>
+                <input type="text" id="poll-form-question" placeholder="e.g. What should be added next to Eldoria?" required style="font-weight: 700;" />
+              </div>
+              <div class="form-row">
+                <label>Description / Context (optional):</label>
+                <input type="text" id="poll-form-desc" placeholder="e.g. Choose one of the planned features below to prioritize." />
+              </div>
+              <div class="form-row">
+                <label>Status:</label>
+                <label style="display: flex; align-items: center; gap: 6px; font-size: 0.75rem; color: #fff; cursor: pointer;">
+                  <input type="checkbox" id="poll-form-active" checked /> Active (Accepting Player Votes & Alerting Players)
+                </label>
+              </div>
+              <div class="form-row">
+                <label style="display: flex; justify-content: space-between; align-items: center;">
+                  <span>Poll Options (Minimum 2):</span>
+                  <button type="button" id="btn-add-poll-option" class="btn-oak" style="padding: 1px 6px; font-size: 0.65rem;">+ Add Option</button>
+                </label>
+                <div id="poll-form-options-list" style="display: flex; flex-direction: column; gap: 6px; margin-top: 4px;">
+                  <!-- Dynamically populated or default 2 options -->
+                </div>
+              </div>
+              <div style="display: flex; gap: 6px; margin-top: 8px;">
+                <button type="submit" class="btn-start" style="flex: 2;">Save & Publish Poll</button>
+                <button type="button" id="btn-delete-poll" class="btn-oak" style="color: #fc8181; flex: 1; display: none;">Delete</button>
+                <button type="button" id="btn-cancel-poll" class="btn-oak" style="flex: 1;">Cancel</button>
+              </div>
+            </form>
+
+            <!-- Polls List in Admin Drawer -->
+            <div id="editor-polls-list" class="editor-entities-list" style="max-height: 440px; overflow-y: auto;"></div>
+          </div>
+
         </div>
       </div>
 
@@ -1565,6 +1613,26 @@
           </div>
 
           <div id="changelog-modal-content" style="flex: 1; overflow-y: auto; padding-right: 6px; display: flex; flex-direction: column; gap: 16px;">
+            <!-- Rendered dynamically in main.ts -->
+          </div>
+        </div>
+      </div>
+
+      <!-- PLAYER POLL MODAL -->
+      <div id="poll-modal" class="modal-backdrop hidden" style="z-index: 2400;">
+        <div class="modal-box dark-oak-panel" style="max-width: 540px; width: 92vw; max-height: 85vh; display: flex; flex-direction: column; padding: 18px 22px;">
+          <div class="modal-header" style="margin-bottom: 12px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); padding-bottom: 10px;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <span id="poll-modal-icon" class="svg-icon-inline icon-lg"></span>
+              <div>
+                <h3 style="color: var(--gold-bright); margin: 0; font-size: 1.1rem;">Realm Community Poll</h3>
+                <div style="font-size: 0.72rem; color: #a0aec0;">Voice your opinion on upcoming features & game updates</div>
+              </div>
+            </div>
+            <button id="poll-modal-close-btn" class="dv-close-circle-btn" title="Close Poll"></button>
+          </div>
+
+          <div id="poll-modal-content" style="flex: 1; overflow-y: auto; padding-right: 6px; display: flex; flex-direction: column; gap: 14px;">
             <!-- Rendered dynamically in main.ts -->
           </div>
         </div>

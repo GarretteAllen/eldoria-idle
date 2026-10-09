@@ -62,6 +62,7 @@ import {
   MoonStar,
   Gift,
   Trash2,
+  Vote,
   IconNode,
 } from 'lucide';
 
@@ -184,6 +185,7 @@ export const ICONS: Record<string, string> = {
   collision: toSvg(Grid),
   mapPin: toSvg(MapPin),
   slumber: toSvg(MoonStar),
+  poll: toSvg(Vote),
 };
 
 /**

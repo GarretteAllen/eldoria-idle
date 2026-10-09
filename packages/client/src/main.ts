@@ -24,6 +24,7 @@ import {
   MarketListing,
   calculateMaxHit,
   ChangelogEntry,
+  Poll,
   getStorageSlotUpgradeCost,
   VENDOR_GOODS,
 } from '@eldoria/shared';
@@ -112,8 +113,12 @@ class EldoriaClient {
   // Changelogs State
   private changelogs: ChangelogEntry[] = [];
 
+  // Polls State
+  private polls: Poll[] = [];
+  private playerVotes: Record<string, string> = {};
+
   // Editor State
-  private activeEditorTab: 'nodes' | 'monsters' | 'npcs' | 'quests' | 'collisions' | 'giveitems' | 'items' | 'changelogs' = 'nodes';
+  private activeEditorTab: 'nodes' | 'monsters' | 'npcs' | 'quests' | 'collisions' | 'giveitems' | 'items' | 'changelogs' | 'polls' = 'nodes';
   private collisionBrush: 'paint' | 'erase' = 'paint';
   private adminNodeSearchQuery: string = '';
   private adminNodeTypeFilter: string = 'all';
@@ -175,8 +180,10 @@ class EldoriaClient {
     this.setupCombatSustenance();
     this.setupAdminEditor();
     this.setupChangelogModal();
+    this.setupPollModal();
     this.setupDailyReward();
     this.setupChangelogEditor();
+    this.setupPollEditor();
     this.setupSoundAndMinimap();
     this.setupWorldMapModal();
     this.setupQuestTracker();
@@ -778,6 +785,14 @@ class EldoriaClient {
           this.changelogs = msg.changelogs;
           this.renderEditorChangelogs();
         }
+        if (msg.polls) {
+          this.polls = msg.polls;
+          this.renderEditorPolls();
+        }
+        if (msg.playerVotes) {
+          this.playerVotes = msg.playerVotes;
+        }
+        this.updatePollNotificationBadge();
         if (Array.isArray(msg.recentChat) && msg.recentChat.length > 0) {
           for (const item of msg.recentChat) {
             this.appendChatMessage(item, false);
@@ -976,6 +991,27 @@ class EldoriaClient {
         const changelogModal = document.getElementById('changelog-modal');
         if (changelogModal && !changelogModal.classList.contains('hidden')) {
           this.renderChangelogModal();
+        }
+        break;
+
+      case 'POLLS_UPDATE':
+        this.polls = msg.polls || [];
+        this.renderEditorPolls();
+        this.updatePollNotificationBadge();
+        const pollModal = document.getElementById('poll-modal');
+        if (pollModal && !pollModal.classList.contains('hidden')) {
+          this.renderPollModal();
+        }
+        break;
+
+      case 'POLL_VOTED':
+        if (msg.pollId && msg.optionId) {
+          this.playerVotes[msg.pollId] = msg.optionId;
+          this.updatePollNotificationBadge();
+          const pollModalEl = document.getElementById('poll-modal');
+          if (pollModalEl && !pollModalEl.classList.contains('hidden')) {
+            this.renderPollModal();
+          }
         }
         break;
 
@@ -7192,15 +7228,19 @@ class EldoriaClient {
     }
   }
 
-  private switchEditorTab(tab: 'nodes' | 'monsters' | 'npcs' | 'quests' | 'collisions' | 'giveitems' | 'items' | 'changelogs') {
+  private switchEditorTab(tab: 'nodes' | 'monsters' | 'npcs' | 'quests' | 'collisions' | 'giveitems' | 'items' | 'changelogs' | 'polls') {
     this.activeEditorTab = tab;
-    const tabContents = ['nodes', 'monsters', 'npcs', 'quests', 'collisions', 'giveitems', 'items', 'changelogs'];
+    const tabContents = ['nodes', 'monsters', 'npcs', 'quests', 'collisions', 'giveitems', 'items', 'changelogs', 'polls'];
     for (const t of tabContents) {
       const el = document.getElementById(`tab-content-${t}`);
       if (el) {
         if (t === tab) el.classList.remove('hidden');
         else el.classList.add('hidden');
       }
+    }
+
+    if (tab === 'polls') {
+      this.renderEditorPolls();
     }
 
     if (tab === 'changelogs') {
@@ -8245,6 +8285,409 @@ class EldoriaClient {
           (document.getElementById('changelog-form-title') as HTMLInputElement).value = cl.title;
           (document.getElementById('changelog-form-content') as HTMLTextAreaElement).value = cl.content;
           if (btnDelete) btnDelete.style.display = 'inline-block';
+        }
+      });
+
+      listEl.appendChild(card);
+    }
+  }
+
+  // --- Community Poll Modal & Notification Badge ---
+  private setupPollModal() {
+    const toggleBtn = document.getElementById('btn-poll-toggle');
+    const modal = document.getElementById('poll-modal');
+    const closeBtn = document.getElementById('poll-modal-close-btn');
+    const modalIcon = document.getElementById('poll-modal-icon');
+
+    if (toggleBtn) {
+      // Place poll icon inside button while keeping the notification badge
+      const badge = document.getElementById('poll-notification-badge');
+      toggleBtn.innerHTML = ICONS.poll || ICONS.quest;
+      if (badge) {
+        toggleBtn.appendChild(badge);
+      }
+      toggleBtn.onclick = () => this.openPollModal();
+    }
+
+    if (modalIcon) {
+      modalIcon.innerHTML = ICONS.poll || ICONS.quest;
+    }
+
+    if (closeBtn && modal) {
+      closeBtn.innerHTML = ICONS.close;
+      closeBtn.onclick = () => modal.classList.add('hidden');
+    }
+  }
+
+  public openPollModal() {
+    const modal = document.getElementById('poll-modal');
+    if (!modal) return;
+    sound.play('ding');
+    this.renderPollModal();
+    modal.classList.remove('hidden');
+  }
+
+  public updatePollNotificationBadge() {
+    const badge = document.getElementById('poll-notification-badge');
+    if (!badge) return;
+    // Notify if there is at least one active poll that the player has not yet voted on
+    const hasUnvotedActivePoll = this.polls.some(p => p.isActive && !this.playerVotes[p.id]);
+    if (hasUnvotedActivePoll) {
+      badge.classList.remove('hidden');
+    } else {
+      badge.classList.add('hidden');
+    }
+  }
+
+  public renderPollModal() {
+    const container = document.getElementById('poll-modal-content');
+    if (!container) return;
+    container.innerHTML = '';
+
+    if (!this.polls || this.polls.length === 0) {
+      container.innerHTML = `
+        <div style="text-align:center; padding:36px 16px; color:#a0aec0;">
+          <div style="font-size:2rem; margin-bottom:8px;">🗳️</div>
+          <div style="font-weight:700; color:#e2e8f0; font-size:0.95rem;">No Community Polls Active</div>
+          <div style="font-size:0.75rem; margin-top:4px;">Stay tuned! When a new poll is published by the realm admins, an alert will appear here.</div>
+        </div>
+      `;
+      return;
+    }
+
+    for (const poll of this.polls) {
+      const playerVotedOptionId = this.playerVotes[poll.id];
+      const hasVoted = Boolean(playerVotedOptionId);
+      const isClosed = !poll.isActive;
+
+      const card = document.createElement('div');
+      card.style.background = 'rgba(0, 0, 0, 0.4)';
+      card.style.border = poll.isActive ? '1px solid rgba(212, 175, 55, 0.3)' : '1px solid rgba(255, 255, 255, 0.08)';
+      card.style.borderRadius = '8px';
+      card.style.padding = '14px 16px';
+      card.style.display = 'flex';
+      card.style.flexDirection = 'column';
+      card.style.gap = '10px';
+
+      const dateStr = new Date(poll.createdAt).toLocaleDateString(undefined, {
+        month: 'short',
+        day: 'numeric',
+      });
+
+      const statusBadge = poll.isActive
+        ? `<span style="font-size:0.68rem; font-weight:800; background:rgba(34,197,94,0.15); color:#4ade80; border:1px solid rgba(34,197,94,0.3); padding:2px 8px; border-radius:4px;">Active Poll</span>`
+        : `<span style="font-size:0.68rem; font-weight:800; background:rgba(148,163,184,0.15); color:#94a3b8; border:1px solid rgba(148,163,184,0.3); padding:2px 8px; border-radius:4px;">Closed</span>`;
+
+      const votedBadge = hasVoted
+        ? `<span style="font-size:0.68rem; font-weight:700; color:var(--gold-bright); display:flex; align-items:center; gap:4px;">✓ You Voted</span>`
+        : '';
+
+      const totalVotes = poll.totalVotes || 0;
+
+      let optionsHtml = '';
+      for (const opt of poll.options) {
+        const count = opt.voteCount || 0;
+        const pct = totalVotes > 0 ? Math.round((count / totalVotes) * 100) : 0;
+        const isMyChoice = playerVotedOptionId === opt.id;
+
+        // If player already voted or poll is closed, display the results bar
+        if (hasVoted || isClosed) {
+          optionsHtml += `
+            <div style="background: rgba(255,255,255,0.03); border: 1px solid ${isMyChoice ? 'var(--gold-bright)' : 'rgba(255,255,255,0.08)'}; border-radius: 6px; padding: 8px 10px; display: flex; flex-direction: column; gap: 4px; position: relative; overflow: hidden;">
+              <div style="position: absolute; top:0; left:0; bottom:0; width: ${pct}%; background: ${isMyChoice ? 'rgba(212,175,55,0.25)' : 'rgba(56,189,248,0.15)'}; pointer-events: none; transition: width 0.3s ease;"></div>
+              <div style="display: flex; justify-content: space-between; align-items: center; z-index: 1;">
+                <span style="font-size: 0.8rem; font-weight: ${isMyChoice ? '700' : '500'}; color: ${isMyChoice ? '#fff' : '#cbd5e0'}; display: flex; align-items: center; gap: 6px;">
+                  ${isMyChoice ? '👉 ' : ''}${opt.text}
+                </span>
+                <span style="font-size: 0.72rem; color: ${isMyChoice ? 'var(--gold-bright)' : '#94a3b8'}; font-weight: 700;">
+                  ${pct}% <span style="font-size: 0.65rem; font-weight: normal; color: #64748b;">(${count})</span>
+                </span>
+              </div>
+            </div>
+          `;
+        } else {
+          // Voting mode: player can click to pick 1 option
+          optionsHtml += `
+            <button class="btn-vote-option" data-poll-id="${poll.id}" data-opt-id="${opt.id}" style="width: 100%; text-align: left; background: #1c1510; border: 1px solid #3d2d1e; border-radius: 6px; padding: 10px 12px; color: #e2e8f0; font-size: 0.82rem; cursor: pointer; transition: all 0.15s; display: flex; align-items: center; justify-content: space-between;">
+              <span>${opt.text}</span>
+              <span style="font-size: 0.7rem; color: var(--gold-bright); font-weight: 700;">Vote →</span>
+            </button>
+          `;
+        }
+      }
+
+      card.innerHTML = `
+        <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid rgba(255,255,255,0.06); padding-bottom:8px;">
+          <div style="display:flex; align-items:center; gap:8px;">
+            ${statusBadge}
+            ${votedBadge}
+          </div>
+          <div style="font-size:0.68rem; color:#a0aec0;">
+            ${dateStr} • <strong>${totalVotes}</strong> total ${totalVotes === 1 ? 'vote' : 'votes'}
+          </div>
+        </div>
+        <div>
+          <div style="font-size:0.95rem; font-weight:800; color:#fff; margin-bottom: 3px;">${poll.question}</div>
+          ${poll.description ? `<div style="font-size:0.75rem; color:#a0aec0; margin-bottom: 6px;">${poll.description}</div>` : ''}
+        </div>
+        <div style="display:flex; flex-direction:column; gap:6px; margin-top:2px;">
+          ${optionsHtml}
+        </div>
+      `;
+
+      // Bind voting buttons
+      if (!hasVoted && poll.isActive) {
+        card.querySelectorAll('.btn-vote-option').forEach(btn => {
+          btn.addEventListener('mouseenter', () => {
+            (btn as HTMLElement).style.borderColor = 'var(--gold-bright)';
+            (btn as HTMLElement).style.background = '#2a1e14';
+          });
+          btn.addEventListener('mouseleave', () => {
+            (btn as HTMLElement).style.borderColor = '#3d2d1e';
+            (btn as HTMLElement).style.background = '#1c1510';
+          });
+          btn.addEventListener('click', () => {
+            const pollId = btn.getAttribute('data-poll-id')!;
+            const optionId = btn.getAttribute('data-opt-id')!;
+            sound.play('ding');
+            this.sendWs({
+              type: 'VOTE_POLL',
+              pollId,
+              optionId,
+            });
+          });
+        });
+      }
+
+      container.appendChild(card);
+    }
+  }
+
+  // --- Admin Poll Editor ---
+  private setupPollEditor() {
+    const btnNew = document.getElementById('btn-new-poll');
+    const form = document.getElementById('editor-poll-form') as HTMLFormElement | null;
+    const btnCancel = document.getElementById('btn-cancel-poll');
+    const btnDelete = document.getElementById('btn-delete-poll');
+    const btnAddOption = document.getElementById('btn-add-poll-option');
+    const optionsContainer = document.getElementById('poll-form-options-list');
+
+    const renderOptionInputs = (options: Array<{ id?: string; text: string; voteCount?: number }>) => {
+      if (!optionsContainer) return;
+      optionsContainer.innerHTML = '';
+      options.forEach((opt, idx) => {
+        const row = document.createElement('div');
+        row.style.display = 'flex';
+        row.style.gap = '6px';
+        row.style.alignItems = 'center';
+
+        row.innerHTML = `
+          <input type="text" class="poll-opt-input" data-opt-id="${opt.id || ''}" data-vote-count="${opt.voteCount || 0}" value="${opt.text || ''}" placeholder="Option ${idx + 1}" required style="flex: 1; padding: 4px 8px; font-size: 0.75rem; background: rgba(0,0,0,0.5); border: 1px solid #4a3622; border-radius: 4px; color: #fff;" />
+          <button type="button" class="btn-remove-opt btn-oak" style="color: #fc8181; padding: 2px 6px; font-size: 0.7rem;" title="Remove Option">✕</button>
+        `;
+
+        const btnRemove = row.querySelector('.btn-remove-opt') as HTMLElement;
+        btnRemove.onclick = () => {
+          const currentCount = optionsContainer.querySelectorAll('.poll-opt-input').length;
+          if (currentCount <= 2) {
+            this.showToast('Polls must have at least 2 options.');
+            return;
+          }
+          row.remove();
+        };
+
+        optionsContainer.appendChild(row);
+      });
+    };
+
+    if (btnAddOption) {
+      btnAddOption.onclick = () => {
+        if (!optionsContainer) return;
+        const count = optionsContainer.querySelectorAll('.poll-opt-input').length;
+        const row = document.createElement('div');
+        row.style.display = 'flex';
+        row.style.gap = '6px';
+        row.style.alignItems = 'center';
+
+        row.innerHTML = `
+          <input type="text" class="poll-opt-input" data-opt-id="" data-vote-count="0" value="" placeholder="Option ${count + 1}" required style="flex: 1; padding: 4px 8px; font-size: 0.75rem; background: rgba(0,0,0,0.5); border: 1px solid #4a3622; border-radius: 4px; color: #fff;" />
+          <button type="button" class="btn-remove-opt btn-oak" style="color: #fc8181; padding: 2px 6px; font-size: 0.7rem;" title="Remove Option">✕</button>
+        `;
+
+        const btnRemove = row.querySelector('.btn-remove-opt') as HTMLElement;
+        btnRemove.onclick = () => {
+          const currentCount = optionsContainer.querySelectorAll('.poll-opt-input').length;
+          if (currentCount <= 2) {
+            this.showToast('Polls must have at least 2 options.');
+            return;
+          }
+          row.remove();
+        };
+
+        optionsContainer.appendChild(row);
+      };
+    }
+
+    if (btnNew && form) {
+      btnNew.onclick = () => {
+        form.classList.remove('hidden');
+        (document.getElementById('poll-form-id') as HTMLInputElement).value = '';
+        (document.getElementById('poll-form-question') as HTMLInputElement).value = '';
+        (document.getElementById('poll-form-desc') as HTMLInputElement).value = '';
+        (document.getElementById('poll-form-active') as HTMLInputElement).checked = true;
+        if (btnDelete) btnDelete.style.display = 'none';
+        renderOptionInputs([{ text: 'Yes' }, { text: 'No' }]);
+      };
+    }
+
+    if (btnCancel && form) {
+      btnCancel.onclick = () => form.classList.add('hidden');
+    }
+
+    if (btnDelete) {
+      btnDelete.onclick = () => {
+        const id = (document.getElementById('poll-form-id') as HTMLInputElement).value;
+        if (!id) return;
+        this.showInGameConfirm({
+          title: 'Delete Community Poll',
+          message: 'Are you sure you want to delete this poll and all associated votes?',
+          confirmText: 'Delete Poll',
+          confirmClass: 'btn-stop',
+          onConfirm: () => {
+            this.sendWs({
+              type: 'ADMIN_DELETE_POLL',
+              id,
+            });
+            if (form) form.classList.add('hidden');
+          },
+        });
+      };
+    }
+
+    if (form) {
+      form.onsubmit = (e) => {
+        e.preventDefault();
+        const id = (document.getElementById('poll-form-id') as HTMLInputElement).value;
+        const question = (document.getElementById('poll-form-question') as HTMLInputElement).value.trim();
+        const description = (document.getElementById('poll-form-desc') as HTMLInputElement).value.trim();
+        const isActive = (document.getElementById('poll-form-active') as HTMLInputElement).checked;
+
+        const optInputs = form.querySelectorAll('.poll-opt-input') as NodeListOf<HTMLInputElement>;
+        const options: Array<{ id: string; text: string; voteCount: number }> = [];
+
+        optInputs.forEach((inp, idx) => {
+          const text = inp.value.trim();
+          if (text) {
+            options.push({
+              id: inp.getAttribute('data-opt-id') || `opt_${idx + 1}_${Math.random().toString(36).slice(2, 6)}`,
+              text,
+              voteCount: parseInt(inp.getAttribute('data-vote-count') || '0', 10) || 0,
+            });
+          }
+        });
+
+        if (options.length < 2) {
+          this.showToast('Please provide at least 2 non-empty options for the poll.');
+          return;
+        }
+
+        const existing = this.polls.find(p => p.id === id);
+        const poll: Poll = {
+          id: id || `poll_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+          question,
+          description: description || undefined,
+          options,
+          isActive,
+          totalVotes: options.reduce((sum, o) => sum + (o.voteCount || 0), 0),
+          createdAt: existing?.createdAt || Date.now(),
+          closedAt: !isActive ? (existing?.closedAt || Date.now()) : undefined,
+        };
+
+        this.sendWs({
+          type: 'ADMIN_SAVE_POLL',
+          poll,
+        });
+
+        form.classList.add('hidden');
+      };
+    }
+  }
+
+  private renderEditorPolls() {
+    const listEl = document.getElementById('editor-polls-list');
+    if (!listEl) return;
+    listEl.innerHTML = '';
+
+    if (!this.polls || this.polls.length === 0) {
+      listEl.innerHTML = `<div style="text-align:center; padding:16px; font-size:0.75rem; color:#a0aec0;">No polls created yet. Click "+ Create Poll" to gather player feedback.</div>`;
+      return;
+    }
+
+    for (const poll of this.polls) {
+      const card = document.createElement('div');
+      card.className = 'editor-entity-card';
+      card.style.cursor = 'pointer';
+      const dateStr = new Date(poll.createdAt).toLocaleDateString(undefined, {
+        month: 'short',
+        day: 'numeric',
+      });
+
+      card.innerHTML = `
+        <div class="editor-entity-info">
+          <div class="editor-entity-title" style="display:flex; align-items:center; gap:6px;">
+            <span style="font-size:0.65rem; background:${poll.isActive ? '#16a34a' : '#64748b'}; color:#fff; padding:1px 5px; border-radius:3px; font-weight:700;">
+              ${poll.isActive ? 'ACTIVE' : 'CLOSED'}
+            </span>
+            <span>${poll.question}</span>
+          </div>
+          <div class="editor-entity-meta" style="font-size:0.68rem; color:#a0aec0;">
+            ${dateStr} · ${poll.totalVotes || 0} votes · ${poll.options.length} options
+          </div>
+        </div>
+        <div class="editor-entity-actions">
+          <button class="btn-micro-edit" data-id="${poll.id}">Edit</button>
+        </div>
+      `;
+
+      card.addEventListener('click', () => {
+        const form = document.getElementById('editor-poll-form') as HTMLFormElement | null;
+        const btnDelete = document.getElementById('btn-delete-poll');
+        if (form) {
+          form.classList.remove('hidden');
+          (document.getElementById('poll-form-id') as HTMLInputElement).value = poll.id;
+          (document.getElementById('poll-form-question') as HTMLInputElement).value = poll.question;
+          (document.getElementById('poll-form-desc') as HTMLInputElement).value = poll.description || '';
+          (document.getElementById('poll-form-active') as HTMLInputElement).checked = poll.isActive;
+          if (btnDelete) btnDelete.style.display = 'inline-block';
+
+          // Render options in editor
+          const optionsContainer = document.getElementById('poll-form-options-list');
+          if (optionsContainer) {
+            optionsContainer.innerHTML = '';
+            poll.options.forEach((opt, idx) => {
+              const row = document.createElement('div');
+              row.style.display = 'flex';
+              row.style.gap = '6px';
+              row.style.alignItems = 'center';
+
+              row.innerHTML = `
+                <input type="text" class="poll-opt-input" data-opt-id="${opt.id}" data-vote-count="${opt.voteCount || 0}" value="${opt.text}" placeholder="Option ${idx + 1}" required style="flex: 1; padding: 4px 8px; font-size: 0.75rem; background: rgba(0,0,0,0.5); border: 1px solid #4a3622; border-radius: 4px; color: #fff;" />
+                <button type="button" class="btn-remove-opt btn-oak" style="color: #fc8181; padding: 2px 6px; font-size: 0.7rem;" title="Remove Option">✕</button>
+              `;
+
+              const btnRemove = row.querySelector('.btn-remove-opt') as HTMLElement;
+              btnRemove.onclick = () => {
+                const currentCount = optionsContainer.querySelectorAll('.poll-opt-input').length;
+                if (currentCount <= 2) {
+                  this.showToast('Polls must have at least 2 options.');
+                  return;
+                }
+                row.remove();
+              };
+
+              optionsContainer.appendChild(row);
+            });
+          }
         }
       });
 

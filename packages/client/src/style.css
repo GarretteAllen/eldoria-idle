@@ -3738,6 +3738,42 @@ body, html {
   animation: gift-pulse 2s infinite ease-in-out;
 }
 
+.top-util-btn.poll-btn {
+  position: relative;
+  color: #cbd5e0;
+}
+
+.top-util-btn.poll-btn:hover {
+  color: var(--gold-bright);
+}
+
+.poll-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  width: 14px;
+  height: 14px;
+  background: #ef4444;
+  color: #ffffff;
+  border: 1.5px solid #1a1612;
+  border-radius: 50%;
+  font-size: 0.6rem;
+  font-weight: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  box-shadow: 0 0 6px rgba(239, 68, 68, 0.85);
+  animation: poll-badge-pulse 1.8s infinite ease-in-out;
+  pointer-events: none;
+}
+
+@keyframes poll-badge-pulse {
+  0% { transform: scale(1); box-shadow: 0 0 4px rgba(239, 68, 68, 0.6); }
+  50% { transform: scale(1.2); box-shadow: 0 0 10px rgba(239, 68, 68, 1); }
+  100% { transform: scale(1); box-shadow: 0 0 4px rgba(239, 68, 68, 0.6); }
+}
+
 @keyframes gift-pulse {
   0% { transform: scale(1); box-shadow: 0 0 4px rgba(212, 175, 55, 0.4); }
   50% { transform: scale(1.08); box-shadow: 0 0 12px rgba(212, 175, 55, 0.85); }

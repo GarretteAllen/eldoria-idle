@@ -3,7 +3,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import Database from 'better-sqlite3';
-import { PlayerData, SkillType, WorldNode, NpcDefinition, QuestDefinition, MonsterSpawnZone, getLevelFromXp, ItemDefinition, ITEMS, LevelBounds, parseLdtkLevelBounds, isTileInAnyLevel, InventorySlot, MarketListing, ChangelogEntry, StoredChatMessage, isItemStackable, getItemMaxStack } from '@eldoria/shared';
+import { PlayerData, SkillType, WorldNode, NpcDefinition, QuestDefinition, MonsterSpawnZone, getLevelFromXp, ItemDefinition, ITEMS, LevelBounds, parseLdtkLevelBounds, isTileInAnyLevel, InventorySlot, MarketListing, ChangelogEntry, Poll, StoredChatMessage, isItemStackable, getItemMaxStack } from '@eldoria/shared';
 import { WORLD_NODES as DEFAULT_WORLD_NODES } from './world.js';
 
 export const DEFAULT_MONSTER_ZONES: MonsterSpawnZone[] = [
@@ -233,11 +233,19 @@ class StorageManager {
   private stmtGetChangelogs: Database.Statement;
   private stmtUpsertChangelog: Database.Statement;
   private stmtDeleteChangelog: Database.Statement;
+  private stmtGetPolls: Database.Statement;
+  private stmtUpsertPoll: Database.Statement;
+  private stmtDeletePoll: Database.Statement;
+  private stmtGetPollVotes: Database.Statement;
+  private stmtInsertPollVote: Database.Statement;
+  private stmtGetPlayerPollVote: Database.Statement;
+  private stmtDeletePollVotes: Database.Statement;
   private stmtInsertChatMessage: Database.Statement;
   private stmtGetRecentChatMessages: Database.Statement;
   private stmtDeleteChatMessage: Database.Statement;
   private stmtPruneOldChatMessages: Database.Statement;
   private changelogsCache: ChangelogEntry[] = [];
+  private pollsCache: Poll[] = [];
   private itemsCache: Record<string, ItemDefinition> = {};
   private monsterZonesCache: MonsterSpawnZone[] = [];
 
@@ -340,6 +348,19 @@ class StorageManager {
        ON CONFLICT(id) DO UPDATE SET version = excluded.version, data = excluded.data`
     );
     this.stmtDeleteChangelog = this.db.prepare('DELETE FROM changelogs WHERE id = ?');
+
+    this.stmtGetPolls = this.db.prepare('SELECT data FROM polls ORDER BY created_at DESC');
+    this.stmtUpsertPoll = this.db.prepare(
+      `INSERT INTO polls (id, is_active, created_at, data) VALUES (?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET is_active = excluded.is_active, data = excluded.data`
+    );
+    this.stmtDeletePoll = this.db.prepare('DELETE FROM polls WHERE id = ?');
+    this.stmtGetPollVotes = this.db.prepare('SELECT player_id, option_id, created_at FROM poll_votes WHERE poll_id = ?');
+    this.stmtInsertPollVote = this.db.prepare(
+      `INSERT INTO poll_votes (poll_id, player_id, option_id, created_at) VALUES (?, ?, ?, ?)`
+    );
+    this.stmtGetPlayerPollVote = this.db.prepare('SELECT option_id FROM poll_votes WHERE poll_id = ? AND player_id = ?');
+    this.stmtDeletePollVotes = this.db.prepare('DELETE FROM poll_votes WHERE poll_id = ?');
 
     this.stmtInsertChatMessage = this.db.prepare(
       `INSERT INTO chat_messages (id, sender_id, sender_name, role, is_admin, title, channel, text, created_at)
@@ -445,6 +466,21 @@ class StorageManager {
         data TEXT NOT NULL
       );
 
+      CREATE TABLE IF NOT EXISTS polls (
+        id TEXT PRIMARY KEY,
+        is_active INTEGER NOT NULL DEFAULT 1,
+        created_at INTEGER NOT NULL,
+        data TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS poll_votes (
+        poll_id TEXT NOT NULL,
+        player_id TEXT NOT NULL,
+        option_id TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        PRIMARY KEY(poll_id, player_id)
+      );
+
       CREATE TABLE IF NOT EXISTS chat_messages (
         id TEXT PRIMARY KEY,
         sender_id TEXT,
@@ -462,6 +498,9 @@ class StorageManager {
       CREATE INDEX IF NOT EXISTS idx_market_item ON market_listings(item_id);
       CREATE INDEX IF NOT EXISTS idx_market_seller ON market_listings(seller_id);
       CREATE INDEX IF NOT EXISTS idx_changelogs_created ON changelogs(created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_polls_created ON polls(created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_poll_votes_poll ON poll_votes(poll_id);
+      CREATE INDEX IF NOT EXISTS idx_poll_votes_player ON poll_votes(player_id);
       CREATE INDEX IF NOT EXISTS idx_chat_messages_created ON chat_messages(created_at DESC);
     `);
   }
@@ -632,6 +671,10 @@ class StorageManager {
     // Changelogs
     const changelogRows = this.stmtGetChangelogs.all() as Array<{ data: string }>;
     this.changelogsCache = changelogRows.map(r => JSON.parse(r.data));
+
+    // Polls
+    const pollRows = this.stmtGetPolls.all() as Array<{ data: string }>;
+    this.pollsCache = pollRows.map(r => JSON.parse(r.data));
 
     // Items
     this.itemsCache = { ...ITEMS };
@@ -1565,6 +1608,68 @@ class StorageManager {
     this.stmtDeleteChangelog.run(id);
     this.changelogsCache = this.changelogsCache.filter(c => c.id !== id);
     this.checkpoint();
+  }
+
+  // --- Polls Methods ---
+  public getPolls(): Poll[] {
+    return [...this.pollsCache];
+  }
+
+  public savePoll(poll: Poll): void {
+    const payload = JSON.stringify(poll);
+    this.stmtUpsertPoll.run(poll.id, poll.isActive ? 1 : 0, poll.createdAt, payload);
+    const idx = this.pollsCache.findIndex(p => p.id === poll.id);
+    if (idx >= 0) {
+      this.pollsCache[idx] = poll;
+    } else {
+      this.pollsCache.unshift(poll);
+      this.pollsCache.sort((a, b) => b.createdAt - a.createdAt);
+    }
+    this.checkpoint();
+  }
+
+  public deletePoll(id: string): void {
+    this.stmtDeletePoll.run(id);
+    this.stmtDeletePollVotes.run(id);
+    this.pollsCache = this.pollsCache.filter(p => p.id !== id);
+    this.checkpoint();
+  }
+
+  public recordVote(pollId: string, playerId: string, optionId: string): boolean {
+    const poll = this.pollsCache.find(p => p.id === pollId);
+    if (!poll || !poll.isActive) return false;
+
+    // Check if player already voted
+    const existing = this.stmtGetPlayerPollVote.get(pollId, playerId) as { option_id: string } | undefined;
+    if (existing) return false;
+
+    const opt = poll.options.find(o => o.id === optionId);
+    if (!opt) return false;
+
+    return this.runTransaction(() => {
+      this.stmtInsertPollVote.run(pollId, playerId, optionId, Date.now());
+      opt.voteCount = (opt.voteCount || 0) + 1;
+      poll.totalVotes = (poll.totalVotes || 0) + 1;
+      this.savePoll(poll);
+      return true;
+    });
+  }
+
+  public getPlayerVote(pollId: string, playerId: string): string | null {
+    const row = this.stmtGetPlayerPollVote.get(pollId, playerId) as { option_id: string } | undefined;
+    return row ? row.option_id : null;
+  }
+
+  public getPlayerVotesForPolls(playerId: string): Record<string, string> {
+    const rows = this.db.prepare('SELECT poll_id, option_id FROM poll_votes WHERE player_id = ?').all(playerId) as Array<{
+      poll_id: string;
+      option_id: string;
+    }>;
+    const votes: Record<string, string> = {};
+    for (const r of rows) {
+      votes[r.poll_id] = r.option_id;
+    }
+    return votes;
   }
 
   // --- Persistent Chat Methods ---

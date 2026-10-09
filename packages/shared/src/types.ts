@@ -377,3 +377,21 @@ export interface ChangelogEntry {
   author?: string;
   createdAt: number;
 }
+
+export interface PollOption {
+  id: string;
+  text: string;
+  voteCount: number;
+}
+
+export interface Poll {
+  id: string;
+  question: string;
+  description?: string;
+  options: PollOption[];
+  isActive: boolean;
+  totalVotes: number;
+  createdAt: number;
+  closedAt?: number;
+}
+
