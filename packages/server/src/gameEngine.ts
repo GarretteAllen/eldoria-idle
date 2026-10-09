@@ -27,6 +27,9 @@ import {
   isItemStackable,
   getItemMaxStack,
   Rarity,
+  RARITY_HEALING_MULTIPLIER,
+  RARITY_CRAFT_XP_MULTIPLIER,
+  RARITY_TOOL_BONUS,
   QUEUE_SLOT_CONFIG,
   OFFLINE_TIME_CONFIG,
   GEM_PACKS,
@@ -1829,7 +1832,9 @@ export class GameEngine {
     if (!def || def.category !== 'cooked_food' || !def.baseStats?.healing) return;
 
     const maxHp = (player.skills.hitpoints?.level || 10);
-    player.currentHp = Math.min(maxHp, player.currentHp + def.baseStats.healing);
+    const healMult = RARITY_HEALING_MULTIPLIER[slot.rarity || 'plain'] || 1.0;
+    const healAmount = Math.max(1, Math.round((def.baseStats.healing || 5) * healMult));
+    player.currentHp = Math.min(maxHp, player.currentHp + healAmount);
 
     slot.quantity--;
     if (slot.quantity <= 0) {
@@ -3153,20 +3158,21 @@ export class GameEngine {
           const speedMult = getJobSpeedMultiplier(level, recipe.levelReq);
 
           let toolBonus = 0;
+          let equippedTool: InventorySlot | undefined;
           if (recipe.skill === 'mining') {
-            const toolItem = player.equipment?.tool_pickaxe || player.equipment?.tool;
-            if (toolItem && ITEMS[toolItem.itemId]?.baseStats?.toolSpeedBonus) {
-              toolBonus = ITEMS[toolItem.itemId].baseStats!.toolSpeedBonus!;
-            }
+            equippedTool = player.equipment?.tool_pickaxe || player.equipment?.tool;
           } else if (recipe.skill === 'woodcutting') {
-            const toolItem = player.equipment?.tool_axe || player.equipment?.tool;
-            if (toolItem && ITEMS[toolItem.itemId]?.baseStats?.toolSpeedBonus) {
-              toolBonus = ITEMS[toolItem.itemId].baseStats!.toolSpeedBonus!;
-            }
+            equippedTool = player.equipment?.tool_axe || player.equipment?.tool;
           } else if (recipe.skill === 'fishing') {
-            const toolItem = player.equipment?.tool_rod || player.equipment?.tool;
-            if (toolItem && ITEMS[toolItem.itemId]?.baseStats?.toolSpeedBonus) {
-              toolBonus = ITEMS[toolItem.itemId].baseStats!.toolSpeedBonus!;
+            equippedTool = player.equipment?.tool_rod || player.equipment?.tool;
+          }
+
+          if (equippedTool) {
+            if (ITEMS[equippedTool.itemId]?.baseStats?.toolSpeedBonus) {
+              toolBonus += ITEMS[equippedTool.itemId].baseStats!.toolSpeedBonus!;
+            }
+            if (equippedTool.rarity) {
+              toolBonus += (RARITY_TOOL_BONUS[equippedTool.rarity] || 0);
             }
           }
 
@@ -3723,6 +3729,7 @@ export class GameEngine {
     }
 
     // Deduct inputs
+    let xpMultiplier = 1.0;
     if (recipe.inputs?.length > 0) {
       let inputsAvailable = true;
       for (const inp of recipe.inputs) {
@@ -3768,10 +3775,17 @@ export class GameEngine {
         return;
       }
 
+      let highestInputRarity: Rarity = 'plain';
+      const rarityRank: Record<Rarity, number> = { plain: 0, uncommon: 1, rare: 2, epic: 3, legendary: 4 };
+
       for (const inp of recipe.inputs) {
         let needed = inp.quantity;
         for (const slot of player.inventory) {
           if (slot.itemId === inp.itemId) {
+            const slotRarity = slot.rarity || 'plain';
+            if (rarityRank[slotRarity] > rarityRank[highestInputRarity]) {
+              highestInputRarity = slotRarity;
+            }
             const take = Math.min(slot.quantity, needed);
             slot.quantity -= take;
             needed -= take;
@@ -3780,6 +3794,7 @@ export class GameEngine {
         }
       }
       player.inventory = player.inventory.filter(s => s.quantity > 0);
+      xpMultiplier = RARITY_CRAFT_XP_MULTIPLIER[highestInputRarity] || 1.0;
     }
 
     // Add output item
@@ -3823,11 +3838,12 @@ export class GameEngine {
       }
     }
 
-    // Grant XP
+    // Grant XP (scaled by material rarity if crafted)
     const skillRecord = player.skills[recipe.skill];
     if (skillRecord) {
       const oldLevel = skillRecord.level;
-      skillRecord.xp += recipe.xp;
+      const grantedXp = Math.max(1, Math.round(recipe.xp * xpMultiplier));
+      skillRecord.xp += grantedXp;
       skillRecord.level = getLevelFromXp(skillRecord.xp);
       if (skillRecord.level > oldLevel) {
         this.send(ws, {
@@ -5616,7 +5632,8 @@ export class GameEngine {
 
         if (eatenSlot) {
           const foodDef = ITEMS[eatenSlot.itemId];
-          const heal = foodDef?.baseStats?.healing || 5;
+          const healMult = RARITY_HEALING_MULTIPLIER[eatenSlot.rarity || 'plain'] || 1.0;
+          const heal = Math.max(1, Math.round((foodDef?.baseStats?.healing || 5) * healMult));
           player.currentHp = Math.min(maxHp, player.currentHp + heal);
 
           // Uncommon+ food gives Satiated Fury buff (+25% strike)

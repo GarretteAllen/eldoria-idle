@@ -1,4 +1,4 @@
-import { Rarity, RARITY_CHANCES, getSteedWalkSpeedBonus } from './constants.js';
+import { Rarity, RARITY_CHANCES, getSteedWalkSpeedBonus, RARITY_TOOL_BONUS, RARITY_CRAFT_XP_MULTIPLIER, RARITY_HEALING_MULTIPLIER } from './constants.js';
 import { getLevelFromXp, getJobSpeedMultiplier } from './levels.js';
 import { ITEMS, addItemToSlots } from './items.js';
 import { RECIPES } from './recipes.js';
@@ -504,20 +504,21 @@ export function simulateOfflineCatchUp(
     const speedMult = getJobSpeedMultiplier(currentLevel, recipe.levelReq);
 
     let toolBonus = 0;
+    let equippedTool: InventorySlot | undefined;
     if (recipe.skill === 'mining') {
-      const toolItem = player.equipment?.tool_pickaxe || player.equipment?.tool;
-      if (toolItem && ITEMS[toolItem.itemId]?.baseStats?.toolSpeedBonus) {
-        toolBonus = ITEMS[toolItem.itemId].baseStats!.toolSpeedBonus!;
-      }
+      equippedTool = player.equipment?.tool_pickaxe || player.equipment?.tool;
     } else if (recipe.skill === 'woodcutting') {
-      const toolItem = player.equipment?.tool_axe || player.equipment?.tool;
-      if (toolItem && ITEMS[toolItem.itemId]?.baseStats?.toolSpeedBonus) {
-        toolBonus = ITEMS[toolItem.itemId].baseStats!.toolSpeedBonus!;
-      }
+      equippedTool = player.equipment?.tool_axe || player.equipment?.tool;
     } else if (recipe.skill === 'fishing') {
-      const toolItem = player.equipment?.tool_rod || player.equipment?.tool;
-      if (toolItem && ITEMS[toolItem.itemId]?.baseStats?.toolSpeedBonus) {
-        toolBonus = ITEMS[toolItem.itemId].baseStats!.toolSpeedBonus!;
+      equippedTool = player.equipment?.tool_rod || player.equipment?.tool;
+    }
+
+    if (equippedTool) {
+      if (ITEMS[equippedTool.itemId]?.baseStats?.toolSpeedBonus) {
+        toolBonus += ITEMS[equippedTool.itemId].baseStats!.toolSpeedBonus!;
+      }
+      if (equippedTool.rarity) {
+        toolBonus += (RARITY_TOOL_BONUS[equippedTool.rarity] || 0);
       }
     }
 
@@ -549,6 +550,7 @@ export function simulateOfflineCatchUp(
     let executed = 0;
 
     for (let i = 0; i < cyclesToExecute; i++) {
+      let xpMult = 1.0;
       // Check material inputs for crafting
       if (recipe.inputs.length > 0) {
         let canAfford = true;
@@ -561,13 +563,21 @@ export function simulateOfflineCatchUp(
         }
         if (!canAfford) break;
 
+        let highestInputRarity: Rarity = 'plain';
+        const rarityRank: Record<Rarity, number> = { plain: 0, uncommon: 1, rare: 2, epic: 3, legendary: 4 };
+
         // Deduct materials
         for (const input of recipe.inputs) {
           const slot = player.inventory.find(s => s.itemId === input.itemId)!;
+          const slotRarity = slot.rarity || 'plain';
+          if (rarityRank[slotRarity] > rarityRank[highestInputRarity]) {
+            highestInputRarity = slotRarity;
+          }
           slot.quantity -= input.quantity;
         }
         // Clean up empty slots
         player.inventory = player.inventory.filter(s => s.quantity > 0);
+        xpMult = RARITY_CRAFT_XP_MULTIPLIER[highestInputRarity] || 1.0;
       }
 
       // Add output item
@@ -604,7 +614,7 @@ export function simulateOfflineCatchUp(
         }
       }
 
-      totalXp += recipe.xp;
+      totalXp += Math.max(1, Math.round(recipe.xp * xpMult));
       executed++;
     }
 

@@ -104,6 +104,33 @@ export const RARITY_TOOL_LUCK: Record<Rarity, number> = {
   legendary: 5.00,
 };
 
+// Tool efficiency bonus by rarity (+1% uncommon, +3% rare, +5% epic, +8% legendary)
+export const RARITY_TOOL_BONUS: Record<Rarity, number> = {
+  plain: 0,
+  uncommon: 0.01,
+  rare: 0.03,
+  epic: 0.05,
+  legendary: 0.08,
+};
+
+// Crafting XP multiplier based on input material rarity (+10% uncommon, +25% rare, +50% epic, +100% legendary)
+export const RARITY_CRAFT_XP_MULTIPLIER: Record<Rarity, number> = {
+  plain: 1.0,
+  uncommon: 1.10,
+  rare: 1.25,
+  epic: 1.50,
+  legendary: 2.00,
+};
+
+// Cooked food healing multiplier by rarity (+10% uncommon, +25% rare, +50% epic, +100% legendary)
+export const RARITY_HEALING_MULTIPLIER: Record<Rarity, number> = {
+  plain: 1.0,
+  uncommon: 1.10,
+  rare: 1.25,
+  epic: 1.50,
+  legendary: 2.00,
+};
+
 // Enhancing costs and odds
 export const TIER_BASE_ENHANCE_COST = [0, 100, 300, 1000, 3000, 8000, 20000];
 
@@ -121,13 +148,13 @@ export function getEnhanceGoldCost(tier: number, rarity: Rarity, currentPlus: nu
   return baseCost * rarityMult * (currentPlus + 1);
 }
 
-// Steeds (Mounts)
+// Steeds (Mounts): +1% at uncommon (13%), +3% at rare (15%)
 export const STEED_BASE_BONUS: Record<Rarity, number> = {
   plain: 0.12,
-  uncommon: 0.18,
-  rare: 0.27,
-  epic: 0.42,
-  legendary: 0.60,
+  uncommon: 0.13,
+  rare: 0.15,
+  epic: 0.20,
+  legendary: 0.30,
 };
 
 export function getSteedWalkSpeedBonus(rarity: Rarity, plus: number): number {
