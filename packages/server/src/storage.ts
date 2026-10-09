@@ -3,7 +3,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import Database from 'better-sqlite3';
-import { PlayerData, SkillType, WorldNode, NpcDefinition, QuestDefinition, MonsterSpawnZone, getLevelFromXp, ItemDefinition, ITEMS, LevelBounds, parseLdtkLevelBounds, isTileInAnyLevel, InventorySlot, MarketListing, ChangelogEntry, Poll, StoredChatMessage, isItemStackable, getItemMaxStack } from '@eldoria/shared';
+import { PlayerData, SkillType, WorldNode, NpcDefinition, QuestDefinition, MonsterSpawnZone, getLevelFromXp, ItemDefinition, ITEMS, LevelBounds, parseLdtkLevelBounds, isTileInAnyLevel, InventorySlot, MarketListing, MarketTradeHistory, ChangelogEntry, Poll, StoredChatMessage, isItemStackable, getItemMaxStack } from '@eldoria/shared';
 import { WORLD_NODES as DEFAULT_WORLD_NODES } from './world.js';
 
 export const DEFAULT_MONSTER_ZONES: MonsterSpawnZone[] = [
@@ -230,6 +230,9 @@ class StorageManager {
   private stmtGetMarketListingById: Database.Statement;
   private stmtInsertMarketListing: Database.Statement;
   private stmtDeleteMarketListing: Database.Statement;
+  private stmtInsertMarketTrade: Database.Statement;
+  private stmtGetRecentTradesByItem: Database.Statement;
+  private stmtGetAllRecentTrades: Database.Statement;
   private stmtGetChangelogs: Database.Statement;
   private stmtUpsertChangelog: Database.Statement;
   private stmtDeleteChangelog: Database.Statement;
@@ -341,6 +344,16 @@ class StorageManager {
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     );
     this.stmtDeleteMarketListing = this.db.prepare('DELETE FROM market_listings WHERE id = ?');
+    this.stmtInsertMarketTrade = this.db.prepare(
+      `INSERT INTO market_trades (id, item_id, quantity, unit_price, total_price, seller_id, seller_name, buyer_id, buyer_name, rarity, plus, timestamp)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    );
+    this.stmtGetRecentTradesByItem = this.db.prepare(
+      'SELECT * FROM market_trades WHERE item_id = ? ORDER BY timestamp DESC LIMIT ?'
+    );
+    this.stmtGetAllRecentTrades = this.db.prepare(
+      'SELECT * FROM market_trades ORDER BY timestamp DESC LIMIT ?'
+    );
 
     this.stmtGetChangelogs = this.db.prepare('SELECT data FROM changelogs ORDER BY created_at DESC');
     this.stmtUpsertChangelog = this.db.prepare(
@@ -457,6 +470,21 @@ class StorageManager {
         rarity TEXT NOT NULL DEFAULT 'plain',
         plus INTEGER NOT NULL DEFAULT 0,
         created_at INTEGER NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS market_trades (
+        id TEXT PRIMARY KEY,
+        item_id TEXT NOT NULL,
+        quantity INTEGER NOT NULL,
+        unit_price INTEGER NOT NULL,
+        total_price INTEGER NOT NULL,
+        seller_id TEXT NOT NULL,
+        seller_name TEXT NOT NULL,
+        buyer_id TEXT NOT NULL,
+        buyer_name TEXT NOT NULL,
+        rarity TEXT NOT NULL DEFAULT 'plain',
+        plus INTEGER NOT NULL DEFAULT 0,
+        timestamp INTEGER NOT NULL
       );
 
       CREATE TABLE IF NOT EXISTS changelogs (
@@ -1585,6 +1613,61 @@ class StorageManager {
   public removeMarketListing(id: string): void {
     this.stmtDeleteMarketListing.run(id);
     this.checkpoint();
+  }
+
+  public recordMarketTrade(trade: MarketTradeHistory): void {
+    this.stmtInsertMarketTrade.run(
+      trade.id,
+      trade.itemId,
+      trade.quantity,
+      trade.unitPrice,
+      trade.totalPrice,
+      trade.sellerId,
+      trade.sellerName,
+      trade.buyerId,
+      trade.buyerName,
+      trade.rarity || 'plain',
+      trade.plus || 0,
+      trade.timestamp || Date.now()
+    );
+    this.checkpoint();
+  }
+
+  public getRecentTradesForItem(itemId: string, limit = 20): MarketTradeHistory[] {
+    const norm = this.normalizeMarketItemId(itemId);
+    const rows = this.stmtGetRecentTradesByItem.all(norm, limit) as any[];
+    return rows.map(r => ({
+      id: r.id,
+      itemId: this.normalizeMarketItemId(r.item_id),
+      quantity: r.quantity,
+      unitPrice: r.unit_price,
+      totalPrice: r.total_price,
+      sellerId: r.seller_id,
+      sellerName: r.seller_name,
+      buyerId: r.buyer_id,
+      buyerName: r.buyer_name,
+      rarity: r.rarity,
+      plus: r.plus,
+      timestamp: r.timestamp,
+    }));
+  }
+
+  public getAllRecentTrades(limit = 100): MarketTradeHistory[] {
+    const rows = this.stmtGetAllRecentTrades.all(limit) as any[];
+    return rows.map(r => ({
+      id: r.id,
+      itemId: this.normalizeMarketItemId(r.item_id),
+      quantity: r.quantity,
+      unitPrice: r.unit_price,
+      totalPrice: r.total_price,
+      sellerId: r.seller_id,
+      sellerName: r.seller_name,
+      buyerId: r.buyer_id,
+      buyerName: r.buyer_name,
+      rarity: r.rarity,
+      plus: r.plus,
+      timestamp: r.timestamp,
+    }));
   }
 
   public getChangelogs(): ChangelogEntry[] {

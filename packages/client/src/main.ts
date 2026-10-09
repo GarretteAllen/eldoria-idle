@@ -22,6 +22,7 @@ import {
   GemPackDef,
   QueuedTask,
   MarketListing,
+  MarketTradeHistory,
   calculateMaxHit,
   ChangelogEntry,
   Poll,
@@ -105,6 +106,7 @@ class EldoriaClient {
   private storageFilterQuery: string = '';
   private activeStorageTab: 'storage' | 'vendor' | 'market' = 'storage';
   private marketListings: MarketListing[] = [];
+  private marketRecentTrades: MarketTradeHistory[] = [];
   private marketSearchQuery: string = '';
   private marketFilterCategory: string = 'all';
   private marketViewMode: 'cards' | 'table' = 'cards';
@@ -1283,6 +1285,9 @@ class EldoriaClient {
 
       case 'MARKET_LISTINGS':
         this.marketListings = Array.isArray(msg.listings) ? msg.listings : [];
+        if (Array.isArray(msg.recentTrades)) {
+          this.marketRecentTrades = msg.recentTrades;
+        }
         if (this.activeStorageTab === 'market') {
           this.renderMarketView();
         }
@@ -4191,6 +4196,56 @@ class EldoriaClient {
     }
 
     // Render Satchel grid for listing items
+    this.renderMarketSatchelGrid();
+  }
+
+  private buildMarketPriceGuidanceHtml(itemId: string): string {
+    const trades = this.marketRecentTrades.filter(t => t.itemId === itemId);
+    const myId = this.player?.id;
+
+    // Most recent trade where current player was the seller (Recently Sold)
+    const recentSold = trades.find(t => myId && t.sellerId === myId);
+    // Most recent trade where current player was the buyer (Recently Bought)
+    const recentBought = trades.find(t => myId && t.buyerId === myId);
+    // Most recent trade across the whole realm (Market Last Traded)
+    const globalRecent = trades.length > 0 ? trades[0] : null;
+
+    const soldText = recentSold
+      ? `<span style="color: #48bb78; font-weight: 600;">${recentSold.unitPrice.toLocaleString()} G</span> <span style="font-size: 0.7rem; color: #a0aec0;">(${recentSold.quantity}x)</span>`
+      : `<span style="color: #718096; font-style: italic;">None</span>`;
+
+    const boughtText = recentBought
+      ? `<span style="color: #38bdf8; font-weight: 600;">${recentBought.unitPrice.toLocaleString()} G</span> <span style="font-size: 0.7rem; color: #a0aec0;">(${recentBought.quantity}x)</span>`
+      : `<span style="color: #718096; font-style: italic;">None</span>`;
+
+    const globalText = globalRecent
+      ? `<span style="color: var(--gold-bright); font-weight: 600;">${globalRecent.unitPrice.toLocaleString()} G</span>`
+      : `<span style="color: #718096; font-style: italic;">No trades yet</span>`;
+
+    return `
+      <div style="background: rgba(0, 0, 0, 0.4); border: 1px solid rgba(132, 97, 59, 0.4); border-radius: 6px; padding: 10px 12px; margin-top: 4px; display: flex; flex-direction: column; gap: 6px;">
+        <div style="font-size: 0.72rem; color: #cbd5e0; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); padding-bottom: 4px; display: flex; justify-content: space-between;">
+          <span>Market History</span>
+          <span>Last Realm: ${globalText}</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.78rem;">
+          <span style="color: #e2e8f0; display: flex; align-items: center; gap: 4px;">
+            <span style="color: #48bb78;">▲</span> Your Recent Sold:
+          </span>
+          <span>${soldText}</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.78rem;">
+          <span style="color: #e2e8f0; display: flex; align-items: center; gap: 4px;">
+            <span style="color: #38bdf8;">▼</span> Your Recent Bought:
+          </span>
+          <span>${boughtText}</span>
+        </div>
+      </div>
+    `;
+  }
+
+  private renderMarketSatchelGrid() {
+    if (!this.player) return;
     const satchelGrid = document.getElementById('dv-market-carrying-grid');
     if (satchelGrid) {
       satchelGrid.innerHTML = '';
@@ -4229,6 +4284,7 @@ class EldoriaClient {
                 defaultValue: defaultUnitPrice,
                 min: 1,
                 confirmText: 'List Item',
+                extraHtml: this.buildMarketPriceGuidanceHtml(slot.itemId),
                 onConfirm: (parsedPrice) => {
                   this.sendWs({
                     type: 'CREATE_MARKET_LISTING',
@@ -5756,6 +5812,7 @@ class EldoriaClient {
     max?: number;
     confirmText?: string;
     cancelText?: string;
+    extraHtml?: string;
     onConfirm: (val: number) => void;
     onCancel?: () => void;
   }) {
@@ -5776,6 +5833,7 @@ class EldoriaClient {
     const btnCancel = document.getElementById('prompt-modal-cancel') as HTMLButtonElement | null;
     const btnConfirm = document.getElementById('prompt-modal-confirm') as HTMLButtonElement | null;
     const iconEl = document.getElementById('prompt-modal-icon');
+    const extraEl = document.getElementById('prompt-modal-extra');
 
     if (iconEl) iconEl.innerHTML = ICONS.gold || ICONS.satchel;
     if (titleEl) titleEl.textContent = options.title || 'Enter Amount';
@@ -5790,8 +5848,22 @@ class EldoriaClient {
     if (btnConfirm) btnConfirm.textContent = options.confirmText || 'Submit';
     if (btnCancel) btnCancel.textContent = options.cancelText || 'Cancel';
 
+    if (extraEl) {
+      if (options.extraHtml) {
+        extraEl.innerHTML = options.extraHtml;
+        extraEl.style.display = 'block';
+      } else {
+        extraEl.innerHTML = '';
+        extraEl.style.display = 'none';
+      }
+    }
+
     const cleanup = () => {
       modal.classList.add('hidden');
+      if (extraEl) {
+        extraEl.innerHTML = '';
+        extraEl.style.display = 'none';
+      }
       if (formEl) formEl.onsubmit = null;
       if (btnCancel) btnCancel.onclick = null;
     };
@@ -6597,6 +6669,7 @@ class EldoriaClient {
               defaultValue: defaultUnitPrice,
               min: 1,
               confirmText: 'List Item',
+              extraHtml: this.buildMarketPriceGuidanceHtml(slot.itemId),
               onConfirm: (parsedPrice) => {
                 this.sendWs({
                   type: 'CREATE_MARKET_LISTING',

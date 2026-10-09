@@ -2345,9 +2345,11 @@ export class GameEngine {
 
   private handleGetMarketListings(session: ConnectedSession) {
     const listings = storage.getMarketListings();
+    const recentTrades = storage.getAllRecentTrades(100);
     this.send(session.ws, {
       type: 'MARKET_LISTINGS',
       listings,
+      recentTrades,
     });
   }
 
@@ -2573,6 +2575,22 @@ export class GameEngine {
           storage.createMarketListing(updatedListing);
         }
 
+        // Record trade in persistent trade history
+        storage.recordMarketTrade({
+          id: `trade_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+          itemId: listing.itemId,
+          quantity: buyQty,
+          unitPrice: listing.unitPrice,
+          totalPrice: cost,
+          sellerId: listing.sellerId,
+          sellerName: listing.sellerName,
+          buyerId: player.id,
+          buyerName: player.username,
+          rarity: listing.rarity,
+          plus: listing.plus,
+          timestamp: Date.now(),
+        });
+
         storage.savePlayer(player);
         purchasedListing = listing;
         actualBoughtQty = buyQty;
@@ -2603,6 +2621,7 @@ export class GameEngine {
     this.broadcast({
       type: 'MARKET_LISTINGS',
       listings: storage.getMarketListings(),
+      recentTrades: storage.getAllRecentTrades(100),
     });
   }
 

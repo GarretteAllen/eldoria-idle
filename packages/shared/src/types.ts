@@ -306,6 +306,21 @@ export interface MarketMailboxItem {
   createdAt: number;
 }
 
+export interface MarketTradeHistory {
+  id: string;
+  itemId: string;
+  quantity: number;
+  unitPrice: number;
+  totalPrice: number;
+  sellerId: string;
+  sellerName: string;
+  buyerId: string;
+  buyerName: string;
+  rarity?: Rarity;
+  plus?: number;
+  timestamp: number;
+}
+
 export interface PlayerData {
   id: string;
   username: string;
