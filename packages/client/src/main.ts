@@ -4201,44 +4201,51 @@ class EldoriaClient {
 
   private buildMarketPriceGuidanceHtml(itemId: string): string {
     const trades = this.marketRecentTrades.filter(t => t.itemId === itemId);
-    const myId = this.player?.id;
+    const activeListings = this.marketListings.filter(l => l.itemId === itemId);
 
-    // Most recent trade where current player was the seller (Recently Sold)
-    const recentSold = trades.find(t => myId && t.sellerId === myId);
-    // Most recent trade where current player was the buyer (Recently Bought)
-    const recentBought = trades.find(t => myId && t.buyerId === myId);
-    // Most recent trade across the whole realm (Market Last Traded)
-    const globalRecent = trades.length > 0 ? trades[0] : null;
+    // Active market lowest selling price right now
+    let lowestActivePrice: number | null = null;
+    for (const l of activeListings) {
+      if (lowestActivePrice === null || l.unitPrice < lowestActivePrice) {
+        lowestActivePrice = l.unitPrice;
+      }
+    }
 
-    const soldText = recentSold
-      ? `<span style="color: #48bb78; font-weight: 600;">${recentSold.unitPrice.toLocaleString()} G</span> <span style="font-size: 0.7rem; color: #a0aec0;">(${recentSold.quantity}x)</span>`
+    // Recent trades across the entire realm (newest first)
+    const recentTradesList = trades.slice(0, 3);
+    const lastTraded = recentTradesList.length > 0 ? recentTradesList[0] : null;
+
+    // Calculate recent trade price range or average
+    let tradeHistoryBadges = '';
+    if (recentTradesList.length > 0) {
+      tradeHistoryBadges = recentTradesList
+        .map(t => `<span style="background: rgba(255,255,255,0.06); padding: 2px 6px; border-radius: 4px; font-size: 0.75rem; color: var(--gold-bright);">${t.unitPrice.toLocaleString()} G <span style="font-size: 0.68rem; color: #a0aec0;">(${t.quantity}x)</span></span>`)
+        .join(' ');
+    } else {
+      tradeHistoryBadges = `<span style="color: #718096; font-style: italic;">No trades yet</span>`;
+    }
+
+    const lowestActiveText = lowestActivePrice !== null
+      ? `<span style="color: #38bdf8; font-weight: 600;">${lowestActivePrice.toLocaleString()} G</span> <span style="font-size: 0.7rem; color: #a0aec0;">(${activeListings.length} listed)</span>`
+      : `<span style="color: #718096; font-style: italic;">None listed</span>`;
+
+    const lastTradedText = lastTraded
+      ? `<span style="color: #48bb78; font-weight: 600;">${lastTraded.unitPrice.toLocaleString()} G</span>`
       : `<span style="color: #718096; font-style: italic;">None</span>`;
-
-    const boughtText = recentBought
-      ? `<span style="color: #38bdf8; font-weight: 600;">${recentBought.unitPrice.toLocaleString()} G</span> <span style="font-size: 0.7rem; color: #a0aec0;">(${recentBought.quantity}x)</span>`
-      : `<span style="color: #718096; font-style: italic;">None</span>`;
-
-    const globalText = globalRecent
-      ? `<span style="color: var(--gold-bright); font-weight: 600;">${globalRecent.unitPrice.toLocaleString()} G</span>`
-      : `<span style="color: #718096; font-style: italic;">No trades yet</span>`;
 
     return `
       <div style="background: rgba(0, 0, 0, 0.4); border: 1px solid rgba(132, 97, 59, 0.4); border-radius: 6px; padding: 10px 12px; margin-top: 4px; display: flex; flex-direction: column; gap: 6px;">
         <div style="font-size: 0.72rem; color: #cbd5e0; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); padding-bottom: 4px; display: flex; justify-content: space-between;">
-          <span>Market History</span>
-          <span>Last Realm: ${globalText}</span>
+          <span>Market Price Check</span>
+          <span>Lowest Listed: ${lowestActiveText}</span>
         </div>
         <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.78rem;">
-          <span style="color: #e2e8f0; display: flex; align-items: center; gap: 4px;">
-            <span style="color: #48bb78;">▲</span> Your Recent Sold:
-          </span>
-          <span>${soldText}</span>
+          <span style="color: #e2e8f0;">Last Trade Price:</span>
+          <span>${lastTradedText}</span>
         </div>
-        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.78rem;">
-          <span style="color: #e2e8f0; display: flex; align-items: center; gap: 4px;">
-            <span style="color: #38bdf8;">▼</span> Your Recent Bought:
-          </span>
-          <span>${boughtText}</span>
+        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.78rem; gap: 8px;">
+          <span style="color: #e2e8f0; white-space: nowrap;">Recent Sales:</span>
+          <div style="display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end;">${tradeHistoryBadges}</div>
         </div>
       </div>
     `;
