@@ -647,7 +647,28 @@ class EldoriaClient {
     this.setupAuthModal();
     this.setupProfileModal();
 
-    const token = localStorage.getItem('eldoria_session_token');
+    let token = localStorage.getItem('eldoria_session_token');
+    let guestId = localStorage.getItem('eldoria_guest_id');
+
+    // If running on eldoriaidle.site (or localhost) and user has neither token nor guestId,
+    // query the bridge iframe on the legacy domain (eld.coldthronednd.com) to seamlessly restore their character
+    if (!token && !guestId && window.location.hostname !== 'eld.coldthronednd.com') {
+      try {
+        const legacyAuth = await this.queryLegacyDomainAuth();
+        if (legacyAuth) {
+          if (legacyAuth.token) {
+            localStorage.setItem('eldoria_session_token', legacyAuth.token);
+            token = legacyAuth.token;
+          }
+          if (legacyAuth.guestId) {
+            localStorage.setItem('eldoria_guest_id', legacyAuth.guestId);
+            guestId = legacyAuth.guestId;
+          }
+        }
+      } catch (e) {
+        console.warn('Legacy auth migration check skipped or failed:', e);
+      }
+    }
 
     if (token) {
       try {
@@ -670,7 +691,7 @@ class EldoriaClient {
     }
 
     // Auto-resume active guest session if token not present
-    const guestId = localStorage.getItem('eldoria_guest_id');
+    guestId = localStorage.getItem('eldoria_guest_id');
     if (guestId) {
       try {
         const res = await fetch('/api/auth/guest', {
@@ -693,6 +714,72 @@ class EldoriaClient {
 
     // No persistent registered session or guest -> Present realm entry / login gate modal
     this.openAuthModal('login', false);
+  }
+
+  /**
+   * Queries the legacy domain (eld.coldthronednd.com) via a hidden iframe
+   * to check if the browser has an existing guest ID or session token stored under the old domain.
+   */
+  private queryLegacyDomainAuth(): Promise<{ guestId?: string; token?: string } | null> {
+    return new Promise((resolve) => {
+      const iframe = document.createElement('iframe');
+      iframe.style.display = 'none';
+      iframe.src = 'https://eld.coldthronednd.com/bridge.html';
+
+      let resolved = false;
+
+      const cleanup = () => {
+        window.removeEventListener('message', handleMessage);
+        if (iframe.parentNode) {
+          iframe.parentNode.removeChild(iframe);
+        }
+      };
+
+      const handleMessage = (event: MessageEvent) => {
+        if (event.origin === 'https://eld.coldthronednd.com' && event.data && event.data.type === 'ELDORIA_LEGACY_AUTH_RESULT') {
+          if (!resolved) {
+            resolved = true;
+            cleanup();
+            resolve({
+              guestId: event.data.guestId || undefined,
+              token: event.data.token || undefined,
+            });
+          }
+        }
+      };
+
+      window.addEventListener('message', handleMessage);
+
+      iframe.onload = () => {
+        try {
+          iframe.contentWindow?.postMessage(
+            { type: 'GET_ELDORIA_LEGACY_AUTH' },
+            'https://eld.coldthronednd.com'
+          );
+        } catch {
+          // If postMessage fails, fallback
+        }
+      };
+
+      iframe.onerror = () => {
+        if (!resolved) {
+          resolved = true;
+          cleanup();
+          resolve(null);
+        }
+      };
+
+      // Timeout safety: if iframe doesn't respond within 2.5s, continue normal flow
+      setTimeout(() => {
+        if (!resolved) {
+          resolved = true;
+          cleanup();
+          resolve(null);
+        }
+      }, 2500);
+
+      document.body.appendChild(iframe);
+    });
   }
 
   private connectWs() {
