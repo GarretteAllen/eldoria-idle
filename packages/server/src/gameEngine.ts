@@ -146,26 +146,6 @@ export class GameEngine {
         this.liveMonsters.delete(instId);
       }
     }
-
-    // Also populate liveMonsters for any monster nodes present in world_nodes
-    const staticMonsterNodes = storage.getWorldNodes().filter(n => n.type === 'monster');
-    for (const node of staticMonsterNodes) {
-      if (!node.monsterId) continue;
-      const def = MONSTERS[node.monsterId];
-      if (!def) continue;
-      if (!this.liveMonsters.has(node.id)) {
-        this.liveMonsters.set(node.id, {
-          id: node.id,
-          zoneId: node.zoneId || `zone_${node.monsterId}`,
-          monsterId: node.monsterId,
-          name: node.name || def.name,
-          x: node.x,
-          y: node.y,
-          currentHp: def.hp,
-          maxHp: def.hp,
-        });
-      }
-    }
   }
 
   public findWalkableTileInZone(zone: MonsterSpawnZone, occupiedCoords: Set<string>): { x: number; y: number } {
@@ -2921,16 +2901,6 @@ export class GameEngine {
           inst.currentHp = inst.maxHp;
           inst.respawnAtTick = undefined;
           inst.nextMoveTick = this.tickCount + Math.floor(Math.random() * 8) + 4;
-          monstersChanged = true;
-        } else {
-          // Static node respawn at original location
-          const node = storage.getWorldNodes().find(n => n.id === inst.id);
-          if (node) {
-            inst.x = node.x;
-            inst.y = node.y;
-          }
-          inst.currentHp = inst.maxHp;
-          inst.respawnAtTick = undefined;
           monstersChanged = true;
         }
       }
