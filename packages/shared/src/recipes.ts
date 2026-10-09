@@ -1118,6 +1118,18 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     intervalSeconds: 3.5,
     rareFinds: [{ itemId: 'gold', chance: 0.08 }],
   },
+  thieve_cloth: {
+    id: 'thieve_cloth',
+    skill: 'thieving',
+    levelReq: 5,
+    name: 'Cloth Stall',
+    inputs: [],
+    outputItemId: 'homespun_bolt',
+    outputQuantity: 1,
+    xp: 6,
+    intervalSeconds: 3.8,
+    rareFinds: [{ itemId: 'gold', chance: 0.08 }],
+  },
   thieve_produce: {
     id: 'thieve_produce',
     skill: 'thieving',
