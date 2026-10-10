@@ -283,8 +283,8 @@
           <button class="chan-btn" data-chan="System">System</button>
         </div>
         <div id="chat-messages" class="chat-messages"></div>
-        <form id="chat-form" class="chat-input-row">
-          <input type="text" id="chat-input" placeholder="Say something..." maxlength="150" />
+        <form id="chat-form" class="chat-input-row" autocomplete="off">
+          <input type="text" id="chat-input" placeholder="Say something..." maxlength="150" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-form-type="other" />
           <button type="submit" class="btn-chat-send">Send</button>
         </form>
       </div>
