@@ -5,6 +5,7 @@ import {
   MONSTERS,
   InventorySlot,
   Rarity,
+  PLAYER_SPAWN_POINT,
 } from '@eldoria/shared';
 import { storage } from './storage.js';
 import { GameEngine, LiveMonsterInstance } from './gameEngine.js';
@@ -116,12 +117,9 @@ export class BotManager {
       const player = storage.createGuestPlayer(username);
       player.id = botId;
 
-      // Randomize starter location near Hearth Town
-      const hearth = this.engine.getHearthLocation();
-      const offsetX = Math.floor(Math.random() * 7) - 3;
-      const offsetY = Math.floor(Math.random() * 7) - 3;
-      player.x = hearth.x + offsetX;
-      player.y = hearth.y + offsetY;
+      // Spawn at static safe town spawn point (12, 22)
+      player.x = PLAYER_SPAWN_POINT.x;
+      player.y = PLAYER_SPAWN_POINT.y;
       player.targetX = player.x;
       player.targetY = player.y;
 

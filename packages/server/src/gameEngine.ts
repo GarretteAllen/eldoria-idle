@@ -38,6 +38,7 @@ import {
   MarketMailboxItem,
   getStorageSlotUpgradeCost,
   VENDOR_GOODS,
+  PLAYER_SPAWN_POINT,
 } from '@eldoria/shared';
 import { storage } from './storage.js';
 import { BotManager } from './botManager.js';
@@ -260,6 +261,17 @@ export class GameEngine {
 
     if (storage.isPlayerAdmin(player)) {
       player.role = 'admin';
+    }
+
+    // Safety check: if player is inside a collision tile or invalid coordinates, relocate safely to town spawn
+    if (storage.isCollidable(Math.round(player.x), Math.round(player.y))) {
+      player.x = PLAYER_SPAWN_POINT.x;
+      player.y = PLAYER_SPAWN_POINT.y;
+      player.targetX = PLAYER_SPAWN_POINT.x;
+      player.targetY = PLAYER_SPAWN_POINT.y;
+      player.path = [];
+      player.isMoving = false;
+      storage.savePlayer(player);
     }
 
     // Ensure player Hitpoints is at least Level 10 and 1,154 XP (OSRS level 10 base)

@@ -3,7 +3,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import Database from 'better-sqlite3';
-import { PlayerData, SkillType, WorldNode, NpcDefinition, QuestDefinition, MonsterSpawnZone, getLevelFromXp, ItemDefinition, ITEMS, LevelBounds, parseLdtkLevelBounds, isTileInAnyLevel, InventorySlot, MarketListing, MarketTradeHistory, ChangelogEntry, Poll, StoredChatMessage, isItemStackable, getItemMaxStack } from '@eldoria/shared';
+import { PlayerData, SkillType, WorldNode, NpcDefinition, QuestDefinition, MonsterSpawnZone, getLevelFromXp, ItemDefinition, ITEMS, LevelBounds, parseLdtkLevelBounds, isTileInAnyLevel, InventorySlot, MarketListing, MarketTradeHistory, ChangelogEntry, Poll, StoredChatMessage, isItemStackable, getItemMaxStack, PLAYER_SPAWN_POINT } from '@eldoria/shared';
 import { WORLD_NODES as DEFAULT_WORLD_NODES } from './world.js';
 
 export const DEFAULT_MONSTER_ZONES: MonsterSpawnZone[] = [
@@ -992,8 +992,8 @@ class StorageManager {
       username,
       role: 'player',
       isGuest: true,
-      x: 8,
-      y: 24,
+      x: PLAYER_SPAWN_POINT.x,
+      y: PLAYER_SPAWN_POINT.y,
       gold: 50,
       gems: 0,
       anima: 0,
@@ -1105,8 +1105,8 @@ class StorageManager {
       username,
       role: isAdmin ? 'admin' : 'player',
       isGuest: false,
-      x: 8,
-      y: 24,
+      x: PLAYER_SPAWN_POINT.x,
+      y: PLAYER_SPAWN_POINT.y,
       gold: 50,
       gems: 0,
       anima: 0,
