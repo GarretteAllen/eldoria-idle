@@ -28,6 +28,9 @@ import {
   Poll,
   getStorageSlotUpgradeCost,
   VENDOR_GOODS,
+  DUNGEONS,
+  DungeonParty,
+  DungeonRecoveryItem,
 } from '@eldoria/shared';
 import { WorldRenderer, WorldNodeDisplay, TILE_SIZE } from './canvas.js';
 import { loadLdtkWorld } from './ldtkLoader.js';
@@ -167,6 +170,12 @@ class EldoriaClient {
   private afkCheckTimer: any = null;
   private heartbeatTimer: any = null;
 
+  // Dungeon Expedition & Co-Op State
+  private currentDungeonParty: DungeonParty | null = null;
+  private pendingDungeonInvite: { partyId: string; dungeonId: string; dungeonName: string; leaderName: string } | null = null;
+  private dungeonRecoveries: DungeonRecoveryItem[] = [];
+  private spoilsCountdownTimer: any = null;
+
   constructor() {
     const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
     this.renderer = new WorldRenderer(canvas);
@@ -194,6 +203,7 @@ class EldoriaClient {
     this.setupBestiary();
     this.setupItemTooltips();
     this.setupAfkSystem();
+    this.setupDungeonSystem();
 
     // On mobile devices, start with drawers closed and HUD compact so the world canvas is immediately playable
     if (window.innerWidth <= 768) {
@@ -276,6 +286,8 @@ class EldoriaClient {
     document.getElementById('tool-btn-inventory')!.innerHTML = ICONS.inventory;
     document.getElementById('tool-btn-equipment')!.innerHTML = ICONS.equipment;
     document.getElementById('tool-btn-storage')!.innerHTML = ICONS.storage;
+    const toolDungeonBtn = document.getElementById('tool-btn-dungeon');
+    if (toolDungeonBtn) toolDungeonBtn.innerHTML = ICONS.dungeon;
     const toolLeaderboardBtn = document.getElementById('tool-btn-leaderboard');
     if (toolLeaderboardBtn) toolLeaderboardBtn.innerHTML = ICONS.leaderboard;
     const toolSoundBtn = document.getElementById('tool-btn-sound');
@@ -283,6 +295,9 @@ class EldoriaClient {
     document.getElementById('tool-btn-chat')!.innerHTML = ICONS.chat;
     const editorToolBtn = document.getElementById('tool-btn-editor');
     if (editorToolBtn) editorToolBtn.innerHTML = ICONS.editor;
+
+    const dungeonHeaderIcon = document.getElementById('dungeon-header-icon');
+    if (dungeonHeaderIcon) dungeonHeaderIcon.innerHTML = ICONS.dungeon;
 
     // Leaderboard Modal Icons
     const leaderboardHeaderIcon = document.getElementById('leaderboard-header-icon');
@@ -1324,6 +1339,40 @@ class EldoriaClient {
         }
         break;
       }
+
+      case 'DUNGEON_PARTY_UPDATE':
+        this.currentDungeonParty = msg.party;
+        this.renderDungeonLobby();
+        break;
+
+      case 'DUNGEON_INVITE_RECEIVED':
+        this.showDungeonInviteToast(msg);
+        break;
+
+      case 'DUNGEON_ENTERED':
+        this.closeDungeonLobbyModal();
+        this.showToast(`🛡️ Entered ${msg.dungeonName}! Room 1: ${msg.roomName}`, true);
+        break;
+
+      case 'DUNGEON_ROOM_ADVANCE':
+        this.showToast(`🚪 Gate unlocked! Entering Room ${msg.roomIndex + 1}: ${msg.roomName}`, true);
+        break;
+
+      case 'DUNGEON_SPOILS_MODAL':
+        this.openDungeonSpoilsModal(msg);
+        break;
+
+      case 'DUNGEON_LEFT':
+        this.currentDungeonParty = null;
+        this.closeDungeonLobbyModal();
+        this.closeDungeonSpoilsModal();
+        this.showToast('Returned safely to Hearth Town.', true);
+        break;
+
+      case 'DUNGEON_RECOVERIES_LIST':
+        this.dungeonRecoveries = msg.recoveries || [];
+        this.renderBarnabyModal();
+        break;
     }
   }
 
@@ -1405,6 +1454,23 @@ class EldoriaClient {
         const hrs = Math.floor(remMs / (1000 * 60 * 60));
         const mins = Math.floor((remMs % (1000 * 60 * 60)) / (1000 * 60));
         dailyBtn.title = `Daily Adventurer Chest on cooldown (${hrs}h ${mins}m remaining).`;
+      }
+    }
+
+    // Dungeon Button Status & Key Glow
+    const dungeonBtn = document.getElementById('tool-btn-dungeon');
+    if (dungeonBtn) {
+      const hasKeyInSatchel = this.player.inventory.some(s => s.itemId === 'item_crypt_key' && s.quantity > 0);
+      const hasKeyInVault = this.player.storage.some(s => s.itemId === 'item_crypt_key' && s.quantity > 0);
+      const ownsKey = hasKeyInSatchel || hasKeyInVault;
+      if (ownsKey) {
+        dungeonBtn.classList.add('dungeon-key-active');
+        dungeonBtn.title = hasKeyInSatchel
+          ? 'Dungeon Delve: Keystone in satchel! Click to initiate expedition.'
+          : 'Dungeon Delve: Keystone in vault! Click to withdraw key & embark.';
+      } else {
+        dungeonBtn.classList.remove('dungeon-key-active');
+        dungeonBtn.title = 'Dungeon Delve (Whispering Crypt Key required)';
       }
     }
 
@@ -1823,6 +1889,11 @@ class EldoriaClient {
 
         if (panel === 'storage') {
           this.openStorageModal();
+          return;
+        }
+
+        if (btn.id === 'tool-btn-dungeon') {
+          this.handleDungeonButtonClick();
           return;
         }
 
@@ -8916,6 +8987,11 @@ class EldoriaClient {
   }
 
   private openNpcDialogue(npc: NpcDefinition) {
+    if (npc.id === 'npc_barnaby') {
+      this.openBarnabyModal();
+      return;
+    }
+
     const modal = document.getElementById('npc-dialogue-modal');
     if (!modal) return;
 
@@ -9510,6 +9586,516 @@ class EldoriaClient {
       card.appendChild(headerRow);
       card.appendChild(targetRow);
       card.appendChild(posRow);
+      listEl.appendChild(card);
+    }
+  }
+
+  // ==================== DUNGEON & CO-OP CLIENT LOGIC ====================
+
+  private setupDungeonSystem() {
+    // 1. Close Dungeon Lobby Modal
+    const closeLobbyBtn = document.getElementById('btn-close-dungeon-lobby');
+    if (closeLobbyBtn) {
+      closeLobbyBtn.onclick = () => this.closeDungeonLobbyModal();
+    }
+
+    // 2. Toggle Ready Button
+    const toggleReadyBtn = document.getElementById('btn-dungeon-toggle-ready');
+    if (toggleReadyBtn) {
+      toggleReadyBtn.onclick = () => {
+        sound.play('ding');
+        this.sendWs({ type: 'DUNGEON_TOGGLE_READY' });
+      };
+    }
+
+    // 3. Start Dungeon Button
+    const startDungeonBtn = document.getElementById('btn-dungeon-start');
+    if (startDungeonBtn) {
+      startDungeonBtn.onclick = () => {
+        sound.play('ding');
+        this.sendWs({ type: 'DUNGEON_START' });
+      };
+    }
+
+    // 4. Send Invite Input & Button
+    const inviteBtn = document.getElementById('btn-dungeon-send-invite');
+    const inviteInput = document.getElementById('dungeon-invite-input') as HTMLInputElement | null;
+    if (inviteBtn && inviteInput) {
+      const doInvite = () => {
+        const val = inviteInput.value.trim();
+        if (val) {
+          this.sendWs({ type: 'DUNGEON_INVITE_PLAYER', targetUsername: val });
+          inviteInput.value = '';
+        }
+      };
+      inviteBtn.onclick = doInvite;
+      inviteInput.onkeydown = (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          doInvite();
+        }
+      };
+    }
+
+    // 5. Invitation Toast Accept/Decline Buttons
+    const acceptInviteBtn = document.getElementById('btn-accept-dungeon-invite');
+    if (acceptInviteBtn) {
+      acceptInviteBtn.onclick = () => {
+        if (this.pendingDungeonInvite) {
+          this.sendWs({
+            type: 'DUNGEON_RESPOND_INVITE',
+            partyId: this.pendingDungeonInvite.partyId,
+            accept: true,
+          });
+          this.hideDungeonInviteToast();
+          this.openDungeonLobbyModal();
+        }
+      };
+    }
+    const declineInviteBtn = document.getElementById('btn-decline-dungeon-invite');
+    if (declineInviteBtn) {
+      declineInviteBtn.onclick = () => {
+        if (this.pendingDungeonInvite) {
+          this.sendWs({
+            type: 'DUNGEON_RESPOND_INVITE',
+            partyId: this.pendingDungeonInvite.partyId,
+            accept: false,
+          });
+          this.hideDungeonInviteToast();
+        }
+      };
+    }
+
+    // 6. Spoils Modal Return to Town Button
+    const spoilsLeaveBtn = document.getElementById('btn-spoils-leave');
+    if (spoilsLeaveBtn) {
+      spoilsLeaveBtn.onclick = () => {
+        this.closeDungeonSpoilsModal();
+        this.sendWs({ type: 'DUNGEON_LEAVE' });
+      };
+    }
+
+    // 7. Barnaby Modal Close Button
+    const closeBarnabyBtn = document.getElementById('btn-close-barnaby-modal');
+    if (closeBarnabyBtn) {
+      closeBarnabyBtn.onclick = () => this.closeBarnabyModal();
+    }
+  }
+
+  private handleDungeonButtonClick() {
+    if (!this.player) return;
+
+    const hasKeyInSatchel = this.player.inventory.some(s => s.itemId === 'item_crypt_key' && s.quantity > 0);
+    const hasKeyInVault = this.player.storage.some(s => s.itemId === 'item_crypt_key' && s.quantity > 0);
+
+    if (!hasKeyInSatchel && !hasKeyInVault) {
+      this.showToast('You do not possess a Whispering Crypt Key! Craft one or acquire one from rare relics.', false);
+      return;
+    }
+
+    // Pre-flight automated routine:
+    // 1. Walk to bank -> Deposit all -> Withdraw food -> Path to dungeon gate
+    const gateNode = this.worldNodes.find(n => n.id === 'node_dungeon_crypt_gate') || { x: 18, y: 28 };
+    const distToGate = Math.hypot(this.player.x - gateNode.x, this.player.y - gateNode.y);
+
+    if (distToGate <= 2) {
+      // Already at the gate! Open party lobby immediately
+      this.openDungeonLobbyModal();
+      return;
+    }
+
+    sound.play('ding');
+    this.showToast('Initiating Dungeon Pre-flight: Banking spoils, checking provisions, and marching to Crypt Gate...', true);
+
+    // Stop active skilling
+    this.sendWs({ type: 'STOP_TASK', clearQueue: true });
+
+    // Deposit all resources
+    this.sendWs({ type: 'DEPOSIT_ALL_RESOURCES' });
+
+    // Withdraw food if none in satchel
+    const hasFood = this.player.inventory.some(s => {
+      const it = ITEMS[s.itemId];
+      return it && it.category === 'cooked_food';
+    });
+    if (!hasFood) {
+      const foodSlotIdx = this.player.storage.findIndex(s => {
+        const it = ITEMS[s.itemId];
+        return it && it.category === 'cooked_food';
+      });
+      if (foodSlotIdx >= 0) {
+        this.sendWs({ type: 'WITHDRAW_ITEM', storageIndex: foodSlotIdx, quantity: 5 });
+      }
+    }
+
+    // If key is in vault, withdraw it
+    if (!hasKeyInSatchel && hasKeyInVault) {
+      const keyVaultIdx = this.player.storage.findIndex(s => s.itemId === 'item_crypt_key');
+      if (keyVaultIdx >= 0) {
+        this.sendWs({ type: 'WITHDRAW_ITEM', storageIndex: keyVaultIdx, quantity: 1 });
+      }
+    }
+
+    // Path to Crypt Gate
+    this.sendWs({ type: 'MOVE_TO', x: gateNode.x, y: gateNode.y });
+
+    // Schedule arrival check to open modal
+    const checkArrival = setInterval(() => {
+      if (!this.player) {
+        clearInterval(checkArrival);
+        return;
+      }
+      const d = Math.hypot(this.player.x - gateNode.x, this.player.y - gateNode.y);
+      if (d <= 2) {
+        clearInterval(checkArrival);
+        this.openDungeonLobbyModal();
+      }
+    }, 500);
+  }
+
+  private openDungeonLobbyModal(dungeonId: string = 'whispering_crypt') {
+    const modal = document.getElementById('dungeon-lobby-modal');
+    if (!modal) return;
+    sound.play('ding');
+    modal.classList.remove('hidden');
+
+    if (!this.currentDungeonParty) {
+      // Create new party as leader
+      this.sendWs({ type: 'DUNGEON_CREATE_PARTY', dungeonId });
+    } else {
+      this.renderDungeonLobby();
+    }
+  }
+
+  private closeDungeonLobbyModal() {
+    const modal = document.getElementById('dungeon-lobby-modal');
+    if (modal) modal.classList.add('hidden');
+  }
+
+  private renderDungeonLobby() {
+    const modal = document.getElementById('dungeon-lobby-modal');
+    if (!modal || modal.classList.contains('hidden')) return;
+
+    const party = this.currentDungeonParty;
+    if (!party) return;
+
+    const dungeon = DUNGEONS[party.dungeonId] || DUNGEONS['whispering_crypt'];
+    const titleEl = document.getElementById('dungeon-modal-title');
+    if (titleEl) titleEl.textContent = dungeon.name;
+    const descEl = document.getElementById('dungeon-desc-text');
+    if (descEl) descEl.textContent = dungeon.description;
+
+    // Key requirement card
+    const keyStatusEl = document.getElementById('dungeon-key-status');
+    const keyBadgeEl = document.getElementById('dungeon-key-badge');
+    const hasKey = this.player?.inventory.some(s => s.itemId === dungeon.requiredKeyItemId && s.quantity > 0);
+    if (keyStatusEl && keyBadgeEl) {
+      if (hasKey) {
+        keyStatusEl.textContent = `1x ${ITEMS[dungeon.requiredKeyItemId]?.name || 'Keystone'} present in satchel.`;
+        keyBadgeEl.textContent = 'Key Ready';
+        keyBadgeEl.className = 'badge-status-on';
+      } else {
+        keyStatusEl.textContent = `Requires 1x ${ITEMS[dungeon.requiredKeyItemId]?.name || 'Keystone'} in satchel to enter.`;
+        keyBadgeEl.textContent = 'Missing Key';
+        keyBadgeEl.className = 'badge-status-off';
+      }
+    }
+
+    // Party members count
+    const countEl = document.getElementById('dungeon-party-count');
+    if (countEl) countEl.textContent = `${party.members.length} / ${dungeon.maxPartySize}`;
+
+    // Members list
+    const listEl = document.getElementById('dungeon-party-members-list');
+    if (listEl) {
+      listEl.innerHTML = '';
+      for (const m of party.members) {
+        const row = document.createElement('div');
+        row.style.display = 'flex';
+        row.style.alignItems = 'center';
+        row.style.justifyContent = 'space-between';
+        row.style.padding = '8px 10px';
+        row.style.background = 'rgba(0,0,0,0.4)';
+        row.style.borderRadius = '4px';
+        row.style.border = '1px solid rgba(255,255,255,0.08)';
+
+        const left = document.createElement('div');
+        left.style.display = 'flex';
+        left.style.alignItems = 'center';
+        left.style.gap = '8px';
+
+        const roleIcon = document.createElement('span');
+        roleIcon.textContent = m.isLeader ? '👑' : '🛡️';
+        const nameSpan = document.createElement('strong');
+        nameSpan.textContent = m.username;
+        nameSpan.style.color = m.playerId === this.player?.id ? 'var(--gold-bright)' : '#e2e8f0';
+        nameSpan.style.fontSize = '0.82rem';
+
+        const lvlSpan = document.createElement('span');
+        lvlSpan.style.fontSize = '0.72rem';
+        lvlSpan.style.color = '#a0aec0';
+        lvlSpan.textContent = `Lv ${m.level}`;
+
+        left.appendChild(roleIcon);
+        left.appendChild(nameSpan);
+        left.appendChild(lvlSpan);
+
+        const readyBadge = document.createElement('span');
+        readyBadge.style.fontSize = '0.68rem';
+        readyBadge.style.padding = '2px 8px';
+        readyBadge.style.borderRadius = '3px';
+        readyBadge.style.fontWeight = '700';
+        if (m.isReady) {
+          readyBadge.textContent = 'READY';
+          readyBadge.style.background = 'rgba(72,187,120,0.2)';
+          readyBadge.style.color = '#68d391';
+          readyBadge.style.border = '1px solid #38a169';
+        } else {
+          readyBadge.textContent = 'NOT READY';
+          readyBadge.style.background = 'rgba(239,68,68,0.2)';
+          readyBadge.style.color = '#f87171';
+          readyBadge.style.border = '1px solid #dc2626';
+        }
+
+        row.appendChild(left);
+        row.appendChild(readyBadge);
+        listEl.appendChild(row);
+      }
+    }
+
+    // Toggle Ready button text
+    const myMem = party.members.find(m => m.playerId === this.player?.id);
+    const toggleReadyBtn = document.getElementById('btn-dungeon-toggle-ready');
+    if (toggleReadyBtn && myMem) {
+      toggleReadyBtn.textContent = myMem.isReady ? 'Unready' : 'Ready Up';
+    }
+
+    // Start Button state (only enabled if leader, all members ready, and leader owns key)
+    const isLeader = party.leaderId === this.player?.id;
+    const allReady = party.members.every(m => m.isReady);
+    const startBtn = document.getElementById('btn-dungeon-start') as HTMLButtonElement | null;
+    const inviteSection = document.getElementById('dungeon-invite-section');
+    if (inviteSection) {
+      inviteSection.style.display = isLeader ? 'flex' : 'none';
+    }
+
+    if (startBtn) {
+      if (!isLeader) {
+        startBtn.disabled = true;
+        startBtn.textContent = 'Waiting for Leader...';
+        startBtn.style.opacity = '0.6';
+      } else if (!allReady) {
+        startBtn.disabled = true;
+        startBtn.textContent = 'All Members Must Ready';
+        startBtn.style.opacity = '0.6';
+      } else if (!hasKey) {
+        startBtn.disabled = true;
+        startBtn.textContent = 'Key Required';
+        startBtn.style.opacity = '0.6';
+      } else {
+        startBtn.disabled = false;
+        startBtn.textContent = 'Enter Dungeon';
+        startBtn.style.opacity = '1.0';
+      }
+    }
+  }
+
+  private showDungeonInviteToast(msg: any) {
+    this.pendingDungeonInvite = msg;
+    const toast = document.getElementById('dungeon-invite-toast');
+    const toastText = document.getElementById('dungeon-invite-toast-text');
+    if (toast && toastText) {
+      toastText.textContent = `${msg.leaderName} invited you to join ${msg.dungeonName}!`;
+      toast.classList.remove('hidden');
+      sound.play('ding');
+    }
+  }
+
+  private hideDungeonInviteToast() {
+    this.pendingDungeonInvite = null;
+    const toast = document.getElementById('dungeon-invite-toast');
+    if (toast) toast.classList.add('hidden');
+  }
+
+  private openDungeonSpoilsModal(msg: any) {
+    const modal = document.getElementById('dungeon-spoils-modal');
+    if (!modal) return;
+    sound.play('levelup');
+    sound.play('coin');
+
+    document.getElementById('spoils-dungeon-name')!.textContent = `${msg.dungeonName} Conquered`;
+    document.getElementById('spoils-gold-val')!.textContent = `+${msg.gold} Gold`;
+    document.getElementById('spoils-gems-val')!.textContent = `+${msg.gems} Gems`;
+
+    const listEl = document.getElementById('spoils-items-list')!;
+    listEl.innerHTML = '';
+
+    for (const it of msg.items || []) {
+      const itemDef = ITEMS[it.itemId];
+      const row = document.createElement('div');
+      row.style.display = 'flex';
+      row.style.alignItems = 'center';
+      row.style.justifyContent = 'space-between';
+      row.style.padding = '6px 10px';
+      row.style.background = 'rgba(0,0,0,0.4)';
+      row.style.borderRadius = '4px';
+      row.style.border = '1px solid rgba(255,255,255,0.08)';
+
+      const left = document.createElement('div');
+      left.style.display = 'flex';
+      left.style.alignItems = 'center';
+      left.style.gap = '8px';
+
+      const iconWrap = document.createElement('span');
+      iconWrap.innerHTML = getItemIconSvg(it.itemId, it.rarity);
+      iconWrap.style.width = '24px';
+      iconWrap.style.height = '24px';
+
+      const nameSpan = document.createElement('span');
+      nameSpan.style.fontSize = '0.8rem';
+      nameSpan.style.fontWeight = '600';
+      nameSpan.style.color = '#fff';
+      nameSpan.textContent = `${it.quantity}x ${itemDef?.name || it.itemId}`;
+
+      left.appendChild(iconWrap);
+      left.appendChild(nameSpan);
+
+      const statusSpan = document.createElement('span');
+      statusSpan.style.fontSize = '0.68rem';
+      if (it.savedToBarnaby) {
+        statusSpan.textContent = 'Held at Barnaby';
+        statusSpan.style.color = '#ffd699';
+      } else if (it.savedToBank) {
+        statusSpan.textContent = 'Sent to Vault';
+        statusSpan.style.color = '#63b3ed';
+      } else {
+        statusSpan.textContent = 'In Satchel';
+        statusSpan.style.color = '#68d391';
+      }
+
+      row.appendChild(left);
+      row.appendChild(statusSpan);
+      listEl.appendChild(row);
+    }
+
+    modal.classList.remove('hidden');
+
+    // 30s countdown auto-leave
+    let timeLeft = msg.autoLeaveSeconds || 30;
+    const countdownEl = document.getElementById('spoils-countdown');
+    if (this.spoilsCountdownTimer) clearInterval(this.spoilsCountdownTimer);
+    this.spoilsCountdownTimer = setInterval(() => {
+      timeLeft--;
+      if (countdownEl) countdownEl.textContent = `${timeLeft}s`;
+      if (timeLeft <= 0) {
+        clearInterval(this.spoilsCountdownTimer);
+        this.closeDungeonSpoilsModal();
+      }
+    }, 1000);
+  }
+
+  private closeDungeonSpoilsModal() {
+    if (this.spoilsCountdownTimer) {
+      clearInterval(this.spoilsCountdownTimer);
+      this.spoilsCountdownTimer = null;
+    }
+    const modal = document.getElementById('dungeon-spoils-modal');
+    if (modal) modal.classList.add('hidden');
+  }
+
+  private openBarnabyModal() {
+    const modal = document.getElementById('barnaby-modal');
+    if (!modal) return;
+    sound.play('ding');
+    modal.classList.remove('hidden');
+    this.sendWs({ type: 'GET_DUNGEON_RECOVERIES' });
+  }
+
+  private closeBarnabyModal() {
+    const modal = document.getElementById('barnaby-modal');
+    if (modal) modal.classList.add('hidden');
+  }
+
+  private renderBarnabyModal() {
+    const listEl = document.getElementById('barnaby-items-list');
+    if (!listEl) return;
+    listEl.innerHTML = '';
+
+    if (this.dungeonRecoveries.length === 0) {
+      const emptyDiv = document.createElement('div');
+      emptyDiv.style.textAlign = 'center';
+      emptyDiv.style.color = '#a0aec0';
+      emptyDiv.style.fontSize = '0.8rem';
+      emptyDiv.style.padding = '20px 10px';
+      emptyDiv.style.fontStyle = 'italic';
+      emptyDiv.textContent = 'No misplaced parcels held! All your dungeon loot is safely in your possession.';
+      listEl.appendChild(emptyDiv);
+      return;
+    }
+
+    for (const rec of this.dungeonRecoveries) {
+      const itemDef = ITEMS[rec.itemId];
+      const card = document.createElement('div');
+      card.style.display = 'flex';
+      card.style.alignItems = 'center';
+      card.style.justifyContent = 'space-between';
+      card.style.padding = '8px 12px';
+      card.style.background = 'rgba(0,0,0,0.35)';
+      card.style.border = '1px solid rgba(255,214,153,0.2)';
+      card.style.borderRadius = '6px';
+
+      const left = document.createElement('div');
+      left.style.display = 'flex';
+      left.style.alignItems = 'center';
+      left.style.gap = '10px';
+
+      const iconWrap = document.createElement('span');
+      iconWrap.innerHTML = getItemIconSvg(rec.itemId, rec.rarity || 'plain');
+      iconWrap.style.width = '28px';
+      iconWrap.style.height = '28px';
+
+      const textWrap = document.createElement('div');
+      const nameSpan = document.createElement('div');
+      nameSpan.style.fontSize = '0.82rem';
+      nameSpan.style.fontWeight = '700';
+      nameSpan.style.color = '#fff';
+      nameSpan.textContent = `${rec.quantity}x ${itemDef?.name || rec.itemId}`;
+
+      const dungeonSpan = document.createElement('div');
+      dungeonSpan.style.fontSize = '0.7rem';
+      dungeonSpan.style.color = '#a0aec0';
+      dungeonSpan.textContent = `From ${rec.dungeonName || 'Dungeon'}`;
+
+      textWrap.appendChild(nameSpan);
+      textWrap.appendChild(dungeonSpan);
+      left.appendChild(iconWrap);
+      left.appendChild(textWrap);
+
+      const right = document.createElement('div');
+      right.style.display = 'flex';
+      right.style.alignItems = 'center';
+      right.style.gap = '8px';
+
+      const feeSpan = document.createElement('span');
+      feeSpan.style.fontSize = '0.78rem';
+      feeSpan.style.color = 'var(--gold-bright)';
+      feeSpan.style.fontWeight = '700';
+      feeSpan.textContent = `${rec.recoveryFee || 25}g fee`;
+
+      const claimBtn = document.createElement('button');
+      claimBtn.className = 'btn-oak';
+      claimBtn.style.fontSize = '0.75rem';
+      claimBtn.style.padding = '4px 10px';
+      claimBtn.textContent = 'Claim';
+      claimBtn.onclick = () => {
+        this.sendWs({ type: 'CLAIM_DUNGEON_RECOVERY', recoveryId: rec.id });
+      };
+
+      right.appendChild(feeSpan);
+      right.appendChild(claimBtn);
+
+      card.appendChild(left);
+      card.appendChild(right);
       listEl.appendChild(card);
     }
   }

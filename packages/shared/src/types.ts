@@ -410,3 +410,71 @@ export interface Poll {
   closedAt?: number;
 }
 
+// ==================== DUNGEON & CO-OP SYSTEMS ====================
+
+export interface DungeonPartyMember {
+  playerId: string;
+  username: string;
+  isReady: boolean;
+  isLeader: boolean;
+  level: number;
+}
+
+export interface DungeonParty {
+  id: string;
+  dungeonId: string;
+  leaderId: string;
+  members: DungeonPartyMember[];
+  status: 'lobby' | 'in_dungeon' | 'completed' | 'abandoned';
+  instanceId?: string;
+  createdAt: number;
+}
+
+export interface DungeonRoomMob {
+  monsterId: string;
+  name: string;
+  count: number;
+  x: number;
+  y: number;
+}
+
+export interface DungeonRoomDef {
+  roomIndex: number;
+  name: string;
+  description: string;
+  startX: number;
+  startY: number;
+  mobs: DungeonRoomMob[];
+  chestX?: number;
+  chestY?: number;
+}
+
+export interface DungeonDefinition {
+  id: string;
+  name: string;
+  description: string;
+  requiredKeyItemId: string;
+  minLevel: number;
+  maxPartySize: number;
+  gateNodeId: string;
+  gateX: number;
+  gateY: number;
+  returnX: number;
+  returnY: number;
+  rooms: DungeonRoomDef[];
+  bossMonsterId: string;
+}
+
+export interface DungeonRecoveryItem {
+  id: string;
+  playerId: string;
+  dungeonId: string;
+  dungeonName: string;
+  itemId: string;
+  quantity: number;
+  rarity?: Rarity;
+  plus?: number;
+  recoveryFee: number;
+  timestamp: number;
+}
+

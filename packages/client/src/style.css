@@ -5593,5 +5593,49 @@ body, html {
   font-variant-numeric: tabular-nums;
 }
 
+/* ========================================================
+   DUNGEON, LOBBY, SPOILS & BARNABY STYLES
+   ======================================================== */
+
+#tool-btn-dungeon.dungeon-key-active {
+  color: #ecc94b !important;
+  border-color: #ecc94b !important;
+  background: rgba(236, 201, 75, 0.15) !important;
+  box-shadow: 0 0 10px rgba(236, 201, 75, 0.4);
+  animation: dungeonKeyPulse 2s infinite ease-in-out;
+}
+
+@keyframes dungeonKeyPulse {
+  0%, 100% {
+    box-shadow: 0 0 5px rgba(236, 201, 75, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 14px rgba(236, 201, 75, 0.7);
+  }
+}
+
+.dungeon-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding-bottom: 8px;
+}
+
+.dungeon-invite-toast {
+  animation: slideInUp 0.25s ease-out;
+}
+
+@keyframes slideInUp {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
 
 

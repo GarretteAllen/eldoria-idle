@@ -314,6 +314,40 @@ export const ITEMS: Record<string, ItemDefinition> = {
   glacial_amulet: { id: 'glacial_amulet', name: 'Glacial Crown Pendant', category: 'armour', tier: 6, slot: 'amulet', equipReq: { skill: 'defence', level: 90 }, baseStats: { accuracy: 30, strength: 26, defence: 25 }, vendorFloorPrice: 7800, description: 'A miniature unmelting crown fragment worn close to the heart.' },
   wyrm_amulet: { id: 'wyrm_amulet', name: 'Heart of the Pyro-Wyrm', category: 'armour', tier: 6, slot: 'amulet', equipReq: { skill: 'defence', level: 95 }, baseStats: { accuracy: 35, strength: 34, defence: 20 }, vendorFloorPrice: 22000, description: 'An awe-inspiring pendant burning with primordial dragonfire.' },
   leviathan_amulet: { id: 'leviathan_amulet', name: 'Eye of the Leviathan', category: 'armour', tier: 6, slot: 'amulet', equipReq: { skill: 'defence', level: 95 }, baseStats: { accuracy: 38, strength: 28, defence: 28 }, vendorFloorPrice: 22000, description: 'A legendary oceanic talisman peering through reality, bestowing peerless sight.' },
+
+  // --- Dungeon Keys & Relics ---
+  item_crypt_key: {
+    id: 'item_crypt_key',
+    name: 'Whispering Crypt Key',
+    category: 'relic',
+    tier: 2,
+    vendorFloorPrice: 150,
+    stackable: true,
+    stackableInInventory: true,
+    maxStackInventory: 10,
+    description: 'An ancient tarnished keystone that resonates with subterranean power. Unlocks entry into the Whispering Crypts.',
+  },
+  crypt_relic_fragment: {
+    id: 'crypt_relic_fragment',
+    name: 'Crypt Relic Fragment',
+    category: 'relic',
+    tier: 3,
+    vendorFloorPrice: 200,
+    stackable: true,
+    stackableInInventory: true,
+    description: 'A glowing archaic talisman piece recovered from deep inside the crypt vault.',
+  },
+  crypt_lord_signet: {
+    id: 'crypt_lord_signet',
+    name: "Crypt Lord's Signet",
+    category: 'armour',
+    tier: 3,
+    slot: 'ring',
+    equipReq: { skill: 'defence', level: 25 },
+    baseStats: { accuracy: 12, strength: 10, defence: 8 },
+    vendorFloorPrice: 750,
+    description: 'A prized runic seal retrieved from the Crypt Lord sarcophagus. Grants balanced offensive power.',
+  },
 };
 
 export type StackingLocation = 'inventory' | 'bank' | 'storage';

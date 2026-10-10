@@ -295,6 +295,7 @@
         <button class="tool-btn" data-panel="inventory" id="tool-btn-inventory" title="Bag (Inventory)"></button>
         <button class="tool-btn" data-panel="equipment" id="tool-btn-equipment" title="Worn Equipment & Toolbelt"></button>
         <button class="tool-btn" data-panel="storage" id="tool-btn-storage" title="Hearth Reliquary"></button>
+        <button class="tool-btn" id="tool-btn-dungeon" title="Dungeon Delve (Requires Key)"></button>
         <button class="tool-btn" data-panel="leaderboard" id="tool-btn-leaderboard" title="Realm Leaderboards"></button>
         <button class="tool-btn" id="tool-btn-sound" title="Audio & Volume Controls"></button>
         <button class="tool-btn" data-panel="editor" id="tool-btn-editor" title="In-Game World Editor (Admin)" style="display:none;"></button>
@@ -702,6 +703,129 @@
           <button id="afk-resume-btn" class="btn-start" style="width: 100%; margin-top: 16px;">
             I'm Back!
           </button>
+        </div>
+      </div>
+
+      <!-- DUNGEON GATE & LOBBY MODAL -->
+      <div id="dungeon-lobby-modal" class="modal-backdrop hidden">
+        <div class="modal-box dark-oak-panel dungeon-modal-box" style="width: 520px;">
+          <div class="dungeon-modal-header">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span id="dungeon-header-icon" class="svg-icon-inline" style="width: 24px; height: 24px; color: #ecc94b;"></span>
+              <div>
+                <h3 id="dungeon-modal-title" style="margin: 0; font-size: 1.15rem; color: var(--gold-bright);">The Whispering Crypt</h3>
+                <span id="dungeon-modal-subtitle" style="font-size: 0.72rem; color: #a0aec0;">Active Co-op / Solo Dungeon Expedition</span>
+              </div>
+            </div>
+            <button id="btn-close-dungeon-lobby" class="icon-btn-micro" title="Close">✕</button>
+          </div>
+
+          <div class="dungeon-modal-body" style="margin-top: 14px;">
+            <p id="dungeon-desc-text" style="font-size: 0.82rem; color: #cbd5e0; margin-bottom: 12px; line-height: 1.4;">
+              A crumbling subterranean crypt holding restless skeleton warriors and the ancient Crypt Lord. All party members must toggle Ready before the leader unlocks the gate.
+            </p>
+
+            <div class="dungeon-key-requirement-card" style="background: rgba(0,0,0,0.4); border: 1px solid rgba(236,201,75,0.25); border-radius: 6px; padding: 10px; margin-bottom: 14px; display: flex; align-items: center; justify-content: space-between;">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <span style="font-size: 1.3rem;">🗝️</span>
+                <div>
+                  <div style="font-size: 0.82rem; font-weight: 700; color: #ecc94b;">Keystone Requirement</div>
+                  <div id="dungeon-key-status" style="font-size: 0.72rem; color: #a0aec0;">Checking satchel &amp; vault...</div>
+                </div>
+              </div>
+              <span id="dungeon-key-badge" class="badge-status-on">Key Owned</span>
+            </div>
+
+            <!-- Party Member Slots List -->
+            <div style="font-size: 0.75rem; font-weight: 700; color: #e2e8f0; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px;">
+              Expedition Party (<span id="dungeon-party-count">1 / 4</span>)
+            </div>
+            <div id="dungeon-party-members-list" style="display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px;">
+              <!-- Dynamic members injected here -->
+            </div>
+
+            <!-- Invite Section (Leader only) -->
+            <div id="dungeon-invite-section" style="background: rgba(0,0,0,0.25); border-radius: 6px; padding: 8px; margin-bottom: 14px; display: flex; gap: 6px;">
+              <input type="text" id="dungeon-invite-input" placeholder="Invite adventurer by name..." style="flex: 1; padding: 6px 10px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.15); background: rgba(0,0,0,0.5); color: #fff; font-size: 0.8rem;" />
+              <button id="btn-dungeon-send-invite" class="btn-oak" style="font-size: 0.75rem; padding: 6px 12px;">Invite</button>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="dungeon-lobby-actions" style="display: flex; gap: 8px;">
+              <button id="btn-dungeon-toggle-ready" class="btn-oak" style="flex: 1; padding: 10px; font-weight: 700;">Ready Up</button>
+              <button id="btn-dungeon-start" class="btn-start" style="flex: 1.5; padding: 10px; font-weight: 700;">Enter Dungeon</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- DUNGEON INVITATION POPUP NOTIFICATION -->
+      <div id="dungeon-invite-toast" class="dungeon-invite-toast hidden" style="position: fixed; bottom: 80px; right: 80px; z-index: 9999; background: #1a202c; border: 2px solid var(--gold-bright); border-radius: 8px; padding: 14px; box-shadow: 0 10px 25px rgba(0,0,0,0.8); width: 320px;">
+        <div style="font-weight: 700; color: var(--gold-bright); font-size: 0.88rem; margin-bottom: 4px;">⚔️ Expedition Invitation</div>
+        <div id="dungeon-invite-toast-text" style="font-size: 0.78rem; color: #edf2f7; margin-bottom: 10px;">Player has invited you to join a dungeon!</div>
+        <div style="display: flex; gap: 8px;">
+          <button id="btn-accept-dungeon-invite" class="btn-start" style="flex: 1; font-size: 0.75rem; padding: 6px;">Accept</button>
+          <button id="btn-decline-dungeon-invite" class="btn-oak" style="flex: 1; font-size: 0.75rem; padding: 6px;">Decline</button>
+        </div>
+      </div>
+
+      <!-- DUNGEON SPOILS MODAL -->
+      <div id="dungeon-spoils-modal" class="modal-backdrop hidden">
+        <div class="modal-box dark-oak-panel spoils-modal-box" style="width: 480px; text-align: center;">
+          <div style="font-size: 2.5rem; margin-bottom: 6px;">🏆</div>
+          <h2 style="color: var(--gold-bright); margin: 0 0 4px 0; font-size: 1.3rem;">Dungeon Conquered!</h2>
+          <div id="spoils-dungeon-name" style="font-size: 0.82rem; color: #a0aec0; margin-bottom: 14px;">The Whispering Crypt Cleared</div>
+
+          <div class="spoils-currency-row" style="display: flex; justify-content: center; gap: 20px; background: rgba(0,0,0,0.3); border-radius: 6px; padding: 8px; margin-bottom: 14px;">
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <span style="color: #ecc94b; font-size: 1.1rem; font-weight: 700;">🪙</span>
+              <span id="spoils-gold-val" style="font-weight: 700; color: #fff;">+350 Gold</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <span style="color: #63b3ed; font-size: 1.1rem; font-weight: 700;">💎</span>
+              <span id="spoils-gems-val" style="font-weight: 700; color: #63b3ed;">+8 Gems</span>
+            </div>
+          </div>
+
+          <div style="font-size: 0.75rem; font-weight: 700; color: #cbd5e0; text-transform: uppercase; margin-bottom: 8px;">Acquired Ancient Spoils</div>
+          <div id="spoils-items-list" style="display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; max-height: 180px; overflow-y: auto;">
+            <!-- Items injected dynamically -->
+          </div>
+
+          <div style="font-size: 0.72rem; color: #a0aec0; margin-bottom: 12px;">
+            Auto-leaving dungeon in <strong id="spoils-countdown" style="color: var(--gold-bright);">30s</strong>...
+          </div>
+          <button id="btn-spoils-leave" class="btn-start" style="width: 100%; padding: 10px;">Return to Town</button>
+        </div>
+      </div>
+
+      <!-- BARNABY THE LOST GOODS PORTER MODAL -->
+      <div id="barnaby-modal" class="modal-backdrop hidden">
+        <div class="modal-box dark-oak-panel barnaby-modal-box" style="width: 500px;">
+          <div class="dungeon-modal-header">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span style="font-size: 1.6rem;">🧳</span>
+              <div>
+                <h3 style="margin: 0; font-size: 1.15rem; color: #ffd699;">Barnaby's Lost &amp; Found</h3>
+                <span style="font-size: 0.72rem; color: #a0aec0;">Lost Goods Porter &bull; Hearth Town Square</span>
+              </div>
+            </div>
+            <button id="btn-close-barnaby-modal" class="icon-btn-micro" title="Close">✕</button>
+          </div>
+
+          <div class="barnaby-modal-body" style="margin-top: 12px;">
+            <p style="font-size: 0.8rem; color: #cbd5e0; margin-bottom: 12px; line-height: 1.4;">
+              <em>"Pip-pip! Any parcels left behind in deep catacombs are safe with me. Pay a modest 25g porter fee to collect your goods."</em>
+            </p>
+
+            <div id="barnaby-items-list" style="display: flex; flex-direction: column; gap: 8px; max-height: 260px; overflow-y: auto; margin-bottom: 14px;">
+              <!-- Recovery items injected here -->
+            </div>
+
+            <div style="font-size: 0.72rem; color: #a0aec0; text-align: center;">
+              Items remain safely held until claimed into your bag.
+            </div>
+          </div>
         </div>
       </div>
 

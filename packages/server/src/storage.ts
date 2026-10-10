@@ -3,7 +3,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import Database from 'better-sqlite3';
-import { PlayerData, SkillType, WorldNode, NpcDefinition, QuestDefinition, MonsterSpawnZone, getLevelFromXp, ItemDefinition, ITEMS, LevelBounds, parseLdtkLevelBounds, isTileInAnyLevel, InventorySlot, MarketListing, MarketTradeHistory, ChangelogEntry, Poll, StoredChatMessage, isItemStackable, getItemMaxStack, PLAYER_SPAWN_POINT } from '@eldoria/shared';
+import { PlayerData, SkillType, WorldNode, NpcDefinition, QuestDefinition, MonsterSpawnZone, getLevelFromXp, ItemDefinition, ITEMS, LevelBounds, parseLdtkLevelBounds, isTileInAnyLevel, InventorySlot, MarketListing, MarketTradeHistory, ChangelogEntry, Poll, StoredChatMessage, isItemStackable, getItemMaxStack, PLAYER_SPAWN_POINT, DungeonRecoveryItem } from '@eldoria/shared';
 import { WORLD_NODES as DEFAULT_WORLD_NODES } from './world.js';
 
 export const DEFAULT_MONSTER_ZONES: MonsterSpawnZone[] = [
@@ -147,6 +147,19 @@ const DEFAULT_NPCS: NpcDefinition[] = [
       'Mire-rats and carapaces infest the riverbeds. Cull their numbers for bounties and provisions.'
     ],
     questIds: ['quest_hunt_rats']
+  },
+  {
+    id: 'npc_barnaby',
+    name: 'Barnaby',
+    title: 'Lost Goods Porter',
+    x: 10,
+    y: 22,
+    role: 'merchant',
+    dialogue: [
+      'Pip-pip! Looking for things misplaced in the damp catacombs?',
+      'If your pack or hearth vault runs full when delving through dungeons, fear not!',
+      'I collect every stray trinket and keep them safe and dry here in town for a tiny porter fee.'
+    ]
   }
 ];
 
@@ -249,6 +262,10 @@ class StorageManager {
   private stmtGetRecentChatMessages: Database.Statement;
   private stmtDeleteChatMessage: Database.Statement;
   private stmtPruneOldChatMessages: Database.Statement;
+  private stmtGetDungeonRecoveries: Database.Statement;
+  private stmtInsertDungeonRecovery: Database.Statement;
+  private stmtGetDungeonRecoveryById: Database.Statement;
+  private stmtDeleteDungeonRecovery: Database.Statement;
   private changelogsCache: ChangelogEntry[] = [];
   private pollsCache: Poll[] = [];
   private itemsCache: Record<string, ItemDefinition> = {};
@@ -392,6 +409,20 @@ class StorageManager {
     this.stmtDeleteChatMessage = this.db.prepare('DELETE FROM chat_messages WHERE id = ?');
     this.stmtPruneOldChatMessages = this.db.prepare('DELETE FROM chat_messages WHERE created_at < ?');
 
+    this.stmtGetDungeonRecoveries = this.db.prepare(
+      'SELECT * FROM dungeon_recoveries WHERE player_id = ? ORDER BY timestamp DESC'
+    );
+    this.stmtInsertDungeonRecovery = this.db.prepare(
+      `INSERT INTO dungeon_recoveries (id, player_id, dungeon_id, dungeon_name, item_id, quantity, rarity, plus, recovery_fee, timestamp)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    );
+    this.stmtGetDungeonRecoveryById = this.db.prepare(
+      'SELECT * FROM dungeon_recoveries WHERE id = ?'
+    );
+    this.stmtDeleteDungeonRecovery = this.db.prepare(
+      'DELETE FROM dungeon_recoveries WHERE id = ?'
+    );
+
     // Run automatic migration from legacy json files if upgrading
     this.migrateLegacyJson();
 
@@ -525,6 +556,19 @@ class StorageManager {
         created_at INTEGER NOT NULL
       );
 
+      CREATE TABLE IF NOT EXISTS dungeon_recoveries (
+        id TEXT PRIMARY KEY,
+        player_id TEXT NOT NULL,
+        dungeon_id TEXT NOT NULL,
+        dungeon_name TEXT NOT NULL,
+        item_id TEXT NOT NULL,
+        quantity INTEGER NOT NULL,
+        rarity TEXT NOT NULL DEFAULT 'plain',
+        plus INTEGER NOT NULL DEFAULT 0,
+        recovery_fee INTEGER NOT NULL DEFAULT 25,
+        timestamp INTEGER NOT NULL
+      );
+
       CREATE INDEX IF NOT EXISTS idx_accounts_norm_user ON accounts(normalized_username);
       CREATE INDEX IF NOT EXISTS idx_sessions_account ON sessions(account_id);
       CREATE INDEX IF NOT EXISTS idx_market_item ON market_listings(item_id);
@@ -534,6 +578,7 @@ class StorageManager {
       CREATE INDEX IF NOT EXISTS idx_poll_votes_poll ON poll_votes(poll_id);
       CREATE INDEX IF NOT EXISTS idx_poll_votes_player ON poll_votes(player_id);
       CREATE INDEX IF NOT EXISTS idx_chat_messages_created ON chat_messages(created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_dungeon_recoveries_player ON dungeon_recoveries(player_id);
     `);
   }
 
@@ -1823,6 +1868,83 @@ class StorageManager {
   public pruneOldChatMessages(maxAgeMs = 7 * 24 * 60 * 60 * 1000): void {
     const cutoff = Date.now() - maxAgeMs;
     this.stmtPruneOldChatMessages.run(cutoff);
+  }
+
+  // --- Dungeon Recovery (Barnaby) Methods ---
+  public getDungeonRecoveries(playerId: string): DungeonRecoveryItem[] {
+    const rows = this.stmtGetDungeonRecoveries.all(playerId) as Array<{
+      id: string;
+      player_id: string;
+      dungeon_id: string;
+      dungeon_name: string;
+      item_id: string;
+      quantity: number;
+      rarity: string;
+      plus: number;
+      recovery_fee: number;
+      timestamp: number;
+    }>;
+
+    return rows.map(r => ({
+      id: r.id,
+      playerId: r.player_id,
+      dungeonId: r.dungeon_id,
+      dungeonName: r.dungeon_name,
+      itemId: r.item_id,
+      quantity: r.quantity,
+      rarity: (r.rarity as any) || 'plain',
+      plus: r.plus || 0,
+      recoveryFee: r.recovery_fee || 25,
+      timestamp: r.timestamp,
+    }));
+  }
+
+  public addDungeonRecovery(item: DungeonRecoveryItem): void {
+    this.stmtInsertDungeonRecovery.run(
+      item.id,
+      item.playerId,
+      item.dungeonId,
+      item.dungeonName,
+      item.itemId,
+      item.quantity,
+      item.rarity || 'plain',
+      item.plus || 0,
+      item.recoveryFee || 25,
+      item.timestamp || Date.now()
+    );
+  }
+
+  public getDungeonRecoveryById(id: string): DungeonRecoveryItem | null {
+    const r = this.stmtGetDungeonRecoveryById.get(id) as {
+      id: string;
+      player_id: string;
+      dungeon_id: string;
+      dungeon_name: string;
+      item_id: string;
+      quantity: number;
+      rarity: string;
+      plus: number;
+      recovery_fee: number;
+      timestamp: number;
+    } | undefined;
+
+    if (!r) return null;
+    return {
+      id: r.id,
+      playerId: r.player_id,
+      dungeonId: r.dungeon_id,
+      dungeonName: r.dungeon_name,
+      itemId: r.item_id,
+      quantity: r.quantity,
+      rarity: (r.rarity as any) || 'plain',
+      plus: r.plus || 0,
+      recoveryFee: r.recovery_fee || 25,
+      timestamp: r.timestamp,
+    };
+  }
+
+  public deleteDungeonRecovery(id: string): void {
+    this.stmtDeleteDungeonRecovery.run(id);
   }
 
   // Execute in an atomic SQLite transaction

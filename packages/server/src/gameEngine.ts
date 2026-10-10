@@ -39,6 +39,11 @@ import {
   getStorageSlotUpgradeCost,
   VENDOR_GOODS,
   PLAYER_SPAWN_POINT,
+  DUNGEONS,
+  DungeonParty,
+  DungeonPartyMember,
+  DungeonDefinition,
+  DungeonRecoveryItem,
 } from '@eldoria/shared';
 import { storage } from './storage.js';
 import { BotManager } from './botManager.js';
@@ -96,6 +101,22 @@ export class GameEngine {
     expiresAt: number;
     damageDealt: Record<string, number>;
   } | null = null;
+
+  // Dungeon & Co-Op State
+  private dungeonParties = new Map<string, DungeonParty>();
+  private playerPartyMap = new Map<string, string>(); // playerId -> partyId
+  private dungeonInstances = new Map<string, {
+    id: string;
+    dungeonId: string;
+    partyId: string;
+    currentRoomIndex: number;
+    roomMonsters: Array<{ id: string; monsterId: string; name: string; x: number; y: number; hp: number; maxHp: number }>;
+    isCompleted: boolean;
+    chestOpened: boolean;
+    chestCoords?: { x: number; y: number };
+    autoLeaveTick?: number;
+    spoilsAwarded: Set<string>;
+  }>();
 
   private botManager: BotManager;
 
@@ -1838,6 +1859,50 @@ export class GameEngine {
       case 'ATTACK_BOSS':
         // Raid system is deactivated
         break;
+
+      case 'DUNGEON_CREATE_PARTY': {
+        this.handleDungeonCreateParty(session, msg.dungeonId || 'whispering_crypt');
+        break;
+      }
+
+      case 'DUNGEON_INVITE_PLAYER': {
+        this.handleDungeonInvitePlayer(session, msg.targetUsername || msg.targetPlayerId);
+        break;
+      }
+
+      case 'DUNGEON_RESPOND_INVITE': {
+        this.handleDungeonRespondInvite(session, msg.partyId, Boolean(msg.accept));
+        break;
+      }
+
+      case 'DUNGEON_TOGGLE_READY': {
+        this.handleDungeonToggleReady(session);
+        break;
+      }
+
+      case 'DUNGEON_START': {
+        this.handleDungeonStart(session);
+        break;
+      }
+
+      case 'DUNGEON_LEAVE': {
+        this.handleDungeonLeave(session);
+        break;
+      }
+
+      case 'GET_DUNGEON_RECOVERIES': {
+        const recoveries = storage.getDungeonRecoveries(player.id);
+        this.send(session.ws, {
+          type: 'DUNGEON_RECOVERIES_LIST',
+          recoveries,
+        });
+        break;
+      }
+
+      case 'CLAIM_DUNGEON_RECOVERY': {
+        this.handleClaimDungeonRecovery(session, msg.recoveryId);
+        break;
+      }
     }
   }
 
@@ -3001,6 +3066,7 @@ export class GameEngine {
   private tick() {
     this.tickCount++;
     this.botManager.update(this.tickCount);
+    this.tickDungeons();
 
     // 0. Process Monster Respawns in Active Zones
     let monstersChanged = false;
@@ -5484,6 +5550,21 @@ export class GameEngine {
         mobInst.currentHp = combat.currentHp;
       }
 
+      // Sync dungeon room mob HP if player is fighting in dungeon instance
+      const partyId = this.playerPartyMap.get(player.id);
+      if (partyId) {
+        const party = this.dungeonParties.get(partyId);
+        if (party && party.instanceId) {
+          const inst = this.dungeonInstances.get(party.instanceId);
+          if (inst) {
+            const dMob = inst.roomMonsters.find(m => m.id === combat.nodeId || (m.x === combat.targetX && m.y === combat.targetY));
+            if (dMob) {
+              dMob.hp = combat.currentHp;
+            }
+          }
+        }
+      }
+
       // XP gains to the matching combat style!
       const styleXp = Math.max(2, damage * 4);
       player.skills[combatStyle].xp += styleXp;
@@ -5540,8 +5621,9 @@ export class GameEngine {
 
         this.progressKillQuests(player, monsterDef.id);
 
-        // Check if satchel full
-        if (player.inventory.length >= 28) {
+        // Check if satchel full (only if not inside a dungeon instance)
+        const inDungeon = this.playerPartyMap.has(player.id);
+        if (player.inventory.length >= 28 && !inDungeon) {
           player.bankReturnTask = { ...player.currentTask!, standX: player.x, standY: player.y };
           player.currentTask = null;
           session.activeCombat = null;
@@ -5594,6 +5676,39 @@ export class GameEngine {
           });
           this.startNextQueuedTask(session);
           return;
+        }
+
+        // If in dungeon instance, find next alive mob in the room
+        if (inDungeon) {
+          const party = this.dungeonParties.get(this.playerPartyMap.get(player.id)!);
+          if (party && party.instanceId) {
+            const inst = this.dungeonInstances.get(party.instanceId);
+            const nextDMob = inst?.roomMonsters.find(m => m.hp > 0);
+            if (nextDMob) {
+              session.activeCombat = {
+                monsterId: nextDMob.monsterId,
+                targetX: nextDMob.x,
+                targetY: nextDMob.y,
+                nodeId: nextDMob.id,
+                currentHp: nextDMob.hp,
+                maxHp: nextDMob.maxHp,
+                playerSwingTicks: 0,
+                monsterSwingTicks: 0,
+              };
+              player.currentTask = {
+                recipeId: nextDMob.monsterId,
+                skill: this.getPlayerCombatStyle(player),
+                startedAtTick: this.tickCount,
+                targetQuantity: Infinity,
+                completedQuantity: 0,
+                targetNodeX: nextDMob.x,
+                targetNodeY: nextDMob.y,
+                targetNodeId: nextDMob.id,
+              };
+              this.send(ws, { type: 'PLAYER_UPDATE', player });
+              return;
+            }
+          }
         }
 
         // Search for next alive monster in the zone to hunt, or nearby matching monster
@@ -5829,6 +5944,590 @@ export class GameEngine {
         player.questProgress[q.id] = (player.questProgress[q.id] || 0) + 1;
       }
     }
+  }
+
+  // ==================== DUNGEON & CO-OP LOGIC ====================
+
+  private handleDungeonCreateParty(session: ConnectedSession, dungeonId: string) {
+    const { player, ws } = session;
+    const dungeon = DUNGEONS[dungeonId];
+    if (!dungeon) {
+      this.send(ws, { type: 'NOTIFICATION', message: 'Unknown dungeon.' });
+      return;
+    }
+
+    // Leave any existing party first
+    this.leaveCurrentParty(session.player.id);
+
+    const partyId = `party_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+    const leaderLevel = Math.max(1, player.skills.melee?.level || 1, player.skills.ranged?.level || 1, player.skills.magic?.level || 1);
+    
+    const party: DungeonParty = {
+      id: partyId,
+      dungeonId,
+      leaderId: player.id,
+      status: 'lobby',
+      createdAt: Date.now(),
+      members: [
+        {
+          playerId: player.id,
+          username: player.username,
+          isLeader: true,
+          isReady: true,
+          level: leaderLevel,
+        },
+      ],
+    };
+
+    this.dungeonParties.set(partyId, party);
+    this.playerPartyMap.set(player.id, partyId);
+
+    this.broadcastPartyUpdate(party);
+    this.send(ws, {
+      type: 'NOTIFICATION',
+      message: `Formed expedition party for ${dungeon.name}! Invite fellow adventurers or ready up for a solo delve.`,
+    });
+  }
+
+  private handleDungeonInvitePlayer(session: ConnectedSession, targetIdentifier: string) {
+    const { player, ws } = session;
+    const partyId = this.playerPartyMap.get(player.id);
+    if (!partyId) {
+      this.send(ws, { type: 'NOTIFICATION', message: 'You are not in a dungeon party.' });
+      return;
+    }
+    const party = this.dungeonParties.get(partyId);
+    if (!party || party.leaderId !== player.id) {
+      this.send(ws, { type: 'NOTIFICATION', message: 'Only the party leader can invite players.' });
+      return;
+    }
+
+    if (party.status !== 'lobby') {
+      this.send(ws, { type: 'NOTIFICATION', message: 'Dungeon already in progress.' });
+      return;
+    }
+
+    const dungeon = DUNGEONS[party.dungeonId];
+    if (party.members.length >= (dungeon?.maxPartySize || 4)) {
+      this.send(ws, { type: 'NOTIFICATION', message: 'Expedition party is full!' });
+      return;
+    }
+
+    // Find recipient session by name or id
+    const cleanTarget = targetIdentifier.trim().toLowerCase();
+    let targetSession: ConnectedSession | undefined;
+    for (const s of this.sessions.values()) {
+      if (s.player.id === cleanTarget || s.player.username.toLowerCase() === cleanTarget) {
+        targetSession = s;
+        break;
+      }
+    }
+
+    if (!targetSession) {
+      this.send(ws, { type: 'NOTIFICATION', message: `Player "${targetIdentifier}" is not currently in realm.` });
+      return;
+    }
+
+    if (targetSession.player.id === player.id) {
+      this.send(ws, { type: 'NOTIFICATION', message: 'You are already in your party!' });
+      return;
+    }
+
+    if (this.playerPartyMap.has(targetSession.player.id)) {
+      this.send(ws, { type: 'NOTIFICATION', message: `${targetSession.player.username} is already in another party.` });
+      return;
+    }
+
+    this.send(targetSession.ws, {
+      type: 'DUNGEON_INVITE_RECEIVED',
+      partyId,
+      dungeonId: party.dungeonId,
+      dungeonName: dungeon.name,
+      leaderName: player.username,
+    });
+
+    this.send(ws, {
+      type: 'NOTIFICATION',
+      message: `Sent expedition invite to ${targetSession.player.username}.`,
+    });
+  }
+
+  private handleDungeonRespondInvite(session: ConnectedSession, partyId: string, accept: boolean) {
+    const { player, ws } = session;
+    const party = this.dungeonParties.get(partyId);
+    if (!party || party.status !== 'lobby') {
+      this.send(ws, { type: 'NOTIFICATION', message: 'This dungeon party is no longer active.' });
+      return;
+    }
+
+    const dungeon = DUNGEONS[party.dungeonId];
+    if (!accept) {
+      const leaderSession = this.sessions.get(party.leaderId);
+      if (leaderSession) {
+        this.send(leaderSession.ws, {
+          type: 'NOTIFICATION',
+          message: `${player.username} declined your expedition invitation.`,
+        });
+      }
+      return;
+    }
+
+    if (party.members.length >= (dungeon?.maxPartySize || 4)) {
+      this.send(ws, { type: 'NOTIFICATION', message: 'Party is already full.' });
+      return;
+    }
+
+    const memberLevel = Math.max(1, player.skills.melee?.level || 1, player.skills.ranged?.level || 1, player.skills.magic?.level || 1);
+    party.members.push({
+      playerId: player.id,
+      username: player.username,
+      isLeader: false,
+      isReady: false,
+      level: memberLevel,
+    });
+
+    this.playerPartyMap.set(player.id, partyId);
+    this.broadcastPartyUpdate(party);
+
+    for (const mem of party.members) {
+      const s = this.sessions.get(mem.playerId);
+      if (s) {
+        this.send(s.ws, {
+          type: 'NOTIFICATION',
+          message: `🛡️ ${player.username} joined the expedition!`,
+        });
+      }
+    }
+  }
+
+  private handleDungeonToggleReady(session: ConnectedSession) {
+    const { player, ws } = session;
+    const partyId = this.playerPartyMap.get(player.id);
+    if (!partyId) return;
+    const party = this.dungeonParties.get(partyId);
+    if (!party || party.status !== 'lobby') return;
+
+    const member = party.members.find(m => m.playerId === player.id);
+    if (member) {
+      member.isReady = !member.isReady;
+      this.broadcastPartyUpdate(party);
+    }
+  }
+
+  private handleDungeonStart(session: ConnectedSession) {
+    const { player, ws } = session;
+    const partyId = this.playerPartyMap.get(player.id);
+    if (!partyId) {
+      this.send(ws, { type: 'NOTIFICATION', message: 'You are not in a party.' });
+      return;
+    }
+    const party = this.dungeonParties.get(partyId);
+    if (!party || party.leaderId !== player.id) {
+      this.send(ws, { type: 'NOTIFICATION', message: 'Only party leader can launch the dungeon.' });
+      return;
+    }
+
+    if (party.status !== 'lobby') {
+      this.send(ws, { type: 'NOTIFICATION', message: 'Dungeon already in progress.' });
+      return;
+    }
+
+    // Check all members ready
+    const notReady = party.members.filter(m => !m.isReady);
+    if (notReady.length > 0) {
+      this.send(ws, {
+        type: 'NOTIFICATION',
+        message: `Cannot launch dungeon! The following members are not ready: ${notReady.map(m => m.username).join(', ')}.`,
+      });
+      return;
+    }
+
+    const dungeon = DUNGEONS[party.dungeonId];
+    if (!dungeon) return;
+
+    // Check leader key requirement
+    const keySlotIdx = player.inventory.findIndex(s => s.itemId === dungeon.requiredKeyItemId && s.quantity > 0);
+    if (keySlotIdx < 0) {
+      this.send(ws, {
+        type: 'NOTIFICATION',
+        message: `Party leader requires 1x ${ITEMS[dungeon.requiredKeyItemId]?.name || 'Crypt Key'} to open the gate!`,
+      });
+      return;
+    }
+
+    // Consume 1 dungeon key
+    player.inventory[keySlotIdx].quantity--;
+    if (player.inventory[keySlotIdx].quantity <= 0) {
+      player.inventory.splice(keySlotIdx, 1);
+    }
+    storage.savePlayer(player);
+    this.send(ws, { type: 'PLAYER_UPDATE', player });
+
+    const instanceId = `inst_${partyId}`;
+    party.status = 'in_dungeon';
+    party.instanceId = instanceId;
+
+    const firstRoom = dungeon.rooms[0];
+    const initialMobs = firstRoom.mobs.flatMap((mobDef, mIdx) => {
+      const arr = [];
+      for (let i = 0; i < mobDef.count; i++) {
+        const mobM = MONSTERS[mobDef.monsterId];
+        arr.push({
+          id: `dmob_${instanceId}_0_${mIdx}_${i}`,
+          monsterId: mobDef.monsterId,
+          name: mobDef.name,
+          x: mobDef.x + (i % 2),
+          y: mobDef.y + Math.floor(i / 2),
+          hp: mobM?.hp || 25,
+          maxHp: mobM?.hp || 25,
+        });
+      }
+      return arr;
+    });
+
+    this.dungeonInstances.set(instanceId, {
+      id: instanceId,
+      dungeonId: dungeon.id,
+      partyId: party.id,
+      currentRoomIndex: 0,
+      roomMonsters: initialMobs,
+      isCompleted: false,
+      chestOpened: false,
+      spoilsAwarded: new Set(),
+    });
+
+    this.broadcastPartyUpdate(party);
+
+    // Warp party members to room start coordinates
+    for (const mem of party.members) {
+      const s = this.sessions.get(mem.playerId);
+      if (s) {
+        s.player.x = firstRoom.startX;
+        s.player.y = firstRoom.startY;
+        s.player.targetX = firstRoom.startX;
+        s.player.targetY = firstRoom.startY;
+        s.player.path = [];
+        s.player.isMoving = false;
+        s.player.bankingState = 'idle';
+        s.player.currentTask = null;
+        s.activeCombat = null;
+        s.pendingCombat = null;
+        storage.savePlayer(s.player);
+        this.send(s.ws, { type: 'PLAYER_UPDATE', player: s.player });
+        this.send(s.ws, {
+          type: 'DUNGEON_ENTERED',
+          dungeonId: dungeon.id,
+          dungeonName: dungeon.name,
+          roomIndex: 0,
+          roomName: firstRoom.name,
+          roomDescription: firstRoom.description,
+          instanceId,
+        });
+      }
+    }
+
+    this.broadcastWorldState();
+  }
+
+  private handleDungeonLeave(session: ConnectedSession) {
+    this.leaveCurrentParty(session.player.id);
+  }
+
+  private leaveCurrentParty(playerId: string) {
+    const partyId = this.playerPartyMap.get(playerId);
+    if (!partyId) return;
+
+    this.playerPartyMap.delete(playerId);
+    const party = this.dungeonParties.get(partyId);
+    if (!party) return;
+
+    party.members = party.members.filter(m => m.playerId !== playerId);
+    const playerSession = this.sessions.get(playerId);
+
+    if (playerSession) {
+      // Return player to safe town spawn
+      playerSession.player.x = PLAYER_SPAWN_POINT.x;
+      playerSession.player.y = PLAYER_SPAWN_POINT.y;
+      playerSession.player.targetX = PLAYER_SPAWN_POINT.x;
+      playerSession.player.targetY = PLAYER_SPAWN_POINT.y;
+      playerSession.player.path = [];
+      playerSession.player.isMoving = false;
+      playerSession.activeCombat = null;
+      storage.savePlayer(playerSession.player);
+      this.send(playerSession.ws, { type: 'PLAYER_UPDATE', player: playerSession.player });
+      this.send(playerSession.ws, { type: 'DUNGEON_LEFT' });
+      this.broadcastWorldState();
+    }
+
+    if (party.members.length === 0) {
+      // Party is completely vacant; destroy instance
+      if (party.instanceId) {
+        this.dungeonInstances.delete(party.instanceId);
+      }
+      this.dungeonParties.delete(partyId);
+    } else {
+      if (party.leaderId === playerId) {
+        party.leaderId = party.members[0].playerId;
+        party.members[0].isLeader = true;
+      }
+      this.broadcastPartyUpdate(party);
+    }
+  }
+
+  private broadcastPartyUpdate(party: DungeonParty) {
+    for (const mem of party.members) {
+      const s = this.sessions.get(mem.playerId);
+      if (s) {
+        this.send(s.ws, {
+          type: 'DUNGEON_PARTY_UPDATE',
+          party,
+        });
+      }
+    }
+  }
+
+  private tickDungeons() {
+    for (const [instId, inst] of this.dungeonInstances.entries()) {
+      const party = this.dungeonParties.get(inst.partyId);
+      if (!party || party.status !== 'in_dungeon') continue;
+      const dungeon = DUNGEONS[inst.dungeonId];
+      if (!dungeon) continue;
+
+      const currentRoomDef = dungeon.rooms[inst.currentRoomIndex];
+      if (!currentRoomDef) continue;
+
+      // Check auto-leave timer if dungeon boss has been defeated
+      if (inst.isCompleted && typeof inst.autoLeaveTick === 'number') {
+        if (this.tickCount >= inst.autoLeaveTick) {
+          // Time expired; warp all remaining party members safely out
+          for (const mem of [...party.members]) {
+            this.leaveCurrentParty(mem.playerId);
+          }
+          continue;
+        }
+      }
+
+      // Check room clear
+      const aliveMobs = inst.roomMonsters.filter(m => m.hp > 0);
+      if (aliveMobs.length === 0 && !inst.isCompleted) {
+        // Room is cleared!
+        const nextRoomIdx = inst.currentRoomIndex + 1;
+        if (nextRoomIdx < dungeon.rooms.length) {
+          // Advance to next room
+          inst.currentRoomIndex = nextRoomIdx;
+          const nextRoomDef = dungeon.rooms[nextRoomIdx];
+          const newMobs = nextRoomDef.mobs.flatMap((mobDef, mIdx) => {
+            const arr = [];
+            for (let i = 0; i < mobDef.count; i++) {
+              const mobM = MONSTERS[mobDef.monsterId];
+              arr.push({
+                id: `dmob_${inst.id}_${nextRoomIdx}_${mIdx}_${i}`,
+                monsterId: mobDef.monsterId,
+                name: mobDef.name,
+                x: mobDef.x + (i % 2),
+                y: mobDef.y + Math.floor(i / 2),
+                hp: mobM?.hp || 30,
+                maxHp: mobM?.hp || 30,
+              });
+            }
+            return arr;
+          });
+          inst.roomMonsters = newMobs;
+
+          // Warp party members to start of next room
+          for (const mem of party.members) {
+            const s = this.sessions.get(mem.playerId);
+            if (s) {
+              s.player.x = nextRoomDef.startX;
+              s.player.y = nextRoomDef.startY;
+              s.player.targetX = nextRoomDef.startX;
+              s.player.targetY = nextRoomDef.startY;
+              s.player.path = [];
+              s.player.isMoving = false;
+              s.activeCombat = null;
+              storage.savePlayer(s.player);
+              this.send(s.ws, { type: 'PLAYER_UPDATE', player: s.player });
+              this.send(s.ws, {
+                type: 'DUNGEON_ROOM_ADVANCE',
+                roomIndex: nextRoomIdx,
+                roomName: nextRoomDef.name,
+                roomDescription: nextRoomDef.description,
+              });
+              this.send(s.ws, {
+                type: 'NOTIFICATION',
+                message: `🚪 Sealed gate opens! Advanced to ${nextRoomDef.name}!`,
+              });
+            }
+          }
+          this.broadcastWorldState();
+        } else {
+          // Boss Room Completed!
+          inst.isCompleted = true;
+          inst.chestOpened = true;
+          inst.chestCoords = { x: currentRoomDef.chestX || 527, y: currentRoomDef.chestY || 504 };
+          inst.autoLeaveTick = this.tickCount + Math.round(30 / (TICK_MS / 1000)); // 30s auto leave
+
+          // Distribute spoils to party members
+          for (const mem of party.members) {
+            const s = this.sessions.get(mem.playerId);
+            if (s && !inst.spoilsAwarded.has(mem.playerId)) {
+              inst.spoilsAwarded.add(mem.playerId);
+              this.awardDungeonSpoils(s, dungeon);
+            }
+          }
+        }
+      }
+
+      // Auto-battle logic inside dungeon room: if players in dungeon are idle, engage first alive mob
+      if (!inst.isCompleted && aliveMobs.length > 0) {
+        for (const mem of party.members) {
+          const s = this.sessions.get(mem.playerId);
+          if (s && !s.activeCombat && !s.pendingCombat && !s.player.isMoving) {
+            const firstTarget = aliveMobs[0];
+            s.activeCombat = {
+              monsterId: firstTarget.monsterId,
+              targetX: firstTarget.x,
+              targetY: firstTarget.y,
+              nodeId: firstTarget.id,
+              currentHp: firstTarget.hp,
+              maxHp: firstTarget.maxHp,
+              playerSwingTicks: 0,
+              monsterSwingTicks: 0,
+            };
+            s.player.currentTask = {
+              recipeId: firstTarget.monsterId,
+              skill: this.getPlayerCombatStyle(s.player),
+              startedAtTick: this.tickCount,
+              targetQuantity: Infinity,
+              completedQuantity: 0,
+              targetNodeX: firstTarget.x,
+              targetNodeY: firstTarget.y,
+              targetNodeId: firstTarget.id,
+            };
+            this.send(s.ws, { type: 'PLAYER_UPDATE', player: s.player });
+          }
+        }
+      }
+    }
+  }
+
+  private awardDungeonSpoils(session: ConnectedSession, dungeon: DungeonDefinition) {
+    const { player, ws } = session;
+
+    // Spoils bundle: gold, crypt relic, random rare gear roll, gems
+    const goldSpoils = 250 + Math.floor(Math.random() * 250);
+    const gemSpoils = 5 + Math.floor(Math.random() * 6);
+    player.gold = (player.gold || 0) + goldSpoils;
+    player.gems = (player.gems || 0) + gemSpoils;
+
+    const awardedItems: Array<{ itemId: string; quantity: number; rarity: Rarity; savedToBank: boolean; savedToBarnaby: boolean }> = [];
+
+    const rollItems = [
+      { itemId: 'crypt_relic_fragment', qty: 2 + Math.floor(Math.random() * 3), chance: 1.0 },
+      { itemId: 'crypt_lord_signet', qty: 1, chance: 0.5 },
+      { itemId: 'steel_ingot', qty: 5, chance: 0.8 },
+      { itemId: 'glazed_albacore', qty: 4, chance: 0.75 },
+    ];
+
+    for (const r of rollItems) {
+      if (Math.random() <= r.chance) {
+        const itemDef = storage.getItem(r.itemId);
+        const rarity: Rarity = r.itemId === 'crypt_lord_signet' ? 'rare' : 'plain';
+        const maxStorage = player.storageSlotsMax || 75;
+
+        // 1. Try satchel first
+        const invRes = addItemToSlots(player.inventory, 28, r.itemId, r.qty, rarity, 0, itemDef, 'inventory');
+        let remaining = invRes.remainder;
+
+        // 2. Try vault/bank if satchel full
+        let bankRes = { added: 0, remainder: remaining };
+        if (remaining > 0) {
+          bankRes = addItemToSlots(player.storage, maxStorage, r.itemId, remaining, rarity, 0, itemDef, 'bank');
+          remaining = bankRes.remainder;
+        }
+
+        // 3. Overflow goes safely to Barnaby the Lost Goods Porter
+        let barnabySaved = false;
+        if (remaining > 0) {
+          barnabySaved = true;
+          const recoveryId = `rec_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+          storage.addDungeonRecovery({
+            id: recoveryId,
+            playerId: player.id,
+            dungeonId: dungeon.id,
+            dungeonName: dungeon.name,
+            itemId: r.itemId,
+            quantity: remaining,
+            rarity,
+            plus: 0,
+            recoveryFee: 25,
+            timestamp: Date.now(),
+          });
+        }
+
+        awardedItems.push({
+          itemId: r.itemId,
+          quantity: r.qty,
+          rarity,
+          savedToBank: bankRes.added > 0,
+          savedToBarnaby: barnabySaved,
+        });
+      }
+    }
+
+    storage.savePlayer(player);
+    this.send(ws, { type: 'PLAYER_UPDATE', player });
+
+    this.send(ws, {
+      type: 'DUNGEON_SPOILS_MODAL',
+      dungeonName: dungeon.name,
+      gold: goldSpoils,
+      gems: gemSpoils,
+      items: awardedItems,
+      autoLeaveSeconds: 30,
+    });
+  }
+
+  private handleClaimDungeonRecovery(session: ConnectedSession, recoveryId: string) {
+    const { player, ws } = session;
+    const rec = storage.getDungeonRecoveryById(recoveryId);
+    if (!rec || rec.playerId !== player.id) {
+      this.send(ws, { type: 'NOTIFICATION', message: 'Item no longer held with Barnaby.' });
+      return;
+    }
+
+    const fee = rec.recoveryFee || 25;
+    if ((player.gold || 0) < fee) {
+      this.send(ws, {
+        type: 'NOTIFICATION',
+        message: `Insufficient gold! Barnaby requires ${fee}g porter fee to retrieve this parcel.`,
+      });
+      return;
+    }
+
+    const itemDef = storage.getItem(rec.itemId);
+    const invRes = addItemToSlots(player.inventory, 28, rec.itemId, rec.quantity, rec.rarity, rec.plus, itemDef, 'inventory');
+    if (invRes.remainder > 0) {
+      this.send(ws, {
+        type: 'NOTIFICATION',
+        message: 'Your satchel is full! Please make space before claiming from Barnaby.',
+      });
+      return;
+    }
+
+    player.gold = (player.gold || 0) - fee;
+    storage.deleteDungeonRecovery(rec.id);
+    storage.savePlayer(player);
+
+    this.send(ws, {
+      type: 'NOTIFICATION',
+      message: `🎒 Retrieved ${rec.quantity}x ${itemDef?.name || rec.itemId} from Barnaby for ${fee} gold!`,
+    });
+    this.send(ws, { type: 'PLAYER_UPDATE', player });
+    this.send(ws, {
+      type: 'DUNGEON_RECOVERIES_LIST',
+      recoveries: storage.getDungeonRecoveries(player.id),
+    });
   }
 
   private broadcastWorldState() {

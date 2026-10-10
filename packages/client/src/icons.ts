@@ -186,6 +186,8 @@ export const ICONS: Record<string, string> = {
   mapPin: toSvg(MapPin),
   slumber: toSvg(MoonStar),
   poll: toSvg(Vote),
+  dungeon: toSvg(Skull),
+  key: toSvg(Lock),
 };
 
 /**

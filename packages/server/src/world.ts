@@ -1,7 +1,7 @@
 export interface WorldNode {
   id: string;
   name: string;
-  type: 'hearth_counter' | 'forge' | 'fire' | 'mine' | 'tree' | 'water' | 'farm' | 'monster' | 'boss_arena' | 'workbench' | 'cauldron' | 'monolith' | 'stall' | 'herb';
+  type: 'hearth_counter' | 'forge' | 'fire' | 'mine' | 'tree' | 'water' | 'farm' | 'monster' | 'boss_arena' | 'workbench' | 'cauldron' | 'monolith' | 'stall' | 'herb' | 'door' | 'portal';
   x: number;
   y: number;
   recipeId?: string;
@@ -82,4 +82,7 @@ export const WORLD_NODES: WorldNode[] = [
 
   // --- World Boss Arena ---
   { id: 'boss_arena', name: 'Astral Primordial Crater', type: 'boss_arena', x: 24, y: 28 },
+
+  // --- Dungeon Entrances ---
+  { id: 'node_dungeon_crypt_gate', name: 'Whispering Crypt Entrance Gate', type: 'door', x: 18, y: 28 },
 ];

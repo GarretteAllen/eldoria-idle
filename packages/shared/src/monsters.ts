@@ -281,6 +281,20 @@ export const MONSTERS: Record<string, MonsterDefinition> = {
     guaranteedDropItemId: 'titan_shard',
     rareDrop: { itemId: 'primordial_ember', chance: 1 / 250 },
   },
+  crypt_lord: {
+    id: 'crypt_lord',
+    name: 'The Crypt Lord',
+    zone: 'The Whispering Crypt',
+    level: 30,
+    hp: 220,
+    xp: 650,
+    maxHit: 12,
+    swingSpeedSeconds: 2.8,
+    minCoins: 120,
+    maxCoins: 350,
+    guaranteedDropItemId: 'crypt_relic_fragment',
+    rareDrop: { itemId: 'crypt_lord_signet', chance: 1 / 4 },
+  },
 };
 
 export const WORLD_BOSSES: Record<string, WorldBossDefinition> = {
