@@ -16,44 +16,7 @@ export interface BotState {
   currentGoal: 'skilling' | 'combat' | 'banking' | 'wander' | 'idle';
   goalTargetName: string;
   cyclesInGoal: number;
-  lastChatTick: number;
 }
-
-const CHAT_PHRASES: Record<string, string[]> = {
-  skilling: [
-    'Grinding out a few more levels!',
-    'Level progression feels smooth today.',
-    'Just filling up the satchel then banking.',
-    'Need more materials for crafting.',
-    'Afk skilling while doing chores :)',
-    'Love how clean the queue system is.',
-    'Mining away!',
-    'Timber supplies are looking good.',
-    'Gotta keep the queue rolling.',
-  ],
-  combat: [
-    'Farming some loot drops here.',
-    'Testing out my combat style.',
-    'These monsters give decent XP.',
-    'Need some rare monster trophy drops!',
-    'Gotta watch my HP bar haha.',
-    'Nice drop!',
-  ],
-  banking: [
-    'Quick bank trip.',
-    'Satchel full, time to store everything.',
-    'Checking out the marketplace listings.',
-    'Dumping goods in the vault.',
-  ],
-  general: [
-    'Hello everyone!',
-    'Hey all!',
-    'Any good deals on the market?',
-    'What skill is everyone working on?',
-    'Eldoria is so cozy.',
-    'gg',
-  ],
-};
 
 export class BotManager {
   private engine: GameEngine;
@@ -140,7 +103,6 @@ export class BotManager {
         currentGoal: 'idle',
         goalTargetName: 'Arriving in Eldoria',
         cyclesInGoal: 0,
-        lastChatTick: 0,
       });
 
       spawned++;
@@ -179,11 +141,6 @@ export class BotManager {
         this.decideNextGoal(botId, state, currentTick);
       } else if (isWorking) {
         state.cyclesInGoal++;
-      }
-
-      // Check occasional friendly chat (every 2-5 minutes per bot with small random chance)
-      if (currentTick > state.lastChatTick + 200 && Math.random() < 0.001) {
-        this.emitBotChat(botId, state, currentTick);
       }
     }
   }
@@ -366,24 +323,5 @@ export class BotManager {
     state.currentGoal = 'wander';
     state.goalTargetName = `Exploring (${targetX}, ${targetY})`;
     state.nextDecisionTick = currentTick + Math.floor(20 + Math.random() * 20);
-  }
-
-  private emitBotChat(botId: string, state: BotState, currentTick: number) {
-    const session = this.engine.getSession(botId);
-    if (!session) return;
-
-    let pool = CHAT_PHRASES[state.currentGoal] || CHAT_PHRASES.general;
-    if (Math.random() < 0.3) {
-      pool = CHAT_PHRASES.general;
-    }
-
-    const text = pool[Math.floor(Math.random() * pool.length)];
-    state.lastChatTick = currentTick;
-
-    this.engine.handleClientMessage(botId, {
-      type: 'CHAT',
-      channel: 'All',
-      text,
-    });
   }
 }
