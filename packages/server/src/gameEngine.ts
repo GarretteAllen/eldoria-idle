@@ -40,6 +40,7 @@ import {
   VENDOR_GOODS,
 } from '@eldoria/shared';
 import { storage } from './storage.js';
+import { BotManager } from './botManager.js';
 
 export interface LiveMonsterInstance {
   id: string;
@@ -95,9 +96,12 @@ export class GameEngine {
     damageDealt: Record<string, number>;
   } | null = null;
 
+  private botManager: BotManager;
+
   constructor() {
     this.spawnWorldBoss();
     this.initMonsterZones();
+    this.botManager = new BotManager(this);
     setInterval(() => this.tick(), TICK_MS);
   }
 
@@ -464,6 +468,38 @@ export class GameEngine {
       this.sessions.delete(playerId);
       this.broadcastWorldState();
     }
+  }
+
+  public registerVirtualBot(player: PlayerData) {
+    const dummyWs = {
+      readyState: WebSocket.OPEN,
+      send: () => {},
+      close: () => {},
+    } as unknown as WebSocket;
+
+    player.moveSpeedTilesPerTick = calculatePlayerMoveSpeed(player);
+    const session: ConnectedSession = {
+      ws: dummyWs,
+      player,
+      ticksInTask: 0,
+      moveAccumulator: 0,
+      pendingTask: player.pendingTask || null,
+      pendingCombat: null,
+      activeCombat: null,
+      lastActivityTimestamp: Date.now(),
+    };
+
+    this.sessions.set(player.id, session);
+    this.broadcastWorldState();
+  }
+
+  public removeVirtualBot(botId: string) {
+    this.sessions.delete(botId);
+    this.broadcastWorldState();
+  }
+
+  public getSession(playerId: string): ConnectedSession | undefined {
+    return this.sessions.get(playerId);
   }
 
   public shutdown() {
@@ -1442,6 +1478,57 @@ export class GameEngine {
           });
         }
         break;
+
+      case 'ADMIN_START_BOTS': {
+        if (player.role !== 'admin') {
+          this.send(session.ws, { type: 'NOTIFICATION', message: 'Admin privileges required.' });
+          break;
+        }
+        const count = typeof msg.count === 'number' ? msg.count : 5;
+        const started = this.botManager.startBots(count);
+        this.send(session.ws, {
+          type: 'ADMIN_BOTS_STATUS',
+          activeCount: this.botManager.getActiveBotCount(),
+          bots: this.botManager.getBotSummaries(),
+        });
+        this.send(session.ws, {
+          type: 'NOTIFICATION',
+          message: `Spawned ${started} simulated Wanderer bot(s)! Total active: ${this.botManager.getActiveBotCount()}.`
+        });
+        break;
+      }
+
+      case 'ADMIN_STOP_BOTS': {
+        if (player.role !== 'admin') {
+          this.send(session.ws, { type: 'NOTIFICATION', message: 'Admin privileges required.' });
+          break;
+        }
+        const stopped = this.botManager.stopAllBots();
+        storage.clearBotPlayers();
+        this.send(session.ws, {
+          type: 'ADMIN_BOTS_STATUS',
+          activeCount: 0,
+          bots: [],
+        });
+        this.send(session.ws, {
+          type: 'NOTIFICATION',
+          message: `Dismissed all ${stopped} Wanderer bot(s).`
+        });
+        break;
+      }
+
+      case 'ADMIN_GET_BOTS': {
+        if (player.role !== 'admin') {
+          this.send(session.ws, { type: 'NOTIFICATION', message: 'Admin privileges required.' });
+          break;
+        }
+        this.send(session.ws, {
+          type: 'ADMIN_BOTS_STATUS',
+          activeCount: this.botManager.getActiveBotCount(),
+          bots: this.botManager.getBotSummaries(),
+        });
+        break;
+      }
 
       case 'PLANT_PLOT': {
         const { plotId, seedId } = msg;
@@ -2901,6 +2988,7 @@ export class GameEngine {
 
   private tick() {
     this.tickCount++;
+    this.botManager.update(this.tickCount);
 
     // 0. Process Monster Respawns in Active Zones
     let monstersChanged = false;
@@ -3248,8 +3336,8 @@ export class GameEngine {
         session.player.lastActiveTimestamp = now;
         storage.savePlayer(session.player);
 
-        // Disconnect sessions that have been completely inactive for > 16 minutes
-        if (session.lastActivityTimestamp && now - session.lastActivityTimestamp > 16 * 60 * 1000) {
+        // Disconnect real sessions that have been completely inactive for > 16 minutes
+        if (!playerId.startsWith('bot_') && session.lastActivityTimestamp && now - session.lastActivityTimestamp > 16 * 60 * 1000) {
           idleSessionsToDrop.push(playerId);
         }
       }

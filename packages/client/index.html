@@ -725,6 +725,7 @@
           <button class="editor-tab" data-tab="items">Items</button>
           <button class="editor-tab" data-tab="changelogs">Changelogs</button>
           <button class="editor-tab" data-tab="polls">Polls</button>
+          <button class="editor-tab" data-tab="bots">Bots</button>
         </div>
 
         <div class="drawer-body" style="padding: 8px;">
@@ -1355,6 +1356,41 @@
 
             <!-- Polls List in Admin Drawer -->
             <div id="editor-polls-list" class="editor-entities-list" style="max-height: 440px; overflow-y: auto;"></div>
+          </div>
+
+          <!-- TAB 10: BOTS (AUTONOMOUS SIMULATION) -->
+          <div id="tab-content-bots" class="editor-tab-content hidden">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+              <span style="font-size: 0.75rem; color: var(--gold-main); font-weight: 700;">Simulated Player Bots</span>
+              <span id="editor-bots-count-badge" class="badge-tag" style="background: rgba(56, 189, 248, 0.2); color: #38bdf8; border: 1px solid #0284c7; font-size: 0.68rem; padding: 1px 6px; border-radius: 4px;">0 Active</span>
+            </div>
+
+            <div style="font-size: 0.68rem; color: #a0aec0; margin-bottom: 10px; line-height: 1.35;">
+              Spawn autonomous "Wanderer" guest bots that look and act like genuine players — gathering nodes, hunting in monster zones, depositing resources at the Hearth bank, listing items on the market, queueing tasks, and chatting.
+            </div>
+
+            <div class="editor-form-box" style="margin-bottom: 12px; padding: 10px;">
+              <div class="form-row">
+                <label style="font-size: 0.72rem; color: #cbd5e0;">Number of Bots to Spawn:</label>
+                <div style="display: flex; gap: 6px; align-items: center;">
+                  <input type="number" id="bots-spawn-count" min="1" max="50" value="5" style="width: 80px; font-size: 0.8rem; font-weight: 700; text-align: center;" />
+                  <button type="button" id="btn-spawn-bots" class="btn-start" style="flex: 1; padding: 6px 10px; font-size: 0.75rem;">+ Launch Bots</button>
+                </div>
+              </div>
+
+              <div style="display: flex; gap: 6px; margin-top: 8px;">
+                <button type="button" id="btn-stop-all-bots" class="btn-oak" style="flex: 1; color: #fc8181; border-color: rgba(239, 68, 68, 0.4); font-size: 0.72rem;">Stop All Bots</button>
+                <button type="button" id="btn-refresh-bots" class="btn-oak" style="flex: 1; font-size: 0.72rem;">Refresh List</button>
+              </div>
+            </div>
+
+            <div style="font-size: 0.7rem; font-weight: 700; color: #e2e8f0; margin-bottom: 6px; display: flex; justify-content: space-between;">
+              <span>Active Wanderer Bots</span>
+              <span id="bots-status-subtext" style="color: #718096; font-weight: normal;">No bots running</span>
+            </div>
+
+            <!-- Active Bots List Container -->
+            <div id="editor-bots-list" class="editor-entities-list" style="max-height: 380px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px;"></div>
           </div>
 
         </div>

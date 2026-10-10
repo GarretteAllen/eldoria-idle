@@ -120,7 +120,7 @@ class EldoriaClient {
   private playerVotes: Record<string, string> = {};
 
   // Editor State
-  private activeEditorTab: 'nodes' | 'monsters' | 'npcs' | 'quests' | 'collisions' | 'giveitems' | 'items' | 'changelogs' | 'polls' = 'nodes';
+  private activeEditorTab: 'nodes' | 'monsters' | 'npcs' | 'quests' | 'collisions' | 'giveitems' | 'items' | 'changelogs' | 'polls' | 'bots' = 'nodes';
   private collisionBrush: 'paint' | 'erase' = 'paint';
   private adminNodeSearchQuery: string = '';
   private adminNodeTypeFilter: string = 'all';
@@ -1291,6 +1291,10 @@ class EldoriaClient {
         if (this.activeStorageTab === 'market') {
           this.renderMarketView();
         }
+        break;
+
+      case 'ADMIN_BOTS_STATUS':
+        this.handleAdminBotsStatus(msg);
         break;
 
       case 'NOTIFICATION': {
@@ -6982,6 +6986,9 @@ class EldoriaClient {
       });
     });
 
+    // 2. Bots UI Setup
+    this.setupAdminBotsUI();
+
     // 3. Tile coordinate picker callback from map
     this.renderer.onTileSelected = (tx: number, ty: number) => {
       if (this.activeEditorTab === 'nodes') {
@@ -7437,15 +7444,19 @@ class EldoriaClient {
     }
   }
 
-  private switchEditorTab(tab: 'nodes' | 'monsters' | 'npcs' | 'quests' | 'collisions' | 'giveitems' | 'items' | 'changelogs' | 'polls') {
+  private switchEditorTab(tab: 'nodes' | 'monsters' | 'npcs' | 'quests' | 'collisions' | 'giveitems' | 'items' | 'changelogs' | 'polls' | 'bots') {
     this.activeEditorTab = tab;
-    const tabContents = ['nodes', 'monsters', 'npcs', 'quests', 'collisions', 'giveitems', 'items', 'changelogs', 'polls'];
+    const tabContents = ['nodes', 'monsters', 'npcs', 'quests', 'collisions', 'giveitems', 'items', 'changelogs', 'polls', 'bots'];
     for (const t of tabContents) {
       const el = document.getElementById(`tab-content-${t}`);
       if (el) {
         if (t === tab) el.classList.remove('hidden');
         else el.classList.add('hidden');
       }
+    }
+
+    if (tab === 'bots') {
+      this.refreshAdminBots();
     }
 
     if (tab === 'polls') {
@@ -9368,6 +9379,139 @@ class EldoriaClient {
       type: 'USE_WARP',
       nodeId: doorNode.id,
     });
+  }
+
+  /* ========================================================
+     ADMIN BOTS MANAGEMENT
+     ======================================================== */
+  private setupAdminBotsUI() {
+    const btnSpawn = document.getElementById('btn-spawn-bots');
+    const btnStop = document.getElementById('btn-stop-all-bots');
+    const btnRefresh = document.getElementById('btn-refresh-bots');
+    const inputCount = document.getElementById('bots-spawn-count') as HTMLInputElement | null;
+
+    if (btnSpawn) {
+      btnSpawn.onclick = () => {
+        const count = inputCount ? parseInt(inputCount.value, 10) || 5 : 5;
+        this.sendWs({
+          type: 'ADMIN_START_BOTS',
+          count: Math.min(50, Math.max(1, count)),
+        });
+      };
+    }
+
+    if (btnStop) {
+      btnStop.onclick = () => {
+        if (confirm('Stop and dismiss all simulated Wanderer bots?')) {
+          this.sendWs({ type: 'ADMIN_STOP_BOTS' });
+        }
+      };
+    }
+
+    if (btnRefresh) {
+      btnRefresh.onclick = () => {
+        this.refreshAdminBots();
+      };
+    }
+  }
+
+  private refreshAdminBots() {
+    this.sendWs({ type: 'ADMIN_GET_BOTS' });
+  }
+
+  private handleAdminBotsStatus(msg: any) {
+    const badge = document.getElementById('editor-bots-count-badge');
+    const subtext = document.getElementById('bots-status-subtext');
+    const listEl = document.getElementById('editor-bots-list');
+
+    const count = typeof msg.activeCount === 'number' ? msg.activeCount : (Array.isArray(msg.bots) ? msg.bots.length : 0);
+    if (badge) {
+      badge.textContent = `${count} Active`;
+    }
+    if (subtext) {
+      subtext.textContent = count === 0 ? 'No bots running' : `${count} bot(s) roaming & skilling`;
+    }
+
+    if (!listEl) return;
+    listEl.innerHTML = '';
+
+    if (!Array.isArray(msg.bots) || msg.bots.length === 0) {
+      const emptyDiv = document.createElement('div');
+      emptyDiv.style.color = '#718096';
+      emptyDiv.style.fontSize = '0.72rem';
+      emptyDiv.style.fontStyle = 'italic';
+      emptyDiv.style.padding = '12px 6px';
+      emptyDiv.style.textAlign = 'center';
+      emptyDiv.textContent = 'No active simulated bots. Launch some bots above to populate the world!';
+      listEl.appendChild(emptyDiv);
+      return;
+    }
+
+    for (const b of msg.bots) {
+      const card = document.createElement('div');
+      card.className = 'editor-entity-card';
+      card.style.display = 'flex';
+      card.style.flexDirection = 'column';
+      card.style.gap = '3px';
+      card.style.padding = '6px 8px';
+      card.style.background = 'rgba(20, 24, 30, 0.7)';
+      card.style.border = '1px solid #374151';
+      card.style.borderRadius = '4px';
+
+      const headerRow = document.createElement('div');
+      headerRow.style.display = 'flex';
+      headerRow.style.justifyContent = 'space-between';
+      headerRow.style.alignItems = 'center';
+
+      const nameSpan = document.createElement('strong');
+      nameSpan.style.color = 'var(--gold-bright)';
+      nameSpan.style.fontSize = '0.74rem';
+      nameSpan.textContent = b.username || 'Wanderer';
+
+      const goalBadge = document.createElement('span');
+      goalBadge.style.fontSize = '0.65rem';
+      goalBadge.style.padding = '1px 5px';
+      goalBadge.style.borderRadius = '3px';
+      goalBadge.style.textTransform = 'uppercase';
+      goalBadge.style.fontWeight = '700';
+
+      if (b.goal === 'skilling') {
+        goalBadge.style.background = 'rgba(34, 197, 94, 0.2)';
+        goalBadge.style.color = '#4ade80';
+        goalBadge.style.border = '1px solid #16a34a';
+      } else if (b.goal === 'combat') {
+        goalBadge.style.background = 'rgba(239, 68, 68, 0.2)';
+        goalBadge.style.color = '#f87171';
+        goalBadge.style.border = '1px solid #dc2626';
+      } else if (b.goal === 'banking') {
+        goalBadge.style.background = 'rgba(234, 179, 8, 0.2)';
+        goalBadge.style.color = '#facc15';
+        goalBadge.style.border = '1px solid #ca8a04';
+      } else {
+        goalBadge.style.background = 'rgba(148, 163, 184, 0.2)';
+        goalBadge.style.color = '#94a3b8';
+        goalBadge.style.border = '1px solid #64748b';
+      }
+      goalBadge.textContent = b.goal || 'idle';
+
+      headerRow.appendChild(nameSpan);
+      headerRow.appendChild(goalBadge);
+
+      const targetRow = document.createElement('div');
+      targetRow.style.fontSize = '0.68rem';
+      targetRow.style.color = '#e2e8f0';
+      targetRow.textContent = `Action: ${b.target || 'Roaming'}`;
+
+      const posRow = document.createElement('div');
+      posRow.style.fontSize = '0.64rem';
+      posRow.style.color = '#a0aec0';
+      posRow.textContent = `Location: (${b.x}, ${b.y}) • Role: Guest`;
+
+      card.appendChild(headerRow);
+      card.appendChild(targetRow);
+      card.appendChild(posRow);
+      listEl.appendChild(card);
+    }
   }
 }
 

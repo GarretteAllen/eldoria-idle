@@ -200,6 +200,8 @@ class StorageManager {
   // Prepared Statements
   private stmtGetPlayer: Database.Statement;
   private stmtSavePlayer: Database.Statement;
+  private stmtDeletePlayer: Database.Statement;
+  private stmtDeleteBotPlayers: Database.Statement;
   private stmtGetAccountByUsername: Database.Statement;
   private stmtGetAccountById: Database.Statement;
   private stmtInsertAccount: Database.Statement;
@@ -278,6 +280,8 @@ class StorageManager {
          data = excluded.data,
          updated_at = excluded.updated_at`
     );
+    this.stmtDeletePlayer = this.db.prepare('DELETE FROM players WHERE id = ?');
+    this.stmtDeleteBotPlayers = this.db.prepare("DELETE FROM players WHERE id LIKE 'bot_%'");
 
     this.stmtGetAccountByUsername = this.db.prepare('SELECT * FROM accounts WHERE normalized_username = ?');
     this.stmtGetAccountById = this.db.prepare('SELECT * FROM accounts WHERE id = ?');
@@ -938,6 +942,22 @@ class StorageManager {
     }
   }
 
+  public deletePlayer(playerId: string) {
+    try {
+      this.stmtDeletePlayer.run(playerId);
+    } catch (err) {
+      console.error('SQLite deletePlayer error', err);
+    }
+  }
+
+  public clearBotPlayers() {
+    try {
+      this.stmtDeleteBotPlayers.run();
+    } catch (err) {
+      console.error('SQLite clearBotPlayers error', err);
+    }
+  }
+
   public isPlayerAdmin(player: PlayerData): boolean {
     if (!player) return false;
     const adminUsernames = this.getAdminUsernames();
@@ -1027,8 +1047,8 @@ class StorageManager {
       for (const row of rows) {
         try {
           const p = JSON.parse(row.data) as PlayerData;
-          // Admins must not count towards the leaderboard
-          if (this.isPlayerAdmin(p) || p.role === 'admin') {
+          // Admins and bots must not count towards the leaderboard
+          if (this.isPlayerAdmin(p) || p.role === 'admin' || p.id.startsWith('bot_')) {
             continue;
           }
 
