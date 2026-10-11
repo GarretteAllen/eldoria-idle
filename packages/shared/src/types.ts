@@ -35,6 +35,7 @@ export type EquipSlot =
   | 'ring'
   | 'amulet'
   | 'steed'
+  | 'pet'
   | 'tool'
   | 'tool_pickaxe'
   | 'tool_axe'
@@ -57,6 +58,7 @@ export type ItemCategory =
   | 'armour'
   | 'tool'
   | 'steed'
+  | 'pet'
   | 'misc';
 
 export interface ItemDefinition {

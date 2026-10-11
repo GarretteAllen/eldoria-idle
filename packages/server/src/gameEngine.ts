@@ -4045,14 +4045,29 @@ export class GameEngine {
             });
           } else {
             const rfItem = storage.getItem(rf.itemId) || ITEMS[rf.itemId];
-            addItemToSlots(player.inventory, 28, rf.itemId, 1, 'plain', 0, rfItem, 'inventory');
-            const isThief = recipe.skill === 'thieving';
-            this.send(ws, {
-              type: 'NOTIFICATION',
-              message: isThief
-                ? `Rare swipe! Pocketed bonus ${rfItem?.name || rf.itemId}!`
-                : `Bonus yield! Discovered ${rfItem?.name || rf.itemId}!`
-            });
+            const isPet = rfItem?.category === 'pet' || rf.itemId.startsWith('pet_');
+            if (isPet) {
+              // If pet slot is empty, auto-summon/equip the pet immediately!
+              if (!player.equipment.pet) {
+                player.equipment.pet = { itemId: rf.itemId, quantity: 1, rarity: 'plain', plus: 0 };
+              } else {
+                addItemToSlots(player.inventory, 28, rf.itemId, 1, 'plain', 0, rfItem, 'inventory');
+              }
+              this.broadcastPetDrop(player.username, rfItem?.name || rf.itemId);
+              this.send(ws, {
+                type: 'NOTIFICATION',
+                message: `🎉 You have a funny feeling like you're being followed: ${rfItem?.name || rf.itemId}!`
+              });
+            } else {
+              addItemToSlots(player.inventory, 28, rf.itemId, 1, 'plain', 0, rfItem, 'inventory');
+              const isThief = recipe.skill === 'thieving';
+              this.send(ws, {
+                type: 'NOTIFICATION',
+                message: isThief
+                  ? `Rare swipe! Pocketed bonus ${rfItem?.name || rf.itemId}!`
+                  : `Bonus yield! Discovered ${rfItem?.name || rf.itemId}!`
+              });
+            }
           }
         }
       }
@@ -4182,11 +4197,25 @@ export class GameEngine {
         for (const rf of recipe.rareFinds) {
           if (Math.random() < rf.chance) {
             const rfItem = storage.getItem(rf.itemId) || ITEMS[rf.itemId];
-            addItemToSlots(player.inventory, 28, rf.itemId, 1, 'plain', 0, rfItem, 'inventory');
-            this.send(ws, {
-              type: 'NOTIFICATION',
-              message: `Bonus yield! Discovered ${rfItem?.name || rf.itemId}!`
-            });
+            const isPet = rfItem?.category === 'pet' || rf.itemId.startsWith('pet_');
+            if (isPet) {
+              if (!player.equipment.pet) {
+                player.equipment.pet = { itemId: rf.itemId, quantity: 1, rarity: 'plain', plus: 0 };
+              } else {
+                addItemToSlots(player.inventory, 28, rf.itemId, 1, 'plain', 0, rfItem, 'inventory');
+              }
+              this.broadcastPetDrop(player.username, rfItem?.name || rf.itemId);
+              this.send(ws, {
+                type: 'NOTIFICATION',
+                message: `🎉 You have a funny feeling like you're being followed: ${rfItem?.name || rf.itemId}!`
+              });
+            } else {
+              addItemToSlots(player.inventory, 28, rf.itemId, 1, 'plain', 0, rfItem, 'inventory');
+              this.send(ws, {
+                type: 'NOTIFICATION',
+                message: `Bonus yield! Discovered ${rfItem?.name || rf.itemId}!`
+              });
+            }
           }
         }
       }
@@ -6437,6 +6466,7 @@ export class GameEngine {
     const rollItems = [
       { itemId: 'crypt_relic_fragment', qty: 2 + Math.floor(Math.random() * 3), chance: 1.0 },
       { itemId: 'crypt_lord_signet', qty: 1, chance: 0.5 },
+      { itemId: 'pet_crypt_beetle', qty: 1, chance: 1 / 50 },
       { itemId: 'steel_ingot', qty: 5, chance: 0.8 },
       { itemId: 'glazed_albacore', qty: 4, chance: 0.75 },
     ];
@@ -6475,6 +6505,13 @@ export class GameEngine {
             recoveryFee: 25,
             timestamp: Date.now(),
           });
+        }
+
+        if (r.itemId === 'pet_crypt_beetle') {
+          if (!player.equipment.pet) {
+            player.equipment.pet = { itemId: r.itemId, quantity: 1, rarity: 'plain', plus: 0 };
+          }
+          this.broadcastPetDrop(player.username, itemDef?.name || 'Crypt Scarab');
         }
 
         awardedItems.push({
@@ -6708,6 +6745,34 @@ export class GameEngine {
     });
 
     this.broadcast(payload);
+  }
+
+  public broadcastRealmMessage(text: string) {
+    const msgId = `chat_realm_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+    const timestamp = Date.now();
+    const payload = {
+      type: 'CHAT_BROADCAST',
+      id: msgId,
+      channel: 'All',
+      senderName: 'Eldoria',
+      isAdmin: false,
+      text,
+      timestamp,
+    };
+    storage.saveChatMessage({
+      id: msgId,
+      senderName: 'Eldoria',
+      channel: 'All',
+      role: 'player',
+      isAdmin: false,
+      text,
+      timestamp,
+    });
+    this.broadcast(payload);
+  }
+
+  public broadcastPetDrop(playerName: string, petName: string) {
+    this.broadcastRealmMessage(`🎉 ${playerName} has a funny feeling like something is following them: ${petName}!`);
   }
 
   private broadcast(payload: any) {

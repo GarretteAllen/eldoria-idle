@@ -148,6 +148,7 @@ export const ICONS: Record<string, string> = {
   legs: toSvg(Footprints),
   amulet: toSvg(Gem),
   ring: toSvg(CircleDot),
+  pet: toSvg(Sparkle),
   chevronUp: toSvg(ChevronUp),
   chevronDown: toSvg(ChevronDown),
   chevronRight: toSvg(ChevronRight),

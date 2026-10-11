@@ -112,6 +112,7 @@ export class WorldRenderer {
     style: 'melee' | 'ranged' | 'magic';
   }>();
   public playerFacing = new Map<string, boolean>();
+  private petPositions = new Map<string, { x: number; y: number }>();
 
   public triggerPlayerAttack(style: 'melee' | 'ranged' | 'magic', playerId: string = 'self') {
     this.playerAttackAnims.set(playerId, {
@@ -3074,6 +3075,111 @@ export class WorldRenderer {
       ctx.fillStyle = '#cbd5e0';
       ctx.fillText(`"${title}"`, px, titleY);
     }
+
+    // Companion Pet (follows behind player in world)
+    if (equipment && equipment.pet) {
+      this.drawPetCompanion(
+        equipment.pet.itemId,
+        x,
+        y,
+        facingLeft,
+        isMoving,
+        facingKey
+      );
+    }
+  }
+
+  private drawPetCompanion(
+    petItemId: string,
+    playerX: number,
+    playerY: number,
+    playerFacingLeft: boolean,
+    playerMoving: boolean,
+    petKey: string
+  ) {
+    const { ctx } = this;
+    const petSprite = MONSTER_SPRITES[petItemId];
+    if (!petSprite || !this.enemiesImage || !this.enemiesImage.complete) return;
+
+    // Follow target: 0.8 tiles behind the player based on facing direction
+    const targetPetX = playerFacingLeft ? playerX + 0.85 : playerX - 0.85;
+    const targetPetY = playerY + 0.15;
+
+    let cur = this.petPositions.get(petKey);
+    if (!cur) {
+      cur = { x: targetPetX, y: targetPetY };
+      this.petPositions.set(petKey, cur);
+    }
+
+    // Smoothly trail player (spring/lerp interpolation)
+    const lerpSpeed = playerMoving ? 0.14 : 0.08;
+    cur.x += (targetPetX - cur.x) * lerpSpeed;
+    cur.y += (targetPetY - cur.y) * lerpSpeed;
+
+    const petPx = cur.x * TILE_SIZE + TILE_SIZE / 2;
+    const petPy = cur.y * TILE_SIZE + TILE_SIZE / 2;
+
+    // Idle / running bounce
+    const bounceSpeed = playerMoving ? 0.016 : 0.005;
+    const bounceAmp = playerMoving ? 3.0 : 1.2;
+    const bounce = Math.sin(this.animTick * bounceSpeed) * bounceAmp;
+
+    // Small ground shadow under pet
+    ctx.save();
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
+    ctx.beginPath();
+    ctx.ellipse(petPx, petPy + 11, 7, 3, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    // Render pet sprite with recolor/size
+    const sizeMultiplier = petSprite.size || 0.72;
+    const renderW = Math.round(16 * (TILE_SIZE / 16) * sizeMultiplier);
+    const renderH = Math.round(16 * (TILE_SIZE / 16) * sizeMultiplier);
+    const drawX = Math.round(petPx - renderW / 2);
+    const drawY = Math.round(petPy - renderH / 2 + bounce);
+
+    ctx.save();
+    ctx.imageSmoothingEnabled = false;
+    if (playerFacingLeft) {
+      ctx.translate(petPx, petPy);
+      ctx.scale(-1, 1);
+      ctx.translate(-petPx, -petPy);
+    }
+    if (petSprite.recolor?.filter) {
+      ctx.filter = petSprite.recolor.filter;
+    }
+    ctx.drawImage(
+      this.enemiesImage,
+      petSprite.col * 16,
+      petSprite.row * 16,
+      16,
+      16,
+      drawX,
+      drawY,
+      renderW,
+      renderH
+    );
+    ctx.restore();
+
+    // Floating mini pet nameplate overhead
+    const petName = petSprite.name || ITEMS[petItemId]?.name || 'Pet';
+    ctx.save();
+    ctx.font = '600 8.5px Inter, system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    const nameY = Math.round(drawY - 3);
+
+    // Dark stroke outline
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
+    ctx.fillText(petName, petPx - 1, nameY);
+    ctx.fillText(petName, petPx + 1, nameY);
+    ctx.fillText(petName, petPx, nameY - 1);
+    ctx.fillText(petName, petPx, nameY + 1);
+
+    // Warm friendly gold name text
+    ctx.fillStyle = '#f6e05e';
+    ctx.fillText(petName, petPx, nameY);
+    ctx.restore();
   }
 
   private drawChatBubbles() {

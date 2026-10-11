@@ -3213,6 +3213,7 @@ class EldoriaClient {
       { key: 'body', label: 'Body Armour', iconKey: 'body' },
       { key: 'legs', label: 'Leg Greaves', iconKey: 'legs' },
       { key: 'steed', label: 'Mount / Steed', iconKey: 'mount' },
+      { key: 'pet', label: 'Pet Companion', iconKey: 'pet' },
       { key: 'amulet', label: 'Amulet', iconKey: 'amulet' },
       { key: 'ring', label: 'Ring', iconKey: 'ring' },
     ];

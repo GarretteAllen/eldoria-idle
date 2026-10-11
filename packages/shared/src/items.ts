@@ -349,6 +349,53 @@ export const ITEMS: Record<string, ItemDefinition> = {
     vendorFloorPrice: 750,
     description: 'A prized runic seal retrieved from the Crypt Lord sarcophagus. Grants balanced offensive power.',
   },
+
+  // --- Skilling & Boss Vanity Companion Pets ---
+  pet_rocky: {
+    id: 'pet_rocky',
+    name: 'Rocky',
+    category: 'pet',
+    tier: 4,
+    slot: 'pet',
+    vendorFloorPrice: 25000,
+    description: 'A loyal miniature stone golem born from deep ore veins. Hums with mineral energy as it toddles behind you.',
+  },
+  pet_treant: {
+    id: 'pet_treant',
+    name: 'Twiggy Treant',
+    category: 'pet',
+    tier: 4,
+    slot: 'pet',
+    vendorFloorPrice: 25000,
+    description: 'A sentient wooden sapling with rustling leaves and soulful root feet. A rare companion found while chopping timber.',
+  },
+  pet_otter: {
+    id: 'pet_otter',
+    name: 'River Whiskers',
+    category: 'pet',
+    tier: 4,
+    slot: 'pet',
+    vendorFloorPrice: 25000,
+    description: 'A playful river otter who loves fresh fish and splashes happily behind you on your adventures.',
+  },
+  pet_sprout: {
+    id: 'pet_sprout',
+    name: 'Sproutling',
+    category: 'pet',
+    tier: 4,
+    slot: 'pet',
+    vendorFloorPrice: 25000,
+    description: 'A chirping green botanical sprout that emerged from fertile farmland soil.',
+  },
+  pet_crypt_beetle: {
+    id: 'pet_crypt_beetle',
+    name: 'Crypt Scarab',
+    category: 'pet',
+    tier: 5,
+    slot: 'pet',
+    vendorFloorPrice: 50000,
+    description: 'An ancient obsidian scarab with gilded wings, recovered from the deepest sanctum of the Whispering Crypts.',
+  },
 };
 
 export type StackingLocation = 'inventory' | 'bank' | 'storage';
@@ -374,8 +421,8 @@ export function isItemStackable(item?: ItemDefinition, location: StackingLocatio
     return false;
   }
 
-  // Non-stackable by default in satchel inventory: weapon, armour, tool, steed
-  if (['weapon', 'armour', 'tool', 'steed'].includes(item.category)) {
+  // Non-stackable by default in satchel inventory: weapon, armour, tool, steed, pet
+  if (['weapon', 'armour', 'tool', 'steed', 'pet'].includes(item.category)) {
     return false;
   }
   return true;

@@ -12,6 +12,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     outputQuantity: 1,
     xp: 2,
     intervalSeconds: 3.0,
+    rareFinds: [{ itemId: 'pet_rocky', chance: 1 / 4000 }],
   },
   mine_galena: {
     id: 'mine_galena',
@@ -23,6 +24,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     outputQuantity: 1,
     xp: 3,
     intervalSeconds: 3.0,
+    rareFinds: [{ itemId: 'pet_rocky', chance: 1 / 4000 }],
   },
   mine_cold_iron: {
     id: 'mine_cold_iron',
@@ -34,7 +36,10 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     outputQuantity: 1,
     xp: 5,
     intervalSeconds: 3.6,
-    rareFinds: [{ itemId: 'uncut_celestial_gem', chance: 1 / 2000 }],
+    rareFinds: [
+      { itemId: 'uncut_celestial_gem', chance: 1 / 2000 },
+      { itemId: 'pet_rocky', chance: 1 / 3500 },
+    ],
   },
   mine_quicksilver: {
     id: 'mine_quicksilver',
@@ -46,7 +51,10 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     outputQuantity: 1,
     xp: 9,
     intervalSeconds: 4.2,
-    rareFinds: [{ itemId: 'uncut_celestial_gem', chance: 1 / 1000 }],
+    rareFinds: [
+      { itemId: 'uncut_celestial_gem', chance: 1 / 1000 },
+      { itemId: 'pet_rocky', chance: 1 / 3000 },
+    ],
   },
   mine_nethercoal: {
     id: 'mine_nethercoal',
@@ -58,7 +66,10 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     outputQuantity: 1,
     xp: 14,
     intervalSeconds: 4.8,
-    rareFinds: [{ itemId: 'uncut_celestial_gem', chance: 1 / 1000 }],
+    rareFinds: [
+      { itemId: 'uncut_celestial_gem', chance: 1 / 1000 },
+      { itemId: 'pet_rocky', chance: 1 / 2500 },
+    ],
   },
   mine_solar_aurum: {
     id: 'mine_solar_aurum',
@@ -70,7 +81,10 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     outputQuantity: 1,
     xp: 22,
     intervalSeconds: 5.4,
-    rareFinds: [{ itemId: 'uncut_celestial_gem', chance: 1 / 500 }],
+    rareFinds: [
+      { itemId: 'uncut_celestial_gem', chance: 1 / 500 },
+      { itemId: 'pet_rocky', chance: 1 / 2000 },
+    ],
   },
   mine_azurite: {
     id: 'mine_azurite',
@@ -82,7 +96,10 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     outputQuantity: 1,
     xp: 37,
     intervalSeconds: 6.6,
-    rareFinds: [{ itemId: 'uncut_celestial_gem', chance: 1 / 333 }],
+    rareFinds: [
+      { itemId: 'uncut_celestial_gem', chance: 1 / 333 },
+      { itemId: 'pet_rocky', chance: 1 / 1500 },
+    ],
   },
   mine_starfall: {
     id: 'mine_starfall',
@@ -94,7 +111,10 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     outputQuantity: 1,
     xp: 59,
     intervalSeconds: 7.8,
-    rareFinds: [{ itemId: 'uncut_celestial_gem', chance: 1 / 200 }],
+    rareFinds: [
+      { itemId: 'uncut_celestial_gem', chance: 1 / 200 },
+      { itemId: 'pet_rocky', chance: 1 / 1000 },
+    ],
   },
 
   // === TIMBERCRAFT (Woodcutting) ===
@@ -108,7 +128,10 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     outputQuantity: 1,
     xp: 3,
     intervalSeconds: 3.0,
-    rareFinds: [{ itemId: 'earthtuber_seed', chance: 0.013 }],
+    rareFinds: [
+      { itemId: 'earthtuber_seed', chance: 0.013 },
+      { itemId: 'pet_treant', chance: 1 / 4000 },
+    ],
   },
   chop_oak: {
     id: 'chop_oak',
@@ -120,7 +143,10 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     outputQuantity: 1,
     xp: 7,
     intervalSeconds: 3.6,
-    rareFinds: [{ itemId: 'glowshroom_spore', chance: 1 / 120 }],
+    rareFinds: [
+      { itemId: 'glowshroom_spore', chance: 1 / 120 },
+      { itemId: 'pet_treant', chance: 1 / 3500 },
+    ],
   },
   chop_willow: {
     id: 'chop_willow',
@@ -132,7 +158,10 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     outputQuantity: 1,
     xp: 11,
     intervalSeconds: 4.2,
-    rareFinds: [{ itemId: 'deep_radish_seed', chance: 1 / 180 }],
+    rareFinds: [
+      { itemId: 'deep_radish_seed', chance: 1 / 180 },
+      { itemId: 'pet_treant', chance: 1 / 3000 },
+    ],
   },
   chop_bloodwood: {
     id: 'chop_bloodwood',
@@ -144,7 +173,10 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     outputQuantity: 1,
     xp: 18,
     intervalSeconds: 4.8,
-    rareFinds: [{ itemId: 'bramble_mandrake_seed', chance: 1 / 260 }],
+    rareFinds: [
+      { itemId: 'bramble_mandrake_seed', chance: 1 / 260 },
+      { itemId: 'pet_treant', chance: 1 / 2500 },
+    ],
   },
   chop_ghostwood: {
     id: 'chop_ghostwood',
@@ -156,7 +188,10 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     outputQuantity: 1,
     xp: 29,
     intervalSeconds: 6.0,
-    rareFinds: [{ itemId: 'nether_gourd_seed', chance: 1 / 360 }],
+    rareFinds: [
+      { itemId: 'nether_gourd_seed', chance: 1 / 360 },
+      { itemId: 'pet_treant', chance: 1 / 1800 },
+    ],
   },
   chop_starlight: {
     id: 'chop_starlight',
@@ -168,7 +203,10 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     outputQuantity: 1,
     xp: 48,
     intervalSeconds: 7.2,
-    rareFinds: [{ itemId: 'sunfire_pod', chance: 1 / 450 }],
+    rareFinds: [
+      { itemId: 'sunfire_pod', chance: 1 / 450 },
+      { itemId: 'pet_treant', chance: 1 / 1000 },
+    ],
   },
 
   // === TIDECALLING (Fishing) ===
@@ -182,6 +220,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     outputQuantity: 1,
     xp: 2,
     intervalSeconds: 3.0,
+    rareFinds: [{ itemId: 'pet_otter', chance: 1 / 4000 }],
   },
   fish_minnow: {
     id: 'fish_minnow',
@@ -193,6 +232,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     outputQuantity: 1,
     xp: 3,
     intervalSeconds: 3.0,
+    rareFinds: [{ itemId: 'pet_otter', chance: 1 / 4000 }],
   },
   fish_trout: {
     id: 'fish_trout',
@@ -204,6 +244,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     outputQuantity: 1,
     xp: 7,
     intervalSeconds: 3.6,
+    rareFinds: [{ itemId: 'pet_otter', chance: 1 / 3500 }],
   },
   fish_salmon: {
     id: 'fish_salmon',
@@ -215,6 +256,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     outputQuantity: 1,
     xp: 11,
     intervalSeconds: 4.2,
+    rareFinds: [{ itemId: 'pet_otter', chance: 1 / 3000 }],
   },
   fish_albacore: {
     id: 'fish_albacore',
@@ -226,6 +268,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     outputQuantity: 1,
     xp: 17,
     intervalSeconds: 4.8,
+    rareFinds: [{ itemId: 'pet_otter', chance: 1 / 2500 }],
   },
   fish_ironpincer: {
     id: 'fish_ironpincer',
@@ -237,6 +280,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     outputQuantity: 1,
     xp: 28,
     intervalSeconds: 6.0,
+    rareFinds: [{ itemId: 'pet_otter', chance: 1 / 1800 }],
   },
   fish_bladefin: {
     id: 'fish_bladefin',
@@ -248,6 +292,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     outputQuantity: 1,
     xp: 44,
     intervalSeconds: 6.6,
+    rareFinds: [{ itemId: 'pet_otter', chance: 1 / 1200 }],
   },
   fish_mawshark: {
     id: 'fish_mawshark',
@@ -259,6 +304,7 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     outputQuantity: 1,
     xp: 60,
     intervalSeconds: 7.8,
+    rareFinds: [{ itemId: 'pet_otter', chance: 1 / 800 }],
   },
 
   // === RUNE-FORGING (Ingots) ===
@@ -928,7 +974,10 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     outputQuantity: 4,
     xp: 45,
     intervalSeconds: 4.0,
-    rareFinds: [{ itemId: 'earthtuber_seed', chance: 0.5 }],
+    rareFinds: [
+      { itemId: 'earthtuber_seed', chance: 0.5 },
+      { itemId: 'pet_sprout', chance: 1 / 1500 },
+    ],
   },
   farm_silverleaf: {
     id: 'farm_silverleaf',
@@ -940,7 +989,10 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     outputQuantity: 4,
     xp: 95,
     intervalSeconds: 4.5,
-    rareFinds: [{ itemId: 'silverleaf_seed', chance: 0.45 }],
+    rareFinds: [
+      { itemId: 'silverleaf_seed', chance: 0.45 },
+      { itemId: 'pet_sprout', chance: 1 / 1200 },
+    ],
   },
   farm_glowshroom: {
     id: 'farm_glowshroom',
@@ -952,7 +1004,10 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     outputQuantity: 5,
     xp: 180,
     intervalSeconds: 5.0,
-    rareFinds: [{ itemId: 'glowshroom_spore', chance: 0.4 }],
+    rareFinds: [
+      { itemId: 'glowshroom_spore', chance: 0.4 },
+      { itemId: 'pet_sprout', chance: 1 / 1000 },
+    ],
   },
   farm_deep_radish: {
     id: 'farm_deep_radish',
@@ -964,7 +1019,10 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     outputQuantity: 5,
     xp: 340,
     intervalSeconds: 5.5,
-    rareFinds: [{ itemId: 'deep_radish_seed', chance: 0.4 }],
+    rareFinds: [
+      { itemId: 'deep_radish_seed', chance: 0.4 },
+      { itemId: 'pet_sprout', chance: 1 / 800 },
+    ],
   },
   farm_nightshade: {
     id: 'farm_nightshade',
@@ -976,7 +1034,10 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     outputQuantity: 6,
     xp: 580,
     intervalSeconds: 7.0,
-    rareFinds: [{ itemId: 'nightshade_seed', chance: 0.35 }],
+    rareFinds: [
+      { itemId: 'nightshade_seed', chance: 0.35 },
+      { itemId: 'pet_sprout', chance: 1 / 650 },
+    ],
   },
   farm_bramble_mandrake: {
     id: 'farm_bramble_mandrake',
@@ -988,7 +1049,10 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     outputQuantity: 6,
     xp: 880,
     intervalSeconds: 6.0,
-    rareFinds: [{ itemId: 'bramble_mandrake_seed', chance: 0.35 }],
+    rareFinds: [
+      { itemId: 'bramble_mandrake_seed', chance: 0.35 },
+      { itemId: 'pet_sprout', chance: 1 / 500 },
+    ],
   },
   farm_wyrmfrond: {
     id: 'farm_wyrmfrond',
@@ -1000,7 +1064,10 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     outputQuantity: 7,
     xp: 1400,
     intervalSeconds: 8.5,
-    rareFinds: [{ itemId: 'wyrmfrond_seed', chance: 0.3 }],
+    rareFinds: [
+      { itemId: 'wyrmfrond_seed', chance: 0.3 },
+      { itemId: 'pet_sprout', chance: 1 / 400 },
+    ],
   },
   farm_nether_gourd: {
     id: 'farm_nether_gourd',
@@ -1012,7 +1079,10 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     outputQuantity: 8,
     xp: 1900,
     intervalSeconds: 7.5,
-    rareFinds: [{ itemId: 'nether_gourd_seed', chance: 0.3 }],
+    rareFinds: [
+      { itemId: 'nether_gourd_seed', chance: 0.3 },
+      { itemId: 'pet_sprout', chance: 1 / 300 },
+    ],
   },
   farm_sunfire_pod: {
     id: 'farm_sunfire_pod',
@@ -1024,7 +1094,10 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     outputQuantity: 9,
     xp: 2600,
     intervalSeconds: 10.0,
-    rareFinds: [{ itemId: 'sunfire_pod', chance: 0.25 }],
+    rareFinds: [
+      { itemId: 'sunfire_pod', chance: 0.25 },
+      { itemId: 'pet_sprout', chance: 1 / 200 },
+    ],
   },
 
   // ========================================================
