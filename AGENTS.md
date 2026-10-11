@@ -45,6 +45,14 @@
    - If an item can be used/opened from the satchel (e.g., Gem Packs, keystones), do not duplicate an open/redeem mechanism in a secondary menu.
 4. **Chat Cleanliness**:
    - Only the **`[ADMIN]`** badge displays next to sender names in chat. Regular player titles (e.g., Novice of Eldoria, Recruiter) do **not** appear as bulky chat badges next to names.
+5. **BBCode Changelog Standards**:
+   - All release notes / changelogs must follow the structured BBCode format:
+     - Header: `[h1]Alpha 1 Update <NUM> (a1.<NUM>)[/h1]`
+     - Intro blurb introducing the theme and major additions.
+     - Categorized sections with emojis: `[h2]🐾 Category Title[/h2]`.
+     - Bulleted lists `[list] ... [/list]` with `[*]` entries.
+     - Inline tag badges like `[badge=blue]...[/badge]`, `[badge=green]...[/badge]`, `[badge=purple]...[/badge]`, `[badge=gold]...[/badge]` for skills, drop types, and milestones.
+     - Bold item/feature names with `[b]...[/b]`.
 
 ---
 
