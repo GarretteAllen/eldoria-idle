@@ -9,10 +9,10 @@
 
 ## 1. Project Overview & Environments
 - **Game**: *Eldoria Idle* — a persistent 2D shared-world idle MMORPG inspired by Old School RuneScape (OSRS).
-- **Live URL**: `https://eldoriaidle.site`
+- **Live Production URL**: `https://eldoriaidle.site`
 - **Monorepo Structure** (npm workspaces):
-  - `packages/shared`: Shared types, constants, item/recipe definitions, level formulas, sprite mappings.
-  - `packages/server`: Node.js Express + WebSocket game server, SQLite database engine (`better-sqlite3`), pathfinding, combat/trade engines.
+  - `packages/shared`: Shared types, constants, item/recipe definitions, level formulas, sprite mappings, combat math.
+  - `packages/server`: Node.js Express + WebSocket game server, SQLite database engine (`better-sqlite3`), pathfinding, combat/trade engines, offline simulation.
   - `packages/client`: Vite + Vanilla TypeScript client, HTML5 Canvas 2D renderer, DOM UI overlays, CSS styling.
 
 ---
@@ -64,31 +64,100 @@
 
 ---
 
-## 5. Major Feature Architectures
+## 5. Complete Systems Reference & Balancing Guide
 
-### A. Player Referral System
-- **Invite URL Format**: `https://eldoriaidle.site?ref=<Username>`
-- **Database Fields**: `accounts.referred_by`, `accounts.referral_rewards_claimed`, `accounts.referral_titles_claimed`.
-- **Qualification Rule**: Invited friends must hit **Total Level 100+** before counting toward rewards (anti-alt abuse).
-- **Ladder Rewards**:
-  - 1 Friend at Lvl 100+: 50 Celestial Gems + Title *Herald of Eldoria*.
-  - 3 Friends at Lvl 100+: 150 Celestial Gems + Title *Vanguard Recruiter*.
-  - 5 Friends at Lvl 100+: 300 Celestial Gems + Title *Realm Ambassador*.
-  - Every additional friend beyond 5: +50 Celestial Gems.
-- **Client UI**: Located in Adventurer Profile Modal (`#account-profile-modal`) with live stats, 1-click copy button, and claim button.
+### A. Tick Rate, Movement & Pathfinding
+- **Source Files**: `packages/shared/src/constants.ts`, `packages/shared/src/formulas.ts`, `packages/server/src/gameEngine.ts`.
+- **Tick Rate**: `TICK_MS = 600` (Classic 600ms OSRS tick). All timers, combat swings, and movement are synchronized to this tick.
+- **Base Speed**: 1.0 tile/tick (approx 1.67 tiles per second).
+- **Steed Movement Bonus**:
+  - `STEED_BASE_BONUS`: Plain (+12%), Uncommon (+13%), Rare (+15%), Epic (+20%), Legendary (+30%).
+  - Enhancement scaling: `bonus = base * (1 + 0.15 * plus)`.
+  - To adjust mount speeds: Edit `STEED_BASE_BONUS` or `getSteedWalkSpeedBonus()` in `packages/shared/src/constants.ts`.
+- **A* Pathfinding**: 8-directional with corner-cutting prevention against blocked terrain. Implemented via binary min-heap in `formulas.ts` (`findPath`).
 
-### B. Instanced Co-Op Dungeons (The Whispering Crypt)
-- **Status & Roadmap Documented in**: [`agentdocs/dungeons.md`](file:///home/gar/share/browsermmo/agentdocs/dungeons.md).
-- **Core Loop**:
-  - Leader forms party, invites players, everyone readies up.
-  - Requires 1x `item_crypt_key` in leader/party satchel to enter.
-  - Auto-battles through 3 rooms: Antechamber -> Hall of Fallen Warriors -> Crypt Lord Boss + Chest.
-  - On boss kill: Spoils modal pops up, loot banks automatically, overflow routes to Barnaby the Quartermaster with a small gold fee.
-- **Pending User Actions**: User is hand-painting the dungeon maps in Tiled, after which coordinate constants in `packages/shared/src/dungeons.ts` will be updated.
+### B. Experience, Leveling & Skill Curves
+- **Source Files**: `packages/shared/src/levels.ts`.
+- **Formula**: Canonical OSRS formula: `Experience(L) = floor( 1/4 * sum_{l=1}^{L-1} floor( l + 300 * 2^(l/7) ) )`.
+- **Caps**: Max Level = 99 (13,034,431 XP). Level 92 is the exact halfway mark (6,517,253 XP). Max virtual level = 126. Max XP = 200,000,000.
+- **Skills**:
+  - Gathering: `mining`, `fishing`, `woodcutting`, `herbalism`, `farming`, `thieving`.
+  - Refining / Crafting: `cooking`, `smithing`, `fletching`, `alchemy`, `crafting`, `attunement`.
+  - Combat: `melee`, `ranged`, `magic`, `defence`, `hitpoints`.
+- **Job Speed Multipliers**: Derived from skill level in `getJobSpeedMultiplier(level)` (speed scales up smoothly with higher levels).
+
+### C. Combat Engine & Sustenance Loop
+- **Source Files**: `packages/shared/src/formulas.ts`, `packages/shared/src/monsters.ts`, `packages/server/src/gameEngine.ts`.
+- **Hit Chance Formula**: `calculateHitChance(accuracy, evasion) = min(0.95, max(0.05, accuracy / (accuracy + evasion)))`.
+- **Max Hit Formula**: `calculateMaxHit(level, gearStrength, targetArmour) = max(1, 1 + floor((level + gearStrength) / 8) - targetArmour)`.
+- **HP & Food Sustenance**:
+  - Players set an auto-eat threshold (`player.eatsAtHpPercent`, default 50%).
+  - Food healing amounts scale with rarity: `RARITY_HEALING_MULTIPLIER` (Plain 1.0x, Uncommon 1.1x, Rare 1.25x, Epic 1.5x, Legendary 2.0x).
+  - Combat auto-banking: Upon inventory filling with monster drops, the character walks to Hearth bank, deposits loot, restocks up to 15 cooked food rations, and pathfinds back to the combat zone.
+
+### D. Item Rarity & Gear Enhancement (+0 to +15)
+- **Source Files**: `packages/shared/src/constants.ts`.
+- **Rarity Drop / Craft Tiers**:
+  - Plain: 1.0 (base).
+  - Uncommon: 2.5% (1/40).
+  - Rare: 0.25% (1/400).
+  - Epic: 1 / 8,000.
+  - Legendary: 1 / 150,000.
+- **Rarity Stat Multipliers**: Plain 1.0x, Uncommon 1.3x, Rare 1.6x, Epic 2.2x, Legendary 3.0x.
+- **Enhancement Mechanics** (Runeforge):
+  - Max Plus: +15.
+  - Success Chance: `getEnhanceChance(plus) = max(0.20, 1 - plus * 0.06)`.
+  - Anima Cost: `3 * (currentPlus + 1)`.
+  - Gold Cost: `TIER_BASE_ENHANCE_COST[tier] * RARITY_PRICE_MULTIPLIER[rarity] * (currentPlus + 1)`.
+
+### E. Farming System (Crop Lifecycles & Plots)
+- **Source Files**: `packages/shared/src/farming.ts`.
+- **Plot Growth**:
+  - `ONLINE_GROWTH_MULTIPLIER = 2.0` (Crops grow twice as fast while the player is active online).
+  - Base durations: Earthtuber (5m / 2.5m online), Silverleaf (8m / 4m online), Glowshroom (12m / 6m online), Deep Radish (18m / 9m online).
+  - Seed return mechanic: Harvesting provides a chance to recover bonus seeds (`seedReturnChance` = 40%–50%).
+- **To add/rebalance crops**: Modify `FARMING_CROPS` in `packages/shared/src/farming.ts`.
+
+### F. Action Queue System
+- **Source Files**: `packages/shared/src/constants.ts`, `packages/server/src/gameEngine.ts`.
+- **Config**: `QUEUE_SLOT_CONFIG`
+  - Base free slots: 2.
+  - Max slots: 5.
+  - Celestial Gem upgrade costs: Slot 3 (100 gems), Slot 4 (250 gems), Slot 5 (500 gems).
+- **Transitions**: Smooth FIFO transition when an action target is reached or raw resources are exhausted.
+
+### G. Offline Catch-Up & Simulation
+- **Source Files**: `packages/shared/src/constants.ts`, `packages/shared/src/formulas.ts` (`simulateOfflineCatchUp`).
+- **Offline Limits**: Base 24 hours (`OFFLINE_TIME_CONFIG.BASE_SECONDS`). Upgradable in +15m increments for 25 Celestial Gems.
+- **Simulation**: Accurately simulates resource gathering, auto-banking trips, combat food consumption, and deaths during offline periods so players retain idle progress without cheating the simulation.
+
+### H. Economy, Vendors, Player Market & Gem Packs
+- **Source Files**: `packages/shared/src/items.ts`, `packages/shared/src/constants.ts`, `packages/server/src/gameEngine.ts`.
+- **Town Merchant (`VENDOR_GOODS`)**:
+  - Located at Hearth Counter or near Merchant NPCs.
+  - Items for direct sale: `steed_courser` (15,000 gold), `steed_chicken` (15,000 gold).
+  - To adjust vendor stock: Modify `VENDOR_GOODS` in `packages/shared/src/items.ts`.
+- **Player Market**: Tax-free player-to-player orderbook for tradeable items, equipment, and gem packs.
+- **Celestial Gem Packs**: 5 tiers ($0.99 for 50 gems up to $19.99 for 2,000 gems). Tradeable in-game items (`gem_pack_*`).
+
+### I. Player Referral System
+- **Source Files**: `packages/shared/src/types.ts`, `packages/server/src/storage.ts`, `packages/client/src/main.ts`.
+- **Invite URL**: `https://eldoriaidle.site?ref=<Username>`.
+- **Anti-Alt Qualification**: Invited players must hit **Total Level 100+** before counting toward rewards.
+- **Reward Ladder**:
+  - 1 Friend: 50 Celestial Gems + Title *Herald of Eldoria*.
+  - 3 Friends: 150 Celestial Gems + Title *Vanguard Recruiter*.
+  - 5 Friends: 300 Celestial Gems + Title *Realm Ambassador*.
+  - Beyond 5: +50 Celestial Gems per friend.
+- **Client UI**: Located in Adventurer Profile Modal (`#account-profile-modal`).
+
+### J. Instanced Co-Op Dungeons (The Whispering Crypt)
+- **Detailed Roadmap**: [`agentdocs/dungeons.md`](file:///home/gar/share/browsermmo/agentdocs/dungeons.md).
+- **Party & Delve Loop**: Requires 1x `item_crypt_key`. Auto-battles through 3 rooms with synchronized party warps. Unlocks exit chest with auto-banking and Quartermaster recovery parcel storage.
 
 ---
 
-## 6. Development Commands
+## 6. Development & Deployment Commands
 - `npm run dev`: Concurrent local client and server dev server.
-- `npm run build`: Builds shared, client (Vite bundle), and server (TypeScript compiler).
+- `npm run build`: Compiles shared, client (Vite bundle), and server (TypeScript compiler).
 - `git add <files> && git commit -m "..." && git push origin main`: Deploys to live VPS.
