@@ -2386,17 +2386,28 @@ export class WorldRenderer {
         if (hairCoord) drawLayer(hairCoord, 0, riderY);
       }
 
-      // 4. Steed Courser (horse body, rump, legs, neck, head)
-      // Pixel width is 27, screen width is 54 (offset -6 centers saddle at px, -12 grounds hooves)
-      const steedCoord = getSprite(equipment?.steed?.itemId || 'steed_courser');
-      drawLayer(steedCoord, -6, -12 + gallopBob);
+      const steedItemId = equipment?.steed?.itemId || 'steed_courser';
+      const isChicken = steedItemId === 'steed_chicken';
+
+      // 4. Steed Mount (Horse or Chicken)
+      const steedCoord = getSprite(steedItemId);
+      if (isChicken) {
+        // Chicken: 24w x 22h, ground feet with bobbing
+        drawLayer(steedCoord, -4, -10 + gallopBob);
+      } else {
+        // Horse: 27w x 23h
+        drawLayer(steedCoord, -6, -12 + gallopBob);
+      }
 
       // 5. Mounted Riding Leg (draped across horse flank: bent knee, greave/pants, boot resting in stirrup!)
-      const equippedLegId = equipment?.legs?.itemId;
-      const mountedLegKey = equippedLegId ? `mounted_${equippedLegId}` : 'mounted_bare_legs';
-      const mountedLegCoord = getSprite(mountedLegKey) || getSprite('mounted_tunic_pants');
-      if (mountedLegCoord) {
-        drawLayer(mountedLegCoord, -6, -12 + gallopBob);
+      // For large horses with stirrups:
+      if (!isChicken) {
+        const equippedLegId = equipment?.legs?.itemId;
+        const mountedLegKey = equippedLegId ? `mounted_${equippedLegId}` : 'mounted_bare_legs';
+        const mountedLegCoord = getSprite(mountedLegKey) || getSprite('mounted_tunic_pants');
+        if (mountedLegCoord) {
+          drawLayer(mountedLegCoord, -6, -12 + gallopBob);
+        }
       }
 
       // 6. Shield / Offhand (in front of horse and leg)
