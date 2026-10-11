@@ -576,7 +576,6 @@ class StorageManager {
       );
 
       CREATE INDEX IF NOT EXISTS idx_accounts_norm_user ON accounts(normalized_username);
-      CREATE INDEX IF NOT EXISTS idx_accounts_referred_by ON accounts(referred_by);
       CREATE INDEX IF NOT EXISTS idx_sessions_account ON sessions(account_id);
       CREATE INDEX IF NOT EXISTS idx_market_item ON market_listings(item_id);
       CREATE INDEX IF NOT EXISTS idx_market_seller ON market_listings(seller_id);
@@ -588,7 +587,7 @@ class StorageManager {
       CREATE INDEX IF NOT EXISTS idx_dungeon_recoveries_player ON dungeon_recoveries(player_id);
     `);
 
-    // Safe column migrations for existing SQLite accounts table
+    // Safe column migrations for existing SQLite accounts table (BEFORE creating index on referred_by)
     try {
       this.db.exec(`ALTER TABLE accounts ADD COLUMN referred_by TEXT;`);
     } catch {}
@@ -597,6 +596,11 @@ class StorageManager {
     } catch {}
     try {
       this.db.exec(`ALTER TABLE accounts ADD COLUMN referral_titles_claimed TEXT NOT NULL DEFAULT '[]';`);
+    } catch {}
+
+    // Index on referred_by now that the column is guaranteed to exist
+    try {
+      this.db.exec(`CREATE INDEX IF NOT EXISTS idx_accounts_referred_by ON accounts(referred_by);`);
     } catch {}
   }
 
