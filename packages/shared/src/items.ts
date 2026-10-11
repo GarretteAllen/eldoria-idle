@@ -275,7 +275,7 @@ export const ITEMS: Record<string, ItemDefinition> = {
 
   // --- Steeds (Mounts) ---
   steed_courser: { id: 'steed_courser', name: 'Eldorian Courser', category: 'steed', tier: 2, slot: 'steed', vendorFloorPrice: 15000, description: 'A trusty Eldorian riding horse that hastens travel across the world.' },
-  steed_chicken: { id: 'steed_chicken', name: 'Rooster Strider', category: 'steed', tier: 2, slot: 'steed', vendorFloorPrice: 12500, description: 'A sturdy brown battle-chicken mount that clucks proudly and hastens travel across Eldoria.' },
+  steed_chicken: { id: 'steed_chicken', name: 'Rooster Strider', category: 'steed', tier: 2, slot: 'steed', vendorFloorPrice: 15000, description: 'A sturdy brown battle-chicken mount that clucks proudly and hastens travel across Eldoria.' },
 
   // --- Tradeable Gem Packs (Paypal / In-game Economy) ---
   gem_pack_small: { id: 'gem_pack_small', name: 'Small Gem Pack', category: 'misc', tier: 1, vendorFloorPrice: 0, stackable: true, description: 'Contains 50 Celestial Gems. Open to redeem, or trade to players in the market.' },
@@ -455,4 +455,5 @@ export interface VendorGood {
 
 export const VENDOR_GOODS: VendorGood[] = [
   { itemId: 'steed_courser', price: 15000 },
+  { itemId: 'steed_chicken', price: 15000 },
 ];
