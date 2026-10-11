@@ -4533,8 +4533,11 @@ class EldoriaClient {
       else if (msg.channel === 'Loot') chanColor = '#ecc94b';
       else if (msg.channel === 'System') chanColor = '#a0aec0';
 
+      const isEldoria = msg.senderName === 'Eldoria';
+      const senderColor = isEldoria ? '#ecc94b' : chanColor;
+
       const senderSpan = msg.senderName
-        ? `<span class="chat-sender" style="color:${chanColor}; cursor:pointer;" title="Click to mention or moderate">${msg.senderName}:</span>`
+        ? `<span class="chat-sender" style="color:${senderColor}; cursor:pointer; font-weight:${isEldoria ? '800' : 'normal'};" title="${isEldoria ? 'Eldoria Realm Message' : 'Click to mention or moderate'}">${msg.senderName}:</span>`
         : '';
 
       let modButtonsHtml = '';

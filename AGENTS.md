@@ -150,6 +150,7 @@
   - 5 Friends: 300 Celestial Gems + Title *Realm Ambassador*.
   - Beyond 5: +50 Celestial Gems per friend.
 - **Client UI**: Located in Adventurer Profile Modal (`#account-profile-modal`).
+- **Periodic Realm Broadcasts**: Every 25 minutes, a friendly non-spammy tip from `Eldoria` appears in All chat reminding players about the referral perks.
 
 ### J. Instanced Co-Op Dungeons (The Whispering Crypt)
 - **Detailed Roadmap**: [`agentdocs/dungeons.md`](file:///home/gar/share/browsermmo/agentdocs/dungeons.md).

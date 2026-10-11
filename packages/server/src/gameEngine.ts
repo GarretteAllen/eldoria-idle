@@ -125,6 +125,8 @@ export class GameEngine {
     this.initMonsterZones();
     this.botManager = new BotManager(this);
     setInterval(() => this.tick(), TICK_MS);
+    // Periodic friendly realm broadcast (every 25 minutes)
+    setInterval(() => this.broadcastPeriodicRealmTip(), 25 * 60 * 1000);
   }
 
   public initMonsterZones() {
@@ -6668,6 +6670,44 @@ export class GameEngine {
       isGuest: false,
       summary: updatedSummary,
     });
+  }
+
+  // Periodic friendly realm message (referrals, tips) sent to All chat
+  private broadcastPeriodicRealmTip() {
+    if (this.sessions.size === 0) return;
+
+    const messages = [
+      'Bring a friend along on the journey! Share your invite link from your Adventurer Profile — when they hit Total Level 100, you both unlock Celestial Gems and exclusive titles.',
+      'Enjoying the realm? You can invite friends using your personal link in your Profile menu. Once they reach Total Level 100, you will earn Celestial Gems and unique titles like Herald and Recruiter.',
+      'Tip: Journeying together is always better. Grab your personal referral link under your Adventurer Profile to earn Celestial Gems as your friends level up in Eldoria.',
+    ];
+
+    const text = messages[Math.floor(Math.random() * messages.length)];
+    const msgId = `chat_realm_${Date.now()}`;
+    const timestamp = Date.now();
+
+    const payload = {
+      type: 'CHAT_BROADCAST',
+      id: msgId,
+      channel: 'All',
+      senderName: 'Eldoria',
+      isAdmin: false,
+      text,
+      timestamp,
+    };
+
+    // Save to chat storage and broadcast to active players
+    storage.saveChatMessage({
+      id: msgId,
+      senderName: 'Eldoria',
+      channel: 'All',
+      role: 'player',
+      isAdmin: false,
+      text,
+      timestamp,
+    });
+
+    this.broadcast(payload);
   }
 
   private broadcast(payload: any) {
