@@ -4528,16 +4528,6 @@ class EldoriaClient {
         ? `<span class="chat-admin-badge"><span style="display:inline-flex; width:12px; height:12px; margin-right:2px; vertical-align:middle;">${ICONS.admin}</span>ADMIN</span>`
         : '';
 
-      let titleTag = '';
-      if (msg.title && !msg.isAdmin) {
-        let titleClass = '';
-        const tLower = msg.title.toLowerCase();
-        if (tLower.includes('herald')) titleClass = ' herald';
-        else if (tLower.includes('recruiter')) titleClass = ' recruiter';
-        else if (tLower.includes('ambassador')) titleClass = ' ambassador';
-        titleTag = `<span class="chat-title-badge${titleClass}">[${msg.title}]</span>`;
-      }
-
       let chanColor = '#90cdf4';
       if (msg.channel === 'Combat') chanColor = '#f6ad55';
       else if (msg.channel === 'Loot') chanColor = '#ecc94b';
@@ -4559,7 +4549,7 @@ class EldoriaClient {
 
       line.innerHTML = `
         <span class="chat-time" title="${msg.timestamp ? new Date(msg.timestamp).toLocaleString() : ''}">${msg.time}</span>
-        ${adminTag ? `${adminTag} ` : ''}${titleTag ? `${titleTag} ` : ''}${senderSpan}
+        ${adminTag ? `${adminTag} ` : ''}${senderSpan}
         <span>${msg.text}</span>
         ${modButtonsHtml}
       `;
