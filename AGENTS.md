@@ -168,16 +168,17 @@
 - **Source Files**: `packages/shared/src/items.ts`, `packages/shared/src/monsterSprites.ts`, `packages/shared/src/recipes.ts`, `packages/server/src/gameEngine.ts`, `packages/client/src/canvas.ts`.
 - **Philosophy**: Pure vanity / cosmetic prestige badges (zero power creep, no combat stats), mirroring classic OSRS boss/skilling pets.
 - **Roster & Drop Sources**:
-  - `pet_rocky` (*Rocky*): Mining (1/4,000 to 1/1,000 depending on ore tier).
-  - `pet_treant` (*Twiggy Treant*): Woodcutting (1/4,000 to 1/1,000 depending on tree tier).
-  - `pet_otter` (*River Whiskers*): Fishing (1/4,000 to 1/800 depending on fish tier).
-  - `pet_sprout` (*Sproutling*): Farming crop harvests (1/1,500 to 1/200 depending on crop tier).
-  - `pet_crypt_beetle` (*Crypt Scarab*): Whispering Crypt Dungeon Spoils (1/50).
-- **Summoning & World Following**:
+  - `pet_rocky` (*Rocky*): Mining (1/45,000 to 1/12,000 depending on ore tier).
+  - `pet_treant` (*Twiggy Treant*): Woodcutting (1/45,000 to 1/12,000 depending on tree tier; 1/28,000 on Bloodwood).
+  - `pet_otter` (*River Whiskers*): Fishing (1/45,000 to 1/9,000 depending on fish tier).
+  - `pet_sprout` (*Sproutling*): Farming crop harvests (1/15,000 to 1/2,000 depending on crop tier).
+  - `pet_crypt_beetle` (*Crypt Scarab*): Whispering Crypt Dungeon Spoils (1/250).
+- **Summoning, Duplicate Protection & World Following**:
   - Equippable in the `pet` slot under the Equipment Drawer.
   - Automatically equips upon initial drop if pet slot is empty.
   - Sits and trails ~0.85 tiles behind the player with smooth interpolation and cute idle/run bounce.
   - Mini overhead gold nameplate.
+  - Duplicate Protection: If a player already possesses the companion, duplicate drops will notify the player privately (*"You have a funny feeling like you would have been followed..."*) without spamming duplicate items into inventory.
 - **Realm Broadcast**:
   - Drops trigger a server-wide announcement in All chat: `"🎉 [Player] has a funny feeling like something is following them: [Pet Name]!"`.
 

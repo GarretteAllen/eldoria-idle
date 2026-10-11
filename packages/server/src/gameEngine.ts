@@ -4047,17 +4047,25 @@ export class GameEngine {
             const rfItem = storage.getItem(rf.itemId) || ITEMS[rf.itemId];
             const isPet = rfItem?.category === 'pet' || rf.itemId.startsWith('pet_');
             if (isPet) {
-              // If pet slot is empty, auto-summon/equip the pet immediately!
-              if (!player.equipment.pet) {
-                player.equipment.pet = { itemId: rf.itemId, quantity: 1, rarity: 'plain', plus: 0 };
+              const alreadyHasPet = this.playerOwnsPet(player, rf.itemId);
+              if (alreadyHasPet) {
+                // Classic OSRS mechanic: "You have a funny feeling like you would have been followed..."
+                this.send(ws, {
+                  type: 'NOTIFICATION',
+                  message: `You have a funny feeling like you would have been followed... (Duplicate ${rfItem?.name || rf.itemId})`
+                });
               } else {
-                addItemToSlots(player.inventory, 28, rf.itemId, 1, 'plain', 0, rfItem, 'inventory');
+                if (!player.equipment.pet) {
+                  player.equipment.pet = { itemId: rf.itemId, quantity: 1, rarity: 'plain', plus: 0 };
+                } else {
+                  addItemToSlots(player.inventory, 28, rf.itemId, 1, 'plain', 0, rfItem, 'inventory');
+                }
+                this.broadcastPetDrop(player.username, rfItem?.name || rf.itemId);
+                this.send(ws, {
+                  type: 'NOTIFICATION',
+                  message: `🎉 You have a funny feeling like you're being followed: ${rfItem?.name || rf.itemId}!`
+                });
               }
-              this.broadcastPetDrop(player.username, rfItem?.name || rf.itemId);
-              this.send(ws, {
-                type: 'NOTIFICATION',
-                message: `🎉 You have a funny feeling like you're being followed: ${rfItem?.name || rf.itemId}!`
-              });
             } else {
               addItemToSlots(player.inventory, 28, rf.itemId, 1, 'plain', 0, rfItem, 'inventory');
               const isThief = recipe.skill === 'thieving';
@@ -4199,16 +4207,24 @@ export class GameEngine {
             const rfItem = storage.getItem(rf.itemId) || ITEMS[rf.itemId];
             const isPet = rfItem?.category === 'pet' || rf.itemId.startsWith('pet_');
             if (isPet) {
-              if (!player.equipment.pet) {
-                player.equipment.pet = { itemId: rf.itemId, quantity: 1, rarity: 'plain', plus: 0 };
+              const alreadyHasPet = this.playerOwnsPet(player, rf.itemId);
+              if (alreadyHasPet) {
+                this.send(ws, {
+                  type: 'NOTIFICATION',
+                  message: `You have a funny feeling like you would have been followed... (Duplicate ${rfItem?.name || rf.itemId})`
+                });
               } else {
-                addItemToSlots(player.inventory, 28, rf.itemId, 1, 'plain', 0, rfItem, 'inventory');
+                if (!player.equipment.pet) {
+                  player.equipment.pet = { itemId: rf.itemId, quantity: 1, rarity: 'plain', plus: 0 };
+                } else {
+                  addItemToSlots(player.inventory, 28, rf.itemId, 1, 'plain', 0, rfItem, 'inventory');
+                }
+                this.broadcastPetDrop(player.username, rfItem?.name || rf.itemId);
+                this.send(ws, {
+                  type: 'NOTIFICATION',
+                  message: `🎉 You have a funny feeling like you're being followed: ${rfItem?.name || rf.itemId}!`
+                });
               }
-              this.broadcastPetDrop(player.username, rfItem?.name || rf.itemId);
-              this.send(ws, {
-                type: 'NOTIFICATION',
-                message: `🎉 You have a funny feeling like you're being followed: ${rfItem?.name || rf.itemId}!`
-              });
             } else {
               addItemToSlots(player.inventory, 28, rf.itemId, 1, 'plain', 0, rfItem, 'inventory');
               this.send(ws, {
@@ -6466,7 +6482,7 @@ export class GameEngine {
     const rollItems = [
       { itemId: 'crypt_relic_fragment', qty: 2 + Math.floor(Math.random() * 3), chance: 1.0 },
       { itemId: 'crypt_lord_signet', qty: 1, chance: 0.5 },
-      { itemId: 'pet_crypt_beetle', qty: 1, chance: 1 / 50 },
+      { itemId: 'pet_crypt_beetle', qty: 1, chance: 1 / 250 },
       { itemId: 'steel_ingot', qty: 5, chance: 0.8 },
       { itemId: 'glazed_albacore', qty: 4, chance: 0.75 },
     ];
@@ -6508,10 +6524,18 @@ export class GameEngine {
         }
 
         if (r.itemId === 'pet_crypt_beetle') {
-          if (!player.equipment.pet) {
-            player.equipment.pet = { itemId: r.itemId, quantity: 1, rarity: 'plain', plus: 0 };
+          const alreadyHasPet = this.playerOwnsPet(player, r.itemId);
+          if (alreadyHasPet) {
+            this.send(ws, {
+              type: 'NOTIFICATION',
+              message: `You have a funny feeling like you would have been followed... (Duplicate ${itemDef?.name || 'Crypt Scarab'})`
+            });
+          } else {
+            if (!player.equipment.pet) {
+              player.equipment.pet = { itemId: r.itemId, quantity: 1, rarity: 'plain', plus: 0 };
+            }
+            this.broadcastPetDrop(player.username, itemDef?.name || 'Crypt Scarab');
           }
-          this.broadcastPetDrop(player.username, itemDef?.name || 'Crypt Scarab');
         }
 
         awardedItems.push({
@@ -6769,6 +6793,14 @@ export class GameEngine {
       timestamp,
     });
     this.broadcast(payload);
+  }
+
+  public playerOwnsPet(player: PlayerData, petItemId: string): boolean {
+    if (player.equipment?.pet?.itemId === petItemId) return true;
+    if (player.inventory?.some(s => s.itemId === petItemId)) return true;
+    if (player.storage?.some(s => s.itemId === petItemId)) return true;
+    if (player.overflowTray?.some(s => s.itemId === petItemId)) return true;
+    return false;
   }
 
   public broadcastPetDrop(playerName: string, petName: string) {
