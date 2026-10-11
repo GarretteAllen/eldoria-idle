@@ -1903,6 +1903,16 @@ export class GameEngine {
         this.handleClaimDungeonRecovery(session, msg.recoveryId);
         break;
       }
+
+      case 'GET_REFERRAL_INFO': {
+        this.handleGetReferralInfo(session);
+        break;
+      }
+
+      case 'CLAIM_REFERRAL_REWARDS': {
+        this.handleClaimReferralRewards(session);
+        break;
+      }
     }
   }
 
@@ -6572,6 +6582,92 @@ export class GameEngine {
         message: `🎉 Payment received! 1x ${packName} added to your bag. Use it to redeem gems, or trade it on the market!`,
       });
     }
+  }
+
+  // ==================== REFERRAL SYSTEM HANDLERS ====================
+  private handleGetReferralInfo(session: ConnectedSession) {
+    const { player, ws } = session;
+    if (player.isGuest) {
+      this.send(ws, {
+        type: 'REFERRAL_INFO_RESPONSE',
+        isGuest: true,
+        summary: null,
+      });
+      return;
+    }
+
+    const account = storage.getAccountByPlayerId(player.id) || storage.getAccountByUsername(player.username);
+    if (!account) {
+      this.send(ws, {
+        type: 'REFERRAL_INFO_RESPONSE',
+        isGuest: false,
+        summary: null,
+      });
+      return;
+    }
+
+    const summary = storage.getReferralSummary(account);
+    this.send(ws, {
+      type: 'REFERRAL_INFO_RESPONSE',
+      isGuest: false,
+      summary,
+    });
+  }
+
+  private handleClaimReferralRewards(session: ConnectedSession) {
+    const { player, ws } = session;
+    if (player.isGuest) {
+      this.send(ws, {
+        type: 'NOTIFICATION',
+        message: 'Guest characters cannot claim referral rewards. Please register your account first!',
+      });
+      return;
+    }
+
+    const account = storage.getAccountByPlayerId(player.id) || storage.getAccountByUsername(player.username);
+    if (!account) {
+      this.send(ws, {
+        type: 'NOTIFICATION',
+        message: 'Could not find your registered account record.',
+      });
+      return;
+    }
+
+    const summary = storage.getReferralSummary(account);
+    if (summary.unclaimedGems <= 0) {
+      this.send(ws, {
+        type: 'NOTIFICATION',
+        message: 'No pending referral rewards to claim right now.',
+      });
+      return;
+    }
+
+    const { gemsAwarded, newTitles } = storage.claimReferralRewards(account);
+    if (gemsAwarded > 0) {
+      player.gems = (player.gems || 0) + gemsAwarded;
+    }
+
+    if (newTitles.length > 0) {
+      // Set the highest newly unlocked title as active title
+      player.activeTitle = newTitles[newTitles.length - 1];
+    }
+
+    storage.savePlayer(player);
+    this.send(ws, { type: 'PLAYER_UPDATE', player });
+
+    const titleMsg = newTitles.length > 0 ? ` & unlocked chat title(s): ${newTitles.join(', ')}!` : '!';
+    this.send(ws, {
+      type: 'NOTIFICATION',
+      message: `💎 Claimed ${gemsAwarded} Celestial Gems from referrals${titleMsg}`,
+    });
+
+    // Re-send updated summary to update client UI
+    const updatedSummary = storage.getReferralSummary(account);
+    this.send(ws, {
+      type: 'REFERRAL_INFO_RESPONSE',
+      isGuest: false,
+      summary: updatedSummary,
+    });
   }
 
   private broadcast(payload: any) {

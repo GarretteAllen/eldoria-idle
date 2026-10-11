@@ -148,7 +148,7 @@ class EldoriaClient {
   private previousCompletedQty: number = 0;
 
   // Chat History & Filtering
-  private chatHistory: Array<{ id?: string; time: string; senderId?: string; senderName?: string; text: string; channel: string; isAdmin?: boolean; timestamp?: number }> = [];
+  private chatHistory: Array<{ id?: string; time: string; senderId?: string; senderName?: string; title?: string; text: string; channel: string; isAdmin?: boolean; timestamp?: number }> = [];
 
   // Pinned Quests State
   private acceptedQuests: Set<string> = new Set();
@@ -1372,6 +1372,10 @@ class EldoriaClient {
       case 'DUNGEON_RECOVERIES_LIST':
         this.dungeonRecoveries = msg.recoveries || [];
         this.renderBarnabyModal();
+        break;
+
+      case 'REFERRAL_INFO_RESPONSE':
+        this.renderReferralUI(msg.summary);
         break;
     }
   }
@@ -4481,6 +4485,7 @@ class EldoriaClient {
       senderId: msg.senderId,
       time: timeStr,
       senderName: sender,
+      title: msg.title,
       text: cleanText,
       channel: channel,
       isAdmin: msg.isAdmin,
@@ -4523,6 +4528,16 @@ class EldoriaClient {
         ? `<span class="chat-admin-badge"><span style="display:inline-flex; width:12px; height:12px; margin-right:2px; vertical-align:middle;">${ICONS.admin}</span>ADMIN</span>`
         : '';
 
+      let titleTag = '';
+      if (msg.title && !msg.isAdmin) {
+        let titleClass = '';
+        const tLower = msg.title.toLowerCase();
+        if (tLower.includes('herald')) titleClass = ' herald';
+        else if (tLower.includes('recruiter')) titleClass = ' recruiter';
+        else if (tLower.includes('ambassador')) titleClass = ' ambassador';
+        titleTag = `<span class="chat-title-badge${titleClass}">[${msg.title}]</span>`;
+      }
+
       let chanColor = '#90cdf4';
       if (msg.channel === 'Combat') chanColor = '#f6ad55';
       else if (msg.channel === 'Loot') chanColor = '#ecc94b';
@@ -4544,7 +4559,7 @@ class EldoriaClient {
 
       line.innerHTML = `
         <span class="chat-time" title="${msg.timestamp ? new Date(msg.timestamp).toLocaleString() : ''}">${msg.time}</span>
-        ${adminTag ? `${adminTag} ` : ''}${senderSpan}
+        ${adminTag ? `${adminTag} ` : ''}${titleTag ? `${titleTag} ` : ''}${senderSpan}
         <span>${msg.text}</span>
         ${modButtonsHtml}
       `;
@@ -6011,6 +6026,21 @@ class EldoriaClient {
       if (guestHint) guestHint.style.display = 'none';
     }
 
+    // Check URL or localStorage for referral parameter
+    const urlParams = new URLSearchParams(window.location.search);
+    const refCode = urlParams.get('ref') || localStorage.getItem('eldoria_ref_code') || '';
+    if (refCode) {
+      localStorage.setItem('eldoria_ref_code', refCode);
+      const refInput = document.getElementById('register-referral') as HTMLInputElement | null;
+      const refTag = document.getElementById('register-referral-tag');
+      const refHint = document.getElementById('register-referral-bonus-hint');
+      if (refInput && !refInput.value) {
+        refInput.value = refCode;
+      }
+      if (refTag) refTag.style.display = 'inline';
+      if (refHint) refHint.style.display = 'block';
+    }
+
     this.switchAuthTab(defaultTab);
     modal.classList.remove('hidden');
   }
@@ -6121,10 +6151,11 @@ class EldoriaClient {
 
         try {
           const guestId = (this.player && this.player.isGuest) ? this.player.id : undefined;
+          const referralCode = (document.getElementById('register-referral') as HTMLInputElement)?.value?.trim() || undefined;
           const res = await fetch('/api/auth/register', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username, password, guestId }),
+            body: JSON.stringify({ username, password, guestId, referralCode }),
           });
           const data = await res.json();
           if (!res.ok) {
@@ -6134,6 +6165,7 @@ class EldoriaClient {
 
           localStorage.setItem('eldoria_session_token', data.token);
           localStorage.removeItem('eldoria_guest_id');
+          localStorage.removeItem('eldoria_ref_code');
           this.player = data.player;
 
           modal?.classList.add('hidden');
@@ -6267,6 +6299,9 @@ class EldoriaClient {
           if (statusEl) statusEl.textContent = 'Persistent Registered Account';
           if (guestBox) guestBox.style.display = 'none';
           if (accountBox) accountBox.style.display = 'flex';
+
+          // Request latest referral summary
+          this.sendWs({ type: 'GET_REFERRAL_INFO' });
         }
 
         modal?.classList.remove('hidden');
@@ -6327,6 +6362,81 @@ class EldoriaClient {
           },
         });
       };
+    }
+
+    // Refer-a-Friend actions in Profile Modal
+    const btnRefCopy = document.getElementById('btn-ref-copy');
+    if (btnRefCopy) {
+      btnRefCopy.onclick = () => {
+        const urlInput = document.getElementById('ref-share-url') as HTMLInputElement | null;
+        if (urlInput && urlInput.value) {
+          navigator.clipboard.writeText(urlInput.value).then(() => {
+            this.showToast('📋 Referral link copied to clipboard!');
+          }).catch(() => {
+            urlInput.select();
+            document.execCommand('copy');
+            this.showToast('📋 Referral link copied!');
+          });
+        }
+      };
+    }
+
+    const btnRefClaim = document.getElementById('btn-ref-claim');
+    if (btnRefClaim) {
+      btnRefClaim.onclick = () => {
+        this.sendWs({ type: 'CLAIM_REFERRAL_REWARDS' });
+      };
+    }
+  }
+
+  private renderReferralUI(summary: any) {
+    if (!summary) return;
+
+    const urlInput = document.getElementById('ref-share-url') as HTMLInputElement | null;
+    if (urlInput) {
+      urlInput.value = summary.referralUrl || `https://eldoriaidle.site?ref=${encodeURIComponent(summary.referralCode || '')}`;
+    }
+
+    const statTotal = document.getElementById('ref-stat-total');
+    if (statTotal) statTotal.textContent = String(summary.totalReferred || 0);
+
+    const statQual = document.getElementById('ref-stat-qualified');
+    if (statQual) statQual.textContent = String(summary.qualifiedCount || 0);
+
+    const statUnclaimed = document.getElementById('ref-stat-unclaimed');
+    if (statUnclaimed) statUnclaimed.textContent = String(summary.unclaimedGems || 0);
+
+    const badgeTier = document.getElementById('ref-badge-tier');
+    if (badgeTier) {
+      const q = summary.qualifiedCount || 0;
+      if (q >= 5) {
+        badgeTier.textContent = 'AMBASSADOR';
+        badgeTier.style.color = '#ecc94b';
+        badgeTier.style.borderColor = '#ecc94b';
+      } else if (q >= 3) {
+        badgeTier.textContent = 'RECRUITER';
+        badgeTier.style.color = '#63b3ed';
+        badgeTier.style.borderColor = '#63b3ed';
+      } else if (q >= 1) {
+        badgeTier.textContent = 'HERALD';
+        badgeTier.style.color = '#68d391';
+        badgeTier.style.borderColor = '#68d391';
+      } else {
+        badgeTier.textContent = 'NOVICE';
+        badgeTier.style.color = '#a0aec0';
+        badgeTier.style.borderColor = '#718096';
+      }
+    }
+
+    const btnClaim = document.getElementById('btn-ref-claim');
+    const claimGemCount = document.getElementById('ref-claim-gem-count');
+    if (btnClaim && claimGemCount) {
+      if (summary.unclaimedGems > 0) {
+        claimGemCount.textContent = String(summary.unclaimedGems);
+        btnClaim.style.display = 'block';
+      } else {
+        btnClaim.style.display = 'none';
+      }
     }
   }
 

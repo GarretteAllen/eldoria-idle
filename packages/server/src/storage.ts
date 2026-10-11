@@ -67,6 +67,9 @@ export interface AccountRecord {
   salt: string;
   playerId: string;
   createdAt: number;
+  referredBy?: string | null; // normalized username or account id of inviter
+  referralRewardsClaimed?: number; // total gems claimed from referrals
+  referralTitlesClaimed?: string[]; // list of unlocked titles
 }
 
 export interface SessionRecord {
@@ -303,8 +306,8 @@ class StorageManager {
     this.stmtGetAccountByUsername = this.db.prepare('SELECT * FROM accounts WHERE normalized_username = ?');
     this.stmtGetAccountById = this.db.prepare('SELECT * FROM accounts WHERE id = ?');
     this.stmtInsertAccount = this.db.prepare(
-      `INSERT INTO accounts (id, username, normalized_username, password_hash, salt, player_id, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`
+      `INSERT INTO accounts (id, username, normalized_username, password_hash, salt, player_id, created_at, referred_by, referral_rewards_claimed, referral_titles_claimed)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     );
 
     this.stmtGetSession = this.db.prepare('SELECT * FROM sessions WHERE token = ?');
@@ -444,7 +447,10 @@ class StorageManager {
         password_hash TEXT NOT NULL,
         salt TEXT NOT NULL,
         player_id TEXT NOT NULL,
-        created_at INTEGER NOT NULL
+        created_at INTEGER NOT NULL,
+        referred_by TEXT,
+        referral_rewards_claimed INTEGER NOT NULL DEFAULT 0,
+        referral_titles_claimed TEXT NOT NULL DEFAULT '[]'
       );
 
       CREATE TABLE IF NOT EXISTS sessions (
@@ -570,6 +576,7 @@ class StorageManager {
       );
 
       CREATE INDEX IF NOT EXISTS idx_accounts_norm_user ON accounts(normalized_username);
+      CREATE INDEX IF NOT EXISTS idx_accounts_referred_by ON accounts(referred_by);
       CREATE INDEX IF NOT EXISTS idx_sessions_account ON sessions(account_id);
       CREATE INDEX IF NOT EXISTS idx_market_item ON market_listings(item_id);
       CREATE INDEX IF NOT EXISTS idx_market_seller ON market_listings(seller_id);
@@ -580,6 +587,17 @@ class StorageManager {
       CREATE INDEX IF NOT EXISTS idx_chat_messages_created ON chat_messages(created_at DESC);
       CREATE INDEX IF NOT EXISTS idx_dungeon_recoveries_player ON dungeon_recoveries(player_id);
     `);
+
+    // Safe column migrations for existing SQLite accounts table
+    try {
+      this.db.exec(`ALTER TABLE accounts ADD COLUMN referred_by TEXT;`);
+    } catch {}
+    try {
+      this.db.exec(`ALTER TABLE accounts ADD COLUMN referral_rewards_claimed INTEGER NOT NULL DEFAULT 0;`);
+    } catch {}
+    try {
+      this.db.exec(`ALTER TABLE accounts ADD COLUMN referral_titles_claimed TEXT NOT NULL DEFAULT '[]';`);
+    } catch {}
   }
 
   private migrateLegacyJson() {
@@ -1218,6 +1236,10 @@ class StorageManager {
     const norm = username.trim().toLowerCase();
     const row = this.stmtGetAccountByUsername.get(norm) as any;
     if (!row) return undefined;
+    let titles: string[] = [];
+    try {
+      titles = JSON.parse(row.referral_titles_claimed || '[]');
+    } catch {}
     return {
       id: row.id,
       username: row.username,
@@ -1226,12 +1248,19 @@ class StorageManager {
       salt: row.salt,
       playerId: row.player_id,
       createdAt: row.created_at,
+      referredBy: row.referred_by || null,
+      referralRewardsClaimed: row.referral_rewards_claimed || 0,
+      referralTitlesClaimed: titles,
     };
   }
 
   public getAccountById(id: string): AccountRecord | undefined {
     const row = this.stmtGetAccountById.get(id) as any;
     if (!row) return undefined;
+    let titles: string[] = [];
+    try {
+      titles = JSON.parse(row.referral_titles_claimed || '[]');
+    } catch {}
     return {
       id: row.id,
       username: row.username,
@@ -1240,6 +1269,9 @@ class StorageManager {
       salt: row.salt,
       playerId: row.player_id,
       createdAt: row.created_at,
+      referredBy: row.referred_by || null,
+      referralRewardsClaimed: row.referral_rewards_claimed || 0,
+      referralTitlesClaimed: titles,
     };
   }
 
@@ -1267,7 +1299,8 @@ class StorageManager {
   public registerAccount(
     rawUsername: string,
     rawPassword: string,
-    guestId?: string
+    guestId?: string,
+    rawReferralCode?: string
   ): { success: true; account: AccountRecord; player: PlayerData; token: string } | { success: false; error: string } {
     const username = (rawUsername || '').trim();
     if (username.length < 3 || username.length > 20) {
@@ -1282,6 +1315,18 @@ class StorageManager {
     }
     if (!rawPassword || rawPassword.length < 4) {
       return { success: false, error: 'Password must be at least 4 characters.' };
+    }
+
+    // Resolve referredBy inviter username (cannot refer yourself)
+    let referredByNorm: string | null = null;
+    if (rawReferralCode) {
+      const refClean = rawReferralCode.trim().toLowerCase();
+      if (refClean && refClean !== norm) {
+        const inviter = this.getAccountByUsername(refClean);
+        if (inviter) {
+          referredByNorm = inviter.normalizedUsername;
+        }
+      }
     }
 
     const { hash, salt } = this.hashPassword(rawPassword);
@@ -1313,6 +1358,9 @@ class StorageManager {
       salt,
       playerId: player.id,
       createdAt: Date.now(),
+      referredBy: referredByNorm,
+      referralRewardsClaimed: 0,
+      referralTitlesClaimed: [],
     };
 
     this.stmtInsertAccount.run(
@@ -1322,7 +1370,10 @@ class StorageManager {
       account.passwordHash,
       account.salt,
       account.playerId,
-      account.createdAt
+      account.createdAt,
+      account.referredBy,
+      account.referralRewardsClaimed || 0,
+      JSON.stringify(account.referralTitlesClaimed || [])
     );
 
     const token = this.createSession(account.id, player.id);
@@ -1358,6 +1409,112 @@ class StorageManager {
 
     const token = this.createSession(account.id, player.id);
     return { success: true, account, player, token };
+  }
+
+  public getAccountByPlayerId(playerId: string): AccountRecord | undefined {
+    const row = this.db.prepare('SELECT * FROM accounts WHERE player_id = ?').get(playerId) as any;
+    if (!row) return undefined;
+    let titles: string[] = [];
+    try {
+      titles = JSON.parse(row.referral_titles_claimed || '[]');
+    } catch {}
+    return {
+      id: row.id,
+      username: row.username,
+      normalizedUsername: row.normalized_username,
+      passwordHash: row.password_hash,
+      salt: row.salt,
+      playerId: row.player_id,
+      createdAt: row.created_at,
+      referredBy: row.referred_by || null,
+      referralRewardsClaimed: row.referral_rewards_claimed || 0,
+      referralTitlesClaimed: titles,
+    };
+  }
+
+  public getReferralSummary(account: AccountRecord): import('@eldoria/shared').ReferralSummary {
+    const norm = account.normalizedUsername;
+    const rows = this.db
+      .prepare('SELECT username, player_id, created_at FROM accounts WHERE referred_by = ? ORDER BY created_at DESC')
+      .all(norm) as Array<{ username: string; player_id: string; created_at: number }>;
+
+    let qualifiedCount = 0;
+    const referrals: Array<{ username: string; totalLevel: number; qualified: boolean; createdAt: number }> = [];
+
+    for (const r of rows) {
+      const p = this.getPlayer(r.player_id);
+      let totalLvl = 1;
+      if (p && p.skills) {
+        totalLvl = Object.values(p.skills).reduce((acc: number, s: any) => acc + (s.level || 1), 0);
+      }
+      const qualified = totalLvl >= 100;
+      if (qualified) qualifiedCount++;
+      referrals.push({
+        username: r.username,
+        totalLevel: totalLvl,
+        qualified,
+        createdAt: r.created_at,
+      });
+    }
+
+    // Calculate total earned gems according to ladder:
+    // 1 qualified -> 50 gems
+    // 3 qualified -> 50 + 150 = 200 gems
+    // 5 qualified -> 50 + 150 + 300 = 500 gems
+    // Each additional above 5 -> +50 gems each
+    let totalEarnableGems = 0;
+    if (qualifiedCount >= 1) totalEarnableGems += 50;
+    if (qualifiedCount >= 3) totalEarnableGems += 150;
+    if (qualifiedCount >= 5) totalEarnableGems += 300;
+    if (qualifiedCount > 5) {
+      totalEarnableGems += (qualifiedCount - 5) * 50;
+    }
+
+    const claimedGems = account.referralRewardsClaimed || 0;
+    const unclaimedGems = Math.max(0, totalEarnableGems - claimedGems);
+
+    return {
+      referralCode: account.username,
+      referralUrl: `https://eldoriaidle.site?ref=${encodeURIComponent(account.username)}`,
+      totalReferred: rows.length,
+      qualifiedCount,
+      claimedGems,
+      unclaimedGems,
+      claimedTitles: account.referralTitlesClaimed || [],
+      referrals,
+    };
+  }
+
+  public claimReferralRewards(account: AccountRecord): { gemsAwarded: number; newTitles: string[] } {
+    const summary = this.getReferralSummary(account);
+    const gemsAwarded = summary.unclaimedGems;
+    const newTitles: string[] = [];
+
+    const existingTitles = new Set(account.referralTitlesClaimed || []);
+    if (summary.qualifiedCount >= 1 && !existingTitles.has('Herald of Eldoria')) {
+      newTitles.push('Herald of Eldoria');
+      existingTitles.add('Herald of Eldoria');
+    }
+    if (summary.qualifiedCount >= 3 && !existingTitles.has('Vanguard Recruiter')) {
+      newTitles.push('Vanguard Recruiter');
+      existingTitles.add('Vanguard Recruiter');
+    }
+    if (summary.qualifiedCount >= 5 && !existingTitles.has('Realm Ambassador')) {
+      newTitles.push('Realm Ambassador');
+      existingTitles.add('Realm Ambassador');
+    }
+
+    const updatedClaimedGems = (account.referralRewardsClaimed || 0) + gemsAwarded;
+    const updatedTitlesList = Array.from(existingTitles);
+
+    account.referralRewardsClaimed = updatedClaimedGems;
+    account.referralTitlesClaimed = updatedTitlesList;
+
+    this.db
+      .prepare('UPDATE accounts SET referral_rewards_claimed = ?, referral_titles_claimed = ? WHERE id = ?')
+      .run(updatedClaimedGems, JSON.stringify(updatedTitlesList), account.id);
+
+    return { gemsAwarded, newTitles };
   }
 
   private syncJsonFile(filename: string, data: any) {

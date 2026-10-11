@@ -478,3 +478,38 @@ export interface DungeonRecoveryItem {
   timestamp: number;
 }
 
+// ==================== REFERRAL SYSTEM ====================
+export interface ReferralRewardTier {
+  requiredQualified: number;
+  gems: number;
+  title?: string;
+  cosmetic?: string;
+  badge: string;
+}
+
+export const REFERRAL_REWARD_TIERS: ReferralRewardTier[] = [
+  { requiredQualified: 1, gems: 50, title: 'Herald of Eldoria', badge: 'Herald' },
+  { requiredQualified: 3, gems: 150, title: 'Vanguard Recruiter', cosmetic: 'Golden Recruiter Pennant', badge: 'Recruiter' },
+  { requiredQualified: 5, gems: 300, title: 'Realm Ambassador', cosmetic: 'Ambassador Steed Cloak', badge: 'Ambassador' },
+];
+
+export const REFERRAL_REPEAT_INTERVAL = 1;
+export const REFERRAL_REPEAT_GEMS = 50;
+export const REFERRAL_QUALIFY_LEVEL = 100;
+
+export interface ReferralSummary {
+  referralCode: string; // usually the player's username
+  referralUrl: string; // e.g. https://eldoriaidle.site?ref=Username
+  totalReferred: number;
+  qualifiedCount: number; // reached total level 100
+  claimedGems: number;
+  unclaimedGems: number;
+  claimedTitles: string[];
+  referrals: Array<{
+    username: string;
+    totalLevel: number;
+    qualified: boolean;
+    createdAt: number;
+  }>;
+}
+

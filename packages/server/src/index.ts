@@ -81,8 +81,8 @@ app.post('/api/auth/guest', (req, res) => {
 });
 
 app.post('/api/auth/register', (req, res) => {
-  const { username, password, guestId } = req.body || {};
-  const result = storage.registerAccount(username, password, guestId);
+  const { username, password, guestId, referralCode } = req.body || {};
+  const result = storage.registerAccount(username, password, guestId, referralCode);
   if (!result.success) {
     res.status(400).json({ error: result.error });
     return;

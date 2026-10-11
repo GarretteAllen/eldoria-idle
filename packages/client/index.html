@@ -1589,6 +1589,16 @@
               <label>Confirm Password</label>
               <input type="password" id="register-password-confirm" placeholder="Confirm new password..." autocomplete="new-password" required />
             </div>
+            <div class="form-row" id="register-referral-row">
+              <label style="display:flex; justify-content:space-between; align-items:center;">
+                <span>Referral Code (Optional)</span>
+                <span id="register-referral-tag" style="color:var(--gold-bright); font-size:0.65rem; display:none;">✨ Friend Code Linked</span>
+              </label>
+              <input type="text" id="register-referral" placeholder="Inviter username (e.g. Arthur)" maxlength="20" autocomplete="off" />
+            </div>
+            <div id="register-referral-bonus-hint" style="font-size: 0.7rem; color: #68d391; background: rgba(72, 187, 120, 0.08); border: 1px solid rgba(72, 187, 120, 0.25); border-radius: 4px; padding: 6px 10px; line-height: 1.35; display: none; margin-bottom: 4px;">
+              🎁 <b>Invited Adventurer Perk:</b> Reach Total Level 100 to claim bonus Celestial Gems and your starter chat title!
+            </div>
             <button type="submit" id="btn-register-submit" class="btn-start" style="margin-top: 4px;">Create Account & Enter</button>
           </form>
 
@@ -1647,10 +1657,52 @@
             </div>
 
             <!-- Logged-In Account Controls -->
-            <div id="profile-account-box" style="display: none; flex-direction: column; gap: 6px;">
+            <div id="profile-account-box" style="display: none; flex-direction: column; gap: 8px;">
               <div style="font-size: 0.72rem; color: var(--gold-light); line-height: 1.35;">
                 Your character, bank storage, and skill levels are permanently saved to your account.
               </div>
+
+              <!-- Refer-a-Friend Card -->
+              <div style="background: rgba(0, 0, 0, 0.3); border: 1px solid var(--border-oak-light); border-radius: 4px; padding: 10px; display: flex; flex-direction: column; gap: 8px;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                  <span style="font-size: 0.78rem; font-weight: 800; color: var(--gold-bright); display: flex; align-items: center; gap: 5px;">
+                    🤝 Refer-a-Friend Program
+                  </span>
+                  <span id="ref-badge-tier" class="status-tag" style="font-size: 0.6rem; background: rgba(72,187,120,0.15); color: #68d391; border-color: #48bb78;">ACTIVE</span>
+                </div>
+
+                <div style="font-size: 0.68rem; color: var(--text-dim); line-height: 1.35;">
+                  Share your link with friends! When they reach <b>Total Level 100</b>, unlock Celestial Gems and exclusive chat titles (Herald, Recruiter, Ambassador)!
+                </div>
+
+                <!-- Share Link Box -->
+                <div style="display: flex; gap: 6px; align-items: center;">
+                  <input type="text" id="ref-share-url" readonly style="flex: 1; font-size: 0.7rem; background: rgba(0,0,0,0.5); border: 1px solid var(--border-oak); color: #cbd5e0; padding: 4px 8px; border-radius: 3px;" value="https://eldoriaidle.site?ref=..." />
+                  <button type="button" id="btn-ref-copy" class="btn-oak" style="font-size: 0.7rem; padding: 4px 8px; white-space: nowrap;">📋 Copy</button>
+                </div>
+
+                <!-- Referral Stats Grid -->
+                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; text-align: center; background: rgba(255,255,255,0.02); border-radius: 4px; padding: 6px 4px;">
+                  <div>
+                    <div style="font-size: 0.62rem; color: #a0aec0;">Invited</div>
+                    <div id="ref-stat-total" style="font-size: 0.82rem; font-weight: 800; color: #fff;">0</div>
+                  </div>
+                  <div>
+                    <div style="font-size: 0.62rem; color: #a0aec0;">Lvl 100+</div>
+                    <div id="ref-stat-qualified" style="font-size: 0.82rem; font-weight: 800; color: #68d391;">0</div>
+                  </div>
+                  <div>
+                    <div style="font-size: 0.62rem; color: #a0aec0;">Pending Gems</div>
+                    <div id="ref-stat-unclaimed" style="font-size: 0.82rem; font-weight: 800; color: var(--gold-bright);">0</div>
+                  </div>
+                </div>
+
+                <!-- Claim Button -->
+                <button type="button" id="btn-ref-claim" class="btn-start" style="width: 100%; font-size: 0.74rem; padding: 6px; display: none;">
+                  💎 Claim Referral Rewards (<span id="ref-claim-gem-count">0</span> Gems)
+                </button>
+              </div>
+
               <button type="button" id="btn-account-logout" class="btn-stop" style="width: 100%;">Log Out of Character</button>
             </div>
           </div>
