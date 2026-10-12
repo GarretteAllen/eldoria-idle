@@ -67,8 +67,11 @@
      - `steed_courser`: Col 8, Row 0, 27×23 px.
      - `steed_chicken` (Rooster Strider): Col 11, Row 0, 24×22 px (uses custom foot alignment without horse stirrups).
 4. **Chitin Equipment Status**:
-   - Currently, only `chitin_quiver` (Col 6, Row 7) has a paperdoll sprite.
-   - `chitin_cowl`, `chitin_vest`, and `chitin_chaps` currently lack paperdoll coordinates in `playerEquipmentSprites.ts` (they exist as stats/recipes/items, but are invisible on character models until sprite coordinates are mapped).
+   - Fully mapped in `playerEquipmentSprites.ts`:
+     - `chitin_cowl`: Col 7, Row 3 (`helmet`)
+     - `chitin_vest`: Col 9, Row 2 (`body`)
+     - `chitin_chaps`: Col 8, Row 2 (`legs`)
+     - `chitin_quiver`: Col 6, Row 7 (`shield`)
 
 ---
 
