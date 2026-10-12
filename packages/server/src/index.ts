@@ -87,6 +87,7 @@ app.post('/api/auth/register', (req, res) => {
     res.status(400).json({ error: result.error });
     return;
   }
+  gameEngine.onPlayerAccountBound(result.player);
   res.json({
     token: result.token,
     player: result.player,
@@ -106,6 +107,7 @@ app.post('/api/auth/login', (req, res) => {
     res.status(400).json({ error: result.error });
     return;
   }
+  gameEngine.onPlayerAccountBound(result.player);
   res.json({
     token: result.token,
     player: result.player,

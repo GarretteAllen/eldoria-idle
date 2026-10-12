@@ -544,6 +544,17 @@ export class GameEngine {
     return this.sessions.get(playerId);
   }
 
+  public onPlayerAccountBound(player: PlayerData) {
+    const session = this.sessions.get(player.id);
+    if (session) {
+      session.player.username = player.username;
+      session.player.isGuest = false;
+      session.player.role = player.role;
+      this.send(session.ws, { type: 'PLAYER_UPDATE', player: session.player });
+      this.broadcastWorldState();
+    }
+  }
+
   public shutdown() {
     console.log(`[Save] Saving ${this.sessions.size} active player session(s)...`);
     for (const session of this.sessions.values()) {

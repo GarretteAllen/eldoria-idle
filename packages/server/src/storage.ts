@@ -1441,6 +1441,9 @@ class StorageManager {
       player = this.createPersistentPlayer(account.username);
       account.playerId = player.id;
       this.db.prepare('UPDATE accounts SET player_id = ? WHERE id = ?').run(player.id, account.id);
+    } else {
+      player.username = account.username;
+      player.isGuest = false;
     }
 
     if (this.isAdminUsername(account.username)) {

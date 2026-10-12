@@ -853,15 +853,6 @@ class EldoriaClient {
     };
   }
 
-  private reconnectWs() {
-    if (this.ws) {
-      try {
-        this.ws.close();
-      } catch {}
-    }
-    this.connectWs();
-  }
-
   private handleServerMessage(msg: any) {
     switch (msg.type) {
       case 'INIT':
@@ -6152,9 +6143,10 @@ class EldoriaClient {
           this.player = data.player;
 
           modal?.classList.add('hidden');
-          this.reconnectWs();
-          this.updateUI();
           this.showToast(`Welcome back, ${data.player.username}.`);
+          setTimeout(() => {
+            window.location.reload();
+          }, 300);
         } catch (err) {
           showError('Network error while logging in.');
         }
@@ -6193,9 +6185,10 @@ class EldoriaClient {
           this.player = data.player;
 
           modal?.classList.add('hidden');
-          this.reconnectWs();
-          this.updateUI();
           this.showToast(`Account created. Welcome to Eldoria, ${data.player.username}.`);
+          setTimeout(() => {
+            window.location.reload();
+          }, 300);
         } catch (err) {
           showError('Network error while creating account.');
         }
