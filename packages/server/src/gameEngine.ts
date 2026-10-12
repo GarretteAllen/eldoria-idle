@@ -2032,13 +2032,12 @@ export class GameEngine {
     if (
       typeof indexA !== 'number' ||
       typeof indexB !== 'number' ||
-      (locA === locB && indexA === indexB) ||
       indexA < 0 ||
       indexA >= sourceA.length ||
       indexB < 0 ||
       indexB >= sourceB.length
     ) {
-      this.send(ws, { type: 'NOTIFICATION', message: 'Select two distinct mounts to breed.' });
+      this.send(ws, { type: 'NOTIFICATION', message: 'Select valid mounts to breed.' });
       return;
     }
 
@@ -2047,6 +2046,14 @@ export class GameEngine {
     if (!slotA || !slotB) {
       this.send(ws, { type: 'NOTIFICATION', message: 'Invalid mount slots.' });
       return;
+    }
+
+    // If breeding from the exact same slot, ensure that slot has a stack of at least 2 mounts
+    if (locA === locB && indexA === indexB) {
+      if ((slotA.quantity || 1) < 2) {
+        this.send(ws, { type: 'NOTIFICATION', message: 'You need at least 2 mounts in that stack to breed together.' });
+        return;
+      }
     }
 
     const defA = storage.getItem(slotA.itemId) || ITEMS[slotA.itemId];
@@ -2081,14 +2088,36 @@ export class GameEngine {
     const offspringSpecies = getOffspringSpecies(slotA.itemId, slotB.itemId);
     const offspringDef = storage.getItem(offspringSpecies) || ITEMS[offspringSpecies];
 
-    // Safely remove both parents from their respective arrays
-    if (locA === locB) {
-      const sortedIndices = [indexA, indexB].sort((a, b) => b - a);
-      sourceA.splice(sortedIndices[0], 1);
-      sourceA.splice(sortedIndices[1], 1);
+    // Safely consume exactly 1 mount from each parent
+    if (locA === locB && indexA === indexB) {
+      // Both parents come from the same stack
+      slotA.quantity = (slotA.quantity || 1) - 2;
+      if (slotA.quantity <= 0) {
+        sourceA.splice(indexA, 1);
+      }
     } else {
-      sourceA.splice(indexA, 1);
-      sourceB.splice(indexB, 1);
+      // Parent A and Parent B are in different slots (or different containers)
+      // Consume 1 from slotA
+      slotA.quantity = (slotA.quantity || 1) - 1;
+      // Consume 1 from slotB
+      slotB.quantity = (slotB.quantity || 1) - 1;
+
+      if (locA === locB) {
+        // Remove empty slots in descending index order to preserve indexing
+        const sortedIndices = [indexA, indexB].sort((a, b) => b - a);
+        for (const idx of sortedIndices) {
+          if (sourceA[idx] && (sourceA[idx].quantity || 0) <= 0) {
+            sourceA.splice(idx, 1);
+          }
+        }
+      } else {
+        if (slotA.quantity <= 0) {
+          sourceA.splice(indexA, 1);
+        }
+        if (slotB.quantity <= 0) {
+          sourceB.splice(indexB, 1);
+        }
+      }
     }
 
     // Add offspring mount to the origin of Parent A (if storage, place in storage, else inventory)

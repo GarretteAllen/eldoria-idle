@@ -10600,9 +10600,11 @@ class EldoriaClient {
 
     // Search Satchel
     for (let i = 0; i < this.player.inventory.length; i++) {
-      if (this.breedingParentALoc === 'inventory' && i === this.breedingParentAIndex) continue;
       const slot = this.player.inventory[i];
       if (!slot) continue;
+      const isParentASlot = this.breedingParentALoc === 'inventory' && i === this.breedingParentAIndex;
+      if (isParentASlot && (slot.quantity || 1) < 2) continue;
+
       const def = ITEMS[slot.itemId];
       if (def && def.category === 'steed') {
         partnerCandidates.push({ index: i, loc: 'inventory', slot, def });
@@ -10611,9 +10613,11 @@ class EldoriaClient {
 
     // Search Vault
     for (let i = 0; i < this.player.storage.length; i++) {
-      if (this.breedingParentALoc === 'storage' && i === this.breedingParentAIndex) continue;
       const slot = this.player.storage[i];
       if (!slot) continue;
+      const isParentASlot = this.breedingParentALoc === 'storage' && i === this.breedingParentAIndex;
+      if (isParentASlot && (slot.quantity || 1) < 2) continue;
+
       const def = ITEMS[slot.itemId];
       if (def && def.category === 'steed') {
         partnerCandidates.push({ index: i, loc: 'storage', slot, def });
@@ -10657,16 +10661,24 @@ class EldoriaClient {
         ? '<span style="font-size: 0.65rem; color: #63b3ed; background: rgba(99,179,237,0.15); padding: 1px 4px; border-radius: 3px; margin-left: 6px;">Vault</span>'
         : '<span style="font-size: 0.65rem; color: #68d391; background: rgba(104,211,145,0.15); padding: 1px 4px; border-radius: 3px; margin-left: 6px;">Bag</span>';
 
+      const isSameStack = this.breedingParentALoc === loc && this.breedingParentAIndex === index;
+      const stackBadge = (slot.quantity || 1) > 1
+        ? `<span style="font-size: 0.65rem; color: #fbd38d; background: rgba(237,137,54,0.18); padding: 1px 4px; border-radius: 3px; margin-left: 4px;">x${slot.quantity}</span>`
+        : '';
+      const sameStackTag = isSameStack
+        ? '<span style="font-size: 0.62rem; color: #ecc94b; margin-left: 4px;">(Same Stack)</span>'
+        : '';
+
       itemBtn.innerHTML = `
         <div style="width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
           ${getItemIconSvg(slot.itemId, def.category)}
         </div>
         <div style="flex: 1; min-width: 0;">
           <div style="font-size: 0.78rem; font-weight: 700; color: ${rColor}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center;">
-            ${def.name} ${locBadge}
+            ${def.name} ${locBadge} ${stackBadge}
           </div>
           <div style="font-size: 0.68rem; color: #a0aec0; text-transform: uppercase;">
-            ${slot.rarity || 'plain'} tier
+            ${slot.rarity || 'plain'} tier ${sameStackTag}
           </div>
         </div>
         <div style="font-size: 0.72rem; font-weight: 700; color: ${isSelected ? 'var(--gold-bright)' : '#a0aec0'};">
