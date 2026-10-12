@@ -66,6 +66,7 @@
    - Configured in `packages/shared/src/playerEquipmentSprites.ts`:
      - `steed_courser`: Col 8, Row 0, 27×23 px.
      - `steed_chicken` (Rooster Strider): Col 11, Row 0, 24×22 px (uses custom foot alignment without horse stirrups).
+     - `steed_chorse` (Chorse): Col 13, Row 0, 27×23 px (hybrid chicken + horse mount, crafted via 1x `steed_courser` + 1x `steed_chicken`).
 4. **Chitin Equipment Status**:
    - Fully mapped in `playerEquipmentSprites.ts`:
      - `chitin_cowl`: Col 7, Row 3 (`helmet`)
