@@ -4404,6 +4404,11 @@ class EldoriaClient {
               return;
             }
 
+            if (def?.category === 'pet' || slot.itemId.startsWith('pet_')) {
+              this.showToast('Pets are untradeable on the player market. You can sell extra pets directly to the Town Merchant.');
+              return;
+            }
+
             const promptForPrice = (sellQty: number) => {
               const defaultUnitPrice = Math.max(1, Math.floor((def?.vendorFloorPrice || 2) * 1.5));
               this.showInGamePrompt({
@@ -6691,7 +6696,8 @@ class EldoriaClient {
 
     const mktBtn = document.getElementById('storage-ctx-btn-list-market');
     if (mktBtn) {
-      mktBtn.style.display = slot.itemId === 'gold' ? 'none' : 'flex';
+      const isUntradeable = slot.itemId === 'gold' || def.category === 'pet' || slot.itemId.startsWith('pet_');
+      mktBtn.style.display = isUntradeable ? 'none' : 'flex';
     }
 
     // Position menu adjacent to the clicked slot
@@ -6908,6 +6914,12 @@ class EldoriaClient {
           }
 
           const def = ITEMS[slot.itemId];
+          if (def?.category === 'pet' || slot.itemId.startsWith('pet_')) {
+            this.showToast('Pets are untradeable on the player market. You can sell extra pets directly to the Town Merchant.');
+            storageMenu.classList.add('hidden');
+            this.selectedStorageIndex = null;
+            return;
+          }
           const promptForPrice = (sellQty: number) => {
             const defaultUnitPrice = Math.max(1, Math.floor((def?.vendorFloorPrice || 2) * 1.5));
             this.showInGamePrompt({

@@ -184,6 +184,7 @@
   - Sits and trails ~0.85 tiles behind the player with smooth interpolation and cute idle/run bounce.
   - Mini overhead gold nameplate.
   - Duplicate Protection: If a player already possesses the companion, duplicate drops will notify the player privately (*"You have a funny feeling like you would have been followed..."*) without spamming duplicate items into inventory.
+  - **Market & Trade Rules**: Pets are strictly untradeable on the player-to-player marketplace (`category === 'pet'`). Extra pets can only be sold directly to the Town Merchant / Hearth Counter for their `vendorFloorPrice` (25,000g - 50,000g).
 - **Realm Broadcast**:
   - Drops trigger a server-wide announcement in All chat: `"🎉 [Player] has a funny feeling like something is following them: [Pet Name]!"`.
 

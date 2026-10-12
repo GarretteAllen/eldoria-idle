@@ -2714,6 +2714,12 @@ export class GameEngine {
       return;
     }
 
+    const itemDef = ITEMS[slot.itemId];
+    if (itemDef?.category === 'pet' || slot.itemId.startsWith('pet_')) {
+      this.send(ws, { type: 'NOTIFICATION', message: 'Pets are untradeable on the player market. You can sell extra pets directly to the Town Merchant.' });
+      return;
+    }
+
     const safeQty = Math.floor(quantity);
     if (!Number.isFinite(safeQty) || safeQty <= 0) {
       this.send(ws, { type: 'NOTIFICATION', message: 'Quantity must be greater than zero.' });
@@ -2765,8 +2771,8 @@ export class GameEngine {
     storage.savePlayer(player);
     storage.checkpoint();
 
-    const itemDef = storage.getItem(itemId) || ITEMS[itemId];
-    const itemName = itemDef?.name || itemId;
+    const resolvedDef = storage.getItem(itemId) || itemDef;
+    const itemName = resolvedDef?.name || itemId;
 
     this.send(ws, {
       type: 'NOTIFICATION',
