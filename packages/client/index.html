@@ -633,6 +633,7 @@
           <button id="ctx-btn-deposit-x" class="ctx-menu-item">Deposit X...</button>
           <button id="ctx-btn-deposit-all" class="ctx-menu-item">Deposit all</button>
           <button id="ctx-btn-equip" class="ctx-menu-item">Equip</button>
+          <button id="ctx-btn-breed" class="ctx-menu-item" style="color: var(--gold-bright);">Breed Mount...</button>
           <button id="ctx-btn-eat" class="ctx-menu-item">Eat Food</button>
         </div>
       </div>
@@ -825,6 +826,88 @@
             <div style="font-size: 0.72rem; color: #a0aec0; text-align: center;">
               Items remain safely held until claimed into your bag.
             </div>
+          </div>
+        </div>
+      <!-- MOUNT BREEDING PADDOCK MODAL -->
+      <div id="mount-breed-modal" class="modal-backdrop hidden" style="z-index: 2200;">
+        <div class="modal-box dark-oak-panel" style="width: 520px; max-height: 85vh; display: flex; flex-direction: column;">
+          <div class="dungeon-modal-header">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span style="font-size: 1.5rem;">🐎</span>
+              <div>
+                <h3 style="margin: 0; font-size: 1.15rem; color: #ffd699;">Mount Breeding</h3>
+                <span style="font-size: 0.72rem; color: #a0aec0;">Combine two steeds to breed new species &amp; higher rarity tiers</span>
+              </div>
+            </div>
+            <button id="btn-close-mount-breed-modal" class="icon-btn-micro" title="Close">✕</button>
+          </div>
+
+          <div style="margin-top: 12px; overflow-y: auto; padding-right: 4px; display: flex; flex-direction: column; gap: 12px;">
+            <!-- Breeding Chamber Display -->
+            <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.35); border: 1px solid var(--border-oak-light); border-radius: 6px; padding: 12px 16px;">
+              <!-- Parent A -->
+              <div style="display: flex; flex-direction: column; align-items: center; gap: 6px; flex: 1;">
+                <div style="font-size: 0.72rem; font-weight: 700; color: #a0aec0; text-transform: uppercase;">Parent 1</div>
+                <div id="breed-parent-a-slot" style="width: 48px; height: 48px; background: rgba(0,0,0,0.4); border: 2px solid var(--border-oak); border-radius: 6px; display: flex; align-items: center; justify-content: center; position: relative;">
+                  <img id="breed-parent-a-icon" src="" style="width: 32px; height: 32px; image-rendering: pixelated; display: none;" />
+                </div>
+                <div id="breed-parent-a-name" style="font-size: 0.75rem; font-weight: 700; text-align: center; color: #fff;">-</div>
+              </div>
+
+              <!-- Plus Icon / Heart -->
+              <div style="font-size: 1.4rem; color: var(--gold-bright); font-weight: 800; padding: 0 8px;">+</div>
+
+              <!-- Parent B -->
+              <div style="display: flex; flex-direction: column; align-items: center; gap: 6px; flex: 1;">
+                <div style="font-size: 0.72rem; font-weight: 700; color: #a0aec0; text-transform: uppercase;">Parent 2</div>
+                <div id="breed-parent-b-slot" style="width: 48px; height: 48px; background: rgba(0,0,0,0.4); border: 2px solid var(--border-oak); border-radius: 6px; display: flex; align-items: center; justify-content: center; position: relative;">
+                  <img id="breed-parent-b-icon" src="" style="width: 32px; height: 32px; image-rendering: pixelated; display: none;" />
+                </div>
+                <div id="breed-parent-b-name" style="font-size: 0.75rem; font-weight: 700; text-align: center; color: #fff;">-</div>
+              </div>
+
+              <!-- Arrow -->
+              <div style="font-size: 1.4rem; color: var(--gold-bright); font-weight: 800; padding: 0 8px;">➔</div>
+
+              <!-- Offspring Preview -->
+              <div style="display: flex; flex-direction: column; align-items: center; gap: 6px; flex: 1;">
+                <div style="font-size: 0.72rem; font-weight: 700; color: #a0aec0; text-transform: uppercase;">Offspring</div>
+                <div id="breed-offspring-slot" style="width: 48px; height: 48px; background: rgba(212,175,55,0.1); border: 2px solid var(--gold-bright); border-radius: 6px; display: flex; align-items: center; justify-content: center; position: relative;">
+                  <img id="breed-offspring-icon" src="" style="width: 32px; height: 32px; image-rendering: pixelated; display: none;" />
+                </div>
+                <div id="breed-offspring-name" style="font-size: 0.75rem; font-weight: 700; text-align: center; color: var(--gold-bright);">-</div>
+              </div>
+            </div>
+
+            <!-- Odds and Fee Info Card -->
+            <div id="breed-info-card" style="background: rgba(255,255,255,0.03); border: 1px solid var(--border-oak); border-radius: 6px; padding: 10px 14px; font-size: 0.76rem; display: flex; flex-direction: column; gap: 6px;">
+              <div style="display: flex; justify-content: space-between;">
+                <span style="color: #a0aec0;">Guaranteed Base Rarity:</span>
+                <strong id="breed-base-rarity" style="color: #fff;">-</strong>
+              </div>
+              <div style="display: flex; justify-content: space-between;">
+                <span style="color: #a0aec0;">Tier Mutation Chance:</span>
+                <strong style="color: #68d391;">5.0% (+1 Rarity Tier)</strong>
+              </div>
+              <div style="display: flex; justify-content: space-between; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 4px;">
+                <span style="color: #a0aec0;">Breeding Fee:</span>
+                <strong id="breed-gold-fee" style="color: var(--gold-bright);">0 Gold</strong>
+              </div>
+            </div>
+
+            <!-- Select Partner Mount List -->
+            <div>
+              <div style="font-size: 0.78rem; font-weight: 700; color: var(--gold-light); margin-bottom: 6px;">
+                Select Partner Mount from Satchel:
+              </div>
+              <div id="breed-partner-list" style="display: flex; flex-direction: column; gap: 6px; max-height: 160px; overflow-y: auto; background: rgba(0,0,0,0.25); border: 1px solid var(--border-oak); border-radius: 4px; padding: 6px;">
+                <!-- Injected mount options -->
+              </div>
+            </div>
+
+            <button type="button" id="btn-submit-breed" class="btn-start" style="width: 100%; padding: 10px; font-size: 0.88rem; font-weight: 800;" disabled>
+              Breed Mounts
+            </button>
           </div>
         </div>
       </div>

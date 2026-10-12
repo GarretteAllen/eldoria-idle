@@ -31,6 +31,9 @@ import {
   DUNGEONS,
   DungeonParty,
   DungeonRecoveryItem,
+  MOUNT_BREED_CONFIG,
+  getOffspringSpecies,
+  RARITY_TIER_INDEX,
 } from '@eldoria/shared';
 import { WorldRenderer, WorldNodeDisplay, TILE_SIZE } from './canvas.js';
 import { loadLdtkWorld } from './ldtkLoader.js';
@@ -177,6 +180,10 @@ class EldoriaClient {
   private dungeonRecoveries: DungeonRecoveryItem[] = [];
   private spoilsCountdownTimer: any = null;
 
+  // Mount Breeding State
+  private breedingParentAIndex: number | null = null;
+  private breedingParentBIndex: number | null = null;
+
   constructor() {
     const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
     this.renderer = new WorldRenderer(canvas);
@@ -205,6 +212,7 @@ class EldoriaClient {
     this.setupItemTooltips();
     this.setupAfkSystem();
     this.setupDungeonSystem();
+    this.setupMountBreeding();
 
     // On mobile devices, start with drawers closed and HUD compact so the world canvas is immediately playable
     if (window.innerWidth <= 768) {
@@ -1398,6 +1406,18 @@ class EldoriaClient {
       case 'REFERRAL_INFO_RESPONSE':
         this.renderReferralUI(msg.summary);
         break;
+
+      case 'MOUNT_BREED_SUCCESS': {
+        this.closeMountBreedModal();
+        if (msg.didUpgrade) {
+          sound.play('levelup');
+          this.showToast(`✨ Rare Mutation Success! Offspring upgraded to ${(msg.offspring?.rarity || 'higher').toUpperCase()} tier!`, true);
+        } else {
+          sound.play('ding');
+          this.showToast(`🐎 Successfully bred mount (${msg.offspring?.rarity || 'plain'})!`, true);
+        }
+        break;
+      }
     }
   }
 
@@ -4737,6 +4757,19 @@ class EldoriaClient {
       };
     }
 
+    const ctxBtnBreed = document.getElementById('ctx-btn-breed');
+    if (ctxBtnBreed && ctxMenu) {
+      ctxBtnBreed.onclick = () => {
+        if (this.selectedInventoryIndex !== null) {
+          const slot = this.player?.inventory[this.selectedInventoryIndex];
+          if (slot && ITEMS[slot.itemId]?.category === 'steed') {
+            ctxMenu.classList.add('hidden');
+            this.openMountBreedModal(this.selectedInventoryIndex);
+          }
+        }
+      };
+    }
+
     this.setupStorageContextMenu();
 
     const topLogoutBtn = document.getElementById('btn-top-logout');
@@ -6518,6 +6551,11 @@ class EldoriaClient {
         }
         equipBtn.textContent = `Equip (${slotName})`;
       }
+    }
+
+    const breedBtn = document.getElementById('ctx-btn-breed');
+    if (breedBtn) {
+      breedBtn.style.display = def.category === 'steed' ? 'flex' : 'none';
     }
 
     const eatBtn = document.getElementById('ctx-btn-eat');
@@ -10394,6 +10432,261 @@ class EldoriaClient {
 
       listEl.appendChild(card);
     }
+  }
+
+  // --- MOUNT BREEDING SYSTEM ---
+  private setupMountBreeding() {
+    const closeBtn = document.getElementById('btn-close-mount-breed-modal');
+    if (closeBtn) {
+      closeBtn.onclick = () => this.closeMountBreedModal();
+    }
+
+    const modal = document.getElementById('mount-breed-modal');
+    if (modal) {
+      modal.onclick = (e) => {
+        if (e.target === modal) this.closeMountBreedModal();
+      };
+    }
+
+    const submitBtn = document.getElementById('btn-submit-breed');
+    if (submitBtn) {
+      submitBtn.onclick = () => {
+        if (this.breedingParentAIndex === null || this.breedingParentBIndex === null) return;
+        sound.play('coin');
+        this.sendWs({
+          type: 'BREED_MOUNTS',
+          indexA: this.breedingParentAIndex,
+          indexB: this.breedingParentBIndex,
+        });
+      };
+    }
+  }
+
+  public openMountBreedModal(parentAIndex: number) {
+    if (!this.player) return;
+    const slotA = this.player.inventory[parentAIndex];
+    if (!slotA) return;
+    const defA = ITEMS[slotA.itemId];
+    if (!defA || defA.category !== 'steed') return;
+
+    this.breedingParentAIndex = parentAIndex;
+    this.breedingParentBIndex = null;
+
+    const modal = document.getElementById('mount-breed-modal');
+    if (!modal) return;
+    modal.classList.remove('hidden');
+
+    // Populate Parent 1 Slot
+    const slotAEl = document.getElementById('breed-parent-a-slot');
+    const nameAEl = document.getElementById('breed-parent-a-name');
+    const rarityColA = slotA.rarity === 'legendary' ? '#f59e0b' :
+                       slotA.rarity === 'epic' ? '#a855f7' :
+                       slotA.rarity === 'rare' ? '#3b82f6' :
+                       slotA.rarity === 'uncommon' ? '#22c55e' : '#ffd700';
+    if (slotAEl) {
+      slotAEl.innerHTML = getItemIconSvg(slotA.itemId, defA.category);
+      slotAEl.style.borderColor = rarityColA;
+    }
+    if (nameAEl) {
+      nameAEl.textContent = `${defA.name} (${slotA.rarity || 'plain'})`;
+      nameAEl.style.color = rarityColA;
+    }
+
+    // Reset Parent 2 Slot
+    const slotBEl = document.getElementById('breed-parent-b-slot');
+    const nameBEl = document.getElementById('breed-parent-b-name');
+    if (slotBEl) {
+      slotBEl.innerHTML = '<span style="font-size: 1.5rem; color: #4a5568;">?</span>';
+      slotBEl.style.borderColor = 'var(--border-oak)';
+    }
+    if (nameBEl) {
+      nameBEl.textContent = 'None Selected';
+      nameBEl.style.color = '#a0aec0';
+    }
+
+    // Reset Offspring Slot
+    const offspringSlotEl = document.getElementById('breed-offspring-slot');
+    const offspringNameEl = document.getElementById('breed-offspring-name');
+    if (offspringSlotEl) {
+      offspringSlotEl.innerHTML = '<span style="font-size: 1.5rem; color: #4a5568;">?</span>';
+      offspringSlotEl.style.borderColor = 'var(--gold-bright)';
+    }
+    if (offspringNameEl) {
+      offspringNameEl.textContent = '-';
+      offspringNameEl.style.color = 'var(--gold-bright)';
+    }
+
+    // Reset fee and submit button
+    const feeEl = document.getElementById('breed-gold-fee');
+    if (feeEl) feeEl.textContent = '0 Gold';
+    const baseRarityEl = document.getElementById('breed-base-rarity');
+    if (baseRarityEl) baseRarityEl.textContent = '-';
+    const submitBtn = document.getElementById('btn-submit-breed') as HTMLButtonElement | null;
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Select Partner Mount';
+    }
+
+    // Populate Partner List from Satchel
+    this.renderBreedPartnerList();
+  }
+
+  private renderBreedPartnerList() {
+    const listEl = document.getElementById('breed-partner-list');
+    if (!listEl || !this.player) return;
+    listEl.innerHTML = '';
+
+    const partnerCandidates: { index: number; slot: any; def: any }[] = [];
+    for (let i = 0; i < this.player.inventory.length; i++) {
+      if (i === this.breedingParentAIndex) continue;
+      const slot = this.player.inventory[i];
+      if (!slot) continue;
+      const def = ITEMS[slot.itemId];
+      if (def && def.category === 'steed') {
+        partnerCandidates.push({ index: i, slot, def });
+      }
+    }
+
+    if (partnerCandidates.length === 0) {
+      listEl.innerHTML = `
+        <div style="padding: 12px; text-align: center; color: #a0aec0; font-size: 0.78rem;">
+          No other steeds found in satchel.<br/>
+          <span style="font-size: 0.72rem; color: #718096;">You need at least 2 mounts in your inventory to breed.</span>
+        </div>
+      `;
+      return;
+    }
+
+    partnerCandidates.forEach(({ index, slot, def }) => {
+      const itemBtn = document.createElement('button');
+      itemBtn.type = 'button';
+      const isSelected = this.breedingParentBIndex === index;
+      const rColor = slot.rarity === 'legendary' ? '#f59e0b' :
+                     slot.rarity === 'epic' ? '#a855f7' :
+                     slot.rarity === 'rare' ? '#3b82f6' :
+                     slot.rarity === 'uncommon' ? '#22c55e' : '#ffd700';
+
+      itemBtn.style.cssText = `
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 6px 10px;
+        background: ${isSelected ? 'rgba(212, 175, 55, 0.2)' : 'rgba(255, 255, 255, 0.04)'};
+        border: 1px solid ${isSelected ? 'var(--gold-bright)' : 'var(--border-oak)'};
+        border-radius: 4px;
+        cursor: pointer;
+        text-align: left;
+        width: 100%;
+        transition: background 0.15s;
+      `;
+
+      itemBtn.innerHTML = `
+        <div style="width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+          ${getItemIconSvg(slot.itemId, def.category)}
+        </div>
+        <div style="flex: 1; min-width: 0;">
+          <div style="font-size: 0.78rem; font-weight: 700; color: ${rColor}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+            ${def.name}
+          </div>
+          <div style="font-size: 0.68rem; color: #a0aec0; text-transform: uppercase;">
+            ${slot.rarity || 'plain'} tier
+          </div>
+        </div>
+        <div style="font-size: 0.72rem; font-weight: 700; color: ${isSelected ? 'var(--gold-bright)' : '#a0aec0'};">
+          ${isSelected ? 'Selected ✓' : 'Choose'}
+        </div>
+      `;
+
+      itemBtn.onclick = () => {
+        this.breedingParentBIndex = index;
+        this.renderBreedPartnerList();
+        this.updateMountBreedPreview();
+      };
+
+      listEl.appendChild(itemBtn);
+    });
+  }
+
+  private updateMountBreedPreview() {
+    if (!this.player || this.breedingParentAIndex === null || this.breedingParentBIndex === null) return;
+    const slotA = this.player.inventory[this.breedingParentAIndex];
+    const slotB = this.player.inventory[this.breedingParentBIndex];
+    if (!slotA || !slotB) return;
+    const defA = ITEMS[slotA.itemId];
+    const defB = ITEMS[slotB.itemId];
+    if (!defA || !defB) return;
+
+    // Update Parent B slot
+    const slotBEl = document.getElementById('breed-parent-b-slot');
+    const nameBEl = document.getElementById('breed-parent-b-name');
+    const rarityColB = slotB.rarity === 'legendary' ? '#f59e0b' :
+                       slotB.rarity === 'epic' ? '#a855f7' :
+                       slotB.rarity === 'rare' ? '#3b82f6' :
+                       slotB.rarity === 'uncommon' ? '#22c55e' : '#ffd700';
+    if (slotBEl) {
+      slotBEl.innerHTML = getItemIconSvg(slotB.itemId, defB.category);
+      slotBEl.style.borderColor = rarityColB;
+    }
+    if (nameBEl) {
+      nameBEl.textContent = `${defB.name} (${slotB.rarity || 'plain'})`;
+      nameBEl.style.color = rarityColB;
+    }
+
+    // Determine Offspring species & base rarity
+    const offspringSpecies = getOffspringSpecies(slotA.itemId, slotB.itemId);
+    const offspringDef = ITEMS[offspringSpecies] || defA;
+
+    const indexA = RARITY_TIER_INDEX[slotA.rarity || 'plain'] ?? 0;
+    const indexB = RARITY_TIER_INDEX[slotB.rarity || 'plain'] ?? 0;
+    const baseIndex = Math.min(indexA, indexB);
+    const baseRarities = ['plain', 'uncommon', 'rare', 'epic', 'legendary'];
+    const guaranteedBaseRarity = baseRarities[baseIndex] || 'plain';
+
+    // Fee calculation
+    const multA = MOUNT_BREED_CONFIG.TIER_FEE_MULTIPLIER[slotA.rarity || 'plain'] || 1;
+    const multB = MOUNT_BREED_CONFIG.TIER_FEE_MULTIPLIER[slotB.rarity || 'plain'] || 1;
+    const feeMult = Math.max(multA, multB);
+    const goldFee = MOUNT_BREED_CONFIG.BASE_FEE_GOLD * feeMult;
+
+    // Offspring preview display
+    const offspringSlotEl = document.getElementById('breed-offspring-slot');
+    const offspringNameEl = document.getElementById('breed-offspring-name');
+    if (offspringSlotEl) {
+      offspringSlotEl.innerHTML = getItemIconSvg(offspringSpecies, offspringDef?.category);
+    }
+    if (offspringNameEl) {
+      offspringNameEl.textContent = offspringDef.name;
+    }
+
+    const baseRarityEl = document.getElementById('breed-base-rarity');
+    if (baseRarityEl) {
+      baseRarityEl.textContent = `${guaranteedBaseRarity.toUpperCase()} (Base)`;
+    }
+
+    const feeEl = document.getElementById('breed-gold-fee');
+    if (feeEl) {
+      feeEl.textContent = `${goldFee.toLocaleString()} Gold`;
+    }
+
+    // Check if player has enough gold
+    const hasEnoughGold = (this.player.gold || 0) >= goldFee;
+    const submitBtn = document.getElementById('btn-submit-breed') as HTMLButtonElement | null;
+    if (submitBtn) {
+      if (!hasEnoughGold) {
+        submitBtn.disabled = true;
+        submitBtn.textContent = `Insufficient Gold (Requires ${goldFee.toLocaleString()}g)`;
+      } else {
+        submitBtn.disabled = false;
+        submitBtn.textContent = `Breed Mounts (${goldFee.toLocaleString()} Gold)`;
+      }
+    }
+  }
+
+  public closeMountBreedModal() {
+    const modal = document.getElementById('mount-breed-modal');
+    if (modal) modal.classList.add('hidden');
+    this.breedingParentAIndex = null;
+    this.breedingParentBIndex = null;
   }
 }
 

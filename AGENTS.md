@@ -199,6 +199,19 @@
   - Automatically tracks progress in background across skilling cycles and monster defeats.
   - Interactive modal (`#noticeboard-modal`, `580px × 560px` fixed dimensions) allows viewing progress and claiming rewards (Gold, Celestial Gems, and Anima).
 
+### M. Mount Breeding & Pedigree System
+- **Source Files**: `packages/shared/src/constants.ts`, `packages/server/src/gameEngine.ts`, `packages/client/index.html`, `packages/client/src/main.ts`.
+- **Access**: Directly on any mount in the satchel via the item context menu (`Breed Mount...`). No dedicated NPC required.
+- **Species Crossing Logic**:
+  - `steed_courser` + `steed_chicken` = `steed_chorse` (The hybrid Chorse mount).
+  - Two Chorses breed into another Chorse (`steed_chorse`).
+  - Pure breeds of the same species retain their species.
+- **Rarity Mutation & Gold Sink**:
+  - Offspring base rarity is the minimum rarity between both parents (`Math.min(rarityA, rarityB)`).
+  - **Mutation Chance**: Exactly **5%** (`0.05`) roll to upgrade the offspring to the next rarity tier (Plain -> Uncommon -> Rare -> Epic -> Legendary).
+  - **Gold Sink Fee**: Base 5,000 Gold multiplied by tier multiplier (`plain: 1x, uncommon: 2x, rare: 4x, epic: 8x, legendary: 15x`) based on `Math.max(tierA, tierB)`.
+  - Epic and Legendary breeding outcomes trigger a server-wide All chat milestone announcement.
+
 ---
 
 ## 6. Development & Deployment Commands

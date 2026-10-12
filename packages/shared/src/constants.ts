@@ -181,3 +181,79 @@ export const ALL_SKILLS: SkillType[] = [
   ...COMBAT_SKILLS,
 ];
 
+// Mount Breeding Configuration
+export const MOUNT_BREED_CONFIG = {
+  UPGRADE_CHANCE: 0.05, // 5% chance to upgrade to next rarity tier
+  BASE_FEE_GOLD: 5000,   // Base gold fee for breeding attempt
+  TIER_FEE_MULTIPLIER: {
+    plain: 1,
+    uncommon: 2,
+    rare: 4,
+    epic: 8,
+    legendary: 15,
+  } as Record<Rarity, number>,
+};
+
+export const RARITY_TIER_INDEX: Record<Rarity, number> = {
+  plain: 0,
+  uncommon: 1,
+  rare: 2,
+  epic: 3,
+  legendary: 4,
+};
+
+export const RARITY_LIST: Rarity[] = ['plain', 'uncommon', 'rare', 'epic', 'legendary'];
+
+/**
+ * Calculates offspring species and base tier for mount breeding.
+ */
+export function getOffspringSpecies(parentAId: string, parentBId: string): string {
+  // If either cross involves courser + chicken -> Chorse
+  const isCourserAndChicken =
+    (parentAId === 'steed_courser' && parentBId === 'steed_chicken') ||
+    (parentAId === 'steed_chicken' && parentBId === 'steed_courser');
+  if (isCourserAndChicken) return 'steed_chorse';
+
+  // If both parents are Chorse -> Chorse
+  if (parentAId === 'steed_chorse' && parentBId === 'steed_chorse') return 'steed_chorse';
+
+  // If one parent is Chorse and other is courser or chicken -> Chorse dominant
+  if (parentAId === 'steed_chorse' || parentBId === 'steed_chorse') return 'steed_chorse';
+
+  // If both parents are the same species -> keep species
+  if (parentAId === parentBId) return parentAId;
+
+  // Fallback
+  return 'steed_chorse';
+}
+
+/**
+ * Calculates offspring rarity from two parent rarities.
+ * Base rarity is the lowest parent rarity.
+ * Upgrades to next tier with 5% chance if both match, or if roll succeeds.
+ */
+export function calculateBreedingRarity(
+  rarityA: Rarity,
+  rarityB: Rarity,
+  roll: number = Math.random()
+): { rarity: Rarity; didUpgrade: boolean; guaranteedBase: Rarity } {
+  const indexA = RARITY_TIER_INDEX[rarityA] ?? 0;
+  const indexB = RARITY_TIER_INDEX[rarityB] ?? 0;
+  const baseIndex = Math.min(indexA, indexB);
+  const guaranteedBase = RARITY_LIST[baseIndex];
+
+  // If already legendary, cannot upgrade further
+  if (baseIndex >= RARITY_LIST.length - 1) {
+    return { rarity: 'legendary', didUpgrade: false, guaranteedBase: 'legendary' };
+  }
+
+  // If roll < UPGRADE_CHANCE, upgrade to baseIndex + 1
+  if (roll < MOUNT_BREED_CONFIG.UPGRADE_CHANCE) {
+    const nextRarity = RARITY_LIST[baseIndex + 1];
+    return { rarity: nextRarity, didUpgrade: true, guaranteedBase };
+  }
+
+  return { rarity: guaranteedBase, didUpgrade: false, guaranteedBase };
+}
+
+

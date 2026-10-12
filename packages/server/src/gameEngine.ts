@@ -48,6 +48,10 @@ import {
   PlayerBountiesState,
   generateDailyBountiesForPlayer,
   getCurrentDateKey,
+  MOUNT_BREED_CONFIG,
+  getOffspringSpecies,
+  calculateBreedingRarity,
+  RARITY_TIER_INDEX,
 } from '@eldoria/shared';
 import { storage } from './storage.js';
 import { BotManager } from './botManager.js';
@@ -727,6 +731,10 @@ export class GameEngine {
 
       case 'EQUIP_ITEM':
         this.handleEquipItem(session, msg.inventoryIndex);
+        break;
+
+      case 'BREED_MOUNTS':
+        this.handleBreedMounts(session, msg.indexA, msg.indexB);
         break;
 
       case 'UNEQUIP_ITEM':
@@ -2008,6 +2016,109 @@ export class GameEngine {
     this.broadcastWorldState();
   }
 
+
+  private handleBreedMounts(session: ConnectedSession, indexA: number, indexB: number) {
+    const { player, ws } = session;
+
+    if (
+      typeof indexA !== 'number' ||
+      typeof indexB !== 'number' ||
+      indexA === indexB ||
+      indexA < 0 ||
+      indexA >= player.inventory.length ||
+      indexB < 0 ||
+      indexB >= player.inventory.length
+    ) {
+      this.send(ws, { type: 'NOTIFICATION', message: 'Select two distinct mounts in your bag to breed.' });
+      return;
+    }
+
+    const slotA = player.inventory[indexA];
+    const slotB = player.inventory[indexB];
+    if (!slotA || !slotB) {
+      this.send(ws, { type: 'NOTIFICATION', message: 'Invalid mount slots.' });
+      return;
+    }
+
+    const defA = storage.getItem(slotA.itemId) || ITEMS[slotA.itemId];
+    const defB = storage.getItem(slotB.itemId) || ITEMS[slotB.itemId];
+
+    if (!defA || defA.category !== 'steed' || !defB || defB.category !== 'steed') {
+      this.send(ws, { type: 'NOTIFICATION', message: 'Both items must be mounts to breed.' });
+      return;
+    }
+
+    // Determine offspring species and base rarity
+    const rarityA: Rarity = slotA.rarity || 'plain';
+    const rarityB: Rarity = slotB.rarity || 'plain';
+    const tierMultiplierA = MOUNT_BREED_CONFIG.TIER_FEE_MULTIPLIER[rarityA] || 1;
+    const tierMultiplierB = MOUNT_BREED_CONFIG.TIER_FEE_MULTIPLIER[rarityB] || 1;
+    const feeMultiplier = Math.max(tierMultiplierA, tierMultiplierB);
+    const goldFee = MOUNT_BREED_CONFIG.BASE_FEE_GOLD * feeMultiplier;
+
+    if ((player.gold || 0) < goldFee) {
+      this.send(ws, {
+        type: 'NOTIFICATION',
+        message: `You need ${goldFee.toLocaleString()} gold to breed these mounts (have: ${(player.gold || 0).toLocaleString()}).`
+      });
+      return;
+    }
+
+    // Deduct gold fee
+    player.gold = (player.gold || 0) - goldFee;
+
+    // Roll for rarity upgrade (5% chance to bump to next tier above base)
+    const breedResult = calculateBreedingRarity(rarityA, rarityB);
+    const offspringSpecies = getOffspringSpecies(slotA.itemId, slotB.itemId);
+    const offspringDef = storage.getItem(offspringSpecies) || ITEMS[offspringSpecies];
+
+    // Remove the two parent mounts from inventory
+    // To safely remove, sort indices descending so splicing doesn't shift the lower index
+    const sortedIndices = [indexA, indexB].sort((a, b) => b - a);
+    player.inventory.splice(sortedIndices[0], 1);
+    player.inventory.splice(sortedIndices[1], 1);
+
+    // Add offspring mount to inventory
+    const newMountSlot: InventorySlot = {
+      itemId: offspringSpecies,
+      quantity: 1,
+      rarity: breedResult.rarity,
+      plus: 0,
+    };
+    player.inventory.push(newMountSlot);
+
+    storage.savePlayer(player);
+    storage.checkpoint();
+
+    // Broadcast announcement if high tier bred
+    if (breedResult.rarity === 'legendary' || breedResult.rarity === 'epic') {
+      this.broadcast({
+        type: 'CHAT_MESSAGE',
+        sender: 'Eldoria',
+        message: `🎉 [RealmApex] ${player.username} successfully bred a ${breedResult.rarity.toUpperCase()} ${offspringDef?.name || 'Mount'}!`,
+        timestamp: Date.now(),
+        channel: 'all',
+      });
+    }
+
+    // Send result notification & sound to client
+    const upgradeMsg = breedResult.didUpgrade
+      ? `✨ Breakthrough! Offspring mutated into ${breedResult.rarity.toUpperCase()} tier!`
+      : `Bred successfully (${breedResult.rarity}).`;
+
+    this.send(ws, {
+      type: 'NOTIFICATION',
+      message: `Bred ${defA.name} and ${defB.name} into ${offspringDef?.name || 'Mount'}! ${upgradeMsg} Fee: ${goldFee.toLocaleString()}g.`
+    });
+    this.send(ws, {
+      type: 'MOUNT_BREED_SUCCESS',
+      offspring: newMountSlot,
+      didUpgrade: breedResult.didUpgrade,
+      goldFee,
+    });
+    this.send(ws, { type: 'PLAYER_UPDATE', player });
+    this.broadcastWorldState();
+  }
 
   private handleUnequipItem(session: ConnectedSession, slotKey: EquipSlot) {
     const { player } = session;
