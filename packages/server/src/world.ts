@@ -10,7 +10,7 @@ export interface WorldNode {
 
 export const WORLD_NODES: WorldNode[] = [
   // --- The Hearth Square (Central Town - Level_0) ---
-  { id: 'hearth_bank', name: 'The Hearth Storage Counter', type: 'hearth_counter', x: 8, y: 22 },
+  { id: 'hearth_bank', name: 'Bank', type: 'hearth_counter', x: 8, y: 22 },
   { id: 'hearth_notice_board', name: 'Town Noticeboard', type: 'notice_board', x: 10, y: 22 },
   { id: 'hearth_forge', name: 'Ancestral Runeforge', type: 'forge', x: 6, y: 24 },
   { id: 'hearth_fire', name: 'Hearth Firepit', type: 'fire', x: 10, y: 24 },

@@ -120,7 +120,7 @@ const DEFAULT_NPCS: NpcDefinition[] = [
     role: 'guide',
     dialogue: [
       'Welcome to Eldoria, traveler.',
-      'The Hearth Storage Counter provides boundless vault space for all who work the land.',
+      'The Bank provides boundless vault space for all who work the land.',
       'Deposit your spoils here before venturing into the northern quarries or eastern timberlands.'
     ],
     questIds: ['quest_intro_mining']
@@ -765,6 +765,17 @@ class StorageManager {
         this.stmtUpsertWorldNode.run(noticeNode.id, noticeNode.type, JSON.stringify(noticeNode));
       } catch (err) {
         console.error('Failed to insert hearth_notice_board', err);
+      }
+    }
+
+    // Ensure the hearth_bank node is clearly displayed as "Bank"
+    const bankNode = this.nodesCache.find(n => n.id === 'hearth_bank');
+    if (bankNode && bankNode.name !== 'Bank') {
+      bankNode.name = 'Bank';
+      try {
+        this.stmtUpsertWorldNode.run(bankNode.id, bankNode.type, JSON.stringify(bankNode));
+      } catch (err) {
+        console.error('Failed to update hearth_bank name', err);
       }
     }
 

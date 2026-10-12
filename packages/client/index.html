@@ -230,7 +230,7 @@
               </div>
               <div class="task-trailing">
                 <span id="task-status-tag" class="status-tag idle">IDLE</span>
-                <button id="task-home-btn" class="icon-btn-micro" title="Walk to Hearth Storage"></button>
+                <button id="task-home-btn" class="icon-btn-micro" title="Walk to Bank"></button>
                 <button id="task-skip-btn" class="icon-btn-micro" title="Skip to Next in Queue" style="display:none; font-size: 0.75rem;">⏭</button>
                 <button id="task-stop-btn" class="icon-btn-micro stop" title="Stop Task"></button>
               </div>
@@ -294,7 +294,7 @@
         <button class="tool-btn active" data-panel="skills" id="tool-btn-skills" title="Skills"></button>
         <button class="tool-btn" data-panel="inventory" id="tool-btn-inventory" title="Bag (Inventory)"></button>
         <button class="tool-btn" data-panel="equipment" id="tool-btn-equipment" title="Worn Equipment & Toolbelt"></button>
-        <button class="tool-btn" data-panel="storage" id="tool-btn-storage" title="Hearth Reliquary"></button>
+        <button class="tool-btn" data-panel="storage" id="tool-btn-storage" title="Bank"></button>
         <button class="tool-btn" id="tool-btn-dungeon" title="Dungeon Delve (Requires Key)"></button>
         <button class="tool-btn" data-panel="leaderboard" id="tool-btn-leaderboard" title="Realm Leaderboards"></button>
         <button class="tool-btn" id="tool-btn-sound" title="Audio & Volume Controls"></button>
@@ -392,7 +392,7 @@
         </div>
         <div class="drawer-footer" style="flex-direction: column; gap: 6px;">
           <button id="btn-inv-deposit-all" class="btn-start" style="width: 100%;">Deposit All Spoils</button>
-          <button id="btn-drawer-open-hearth" class="btn-oak" style="width: 100%;">Open Hearth Vault</button>
+          <button id="btn-drawer-open-hearth" class="btn-oak" style="width: 100%;">Open Bank</button>
         </div>
       </div>
 
@@ -447,7 +447,7 @@
       <!-- 10. HEARTH STORAGE DRAWER (Vault) -->
       <div id="storage-drawer" class="drawer-panel dark-oak-panel hidden">
         <div class="drawer-header">
-          <h3>The Hearth Reliquary</h3>
+          <h3>Bank</h3>
           <div style="display: flex; align-items: center; gap: 8px;">
             <span class="total-rank-label"><span id="storage-count">0</span>/75</span>
             <button id="storage-drawer-close-btn" class="icon-btn-micro drawer-close-btn" title="Close Storage"></button>
@@ -467,7 +467,7 @@
           <!-- Top Header Bar -->
           <div class="dv-storage-header">
             <div class="dv-storage-tabs">
-              <button id="dv-tab-storage" class="dv-tab-btn active">Storage</button>
+              <button id="dv-tab-storage" class="dv-tab-btn active">Bank</button>
               <button id="dv-tab-vendor" class="dv-tab-btn">Vendor</button>
               <button id="dv-tab-market" class="dv-tab-btn">Market</button>
             </div>
@@ -1805,7 +1805,7 @@
           </div>
           <div class="world-map-legend" style="display: flex; gap: 14px; flex-wrap: wrap; margin-top: 8px; font-size: 0.72rem; color: #e2e8f0; align-items: center; justify-content: center;">
             <span style="display:inline-flex; align-items:center; gap:4px;"><span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#ecc94b; border:1px solid #fff;"></span> You</span>
-            <span style="display:inline-flex; align-items:center; gap:4px;"><span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#ffd700;"></span> Hearth Bank</span>
+            <span style="display:inline-flex; align-items:center; gap:4px;"><span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#ffd700;"></span> Bank</span>
             <span style="display:inline-flex; align-items:center; gap:4px;"><span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#e53e3e;"></span> Monsters</span>
             <span style="display:inline-flex; align-items:center; gap:4px;"><span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#38a169;"></span> Timber Trees</span>
             <span style="display:inline-flex; align-items:center; gap:4px;"><span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#d97706;"></span> Ore Mines</span>
