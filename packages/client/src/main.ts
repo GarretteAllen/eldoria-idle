@@ -6563,6 +6563,14 @@ class EldoriaClient {
     const breedBtn = document.getElementById('ctx-btn-breed');
     if (breedBtn) {
       breedBtn.style.display = def.category === 'steed' ? 'flex' : 'none';
+      if (def.category === 'steed') {
+        breedBtn.onclick = (ev) => {
+          ev.stopPropagation();
+          menu.classList.add('hidden');
+          this.selectedInventoryIndex = null;
+          this.openMountBreedModal(index, 'inventory');
+        };
+      }
     }
 
     const eatBtn = document.getElementById('ctx-btn-eat');
@@ -6706,7 +6714,17 @@ class EldoriaClient {
     const storageBreedBtn = document.getElementById('storage-ctx-btn-breed');
     const isSteed = def.category === 'steed';
     if (storageBreedDivider) storageBreedDivider.style.display = isSteed ? 'block' : 'none';
-    if (storageBreedBtn) storageBreedBtn.style.display = isSteed ? 'flex' : 'none';
+    if (storageBreedBtn) {
+      storageBreedBtn.style.display = isSteed ? 'flex' : 'none';
+      if (isSteed) {
+        storageBreedBtn.onclick = (ev) => {
+          ev.stopPropagation();
+          menu.classList.add('hidden');
+          this.selectedStorageIndex = null;
+          this.openMountBreedModal(storageIndex, 'storage');
+        };
+      }
+    }
 
     // Position menu adjacent to the clicked slot
     menu.classList.remove('hidden');
