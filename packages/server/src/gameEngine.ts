@@ -6031,7 +6031,17 @@ export class GameEngine {
 
   public ensureDailyBounties(player: PlayerData): PlayerBountiesState {
     const todayKey = getCurrentDateKey();
-    if (!player.dailyBounties || player.dailyBounties.lastDateKey !== todayKey || !Array.isArray(player.dailyBounties.bounties) || player.dailyBounties.bounties.length === 0) {
+    const hasOutdatedOrInvalid = !player.dailyBounties ||
+      player.dailyBounties.lastDateKey !== todayKey ||
+      !Array.isArray(player.dailyBounties.bounties) ||
+      player.dailyBounties.bounties.length === 0 ||
+      player.dailyBounties.bounties.some(b => {
+        if (b.category === 'combat') return !MONSTERS[b.targetId];
+        const item = ITEMS[b.targetId];
+        return !item || (typeof item.tier === 'number' && item.tier > 3);
+      });
+
+    if (hasOutdatedOrInvalid) {
       const generated = generateDailyBountiesForPlayer(player, todayKey);
       player.dailyBounties = {
         lastDateKey: todayKey,
@@ -6039,7 +6049,7 @@ export class GameEngine {
       };
       storage.savePlayer(player);
     }
-    return player.dailyBounties;
+    return player.dailyBounties!;
   }
 
   public progressDailyBounties(session: ConnectedSession, targetId: string, amount: number = 1) {
