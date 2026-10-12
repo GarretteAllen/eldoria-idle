@@ -84,6 +84,7 @@
 - **Base Speed**: 1.0 tile/tick (approx 1.67 tiles per second).
 - **Steed Movement Bonus**:
   - `STEED_BASE_BONUS`: Plain (+12%), Uncommon (+13%), Rare (+15%), Epic (+20%), Legendary (+30%).
+  - Chorse (`steed_chorse`): Receives a 2.0x multiplier over standard mounts (e.g. +24% plain base, up to +60% legendary).
   - Enhancement scaling: `bonus = base * (1 + 0.15 * plus)`.
   - To adjust mount speeds: Edit `STEED_BASE_BONUS` or `getSteedWalkSpeedBonus()` in `packages/shared/src/constants.ts`.
 - **A* Pathfinding**: 8-directional with corner-cutting prevention against blocked terrain. Implemented via binary min-heap in `formulas.ts` (`findPath`).

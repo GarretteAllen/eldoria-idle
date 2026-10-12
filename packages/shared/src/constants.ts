@@ -163,9 +163,10 @@ export const STEED_BASE_BONUS: Record<Rarity, number> = {
   legendary: 0.30,
 };
 
-export function getSteedWalkSpeedBonus(rarity: Rarity, plus: number): number {
+export function getSteedWalkSpeedBonus(rarity: Rarity, plus: number, itemId?: string): number {
   const base = STEED_BASE_BONUS[rarity] || 0.12;
-  return base * (1 + 0.15 * plus);
+  const multiplier = itemId === 'steed_chorse' ? 2 : 1;
+  return base * multiplier * (1 + 0.15 * plus);
 }
 
 import type { SkillType } from './types.js';

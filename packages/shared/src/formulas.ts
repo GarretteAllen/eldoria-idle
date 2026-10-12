@@ -17,7 +17,7 @@ export function calculatePlayerMoveSpeed(player: PlayerData): number {
   // Mount bonus
   const steedSlot = player.equipment?.steed;
   if (steedSlot) {
-    const bonus = getSteedWalkSpeedBonus(steedSlot.rarity || 'plain', steedSlot.plus || 0);
+    const bonus = getSteedWalkSpeedBonus(steedSlot.rarity || 'plain', steedSlot.plus || 0, steedSlot.itemId);
     speed += bonus;
   }
 
