@@ -1987,11 +1987,11 @@ export class WorldRenderer {
         if (this.tilemapImage && this.tilemapImage.complete) {
           ctx.save();
           ctx.imageSmoothingEnabled = false;
-          // Col 3, Row 33 (3 * 16 = 48, 33 * 16 = 528)
+          // Col 11, Row 6 (11 * 16 = 176, 6 * 16 = 96)
           ctx.drawImage(
             this.tilemapImage,
-            48,
-            528,
+            176,
+            96,
             16,
             16,
             px,

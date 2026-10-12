@@ -751,15 +751,15 @@ class StorageManager {
     const nodeRows = this.stmtGetWorldNodes.all() as Array<{ data: string }>;
     this.nodesCache = nodeRows.map(r => JSON.parse(r.data));
 
-    // Ensure central Town Noticeboard is present and updated at (11, 6)
+    // Ensure central Town Noticeboard is present and updated at (10, 22)
     let noticeNode = this.nodesCache.find(n => n.id === 'hearth_notice_board');
     if (!noticeNode) {
       noticeNode = {
         id: 'hearth_notice_board',
         name: 'Town Noticeboard',
         type: 'notice_board',
-        x: 11,
-        y: 6,
+        x: 10,
+        y: 22,
       };
       this.nodesCache.push(noticeNode);
       try {
@@ -767,9 +767,9 @@ class StorageManager {
       } catch (err) {
         console.error('Failed to insert hearth_notice_board', err);
       }
-    } else if (noticeNode.x !== 11 || noticeNode.y !== 6) {
-      noticeNode.x = 11;
-      noticeNode.y = 6;
+    } else if (noticeNode.x !== 10 || noticeNode.y !== 22) {
+      noticeNode.x = 10;
+      noticeNode.y = 22;
       try {
         this.stmtUpsertWorldNode.run(noticeNode.id, noticeNode.type, JSON.stringify(noticeNode));
       } catch (err) {
