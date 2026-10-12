@@ -751,20 +751,29 @@ class StorageManager {
     const nodeRows = this.stmtGetWorldNodes.all() as Array<{ data: string }>;
     this.nodesCache = nodeRows.map(r => JSON.parse(r.data));
 
-    // Ensure central Town Noticeboard is present in world nodes
-    if (!this.nodesCache.some(n => n.id === 'hearth_notice_board')) {
-      const noticeNode: WorldNode = {
+    // Ensure central Town Noticeboard is present and updated at (11, 6)
+    let noticeNode = this.nodesCache.find(n => n.id === 'hearth_notice_board');
+    if (!noticeNode) {
+      noticeNode = {
         id: 'hearth_notice_board',
         name: 'Town Noticeboard',
         type: 'notice_board',
-        x: 10,
-        y: 22,
+        x: 11,
+        y: 6,
       };
       this.nodesCache.push(noticeNode);
       try {
         this.stmtUpsertWorldNode.run(noticeNode.id, noticeNode.type, JSON.stringify(noticeNode));
       } catch (err) {
         console.error('Failed to insert hearth_notice_board', err);
+      }
+    } else if (noticeNode.x !== 11 || noticeNode.y !== 6) {
+      noticeNode.x = 11;
+      noticeNode.y = 6;
+      try {
+        this.stmtUpsertWorldNode.run(noticeNode.id, noticeNode.type, JSON.stringify(noticeNode));
+      } catch (err) {
+        console.error('Failed to update hearth_notice_board position', err);
       }
     }
 
