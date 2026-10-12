@@ -751,6 +751,23 @@ class StorageManager {
     const nodeRows = this.stmtGetWorldNodes.all() as Array<{ data: string }>;
     this.nodesCache = nodeRows.map(r => JSON.parse(r.data));
 
+    // Ensure central Town Noticeboard is present in world nodes
+    if (!this.nodesCache.some(n => n.id === 'hearth_notice_board')) {
+      const noticeNode: WorldNode = {
+        id: 'hearth_notice_board',
+        name: 'Town Noticeboard',
+        type: 'notice_board',
+        x: 10,
+        y: 22,
+      };
+      this.nodesCache.push(noticeNode);
+      try {
+        this.stmtUpsertWorldNode.run(noticeNode.id, noticeNode.type, JSON.stringify(noticeNode));
+      } catch (err) {
+        console.error('Failed to insert hearth_notice_board', err);
+      }
+    }
+
     // Monster Spawn Zones
     const zoneRows = this.stmtGetMonsterZones.all() as Array<{ data: string }>;
     this.monsterZonesCache = zoneRows.map(r => JSON.parse(r.data));

@@ -44,6 +44,10 @@ import {
   DungeonPartyMember,
   DungeonDefinition,
   DungeonRecoveryItem,
+  DailyBounty,
+  PlayerBountiesState,
+  generateDailyBountiesForPlayer,
+  getCurrentDateKey,
 } from '@eldoria/shared';
 import { storage } from './storage.js';
 import { BotManager } from './botManager.js';
@@ -469,6 +473,9 @@ export class GameEngine {
       }
     }
 
+    // Ensure daily bounties are active for today
+    this.ensureDailyBounties(player);
+
     // Send initial handshake with persistent world nodes, npcs, quests, and collisions
     this.send(ws, {
       type: 'INIT',
@@ -800,6 +807,17 @@ export class GameEngine {
 
       case 'CLAIM_DAILY_REWARD':
         this.handleClaimDailyReward(session);
+        break;
+
+      case 'GET_DAILY_BOUNTIES':
+        this.ensureDailyBounties(player);
+        this.send(session.ws, { type: 'PLAYER_UPDATE', player });
+        break;
+
+      case 'CLAIM_DAILY_BOUNTY':
+        if (typeof msg.bountyId === 'string') {
+          this.handleClaimDailyBounty(session, msg.bountyId);
+        }
         break;
 
       case 'CHAT':
@@ -1686,6 +1704,7 @@ export class GameEngine {
 
         // Add harvest to player inventory (or storage)
         this.addItemToPlayer(session, plot.cropId, yieldQty);
+        this.progressDailyBounties(session, plot.cropId, yieldQty);
         if (seedReturn) {
           this.addItemToPlayer(session, plot.seedId, 1);
         }
@@ -4081,6 +4100,11 @@ export class GameEngine {
       }
     }
 
+    // Progress daily bounties if this recipe's output matches an active bounty target
+    if (recipe.outputItemId) {
+      this.progressDailyBounties(session, recipe.outputItemId, recipe.outputQuantity || 1);
+    }
+
     // Ensure any stray gold item in inventory is swept into coin pouch
     if (player.inventory && player.inventory.some(s => s.itemId === 'gold')) {
       let swept = 0;
@@ -4187,6 +4211,7 @@ export class GameEngine {
       delete player.farmPlots[readyPlotNode.id];
 
       const addRes = addItemToSlots(player.inventory, 28, produceItemId, yieldQty, rarity, 0, produceDef, 'inventory');
+      this.progressDailyBounties(session, produceItemId, yieldQty);
       if (addRes.remainder > 0) {
         if (player.dropWhenFull) {
           this.send(ws, { type: 'NOTIFICATION', message: `Satchel full! Discarded excess harvest.` });
@@ -5677,6 +5702,7 @@ export class GameEngine {
         }
 
         this.progressKillQuests(player, monsterDef.id);
+        this.progressDailyBounties(session, monsterDef.id, 1);
 
         // Check if satchel full (only if not inside a dungeon instance)
         const inDungeon = this.playerPartyMap.has(player.id);
@@ -6001,6 +6027,79 @@ export class GameEngine {
         player.questProgress[q.id] = (player.questProgress[q.id] || 0) + 1;
       }
     }
+  }
+
+  public ensureDailyBounties(player: PlayerData): PlayerBountiesState {
+    const todayKey = getCurrentDateKey();
+    if (!player.dailyBounties || player.dailyBounties.lastDateKey !== todayKey || !Array.isArray(player.dailyBounties.bounties) || player.dailyBounties.bounties.length === 0) {
+      const generated = generateDailyBountiesForPlayer(player, todayKey);
+      player.dailyBounties = {
+        lastDateKey: todayKey,
+        bounties: generated,
+      };
+      storage.savePlayer(player);
+    }
+    return player.dailyBounties;
+  }
+
+  public progressDailyBounties(session: ConnectedSession, targetId: string, amount: number = 1) {
+    const { player, ws } = session;
+    const bountyState = this.ensureDailyBounties(player);
+    let updated = false;
+
+    for (const bounty of bountyState.bounties) {
+      if (!bounty.completed && bounty.targetId === targetId) {
+        bounty.currentCount = Math.min(bounty.requiredCount, (bounty.currentCount || 0) + amount);
+        if (bounty.currentCount >= bounty.requiredCount) {
+          bounty.completed = true;
+          this.send(ws, {
+            type: 'NOTIFICATION',
+            message: `📜 Bounty Complete: "${bounty.title}"! Visit the Town Noticeboard to claim your rewards.`
+          });
+        }
+        updated = true;
+      }
+    }
+
+    if (updated) {
+      storage.savePlayer(player);
+      this.send(ws, { type: 'PLAYER_UPDATE', player });
+    }
+  }
+
+  private handleClaimDailyBounty(session: ConnectedSession, bountyId: string) {
+    const { player, ws } = session;
+    const bountyState = this.ensureDailyBounties(player);
+    const bounty = bountyState.bounties.find(b => b.id === bountyId);
+
+    if (!bounty) {
+      this.send(ws, { type: 'NOTIFICATION', message: 'Bounty not found or expired.' });
+      return;
+    }
+
+    if (!bounty.completed || bounty.currentCount < bounty.requiredCount) {
+      this.send(ws, { type: 'NOTIFICATION', message: `Bounty "${bounty.title}" is not yet completed (${bounty.currentCount}/${bounty.requiredCount}).` });
+      return;
+    }
+
+    if (bounty.claimed) {
+      this.send(ws, { type: 'NOTIFICATION', message: `Bounty "${bounty.title}" has already been claimed.` });
+      return;
+    }
+
+    bounty.claimed = true;
+    player.gold = (player.gold || 0) + bounty.rewardGold;
+    player.gems = (player.gems || 0) + bounty.rewardGems;
+    player.anima = (player.anima || 0) + bounty.rewardAnima;
+
+    storage.savePlayer(player);
+    storage.checkpoint();
+
+    this.send(ws, {
+      type: 'NOTIFICATION',
+      message: `🎉 Claimed bounty "${bounty.title}": +${bounty.rewardGold.toLocaleString()} Gold, +${bounty.rewardGems} Gems, +${bounty.rewardAnima} Anima!`
+    });
+    this.send(ws, { type: 'PLAYER_UPDATE', player });
   }
 
   // ==================== DUNGEON & CO-OP LOGIC ====================

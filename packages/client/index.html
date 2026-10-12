@@ -829,6 +829,41 @@
         </div>
       </div>
 
+      <!-- TOWN NOTICEBOARD & DAILY BOUNTIES MODAL -->
+      <div id="noticeboard-modal" class="modal-backdrop hidden">
+        <div class="modal-box dark-oak-panel noticeboard-modal-box">
+          <div class="noticeboard-modal-header">
+            <div class="noticeboard-header-left">
+              <span class="noticeboard-header-icon">📜</span>
+              <div>
+                <h3 class="noticeboard-title">Town Noticeboard</h3>
+                <span class="noticeboard-subtitle">Hearth Square &bull; Daily Skilling &amp; Combat Bounties</span>
+              </div>
+            </div>
+            <button id="btn-close-noticeboard-modal" class="icon-btn-micro" title="Close">✕</button>
+          </div>
+
+          <div class="noticeboard-modal-body">
+            <div class="noticeboard-intro-banner">
+              <p class="noticeboard-intro-text">
+                The Eldoria Realm Council posts daily tasks for enterprising adventurers. Complete gathering, refining, and monster bounties each day to earn bonus Gold, Celestial Gems, and Anima.
+              </p>
+              <div class="noticeboard-timer-badge" id="noticeboard-reset-timer">
+                Resets daily at 00:00 UTC
+              </div>
+            </div>
+
+            <div id="noticeboard-bounties-list" class="noticeboard-bounties-container">
+              <!-- Bounties injected dynamically -->
+            </div>
+
+            <div class="noticeboard-footer-note">
+              <span>Bounties track automatically as you work, craft, and explore. Claim rewards directly at the board!</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- 11. IN-GAME ADMIN WORLD EDITOR DRAWER -->
       <div id="admin-editor-drawer" class="drawer-panel dark-oak-panel hidden" style="width: 380px;">
         <div class="drawer-header">

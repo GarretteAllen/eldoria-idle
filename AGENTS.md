@@ -182,6 +182,18 @@
 - **Realm Broadcast**:
   - Drops trigger a server-wide announcement in All chat: `"🎉 [Player] has a funny feeling like something is following them: [Pet Name]!"`.
 
+### L. Town Noticeboard & Daily Bounties
+- **Source Files**: `packages/shared/src/bounties.ts`, `packages/shared/src/types.ts`, `packages/server/src/gameEngine.ts`, `packages/client/src/canvas.ts`, `packages/client/src/main.ts`.
+- **World Entity**: Located in Hearth Town Square at `(10, 22)` (`hearth_notice_board`, type `'notice_board'`). Rendered via tilemap Col 3, Row 33 with an overhead warm gold nameplate.
+- **Mechanics & Reset**:
+  - Resets daily at **00:00 UTC** based on date key (`YYYY-MM-DD`).
+  - Generates 3 level-scaled daily bounties per player:
+    1. **Gathering**: Mining ore, woodcutting timber, fishing, or harvesting crops.
+    2. **Refining**: Smelting ingots, cooking rations, or fletching arrow shafts/bows.
+    3. **Combat**: Slaying zone monsters appropriate to combat skill.
+  - Automatically tracks progress in background across skilling cycles and monster defeats.
+  - Interactive modal (`#noticeboard-modal`, `580px × 560px` fixed dimensions) allows viewing progress and claiming rewards (Gold, Celestial Gems, and Anima).
+
 ---
 
 ## 6. Development & Deployment Commands

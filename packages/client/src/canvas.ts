@@ -42,6 +42,7 @@ export class WorldRenderer {
   private playerEquipmentImage: HTMLImageElement | null = null;
   private fishingBubblesImage: HTMLImageElement | null = null;
   private workstationsImage: HTMLImageElement | null = null;
+  private tilemapImage: HTMLImageElement | null = null;
   private minimapCanvas: HTMLCanvasElement | null = null;
   private minimapCtx: CanvasRenderingContext2D | null = null;
 
@@ -320,6 +321,9 @@ export class WorldRenderer {
 
     this.workstationsImage = new Image();
     this.workstationsImage.src = '/maps/workstations.png';
+
+    this.tilemapImage = new Image();
+    this.tilemapImage.src = '/maps/tilemap_packed-export.png';
 
     this.resize();
     window.addEventListener('resize', () => this.resize());
@@ -1210,6 +1214,8 @@ export class WorldRenderer {
           mCtx.fillStyle = '#4299e1'; // ocean blue
         } else if (node.type === 'hearth_counter') {
           mCtx.fillStyle = '#ecc94b'; // gold
+        } else if (node.type === 'notice_board') {
+          mCtx.fillStyle = '#f6ad55'; // warm amber parchment
         } else if (node.type === 'door' || node.type === 'portal') {
           mCtx.fillStyle = '#c084fc'; // purple warp
         } else {
@@ -1772,6 +1778,10 @@ export class WorldRenderer {
           fillStyle = 'rgba(223, 166, 55, 0.25)';
           strokeStyle = '#dfa637';
           cornerStyle = '#ffe680';
+        } else if (node.type === 'notice_board') {
+          fillStyle = 'rgba(246, 173, 85, 0.25)';
+          strokeStyle = '#dd6b20';
+          cornerStyle = '#feebc8';
         } else if (node.type === 'tree') {
           fillStyle = 'rgba(56, 161, 105, 0.22)';
           strokeStyle = '#38a169';
@@ -1967,6 +1977,38 @@ export class WorldRenderer {
         }
       }
 
+      else if (node.type === 'notice_board') {
+        ctx.fillStyle = 'rgba(246, 173, 85, 0.25)';
+        ctx.beginPath();
+        ctx.arc(px + TILE_SIZE / 2, py + TILE_SIZE / 2, 11, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Draw wooden bulletin / notice board tile
+        if (this.tilemapImage && this.tilemapImage.complete) {
+          ctx.save();
+          ctx.imageSmoothingEnabled = false;
+          // Col 3, Row 33 (3 * 16 = 48, 33 * 16 = 528)
+          ctx.drawImage(
+            this.tilemapImage,
+            48,
+            528,
+            16,
+            16,
+            px,
+            py,
+            TILE_SIZE,
+            TILE_SIZE
+          );
+          ctx.restore();
+        } else if (this.workstationsImage && this.workstationsImage.complete) {
+          // Fallback to artisan workbench if tilemap not ready
+          ctx.save();
+          ctx.imageSmoothingEnabled = false;
+          ctx.drawImage(this.workstationsImage, 0, 16, 16, 16, px, py, TILE_SIZE, TILE_SIZE);
+          ctx.restore();
+        }
+      }
+
       else if (node.type === 'workbench') {
         ctx.fillStyle = 'rgba(214, 158, 46, 0.22)';
         ctx.beginPath();
@@ -2112,25 +2154,26 @@ export class WorldRenderer {
         text = friendlyName;
       }
 
-      ctx.font = isHearth ? '700 11px Inter, sans-serif' : '600 10px Inter, sans-serif';
+      const isSpecialTownNode = isHearth || node.type === 'notice_board';
+      ctx.font = isSpecialTownNode ? '700 11px Inter, sans-serif' : '600 10px Inter, sans-serif';
       const textWidth = ctx.measureText(text).width;
-      const badgeW = textWidth + (isHearth ? 18 : 14);
-      const badgeH = isHearth ? 18 : 16;
+      const badgeW = textWidth + (isSpecialTownNode ? 18 : 14);
+      const badgeH = isSpecialTownNode ? 18 : 16;
       const badgeX = px + TILE_SIZE / 2 - badgeW / 2;
-      const badgeY = py - (isHearth ? 10 : 8);
+      const badgeY = py - (isSpecialTownNode ? 10 : 8);
 
       const isReadyHarvest = Boolean(farmPlot && farmPlot.status === 'ready');
-      ctx.fillStyle = isReadyHarvest ? 'rgba(40, 32, 10, 0.95)' : (isHearth ? 'rgba(28, 17, 8, 0.95)' : 'rgba(18, 22, 28, 0.85)');
-      ctx.strokeStyle = isReadyHarvest ? '#f6e05e' : (isHovered ? (isHearth ? '#ffe680' : '#d4af37') : (isHearth ? '#dfa637' : '#5a4522'));
-      ctx.lineWidth = (isHovered || isHearth || isReadyHarvest) ? 1.5 : 1;
+      ctx.fillStyle = isReadyHarvest ? 'rgba(40, 32, 10, 0.95)' : (isSpecialTownNode ? 'rgba(28, 17, 8, 0.95)' : 'rgba(18, 22, 28, 0.85)');
+      ctx.strokeStyle = isReadyHarvest ? '#f6e05e' : (isHovered ? (isSpecialTownNode ? '#ffe680' : '#d4af37') : (isSpecialTownNode ? '#dfa637' : '#5a4522'));
+      ctx.lineWidth = (isHovered || isSpecialTownNode || isReadyHarvest) ? 1.5 : 1;
       ctx.beginPath();
       ctx.roundRect(badgeX, badgeY, badgeW, badgeH, 4);
       ctx.fill();
       ctx.stroke();
 
-      ctx.fillStyle = isReadyHarvest ? '#fef08a' : (isHearth ? '#ffd466' : (isHovered ? '#fff4cc' : '#f3e8cb'));
+      ctx.fillStyle = isReadyHarvest ? '#fef08a' : (isSpecialTownNode ? '#ffd466' : (isHovered ? '#fff4cc' : '#f3e8cb'));
       ctx.textAlign = 'center';
-      ctx.fillText(text, px + TILE_SIZE / 2, badgeY + (isHearth ? 13 : 11));
+      ctx.fillText(text, px + TILE_SIZE / 2, badgeY + (isSpecialTownNode ? 13 : 11));
       ctx.restore();
 
       // Draw prominent glowing highlight if node is currently selected in World Editor

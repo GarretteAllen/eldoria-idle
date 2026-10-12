@@ -5637,5 +5637,313 @@ body, html {
   }
 }
 
+/* ========================================================
+   TOWN NOTICEBOARD & DAILY BOUNTIES MODAL STYLES
+   ======================================================== */
+
+.noticeboard-modal-box {
+  width: 580px;
+  max-width: 95vw;
+  height: 560px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  padding: 16px;
+  box-sizing: border-box;
+}
+
+.noticeboard-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid rgba(212, 175, 55, 0.25);
+  padding-bottom: 10px;
+  flex-shrink: 0;
+}
+
+.noticeboard-header-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.noticeboard-header-icon {
+  font-size: 1.8rem;
+  line-height: 1;
+}
+
+.noticeboard-title {
+  margin: 0;
+  font-size: 1.25rem;
+  color: #ffd699;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+.noticeboard-subtitle {
+  font-size: 0.75rem;
+  color: #a0aec0;
+}
+
+.noticeboard-modal-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  margin-top: 12px;
+  gap: 12px;
+}
+
+.noticeboard-intro-banner {
+  background: rgba(30, 24, 16, 0.6);
+  border: 1px solid rgba(180, 140, 60, 0.2);
+  border-radius: 6px;
+  padding: 10px 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.noticeboard-intro-text {
+  margin: 0;
+  font-size: 0.78rem;
+  color: #cbd5e0;
+  line-height: 1.4;
+  flex: 1;
+}
+
+.noticeboard-timer-badge {
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 215, 0, 0.25);
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 0.72rem;
+  color: #ffd700;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
+.noticeboard-bounties-container {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow-y: auto;
+  flex: 1;
+  padding-right: 4px;
+}
+
+.bounty-card {
+  background: rgba(22, 18, 14, 0.75);
+  border: 1px solid rgba(140, 105, 55, 0.3);
+  border-radius: 6px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.bounty-card:hover {
+  background: rgba(28, 22, 17, 0.85);
+  border-color: rgba(212, 175, 55, 0.4);
+}
+
+.bounty-card.completed {
+  border-color: rgba(72, 187, 120, 0.4);
+  background: rgba(18, 30, 22, 0.7);
+}
+
+.bounty-card.claimed {
+  opacity: 0.65;
+  border-color: rgba(113, 128, 150, 0.25);
+  background: rgba(15, 15, 18, 0.5);
+}
+
+.bounty-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.bounty-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.bounty-badge {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.bounty-badge.gathering {
+  background: rgba(66, 153, 225, 0.2);
+  color: #63b3ed;
+  border: 1px solid rgba(66, 153, 225, 0.35);
+}
+
+.bounty-badge.refining {
+  background: rgba(237, 137, 54, 0.2);
+  color: #f6ad55;
+  border: 1px solid rgba(237, 137, 54, 0.35);
+}
+
+.bounty-badge.combat {
+  background: rgba(245, 101, 101, 0.2);
+  color: #fc8181;
+  border: 1px solid rgba(245, 101, 101, 0.35);
+}
+
+.bounty-card-title {
+  margin: 0;
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: #edf2f7;
+}
+
+.bounty-status-tag {
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.bounty-status-tag.in-progress {
+  color: #a0aec0;
+}
+
+.bounty-status-tag.ready {
+  color: #68d391;
+  background: rgba(72, 187, 120, 0.15);
+  border: 1px solid rgba(72, 187, 120, 0.3);
+}
+
+.bounty-status-tag.claimed {
+  color: #718096;
+}
+
+.bounty-card-desc {
+  margin: 0;
+  font-size: 0.78rem;
+  color: #a0aec0;
+  line-height: 1.35;
+}
+
+.bounty-progress-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.bounty-progress-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.72rem;
+  color: #cbd5e0;
+}
+
+.bounty-progress-bar-bg {
+  height: 6px;
+  background: rgba(0, 0, 0, 0.5);
+  border-radius: 3px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.bounty-progress-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #d97706, #fbbf24);
+  border-radius: 3px;
+  transition: width 0.25s ease;
+}
+
+.bounty-progress-bar-fill.complete {
+  background: linear-gradient(90deg, #2f855a, #48bb78);
+}
+
+.bounty-bottom-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.bounty-rewards-pills {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.bounty-reward-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.bounty-reward-pill.gold {
+  color: #ecc94b;
+  border-color: rgba(236, 201, 75, 0.25);
+}
+
+.bounty-reward-pill.gems {
+  color: #90cdf4;
+  border-color: rgba(99, 179, 237, 0.25);
+}
+
+.bounty-reward-pill.anima {
+  color: #d6bcfa;
+  border-color: rgba(183, 148, 244, 0.25);
+}
+
+.bounty-claim-btn {
+  background: linear-gradient(180deg, #d69e2e, #b7791f);
+  color: #1a202c;
+  font-weight: 700;
+  font-size: 0.75rem;
+  padding: 4px 12px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: filter 0.15s ease, transform 0.1s ease;
+}
+
+.bounty-claim-btn:hover {
+  filter: brightness(1.1);
+  transform: translateY(-1px);
+}
+
+.bounty-claim-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  transform: none;
+  filter: grayscale(1);
+}
+
+.noticeboard-footer-note {
+  font-size: 0.72rem;
+  color: #718096;
+  text-align: center;
+  flex-shrink: 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  padding-top: 8px;
+}
+
 
 

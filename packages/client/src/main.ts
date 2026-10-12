@@ -133,6 +133,7 @@ class EldoriaClient {
   private pendingMonsterTarget: WorldNodeDisplay | null = null;
   private pendingMonsterQuantity?: number;
   private pendingHearthTarget: WorldNodeDisplay | null = null;
+  private pendingNoticeBoardTarget: WorldNodeDisplay | null = null;
   private pendingDoorTarget: WorldNodeDisplay | null = null;
   private pendingStationTarget: { type: 'fire' | 'forge' | 'farm' | 'workbench' | 'cauldron' | 'monolith'; node: WorldNodeDisplay } | null = null;
   private selectedStationNode: WorldNodeDisplay | null = null;
@@ -400,6 +401,7 @@ class EldoriaClient {
         this.pendingNpcTarget = null;
         this.pendingMonsterTarget = null;
         this.pendingHearthTarget = null;
+        this.pendingNoticeBoardTarget = null;
         this.pendingStationTarget = null;
         this.sendWs({ type: 'MOVE_TO', x: tileX, y: tileY });
       };
@@ -408,6 +410,7 @@ class EldoriaClient {
         if (!this.player) return;
         this.pendingMonsterTarget = null;
         this.pendingHearthTarget = null;
+        this.pendingNoticeBoardTarget = null;
         this.pendingStationTarget = null;
         const dist = Math.hypot(this.player.x - npc.x, this.player.y - npc.y);
         if (dist <= 1.5) {
@@ -426,6 +429,7 @@ class EldoriaClient {
       this.renderer.onNodeClick = (node: WorldNodeDisplay) => {
         this.pendingNpcTarget = null;
         this.pendingHearthTarget = null;
+        this.pendingNoticeBoardTarget = null;
         this.pendingStationTarget = null;
 
         // MONSTER / ENEMY: Stop one tile before the enemy, and then attack it!
@@ -465,6 +469,22 @@ class EldoriaClient {
             this.openStorageModal();
           } else {
             this.pendingHearthTarget = node;
+            const target = this.getAdjacentWalkableTile(node.x, node.y);
+            this.sendWs({ type: 'MOVE_TO', x: target.x, y: target.y });
+            this.showToast(`Walking to ${node.name}...`);
+          }
+          return;
+        }
+
+        // TOWN NOTICEBOARD: Walk adjacent, then open bounties noticeboard modal!
+        if (node.type === 'notice_board') {
+          if (!this.player) return;
+          const dist = Math.hypot(this.player.x - node.x, this.player.y - node.y);
+          if (dist <= 1.5) {
+            this.pendingNoticeBoardTarget = null;
+            this.openNoticeboardModal();
+          } else {
+            this.pendingNoticeBoardTarget = node;
             const target = this.getAdjacentWalkableTile(node.x, node.y);
             this.sendWs({ type: 'MOVE_TO', x: target.x, y: target.y });
             this.showToast(`Walking to ${node.name}...`);
@@ -969,6 +989,7 @@ class EldoriaClient {
           this.updateQuestTracker();
         }
         this.updateUI();
+        this.renderNoticeboardModal();
 
         // Check if arrived adjacent to clicked NPC
         if (this.pendingNpcTarget && this.player) {
@@ -1007,6 +1028,15 @@ class EldoriaClient {
           if (dist <= 1.5) {
             this.pendingHearthTarget = null;
             this.openStorageModal();
+          }
+        }
+
+        // Check if arrived adjacent to clicked Town Noticeboard
+        if (this.pendingNoticeBoardTarget && this.player) {
+          const dist = Math.hypot(this.player.x - this.pendingNoticeBoardTarget.x, this.player.y - this.pendingNoticeBoardTarget.y);
+          if (dist <= 1.5) {
+            this.pendingNoticeBoardTarget = null;
+            this.openNoticeboardModal();
           }
         }
 
@@ -9784,6 +9814,12 @@ class EldoriaClient {
     if (closeBarnabyBtn) {
       closeBarnabyBtn.onclick = () => this.closeBarnabyModal();
     }
+
+    // 8. Noticeboard Modal Close Button
+    const closeNoticeboardBtn = document.getElementById('btn-close-noticeboard-modal');
+    if (closeNoticeboardBtn) {
+      closeNoticeboardBtn.onclick = () => this.closeNoticeboardModal();
+    }
   }
 
   private handleDungeonButtonClick() {
@@ -10200,6 +10236,169 @@ class EldoriaClient {
 
       card.appendChild(left);
       card.appendChild(right);
+      listEl.appendChild(card);
+    }
+  }
+
+  public openNoticeboardModal() {
+    const modal = document.getElementById('noticeboard-modal');
+    if (!modal) return;
+    sound.play('ding');
+    modal.classList.remove('hidden');
+    this.sendWs({ type: 'GET_DAILY_BOUNTIES' });
+    this.renderNoticeboardModal();
+  }
+
+  public closeNoticeboardModal() {
+    const modal = document.getElementById('noticeboard-modal');
+    if (modal) modal.classList.add('hidden');
+  }
+
+  public renderNoticeboardModal() {
+    const modal = document.getElementById('noticeboard-modal');
+    if (!modal || modal.classList.contains('hidden')) return;
+
+    const listEl = document.getElementById('noticeboard-bounties-list');
+    if (!listEl) return;
+    listEl.innerHTML = '';
+
+    const bounties = this.player?.dailyBounties?.bounties;
+    if (!bounties || bounties.length === 0) {
+      const emptyDiv = document.createElement('div');
+      emptyDiv.style.textAlign = 'center';
+      emptyDiv.style.color = '#a0aec0';
+      emptyDiv.style.fontSize = '0.85rem';
+      emptyDiv.style.padding = '30px 10px';
+      emptyDiv.style.fontStyle = 'italic';
+      emptyDiv.textContent = 'No active bounties posted today. Check back tomorrow at 00:00 UTC!';
+      listEl.appendChild(emptyDiv);
+      return;
+    }
+
+    for (const b of bounties) {
+      const card = document.createElement('div');
+      card.className = `bounty-card ${b.completed ? 'completed' : ''} ${b.claimed ? 'claimed' : ''}`;
+
+      // 1. Header row: Title + Category Badge + Status Tag
+      const headerRow = document.createElement('div');
+      headerRow.className = 'bounty-header-row';
+
+      const titleWrap = document.createElement('div');
+      titleWrap.className = 'bounty-title-wrap';
+
+      const catBadge = document.createElement('span');
+      catBadge.className = `bounty-badge ${b.category}`;
+      catBadge.textContent = b.category;
+
+      const titleH4 = document.createElement('h4');
+      titleH4.className = 'bounty-card-title';
+      titleH4.textContent = b.title;
+
+      titleWrap.appendChild(catBadge);
+      titleWrap.appendChild(titleH4);
+
+      const statusTag = document.createElement('span');
+      if (b.claimed) {
+        statusTag.className = 'bounty-status-tag claimed';
+        statusTag.textContent = 'Claimed';
+      } else if (b.completed) {
+        statusTag.className = 'bounty-status-tag ready';
+        statusTag.textContent = 'Ready to Claim';
+      } else {
+        statusTag.className = 'bounty-status-tag in-progress';
+        statusTag.textContent = 'In Progress';
+      }
+
+      headerRow.appendChild(titleWrap);
+      headerRow.appendChild(statusTag);
+
+      // 2. Description
+      const descP = document.createElement('p');
+      descP.className = 'bounty-card-desc';
+      descP.textContent = b.description;
+
+      // 3. Progress Bar & Count
+      const progWrap = document.createElement('div');
+      progWrap.className = 'bounty-progress-wrap';
+
+      const progLabels = document.createElement('div');
+      progLabels.className = 'bounty-progress-labels';
+
+      const targetSpan = document.createElement('span');
+      targetSpan.textContent = `Target: ${b.targetName}`;
+
+      const countSpan = document.createElement('span');
+      countSpan.style.fontWeight = '700';
+      countSpan.textContent = `${b.currentCount} / ${b.requiredCount}`;
+
+      progLabels.appendChild(targetSpan);
+      progLabels.appendChild(countSpan);
+
+      const progBg = document.createElement('div');
+      progBg.className = 'bounty-progress-bar-bg';
+
+      const pct = Math.min(100, Math.max(0, Math.round((b.currentCount / b.requiredCount) * 100)));
+      const progFill = document.createElement('div');
+      progFill.className = `bounty-progress-bar-fill ${b.completed ? 'complete' : ''}`;
+      progFill.style.width = `${pct}%`;
+      progBg.appendChild(progFill);
+
+      progWrap.appendChild(progLabels);
+      progWrap.appendChild(progBg);
+
+      // 4. Rewards & Claim Action Button
+      const bottomRow = document.createElement('div');
+      bottomRow.className = 'bounty-bottom-row';
+
+      const rewardsWrap = document.createElement('div');
+      rewardsWrap.className = 'bounty-rewards-pills';
+
+      if (b.rewardGold) {
+        const goldPill = document.createElement('span');
+        goldPill.className = 'bounty-reward-pill gold';
+        goldPill.textContent = `🪙 ${b.rewardGold.toLocaleString()}g`;
+        rewardsWrap.appendChild(goldPill);
+      }
+
+      if (b.rewardGems) {
+        const gemsPill = document.createElement('span');
+        gemsPill.className = 'bounty-reward-pill gems';
+        gemsPill.textContent = `💎 +${b.rewardGems} Gems`;
+        rewardsWrap.appendChild(gemsPill);
+      }
+
+      if (b.rewardAnima) {
+        const animaPill = document.createElement('span');
+        animaPill.className = 'bounty-reward-pill anima';
+        animaPill.textContent = `✨ +${b.rewardAnima} Anima`;
+        rewardsWrap.appendChild(animaPill);
+      }
+
+      const claimBtn = document.createElement('button');
+      claimBtn.className = 'bounty-claim-btn';
+      if (b.claimed) {
+        claimBtn.disabled = true;
+        claimBtn.textContent = 'Claimed';
+      } else if (b.completed) {
+        claimBtn.disabled = false;
+        claimBtn.textContent = 'Claim Reward';
+        claimBtn.onclick = () => {
+          sound.play('ding');
+          this.sendWs({ type: 'CLAIM_DAILY_BOUNTY', bountyId: b.id });
+        };
+      } else {
+        claimBtn.disabled = true;
+        claimBtn.textContent = `${b.currentCount}/${b.requiredCount}`;
+      }
+
+      bottomRow.appendChild(rewardsWrap);
+      bottomRow.appendChild(claimBtn);
+
+      card.appendChild(headerRow);
+      card.appendChild(descP);
+      card.appendChild(progWrap);
+      card.appendChild(bottomRow);
+
       listEl.appendChild(card);
     }
   }
