@@ -734,7 +734,7 @@ export class GameEngine {
         break;
 
       case 'BREED_MOUNTS':
-        this.handleBreedMounts(session, msg.indexA, msg.indexB);
+        this.handleBreedMounts(session, msg.indexA, msg.indexB, msg.locA, msg.locB);
         break;
 
       case 'UNEQUIP_ITEM':
@@ -2017,24 +2017,33 @@ export class GameEngine {
   }
 
 
-  private handleBreedMounts(session: ConnectedSession, indexA: number, indexB: number) {
+  private handleBreedMounts(
+    session: ConnectedSession,
+    indexA: number,
+    indexB: number,
+    locA: 'inventory' | 'storage' = 'inventory',
+    locB: 'inventory' | 'storage' = 'inventory'
+  ) {
     const { player, ws } = session;
+
+    const sourceA = locA === 'storage' ? player.storage : player.inventory;
+    const sourceB = locB === 'storage' ? player.storage : player.inventory;
 
     if (
       typeof indexA !== 'number' ||
       typeof indexB !== 'number' ||
-      indexA === indexB ||
+      (locA === locB && indexA === indexB) ||
       indexA < 0 ||
-      indexA >= player.inventory.length ||
+      indexA >= sourceA.length ||
       indexB < 0 ||
-      indexB >= player.inventory.length
+      indexB >= sourceB.length
     ) {
-      this.send(ws, { type: 'NOTIFICATION', message: 'Select two distinct mounts in your bag to breed.' });
+      this.send(ws, { type: 'NOTIFICATION', message: 'Select two distinct mounts to breed.' });
       return;
     }
 
-    const slotA = player.inventory[indexA];
-    const slotB = player.inventory[indexB];
+    const slotA = sourceA[indexA];
+    const slotB = sourceB[indexB];
     if (!slotA || !slotB) {
       this.send(ws, { type: 'NOTIFICATION', message: 'Invalid mount slots.' });
       return;
@@ -2072,20 +2081,39 @@ export class GameEngine {
     const offspringSpecies = getOffspringSpecies(slotA.itemId, slotB.itemId);
     const offspringDef = storage.getItem(offspringSpecies) || ITEMS[offspringSpecies];
 
-    // Remove the two parent mounts from inventory
-    // To safely remove, sort indices descending so splicing doesn't shift the lower index
-    const sortedIndices = [indexA, indexB].sort((a, b) => b - a);
-    player.inventory.splice(sortedIndices[0], 1);
-    player.inventory.splice(sortedIndices[1], 1);
+    // Safely remove both parents from their respective arrays
+    if (locA === locB) {
+      const sortedIndices = [indexA, indexB].sort((a, b) => b - a);
+      sourceA.splice(sortedIndices[0], 1);
+      sourceA.splice(sortedIndices[1], 1);
+    } else {
+      sourceA.splice(indexA, 1);
+      sourceB.splice(indexB, 1);
+    }
 
-    // Add offspring mount to inventory
+    // Add offspring mount to the origin of Parent A (if storage, place in storage, else inventory)
     const newMountSlot: InventorySlot = {
       itemId: offspringSpecies,
       quantity: 1,
       rarity: breedResult.rarity,
       plus: 0,
     };
-    player.inventory.push(newMountSlot);
+
+    if (locA === 'storage') {
+      const maxSlots = player.storageSlotsMax || 75;
+      const addRes = addItemToSlots(player.storage, maxSlots, offspringSpecies, 1, breedResult.rarity, 0, offspringDef, 'bank');
+      if (addRes.added <= 0) {
+        // Vault full fallback: put in inventory
+        addItemToSlots(player.inventory, 28, offspringSpecies, 1, breedResult.rarity, 0, offspringDef, 'inventory');
+      }
+    } else {
+      const addRes = addItemToSlots(player.inventory, 28, offspringSpecies, 1, breedResult.rarity, 0, offspringDef, 'inventory');
+      if (addRes.added <= 0) {
+        // Bag full fallback: put in storage
+        const maxSlots = player.storageSlotsMax || 75;
+        addItemToSlots(player.storage, maxSlots, offspringSpecies, 1, breedResult.rarity, 0, offspringDef, 'bank');
+      }
+    }
 
     storage.savePlayer(player);
     storage.checkpoint();

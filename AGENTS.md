@@ -202,7 +202,7 @@
 
 ### M. Mount Breeding & Pedigree System
 - **Source Files**: `packages/shared/src/constants.ts`, `packages/server/src/gameEngine.ts`, `packages/client/index.html`, `packages/client/src/main.ts`.
-- **Access**: Directly on any mount in the satchel via the item context menu (`Breed Mount...`). No dedicated NPC required.
+- **Access**: Directly on any mount in the satchel or Hearth vault via the item context menu (`Breed Mount...`). Seamlessly cross mounts between bag and vault. No dedicated NPC required.
 - **Species Crossing Logic**:
   - `steed_courser` + `steed_chicken` = `steed_chorse` (The hybrid Chorse mount).
   - Two Chorses breed into another Chorse (`steed_chorse`).

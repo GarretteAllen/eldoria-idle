@@ -183,6 +183,8 @@ class EldoriaClient {
   // Mount Breeding State
   private breedingParentAIndex: number | null = null;
   private breedingParentBIndex: number | null = null;
+  private breedingParentALoc: 'inventory' | 'storage' = 'inventory';
+  private breedingParentBLoc: 'inventory' | 'storage' = 'inventory';
 
   constructor() {
     const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
@@ -6700,6 +6702,12 @@ class EldoriaClient {
       mktBtn.style.display = isUntradeable ? 'none' : 'flex';
     }
 
+    const storageBreedDivider = document.getElementById('storage-ctx-breed-divider');
+    const storageBreedBtn = document.getElementById('storage-ctx-btn-breed');
+    const isSteed = def.category === 'steed';
+    if (storageBreedDivider) storageBreedDivider.style.display = isSteed ? 'block' : 'none';
+    if (storageBreedBtn) storageBreedBtn.style.display = isSteed ? 'flex' : 'none';
+
     // Position menu adjacent to the clicked slot
     menu.classList.remove('hidden');
 
@@ -6958,6 +6966,22 @@ class EldoriaClient {
 
           storageMenu.classList.add('hidden');
           this.selectedStorageIndex = null;
+        }
+      };
+    }
+
+    // Breed Mount from Vault
+    const storageBreedBtn = document.getElementById('storage-ctx-btn-breed');
+    if (storageBreedBtn && storageMenu) {
+      storageBreedBtn.onclick = () => {
+        if (this.selectedStorageIndex !== null && this.player) {
+          const idx = this.selectedStorageIndex;
+          const slot = this.player.storage[idx];
+          if (slot && ITEMS[slot.itemId]?.category === 'steed') {
+            storageMenu.classList.add('hidden');
+            this.selectedStorageIndex = null;
+            this.openMountBreedModal(idx, 'storage');
+          }
         }
       };
     }
@@ -10469,20 +10493,25 @@ class EldoriaClient {
           type: 'BREED_MOUNTS',
           indexA: this.breedingParentAIndex,
           indexB: this.breedingParentBIndex,
+          locA: this.breedingParentALoc,
+          locB: this.breedingParentBLoc,
         });
       };
     }
   }
 
-  public openMountBreedModal(parentAIndex: number) {
+  public openMountBreedModal(parentAIndex: number, location: 'inventory' | 'storage' = 'inventory') {
     if (!this.player) return;
-    const slotA = this.player.inventory[parentAIndex];
+    const sourceA = location === 'storage' ? this.player.storage : this.player.inventory;
+    const slotA = sourceA[parentAIndex];
     if (!slotA) return;
     const defA = ITEMS[slotA.itemId];
     if (!defA || defA.category !== 'steed') return;
 
     this.breedingParentAIndex = parentAIndex;
+    this.breedingParentALoc = location;
     this.breedingParentBIndex = null;
+    this.breedingParentBLoc = 'inventory';
 
     const modal = document.getElementById('mount-breed-modal');
     if (!modal) return;
@@ -10500,7 +10529,8 @@ class EldoriaClient {
       slotAEl.style.borderColor = rarityColA;
     }
     if (nameAEl) {
-      nameAEl.textContent = `${defA.name} (${slotA.rarity || 'plain'})`;
+      const locLabel = location === 'storage' ? ' (Vault)' : '';
+      nameAEl.textContent = `${defA.name} (${slotA.rarity || 'plain'})${locLabel}`;
       nameAEl.style.color = rarityColA;
     }
 
@@ -10539,7 +10569,7 @@ class EldoriaClient {
       submitBtn.textContent = 'Select Partner Mount';
     }
 
-    // Populate Partner List from Satchel
+    // Populate Partner List from Satchel + Vault
     this.renderBreedPartnerList();
   }
 
@@ -10548,31 +10578,44 @@ class EldoriaClient {
     if (!listEl || !this.player) return;
     listEl.innerHTML = '';
 
-    const partnerCandidates: { index: number; slot: any; def: any }[] = [];
+    const partnerCandidates: { index: number; loc: 'inventory' | 'storage'; slot: any; def: any }[] = [];
+
+    // Search Satchel
     for (let i = 0; i < this.player.inventory.length; i++) {
-      if (i === this.breedingParentAIndex) continue;
+      if (this.breedingParentALoc === 'inventory' && i === this.breedingParentAIndex) continue;
       const slot = this.player.inventory[i];
       if (!slot) continue;
       const def = ITEMS[slot.itemId];
       if (def && def.category === 'steed') {
-        partnerCandidates.push({ index: i, slot, def });
+        partnerCandidates.push({ index: i, loc: 'inventory', slot, def });
+      }
+    }
+
+    // Search Vault
+    for (let i = 0; i < this.player.storage.length; i++) {
+      if (this.breedingParentALoc === 'storage' && i === this.breedingParentAIndex) continue;
+      const slot = this.player.storage[i];
+      if (!slot) continue;
+      const def = ITEMS[slot.itemId];
+      if (def && def.category === 'steed') {
+        partnerCandidates.push({ index: i, loc: 'storage', slot, def });
       }
     }
 
     if (partnerCandidates.length === 0) {
       listEl.innerHTML = `
         <div style="padding: 12px; text-align: center; color: #a0aec0; font-size: 0.78rem;">
-          No other steeds found in satchel.<br/>
-          <span style="font-size: 0.72rem; color: #718096;">You need at least 2 mounts in your inventory to breed.</span>
+          No other steeds found in satchel or vault.<br/>
+          <span style="font-size: 0.72rem; color: #718096;">You need at least 2 mounts across your bag or vault to breed.</span>
         </div>
       `;
       return;
     }
 
-    partnerCandidates.forEach(({ index, slot, def }) => {
+    partnerCandidates.forEach(({ index, loc, slot, def }) => {
       const itemBtn = document.createElement('button');
       itemBtn.type = 'button';
-      const isSelected = this.breedingParentBIndex === index;
+      const isSelected = this.breedingParentBIndex === index && this.breedingParentBLoc === loc;
       const rColor = slot.rarity === 'legendary' ? '#f59e0b' :
                      slot.rarity === 'epic' ? '#a855f7' :
                      slot.rarity === 'rare' ? '#3b82f6' :
@@ -10592,13 +10635,17 @@ class EldoriaClient {
         transition: background 0.15s;
       `;
 
+      const locBadge = loc === 'storage'
+        ? '<span style="font-size: 0.65rem; color: #63b3ed; background: rgba(99,179,237,0.15); padding: 1px 4px; border-radius: 3px; margin-left: 6px;">Vault</span>'
+        : '<span style="font-size: 0.65rem; color: #68d391; background: rgba(104,211,145,0.15); padding: 1px 4px; border-radius: 3px; margin-left: 6px;">Bag</span>';
+
       itemBtn.innerHTML = `
         <div style="width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
           ${getItemIconSvg(slot.itemId, def.category)}
         </div>
         <div style="flex: 1; min-width: 0;">
-          <div style="font-size: 0.78rem; font-weight: 700; color: ${rColor}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
-            ${def.name}
+          <div style="font-size: 0.78rem; font-weight: 700; color: ${rColor}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center;">
+            ${def.name} ${locBadge}
           </div>
           <div style="font-size: 0.68rem; color: #a0aec0; text-transform: uppercase;">
             ${slot.rarity || 'plain'} tier
@@ -10611,6 +10658,7 @@ class EldoriaClient {
 
       itemBtn.onclick = () => {
         this.breedingParentBIndex = index;
+        this.breedingParentBLoc = loc;
         this.renderBreedPartnerList();
         this.updateMountBreedPreview();
       };
@@ -10621,8 +10669,10 @@ class EldoriaClient {
 
   private updateMountBreedPreview() {
     if (!this.player || this.breedingParentAIndex === null || this.breedingParentBIndex === null) return;
-    const slotA = this.player.inventory[this.breedingParentAIndex];
-    const slotB = this.player.inventory[this.breedingParentBIndex];
+    const sourceA = this.breedingParentALoc === 'storage' ? this.player.storage : this.player.inventory;
+    const sourceB = this.breedingParentBLoc === 'storage' ? this.player.storage : this.player.inventory;
+    const slotA = sourceA[this.breedingParentAIndex];
+    const slotB = sourceB[this.breedingParentBIndex];
     if (!slotA || !slotB) return;
     const defA = ITEMS[slotA.itemId];
     const defB = ITEMS[slotB.itemId];
@@ -10640,7 +10690,8 @@ class EldoriaClient {
       slotBEl.style.borderColor = rarityColB;
     }
     if (nameBEl) {
-      nameBEl.textContent = `${defB.name} (${slotB.rarity || 'plain'})`;
+      const locLabel = this.breedingParentBLoc === 'storage' ? ' (Vault)' : '';
+      nameBEl.textContent = `${defB.name} (${slotB.rarity || 'plain'})${locLabel}`;
       nameBEl.style.color = rarityColB;
     }
 
