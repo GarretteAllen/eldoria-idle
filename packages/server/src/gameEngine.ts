@@ -6733,21 +6733,24 @@ export class GameEngine {
     const playerSession = this.sessions.get(playerId);
 
     if (playerSession) {
-      const dungeon = party ? DUNGEONS[party.dungeonId] : null;
-      const retX = typeof dungeon?.returnX === 'number' ? dungeon.returnX : PLAYER_SPAWN_POINT.x;
-      const retY = typeof dungeon?.returnY === 'number' ? dungeon.returnY : PLAYER_SPAWN_POINT.y;
+      // Only teleport the player if they were actually in the dungeon instance!
+      if (party.status === 'in_dungeon') {
+        const dungeon = party ? DUNGEONS[party.dungeonId] : null;
+        const retX = typeof dungeon?.returnX === 'number' ? dungeon.returnX : PLAYER_SPAWN_POINT.x;
+        const retY = typeof dungeon?.returnY === 'number' ? dungeon.returnY : PLAYER_SPAWN_POINT.y;
 
-      // Return player to safe gate / town spawn
-      playerSession.player.x = retX;
-      playerSession.player.y = retY;
-      playerSession.player.targetX = retX;
-      playerSession.player.targetY = retY;
-      playerSession.player.path = [];
-      playerSession.player.isMoving = false;
-      playerSession.activeCombat = null;
-      playerSession.pendingCombat = null;
-      storage.savePlayer(playerSession.player);
-      this.send(playerSession.ws, { type: 'PLAYER_UPDATE', player: playerSession.player });
+        // Return player to safe gate / town spawn
+        playerSession.player.x = retX;
+        playerSession.player.y = retY;
+        playerSession.player.targetX = retX;
+        playerSession.player.targetY = retY;
+        playerSession.player.path = [];
+        playerSession.player.isMoving = false;
+        playerSession.activeCombat = null;
+        playerSession.pendingCombat = null;
+        storage.savePlayer(playerSession.player);
+        this.send(playerSession.ws, { type: 'PLAYER_UPDATE', player: playerSession.player });
+      }
       this.send(playerSession.ws, { type: 'DUNGEON_LEFT' });
       this.broadcastWorldState();
     }

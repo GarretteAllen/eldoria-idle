@@ -10040,18 +10040,25 @@ class EldoriaClient {
     if (descEl) descEl.textContent = dungeon.description;
 
     // Key requirement card
+    const isLeader = party.leaderId === this.player?.id;
     const keyStatusEl = document.getElementById('dungeon-key-status');
     const keyBadgeEl = document.getElementById('dungeon-key-badge');
     const hasKey = this.player?.inventory.some(s => s.itemId === dungeon.requiredKeyItemId && s.quantity > 0);
     if (keyStatusEl && keyBadgeEl) {
-      if (hasKey) {
-        keyStatusEl.textContent = `1x ${ITEMS[dungeon.requiredKeyItemId]?.name || 'Keystone'} present in satchel.`;
-        keyBadgeEl.textContent = 'Key Ready';
-        keyBadgeEl.className = 'badge-status-on';
+      if (isLeader) {
+        if (hasKey) {
+          keyStatusEl.textContent = `1x ${ITEMS[dungeon.requiredKeyItemId]?.name || 'Keystone'} present in your satchel.`;
+          keyBadgeEl.textContent = 'Key Ready';
+          keyBadgeEl.className = 'badge-status-on';
+        } else {
+          keyStatusEl.textContent = `Party leader requires 1x ${ITEMS[dungeon.requiredKeyItemId]?.name || 'Keystone'} in satchel to unlock the gate.`;
+          keyBadgeEl.textContent = 'Missing Key';
+          keyBadgeEl.className = 'badge-status-off';
+        }
       } else {
-        keyStatusEl.textContent = `Requires 1x ${ITEMS[dungeon.requiredKeyItemId]?.name || 'Keystone'} in satchel to enter.`;
-        keyBadgeEl.textContent = 'Missing Key';
-        keyBadgeEl.className = 'badge-status-off';
+        keyStatusEl.textContent = `Party leader unlocks the gate with their keystone. You do not need a key to join!`;
+        keyBadgeEl.textContent = 'Free Entry';
+        keyBadgeEl.className = 'badge-status-on';
       }
     }
 
@@ -10125,7 +10132,6 @@ class EldoriaClient {
     }
 
     // Start Button state (only enabled if leader, all members ready, and leader owns key)
-    const isLeader = party.leaderId === this.player?.id;
     const allReady = party.members.every(m => m.isReady);
     const startBtn = document.getElementById('btn-dungeon-start') as HTMLButtonElement | null;
     const inviteSection = document.getElementById('dungeon-invite-section');
