@@ -9959,73 +9959,7 @@ class EldoriaClient {
 
   private handleDungeonButtonClick() {
     if (!this.player) return;
-
-    const hasKeyInSatchel = this.player.inventory.some(s => s.itemId === 'item_crypt_key' && s.quantity > 0);
-    const hasKeyInVault = this.player.storage.some(s => s.itemId === 'item_crypt_key' && s.quantity > 0);
-
-    if (!hasKeyInSatchel && !hasKeyInVault) {
-      this.showToast('You do not possess a Whispering Crypt Key! Craft one or acquire one from rare relics.', false);
-      return;
-    }
-
-    // Pre-flight automated routine:
-    // 1. Walk to bank -> Deposit all -> Withdraw food -> Path to dungeon gate
-    const gateNode = this.worldNodes.find(n => n.id === 'node_dungeon_crypt_gate') || { x: 18, y: 28 };
-    const distToGate = Math.hypot(this.player.x - gateNode.x, this.player.y - gateNode.y);
-
-    if (distToGate <= 2) {
-      // Already at the gate! Open party lobby immediately
-      this.openDungeonLobbyModal();
-      return;
-    }
-
-    sound.play('ding');
-    this.showToast('Initiating Dungeon Pre-flight: Banking spoils, checking provisions, and marching to Crypt Gate...', true);
-
-    // Stop active skilling
-    this.sendWs({ type: 'STOP_TASK', clearQueue: true });
-
-    // Deposit all resources
-    this.sendWs({ type: 'DEPOSIT_ALL_RESOURCES' });
-
-    // Withdraw food if none in satchel
-    const hasFood = this.player.inventory.some(s => {
-      const it = ITEMS[s.itemId];
-      return it && it.category === 'cooked_food';
-    });
-    if (!hasFood) {
-      const foodSlotIdx = this.player.storage.findIndex(s => {
-        const it = ITEMS[s.itemId];
-        return it && it.category === 'cooked_food';
-      });
-      if (foodSlotIdx >= 0) {
-        this.sendWs({ type: 'WITHDRAW_ITEM', storageIndex: foodSlotIdx, quantity: 5 });
-      }
-    }
-
-    // If key is in vault, withdraw it
-    if (!hasKeyInSatchel && hasKeyInVault) {
-      const keyVaultIdx = this.player.storage.findIndex(s => s.itemId === 'item_crypt_key');
-      if (keyVaultIdx >= 0) {
-        this.sendWs({ type: 'WITHDRAW_ITEM', storageIndex: keyVaultIdx, quantity: 1 });
-      }
-    }
-
-    // Path to Crypt Gate
-    this.sendWs({ type: 'MOVE_TO', x: gateNode.x, y: gateNode.y });
-
-    // Schedule arrival check to open modal
-    const checkArrival = setInterval(() => {
-      if (!this.player) {
-        clearInterval(checkArrival);
-        return;
-      }
-      const d = Math.hypot(this.player.x - gateNode.x, this.player.y - gateNode.y);
-      if (d <= 2) {
-        clearInterval(checkArrival);
-        this.openDungeonLobbyModal();
-      }
-    }, 500);
+    this.openDungeonLobbyModal();
   }
 
   private openDungeonLobbyModal(dungeonId: string = 'whispering_crypt') {
