@@ -8635,15 +8635,19 @@ class EldoriaClient {
     // Code tags
     html = html.replace(/\[code\]([\s\S]*?)\[\/code\]/gi, '<code style="background:rgba(0,0,0,0.4); padding:2px 5px; border-radius:3px; color:#ffd699; font-size:0.75rem;">$1</code>');
 
-    // Lists
-    html = html.replace(/\[list\]([\s\S]*?)\[\/list\]/gi, (_match, items) => {
-      const parsedItems = items
-        .split(/\[\*\]/g)
-        .filter((s: string) => s.trim().length > 0)
-        .map((s: string) => `<li style="margin: 3px 0;">${s.trim()}</li>`)
-        .join('');
-      return `<ul style="margin:6px 0 8px 18px; padding-left:0; font-size:0.78rem; line-height:1.45; color:#cbd5e0;">${parsedItems}</ul>`;
-    });
+    // Lists (loops to cleanly handle nested lists)
+    let prevHtml = '';
+    while (html !== prevHtml) {
+      prevHtml = html;
+      html = html.replace(/\[list\]([\s\S]*?)\[\/list\]/i, (_match, items) => {
+        const parsedItems = items
+          .split(/\[\*\]/g)
+          .filter((s: string) => s.trim().length > 0)
+          .map((s: string) => `<li style="margin: 3px 0;">${s.trim()}</li>`)
+          .join('');
+        return `<ul style="margin:6px 0 8px 18px; padding-left:0; font-size:0.78rem; line-height:1.45; color:#cbd5e0;">${parsedItems}</ul>`;
+      });
+    }
 
     // Line breaks
     html = html.replace(/\r\n/g, '<br/>').replace(/\n/g, '<br/>');
