@@ -189,6 +189,7 @@ export interface ActiveTask {
   targetNodeX?: number;
   targetNodeY?: number;
   targetNodeId?: string;
+  monsterName?: string;
   standX?: number;
   standY?: number;
 }

@@ -79,6 +79,7 @@ interface ConnectedSession {
   pendingCombat?: { monsterId: string; targetX: number; targetY: number; nodeId?: string; zoneId?: string; quantity?: number } | null;
   activeCombat?: {
     monsterId: string;
+    monsterName?: string;
     targetX: number;
     targetY: number;
     nodeId?: string;
@@ -5939,7 +5940,7 @@ export class GameEngine {
         damage,
         combatStyle,
         monsterId: monsterDef.id,
-        monsterName: monsterDef.name,
+        monsterName: combat.monsterName || monsterDef.name,
         monsterHp: combat.currentHp,
         monsterMaxHp: combat.maxHp,
         nodeId: combat.nodeId,
@@ -6054,6 +6055,7 @@ export class GameEngine {
             if (nextDMob) {
               session.activeCombat = {
                 monsterId: nextDMob.monsterId,
+                monsterName: nextDMob.name,
                 targetX: nextDMob.x,
                 targetY: nextDMob.y,
                 nodeId: nextDMob.id,
@@ -6071,6 +6073,7 @@ export class GameEngine {
                 targetNodeX: nextDMob.x,
                 targetNodeY: nextDMob.y,
                 targetNodeId: nextDMob.id,
+                monsterName: nextDMob.name,
               };
               this.send(ws, { type: 'PLAYER_UPDATE', player });
               return;
@@ -6905,6 +6908,7 @@ export class GameEngine {
             const firstTarget = aliveMobs[0];
             s.activeCombat = {
               monsterId: firstTarget.monsterId,
+              monsterName: firstTarget.name,
               targetX: firstTarget.x,
               targetY: firstTarget.y,
               nodeId: firstTarget.id,
@@ -6922,6 +6926,7 @@ export class GameEngine {
               targetNodeX: firstTarget.x,
               targetNodeY: firstTarget.y,
               targetNodeId: firstTarget.id,
+              monsterName: firstTarget.name,
             };
             this.send(s.ws, { type: 'PLAYER_UPDATE', player: s.player });
           }

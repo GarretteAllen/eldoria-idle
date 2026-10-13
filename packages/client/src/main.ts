@@ -1613,9 +1613,10 @@ class EldoriaClient {
     if (!this.activeCombatMonster && task.recipeId && MONSTERS[task.recipeId]) {
       const def = MONSTERS[task.recipeId];
       const cached = this.renderer.monsterHpMap.get(def.id) || (task.targetNodeX !== undefined ? this.renderer.monsterHpMap.get(`mob_${task.targetNodeX}_${task.targetNodeY}`) : undefined);
+      const customName = task.monsterName || (task.targetNodeId ? this.worldNodes.find(n => n.id === task.targetNodeId)?.name : undefined) || def.name;
       this.activeCombatMonster = {
         id: def.id,
-        name: def.name,
+        name: customName,
         level: def.level,
         currentHp: cached ? cached.currentHp : def.hp,
         maxHp: cached ? cached.maxHp : def.hp,
