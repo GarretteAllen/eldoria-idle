@@ -282,6 +282,13 @@ class EldoriaClient {
     if (minimapBtn) minimapBtn.innerHTML = ICONS.compass;
     const worldmapBtn = document.getElementById('btn-worldmap-toggle');
     if (worldmapBtn) worldmapBtn.innerHTML = ICONS.worldMap;
+    const unstuckBtn = document.getElementById('btn-unstuck');
+    if (unstuckBtn) {
+      unstuckBtn.innerHTML = ICONS.hearth;
+      unstuckBtn.onclick = () => {
+        this.sendWs({ type: 'CHAT', text: '/unstuck', channel: 'all' });
+      };
+    }
     const minimapGlyph = document.getElementById('minimap-compass-glyph');
     if (minimapGlyph) minimapGlyph.innerHTML = ICONS.compass;
 

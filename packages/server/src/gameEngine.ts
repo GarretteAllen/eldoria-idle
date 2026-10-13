@@ -890,6 +890,32 @@ export class GameEngine {
 
           const trimmed = msg.text.trim();
 
+          // Emergency Unstuck / Town recall: /unstuck or /home
+          if (trimmed === '/unstuck' || trimmed === '/home' || trimmed === '/spawn') {
+            const partyId = this.playerPartyMap.get(player.id);
+            if (partyId) {
+              this.leaveCurrentParty(player.id);
+            }
+            player.x = PLAYER_SPAWN_POINT.x;
+            player.y = PLAYER_SPAWN_POINT.y;
+            player.targetX = PLAYER_SPAWN_POINT.x;
+            player.targetY = PLAYER_SPAWN_POINT.y;
+            player.path = [];
+            player.isMoving = false;
+            player.bankingState = 'idle';
+            player.currentTask = null;
+            session.activeCombat = null;
+            session.pendingCombat = null;
+            storage.savePlayer(player);
+            this.send(session.ws, { type: 'PLAYER_UPDATE', player });
+            this.send(session.ws, {
+              type: 'NOTIFICATION',
+              message: `💫 Recalled safely to Hearth Town square!`,
+            });
+            this.broadcastWorldState();
+            break;
+          }
+
           // Set name command: /name <username> or /nick <username>
           if (trimmed.startsWith('/name ') || trimmed.startsWith('/nick ') || trimmed.startsWith('/setname ')) {
             const newName = trimmed.replace(/^\/(name|nick|setname)\s+/, '').trim().slice(0, 16);
