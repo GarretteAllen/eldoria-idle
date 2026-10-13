@@ -1411,8 +1411,12 @@ class EldoriaClient {
       case 'DUNGEON_PARTY_UPDATE': {
         this.currentDungeonParty = msg.party;
         const lobbyModal = document.getElementById('dungeon-lobby-modal');
-        if (lobbyModal) lobbyModal.classList.remove('hidden');
-        this.renderDungeonLobby();
+        if (msg.party && msg.party.status === 'lobby') {
+          if (lobbyModal) lobbyModal.classList.remove('hidden');
+          this.renderDungeonLobby();
+        } else if (msg.party && msg.party.status === 'in_dungeon') {
+          if (lobbyModal) lobbyModal.classList.add('hidden');
+        }
         break;
       }
 

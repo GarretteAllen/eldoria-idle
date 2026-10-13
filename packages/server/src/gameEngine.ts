@@ -6292,9 +6292,9 @@ export class GameEngine {
         } else {
           const hearth = this.getHearthLocation(player.x, player.y);
           player.x = hearth.x;
-          player.y = hearth.y;
+          player.y = hearth.y + 1; // Just below the bank counter so player is not stuck on it
           player.targetX = hearth.x;
-          player.targetY = hearth.y;
+          player.targetY = hearth.y + 1;
           storage.savePlayer(player);
           this.send(ws, {
             type: 'NOTIFICATION',
@@ -6740,11 +6740,11 @@ export class GameEngine {
     if (playerSession) {
       // Only teleport the player if they were actually in the dungeon instance!
       if (party.status === 'in_dungeon') {
-        const dungeon = party ? DUNGEONS[party.dungeonId] : null;
-        const retX = typeof dungeon?.returnX === 'number' ? dungeon.returnX : PLAYER_SPAWN_POINT.x;
-        const retY = typeof dungeon?.returnY === 'number' ? dungeon.returnY : PLAYER_SPAWN_POINT.y;
+        const hearth = this.getHearthLocation(playerSession.player.x, playerSession.player.y);
+        const retX = hearth.x;
+        const retY = hearth.y + 1; // Just below the bank counter
 
-        // Return player to safe gate / town spawn
+        // Return player safely just below the nearest bank
         playerSession.player.x = retX;
         playerSession.player.y = retY;
         playerSession.player.targetX = retX;
