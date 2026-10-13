@@ -243,7 +243,24 @@ export class GameEngine {
   public getAllWorldNodes(): WorldNode[] {
     const staticNodes = storage.getWorldNodes().filter(n => n.type !== 'monster');
     const monsterNodes = this.getActiveMonsterNodes();
-    return [...staticNodes, ...monsterNodes];
+    const dungeonMobNodes: WorldNode[] = [];
+    for (const inst of this.dungeonInstances.values()) {
+      if (!inst.isCompleted) {
+        for (const m of inst.roomMonsters) {
+          if (m.hp > 0) {
+            dungeonMobNodes.push({
+              id: m.id,
+              name: m.name,
+              type: 'monster',
+              x: m.x,
+              y: m.y,
+              monsterId: m.monsterId,
+            });
+          }
+        }
+      }
+    }
+    return [...staticNodes, ...monsterNodes, ...dungeonMobNodes];
   }
 
   public findNearestAliveMonsterInZone(playerX: number, playerY: number, zoneId?: string, monsterId?: string): LiveMonsterInstance | null {
@@ -6156,43 +6173,47 @@ export class GameEngine {
           }
         }
 
-        // If satchel has no food, retreat to Hearth to restock rather than remotely eating from bank
+        // If satchel has no food: in open world, retreat to Hearth to restock.
+        // In a dungeon delve, you cannot auto-bank; player simply runs out of food.
         if (!eatenSlot) {
-          const hasBankFood = player.storage.some(s => {
-            if (s.quantity <= 0) return false;
-            if (player.selectedFoodItemId) return s.itemId === player.selectedFoodItemId;
-            const def = ITEMS[s.itemId];
-            return def && (def.category === 'cooked_food' || ((def.baseStats?.healing || 0) > 0));
-          });
-
-          player.bankReturnTask = { ...player.currentTask!, standX: player.x, standY: player.y };
-          player.currentTask = null;
-          session.activeCombat = null;
-          player.bankingState = 'walking_to_bank';
-          const hearth = this.getHearthLocation(player.x, player.y);
-          const path = this.findPathWithCollisions(player.x, player.y, hearth.x, hearth.y);
-          player.targetX = hearth.x;
-          player.targetY = hearth.y;
-          player.path = path;
-          player.isMoving = path.length > 0;
-
-          if (hasBankFood) {
-            this.send(ws, {
-              type: 'NOTIFICATION',
-              message: 'Out of food! Heading to the bank to drop off loot and grab more food...',
+          const inDungeon = this.playerPartyMap.has(player.id);
+          if (!inDungeon) {
+            const hasBankFood = player.storage.some(s => {
+              if (s.quantity <= 0) return false;
+              if (player.selectedFoodItemId) return s.itemId === player.selectedFoodItemId;
+              const def = ITEMS[s.itemId];
+              return def && (def.category === 'cooked_food' || ((def.baseStats?.healing || 0) > 0));
             });
-          } else {
-            player.bankReturnTask = null;
-            this.send(ws, {
-              type: 'NOTIFICATION',
-              message: 'Out of food and your bank is empty! Retreating to town for safety.',
-            });
+
+            player.bankReturnTask = { ...player.currentTask!, standX: player.x, standY: player.y };
+            player.currentTask = null;
+            session.activeCombat = null;
+            player.bankingState = 'walking_to_bank';
+            const hearth = this.getHearthLocation(player.x, player.y);
+            const path = this.findPathWithCollisions(player.x, player.y, hearth.x, hearth.y);
+            player.targetX = hearth.x;
+            player.targetY = hearth.y;
+            player.path = path;
+            player.isMoving = path.length > 0;
+
+            if (hasBankFood) {
+              this.send(ws, {
+                type: 'NOTIFICATION',
+                message: 'Out of food! Heading to the bank to drop off loot and grab more food...',
+              });
+            } else {
+              player.bankReturnTask = null;
+              this.send(ws, {
+                type: 'NOTIFICATION',
+                message: 'Out of food and your bank is empty! Retreating to town for safety.',
+              });
+            }
+
+            storage.savePlayer(player);
+            this.send(ws, { type: 'PLAYER_UPDATE', player });
+            this.broadcastWorldState();
+            return;
           }
-
-          storage.savePlayer(player);
-          this.send(ws, { type: 'PLAYER_UPDATE', player });
-          this.broadcastWorldState();
-          return;
         }
 
         if (eatenSlot) {
@@ -6243,20 +6264,35 @@ export class GameEngine {
       // Check if player died
       if (player.currentHp <= 0) {
         session.activeCombat = null;
+        session.pendingCombat = null;
         player.currentTask = null;
-        const hearth = this.getHearthLocation(player.x, player.y);
-        player.x = hearth.x;
-        player.y = hearth.y;
-        player.currentHp = maxHp;
         player.isMoving = false;
         player.path = [];
-        storage.savePlayer(player);
-        this.send(ws, {
-          type: 'NOTIFICATION',
-          message: `Slain by ${monsterDef.name}. You awoke safely at the Hearth.`,
-        });
-        this.send(ws, { type: 'PLAYER_UPDATE', player });
-        this.broadcastWorldState();
+        player.bankingState = 'idle';
+        player.currentHp = maxHp;
+
+        // If died in dungeon, safely remove from party and return to entrance gate
+        const inDungeon = this.playerPartyMap.has(player.id);
+        if (inDungeon) {
+          this.leaveCurrentParty(player.id);
+          this.send(ws, {
+            type: 'NOTIFICATION',
+            message: `☠️ You fell in battle against ${monsterDef.name}! You were evacuated from the dungeon.`,
+          });
+        } else {
+          const hearth = this.getHearthLocation(player.x, player.y);
+          player.x = hearth.x;
+          player.y = hearth.y;
+          player.targetX = hearth.x;
+          player.targetY = hearth.y;
+          storage.savePlayer(player);
+          this.send(ws, {
+            type: 'NOTIFICATION',
+            message: `Slain by ${monsterDef.name}. You awoke safely at the Hearth.`,
+          });
+          this.send(ws, { type: 'PLAYER_UPDATE', player });
+          this.broadcastWorldState();
+        }
         return;
       }
     }
@@ -6668,6 +6704,7 @@ export class GameEngine {
     }
 
     this.broadcastWorldState();
+    this.broadcast({ type: 'WORLD_NODES_UPDATE', nodes: this.getAllWorldNodes() });
   }
 
   private handleDungeonLeave(session: ConnectedSession) {
@@ -6841,6 +6878,7 @@ export class GameEngine {
             }
           }
           this.broadcastWorldState();
+          this.broadcast({ type: 'WORLD_NODES_UPDATE', nodes: this.getAllWorldNodes() });
         } else {
           // Boss Room Completed!
           inst.isCompleted = true;
