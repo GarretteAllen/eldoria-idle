@@ -4983,6 +4983,14 @@ export class GameEngine {
   ) {
     const { player } = session;
 
+    // Clearing any stale auto-banking return tasks, combat states, and previous work
+    player.bankReturnTask = null;
+    player.bankingState = 'idle';
+    player.currentTask = null;
+    session.pendingCombat = null;
+    session.activeCombat = null;
+    session.ticksInTask = 0;
+
     if (rec.skill === 'herbalism') {
       const allNodes = this.getAllWorldNodes();
       const hasHerbNode = allNodes.some(n => n.recipeId === rec.id || n.type === 'herb');
