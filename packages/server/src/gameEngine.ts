@@ -6639,20 +6639,29 @@ export class GameEngine {
       return;
     }
 
-    // Check leader key requirement
-    const keySlotIdx = player.inventory.findIndex(s => s.itemId === dungeon.requiredKeyItemId && s.quantity > 0);
-    if (keySlotIdx < 0) {
+    // Check leader key requirement (satchel or bank)
+    const keyInvIdx = player.inventory.findIndex(s => s.itemId === dungeon.requiredKeyItemId && s.quantity > 0);
+    const keyStorageIdx = keyInvIdx < 0 ? player.storage.findIndex(s => s.itemId === dungeon.requiredKeyItemId && s.quantity > 0) : -1;
+
+    if (keyInvIdx < 0 && keyStorageIdx < 0) {
       this.send(ws, {
         type: 'NOTIFICATION',
-        message: `Party leader requires 1x ${ITEMS[dungeon.requiredKeyItemId]?.name || 'Crypt Key'} to open the gate!`,
+        message: `Party leader requires 1x ${ITEMS[dungeon.requiredKeyItemId]?.name || 'Crypt Key'} (in satchel or bank) to open the gate!`,
       });
       return;
     }
 
-    // Consume 1 dungeon key
-    player.inventory[keySlotIdx].quantity--;
-    if (player.inventory[keySlotIdx].quantity <= 0) {
-      player.inventory.splice(keySlotIdx, 1);
+    // Consume 1 dungeon key (from satchel if held, otherwise directly from bank)
+    if (keyInvIdx >= 0) {
+      player.inventory[keyInvIdx].quantity--;
+      if (player.inventory[keyInvIdx].quantity <= 0) {
+        player.inventory.splice(keyInvIdx, 1);
+      }
+    } else if (keyStorageIdx >= 0) {
+      player.storage[keyStorageIdx].quantity--;
+      if (player.storage[keyStorageIdx].quantity <= 0) {
+        player.storage.splice(keyStorageIdx, 1);
+      }
     }
     storage.savePlayer(player);
     this.send(ws, { type: 'PLAYER_UPDATE', player });

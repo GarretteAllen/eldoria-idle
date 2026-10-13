@@ -10045,15 +10045,7 @@ class EldoriaClient {
       this.sendWs({ type: 'WITHDRAW_ITEM', storageIndex: foodSlotIdx, quantity: 15 });
     }
 
-    // 3. Withdraw Whispering Crypt Key if stored in bank
-    const hasKeyInSatchel = this.player.inventory.some(s => s.itemId === 'item_crypt_key' && s.quantity > 0);
-    if (!hasKeyInSatchel) {
-      const keySlotIdx = this.player.storage.findIndex(s => s.itemId === 'item_crypt_key' && s.quantity > 0);
-      if (keySlotIdx >= 0) {
-        this.sendWs({ type: 'WITHDRAW_ITEM', storageIndex: keySlotIdx, quantity: 1 });
-      }
-    }
-
+    // Key can be used directly from bank without cluttering satchel inventory slots!
     // Transition phase to gate march
     this.pendingDungeonPrep = { phase: 'gate', gateX, gateY };
     this.showToast('Provisions restocked! Heading to Whispering Crypt Gate...', true);
@@ -10098,15 +10090,22 @@ class EldoriaClient {
     const isLeader = party.leaderId === this.player?.id;
     const keyStatusEl = document.getElementById('dungeon-key-status');
     const keyBadgeEl = document.getElementById('dungeon-key-badge');
-    const hasKey = this.player?.inventory.some(s => s.itemId === dungeon.requiredKeyItemId && s.quantity > 0);
+    const hasKeyInSatchel = this.player?.inventory.some(s => s.itemId === dungeon.requiredKeyItemId && s.quantity > 0);
+    const hasKeyInBank = !hasKeyInSatchel && (this.player?.storage.some(s => s.itemId === dungeon.requiredKeyItemId && s.quantity > 0) ?? false);
+    const hasKey = hasKeyInSatchel || hasKeyInBank;
+
     if (keyStatusEl && keyBadgeEl) {
       if (isLeader) {
-        if (hasKey) {
+        if (hasKeyInSatchel) {
           keyStatusEl.textContent = `1x ${ITEMS[dungeon.requiredKeyItemId]?.name || 'Keystone'} present in your satchel.`;
           keyBadgeEl.textContent = 'Key Ready';
           keyBadgeEl.className = 'badge-status-on';
+        } else if (hasKeyInBank) {
+          keyStatusEl.textContent = `1x ${ITEMS[dungeon.requiredKeyItemId]?.name || 'Keystone'} available in your bank (used directly).`;
+          keyBadgeEl.textContent = 'Bank Key Ready';
+          keyBadgeEl.className = 'badge-status-on';
         } else {
-          keyStatusEl.textContent = `Party leader requires 1x ${ITEMS[dungeon.requiredKeyItemId]?.name || 'Keystone'} in satchel to unlock the gate.`;
+          keyStatusEl.textContent = `Party leader requires 1x ${ITEMS[dungeon.requiredKeyItemId]?.name || 'Keystone'} in satchel or bank to unlock the gate.`;
           keyBadgeEl.textContent = 'Missing Key';
           keyBadgeEl.className = 'badge-status-off';
         }
