@@ -24,6 +24,7 @@ import {
   MarketListing,
   MarketTradeHistory,
   calculateMaxHit,
+  getItemEffectiveStats,
   ChangelogEntry,
   Poll,
   getStorageSlotUpgradeCost,
@@ -3260,12 +3261,13 @@ class EldoriaClient {
       if (!item) continue;
       const def = ITEMS[item.itemId];
       if (def?.baseStats) {
-        if (def.baseStats.accuracy) totalAcc += def.baseStats.accuracy;
-        if (def.baseStats.strength) totalStr += def.baseStats.strength;
-        if (currentStyle === 'melee' && def.baseStats.meleeStrength) totalStr += def.baseStats.meleeStrength;
-        if (currentStyle === 'ranged' && def.baseStats.rangedStrength) totalStr += def.baseStats.rangedStrength;
-        if (currentStyle === 'magic' && def.baseStats.magicStrength) totalStr += def.baseStats.magicStrength;
-        if (def.baseStats.defence) totalDef += def.baseStats.defence;
+        const eff = getItemEffectiveStats(def.baseStats, item.rarity || 'plain', item.plus || 0);
+        if (eff.accuracy) totalAcc += eff.accuracy;
+        if (eff.strength) totalStr += eff.strength;
+        if (currentStyle === 'melee' && eff.meleeStrength) totalStr += eff.meleeStrength;
+        if (currentStyle === 'ranged' && eff.rangedStrength) totalStr += eff.rangedStrength;
+        if (currentStyle === 'magic' && eff.magicStrength) totalStr += eff.magicStrength;
+        if (eff.defence) totalDef += eff.defence;
       }
     }
     const maxHit = calculateMaxHit(styleLevel, totalStr - styleLevel, 0);
@@ -5797,32 +5799,33 @@ class EldoriaClient {
       if (statsListEl) {
         statsListEl.innerHTML = '';
         if (def.baseStats) {
-          if (def.baseStats.accuracy) {
-            statsListEl.innerHTML += `<div class="tooltip-stat-row"><span>Accuracy</span><span>+${def.baseStats.accuracy}</span></div>`;
+          const eff = getItemEffectiveStats(def.baseStats, (slot.rarity as any) || 'plain', slot.plus || 0);
+          if (eff.accuracy) {
+            statsListEl.innerHTML += `<div class="tooltip-stat-row"><span>Accuracy</span><span>+${eff.accuracy}</span></div>`;
           }
-          if (def.baseStats.strength) {
-            statsListEl.innerHTML += `<div class="tooltip-stat-row"><span>Strength</span><span>+${def.baseStats.strength}</span></div>`;
+          if (eff.strength) {
+            statsListEl.innerHTML += `<div class="tooltip-stat-row"><span>Strength</span><span>+${eff.strength}</span></div>`;
           }
-          if (def.baseStats.meleeStrength) {
-            statsListEl.innerHTML += `<div class="tooltip-stat-row" style="color:#f6ad55;"><span>Melee Strength</span><span>+${def.baseStats.meleeStrength}</span></div>`;
+          if (eff.meleeStrength) {
+            statsListEl.innerHTML += `<div class="tooltip-stat-row" style="color:#f6ad55;"><span>Melee Strength</span><span>+${eff.meleeStrength}</span></div>`;
           }
-          if (def.baseStats.rangedStrength) {
-            statsListEl.innerHTML += `<div class="tooltip-stat-row" style="color:#68d391;"><span>Ranged Strength</span><span>+${def.baseStats.rangedStrength}</span></div>`;
+          if (eff.rangedStrength) {
+            statsListEl.innerHTML += `<div class="tooltip-stat-row" style="color:#68d391;"><span>Ranged Strength</span><span>+${eff.rangedStrength}</span></div>`;
           }
-          if (def.baseStats.magicStrength) {
-            statsListEl.innerHTML += `<div class="tooltip-stat-row" style="color:#63b3ed;"><span>Magic Strength</span><span>+${def.baseStats.magicStrength}</span></div>`;
+          if (eff.magicStrength) {
+            statsListEl.innerHTML += `<div class="tooltip-stat-row" style="color:#63b3ed;"><span>Magic Strength</span><span>+${eff.magicStrength}</span></div>`;
           }
-          if (def.baseStats.defence) {
-            statsListEl.innerHTML += `<div class="tooltip-stat-row"><span>Defence</span><span>+${def.baseStats.defence}</span></div>`;
+          if (eff.defence) {
+            statsListEl.innerHTML += `<div class="tooltip-stat-row"><span>Defence</span><span>+${eff.defence}</span></div>`;
           }
-          if (def.baseStats.healing) {
-            statsListEl.innerHTML += `<div class="tooltip-stat-row" style="color:#48bb78;"><span>Restores HP</span><span>+${def.baseStats.healing}</span></div>`;
+          if (eff.healing) {
+            statsListEl.innerHTML += `<div class="tooltip-stat-row" style="color:#48bb78;"><span>Restores HP</span><span>+${eff.healing}</span></div>`;
           }
-          if (def.baseStats.toolSpeedBonus) {
-            statsListEl.innerHTML += `<div class="tooltip-stat-row" style="color:#ecc94b;"><span>Gathering Bonus</span><span>+${Math.round(def.baseStats.toolSpeedBonus * 100)}%</span></div>`;
+          if (eff.toolSpeedBonus) {
+            statsListEl.innerHTML += `<div class="tooltip-stat-row" style="color:#ecc94b;"><span>Gathering Bonus</span><span>+${Math.round(eff.toolSpeedBonus * 100)}%</span></div>`;
           }
-          if (def.baseStats.attackSpeedBonus) {
-            statsListEl.innerHTML += `<div class="tooltip-stat-row" style="color:#63b3ed;"><span>Attack Speed</span><span>+${Math.round(def.baseStats.attackSpeedBonus * 100)}%</span></div>`;
+          if (eff.attackSpeedBonus) {
+            statsListEl.innerHTML += `<div class="tooltip-stat-row" style="color:#63b3ed;"><span>Attack Speed</span><span>+${Math.round(eff.attackSpeedBonus * 100)}%</span></div>`;
           }
         }
         if (def.vendorFloorPrice) {
@@ -5838,20 +5841,15 @@ class EldoriaClient {
           const equipped = this.player.equipment[targetEquipSlot];
           const eqDef = equipped ? ITEMS[equipped.itemId] : null;
 
-          const myAcc = def.baseStats?.accuracy || 0;
-          const eqAcc = eqDef?.baseStats?.accuracy || 0;
-          const diffAcc = myAcc - eqAcc;
+          const myEff = getItemEffectiveStats(def.baseStats, (slot.rarity as any) || 'plain', slot.plus || 0);
+          const eqEff = eqDef ? getItemEffectiveStats(eqDef.baseStats, equipped?.rarity || 'plain', equipped?.plus || 0) : {};
 
-          const myStr = def.baseStats?.strength || 0;
-          const eqStr = eqDef?.baseStats?.strength || 0;
-          const diffStr = myStr - eqStr;
+          const diffAcc = (myEff.accuracy || 0) - (eqEff.accuracy || 0);
+          const diffStr = (myEff.strength || 0) - (eqEff.strength || 0);
+          const diffDef = (myEff.defence || 0) - (eqEff.defence || 0);
 
-          const myDef = def.baseStats?.defence || 0;
-          const eqDefVal = eqDef?.baseStats?.defence || 0;
-          const diffDef = myDef - eqDefVal;
-
-          const myAtkSpd = Math.round((def.baseStats?.attackSpeedBonus || 0) * 100);
-          const eqAtkSpd = Math.round((eqDef?.baseStats?.attackSpeedBonus || 0) * 100);
+          const myAtkSpd = Math.round((myEff.attackSpeedBonus || 0) * 100);
+          const eqAtkSpd = Math.round((eqEff.attackSpeedBonus || 0) * 100);
           const diffAtkSpd = myAtkSpd - eqAtkSpd;
 
           const diffParts: string[] = [];
@@ -5861,23 +5859,17 @@ class EldoriaClient {
           if (diffStr !== 0) {
             diffParts.push(`<span class="${diffStr > 0 ? 'stat-diff-positive' : 'stat-diff-negative'}">${diffStr > 0 ? '+' : ''}${diffStr} Str</span>`);
           }
-          const myMel = def.baseStats?.meleeStrength || 0;
-          const eqMel = eqDef?.baseStats?.meleeStrength || 0;
-          if (myMel !== eqMel) {
-            const diff = myMel - eqMel;
-            diffParts.push(`<span class="${diff > 0 ? 'stat-diff-positive' : 'stat-diff-negative'}">${diff > 0 ? '+' : ''}${diff} Melee</span>`);
+          const diffMel = (myEff.meleeStrength || 0) - (eqEff.meleeStrength || 0);
+          if (diffMel !== 0) {
+            diffParts.push(`<span class="${diffMel > 0 ? 'stat-diff-positive' : 'stat-diff-negative'}">${diffMel > 0 ? '+' : ''}${diffMel} Melee</span>`);
           }
-          const myRng = def.baseStats?.rangedStrength || 0;
-          const eqRng = eqDef?.baseStats?.rangedStrength || 0;
-          if (myRng !== eqRng) {
-            const diff = myRng - eqRng;
-            diffParts.push(`<span class="${diff > 0 ? 'stat-diff-positive' : 'stat-diff-negative'}">${diff > 0 ? '+' : ''}${diff} Range</span>`);
+          const diffRng = (myEff.rangedStrength || 0) - (eqEff.rangedStrength || 0);
+          if (diffRng !== 0) {
+            diffParts.push(`<span class="${diffRng > 0 ? 'stat-diff-positive' : 'stat-diff-negative'}">${diffRng > 0 ? '+' : ''}${diffRng} Range</span>`);
           }
-          const myMag = def.baseStats?.magicStrength || 0;
-          const eqMag = eqDef?.baseStats?.magicStrength || 0;
-          if (myMag !== eqMag) {
-            const diff = myMag - eqMag;
-            diffParts.push(`<span class="${diff > 0 ? 'stat-diff-positive' : 'stat-diff-negative'}">${diff > 0 ? '+' : ''}${diff} Magic</span>`);
+          const diffMag = (myEff.magicStrength || 0) - (eqEff.magicStrength || 0);
+          if (diffMag !== 0) {
+            diffParts.push(`<span class="${diffMag > 0 ? 'stat-diff-positive' : 'stat-diff-negative'}">${diffMag > 0 ? '+' : ''}${diffMag} Magic</span>`);
           }
           if (diffDef !== 0) {
             diffParts.push(`<span class="${diffDef > 0 ? 'stat-diff-positive' : 'stat-diff-negative'}">${diffDef > 0 ? '+' : ''}${diffDef} Def</span>`);

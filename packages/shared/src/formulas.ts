@@ -1,4 +1,4 @@
-import { Rarity, RARITY_CHANCES, getSteedWalkSpeedBonus, RARITY_TOOL_BONUS, RARITY_CRAFT_XP_MULTIPLIER, RARITY_HEALING_MULTIPLIER } from './constants.js';
+import { Rarity, RARITY_CHANCES, getSteedWalkSpeedBonus, RARITY_TOOL_BONUS, RARITY_CRAFT_XP_MULTIPLIER, RARITY_HEALING_MULTIPLIER, RARITY_STAT_MULTIPLIER } from './constants.js';
 import { getLevelFromXp, getJobSpeedMultiplier } from './levels.js';
 import { ITEMS, addItemToSlots } from './items.js';
 import { RECIPES } from './recipes.js';
@@ -247,6 +247,45 @@ export function calculateHitChance(accuracy: number, evasion: number): number {
 export function calculateMaxHit(level: number, gearStrength: number, targetArmour: number = 0): number {
   const raw = 1 + Math.floor((level + gearStrength) / 8);
   return Math.max(1, raw - targetArmour);
+}
+
+/**
+ * Calculates effective combat and defence stats for an equipped item,
+ * applying rarity multiplier (plain: 1.0, uncommon: 1.3, rare: 1.6, epic: 2.2, legendary: 3.0)
+ * and enhancement plus scaling.
+ */
+export function getItemEffectiveStats(
+  baseStats: {
+    accuracy?: number;
+    strength?: number;
+    defence?: number;
+    meleeStrength?: number;
+    rangedStrength?: number;
+    magicStrength?: number;
+    attackSpeedBonus?: number;
+    swingSpeedSeconds?: number;
+    toolSpeedBonus?: number;
+    healing?: number;
+  } | undefined,
+  rarity: Rarity = 'plain',
+  plus: number = 0
+) {
+  if (!baseStats) return {};
+  const mult = (RARITY_STAT_MULTIPLIER[rarity] || 1.0) * (1 + 0.05 * (plus || 0));
+  const scale = (val?: number) => (val ? Math.max(1, Math.round(val * mult)) : 0);
+
+  return {
+    accuracy: scale(baseStats.accuracy),
+    strength: scale(baseStats.strength),
+    defence: scale(baseStats.defence),
+    meleeStrength: scale(baseStats.meleeStrength),
+    rangedStrength: scale(baseStats.rangedStrength),
+    magicStrength: scale(baseStats.magicStrength),
+    attackSpeedBonus: baseStats.attackSpeedBonus || 0,
+    swingSpeedSeconds: baseStats.swingSpeedSeconds,
+    toolSpeedBonus: baseStats.toolSpeedBonus,
+    healing: baseStats.healing,
+  };
 }
 
 /**

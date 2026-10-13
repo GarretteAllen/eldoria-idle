@@ -145,7 +145,7 @@ export interface MonsterDefinition {
   swingSpeedSeconds: number;
   minCoins: number;
   maxCoins: number;
-  guaranteedDropItemId: string;
+  guaranteedDropItemId?: string;
   rareDrop?: {
     itemId: string;
     chance: number;

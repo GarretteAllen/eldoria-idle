@@ -13,6 +13,7 @@ import {
   rollRarity,
   calculateHitChance,
   calculateMaxHit,
+  getItemEffectiveStats,
   simulateOfflineCatchUp,
   formatOfflineDuration,
   WorldBossDefinition,
@@ -5880,11 +5881,14 @@ export class GameEngine {
       for (const slot of Object.values(player.equipment || {})) {
         if (slot) {
           const item = ITEMS[slot.itemId];
-          if (item?.baseStats?.accuracy) gearAccuracy += item.baseStats.accuracy;
-          if (item?.baseStats?.strength) gearStrength += item.baseStats.strength;
-          if (combatStyle === 'melee' && item?.baseStats?.meleeStrength) gearStrength += item.baseStats.meleeStrength;
-          if (combatStyle === 'ranged' && item?.baseStats?.rangedStrength) gearStrength += item.baseStats.rangedStrength;
-          if (combatStyle === 'magic' && item?.baseStats?.magicStrength) gearStrength += item.baseStats.magicStrength;
+          if (item?.baseStats) {
+            const eff = getItemEffectiveStats(item.baseStats, slot.rarity || 'plain', slot.plus || 0);
+            if (eff.accuracy) gearAccuracy += eff.accuracy;
+            if (eff.strength) gearStrength += eff.strength;
+            if (combatStyle === 'melee' && eff.meleeStrength) gearStrength += eff.meleeStrength;
+            if (combatStyle === 'ranged' && eff.rangedStrength) gearStrength += eff.rangedStrength;
+            if (combatStyle === 'magic' && eff.magicStrength) gearStrength += eff.magicStrength;
+          }
         }
       }
 
@@ -6116,7 +6120,10 @@ export class GameEngine {
       for (const slot of Object.values(player.equipment || {})) {
         if (slot) {
           const item = ITEMS[slot.itemId];
-          if (item?.baseStats?.defence) gearDefence += item.baseStats.defence;
+          if (item?.baseStats) {
+            const eff = getItemEffectiveStats(item.baseStats, slot.rarity || 'plain', slot.plus || 0);
+            if (eff.defence) gearDefence += eff.defence;
+          }
         }
       }
 

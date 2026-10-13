@@ -2016,29 +2016,7 @@ export class WorldRenderer {
       }
 
       else if (node.type === 'dungeon_gate') {
-        const pulse = 0.5 + 0.5 * Math.sin(Date.now() / 350);
-        ctx.fillStyle = `rgba(185, 28, 28, ${0.2 + 0.15 * pulse})`;
-        ctx.beginPath();
-        ctx.arc(px + TILE_SIZE / 2, py + TILE_SIZE / 2, 12, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Draw iron gate / dungeon portcullis tile from tilemap (Col 3, Row 3: 48, 48)
-        if (this.tilemapImage && this.tilemapImage.complete) {
-          ctx.save();
-          ctx.imageSmoothingEnabled = false;
-          ctx.drawImage(
-            this.tilemapImage,
-            48,
-            48,
-            16,
-            16,
-            px,
-            py,
-            TILE_SIZE,
-            TILE_SIZE
-          );
-          ctx.restore();
-        }
+        // Static tile already placed on world map; keep rendering pass empty so ground/dungeon art displays cleanly
       }
 
       else if (node.type === 'workbench') {

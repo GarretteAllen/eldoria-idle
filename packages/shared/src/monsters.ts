@@ -294,10 +294,8 @@ export const MONSTERS: Record<string, MonsterDefinition> = {
     xp: 650,
     maxHit: 12,
     swingSpeedSeconds: 2.8,
-    minCoins: 120,
-    maxCoins: 350,
-    guaranteedDropItemId: 'crypt_relic_fragment',
-    rareDrop: { itemId: 'crypt_lord_signet', chance: 1 / 4 },
+    minCoins: 0,
+    maxCoins: 0,
   },
 };
 
