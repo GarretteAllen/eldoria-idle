@@ -255,5 +255,3 @@ export function calculateBreedingRarity(
 
   return { rarity: guaranteedBase, didUpgrade: false, guaranteedBase };
 }
-
-

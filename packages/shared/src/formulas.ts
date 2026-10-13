@@ -3,7 +3,7 @@ import { getLevelFromXp, getJobSpeedMultiplier } from './levels.js';
 import { ITEMS, addItemToSlots } from './items.js';
 import { RECIPES } from './recipes.js';
 import { MONSTERS } from './monsters.js';
-import { PlayerData, InventorySlot, RecipeDefinition, MonsterDefinition } from './types.js';
+import { PlayerData, InventorySlot, RecipeDefinition, MonsterDefinition, SkillType } from './types.js';
 
 /**
  * Calculates effective move speed in tiles per 600ms tick.
@@ -250,6 +250,22 @@ export function calculateMaxHit(level: number, gearStrength: number, targetArmou
 }
 
 /**
+ * Returns the XP multiplier bonus for a given skill if the equipped aura matches.
+ * e.g. 0.05 (+5%), 0.10 (+10%), or 0.15 (+15%).
+ */
+export function getAuraXpMultiplier(auraItemId: string | undefined, skill: SkillType): number {
+  if (!auraItemId) return 0;
+  const def = ITEMS[auraItemId];
+  if (!def || def.category !== 'aura' || !def.auraBuff) return 0;
+  if (def.auraBuff.skill === skill) {
+    return def.auraBuff.xpMultiplier;
+  }
+  return 0;
+}
+
+
+
+/**
  * Calculates effective combat and defence stats for an equipped item,
  * applying rarity multiplier (plain: 1.0, uncommon: 1.3, rare: 1.6, epic: 2.2, legendary: 3.0)
  * and enhancement plus scaling.
@@ -479,12 +495,26 @@ export function simulateOfflineCatchUp(
           summary.itemsGained[monster.rareDrop.itemId] = (summary.itemsGained[monster.rareDrop.itemId] || 0) + 1;
         }
 
-        totalStyleXp += (monster.hp * 4) + monster.xp;
-        totalHpXp += Math.floor(monster.hp * 1.33);
+        const auraMult = 1.0 + getAuraXpMultiplier(player.equipment?.aura?.itemId, combatStyle);
+        totalStyleXp += Math.round(((monster.hp * 4) + monster.xp) * auraMult);
+        const hpAuraMult = 1.0 + getAuraXpMultiplier(player.equipment?.aura?.itemId, 'hitpoints');
+        totalHpXp += Math.round(Math.floor(monster.hp * 1.33) * hpAuraMult);
         executed++;
 
         if (player.inventory.length >= 28) {
           break;
+        }
+      }
+
+      // Deplete equipped aura duration if active
+      if (player.equipment?.aura && executed > 0) {
+        const elapsedCombatSeconds = executed * killSec;
+        const currentRemaining = player.equipment.aura.remainingSeconds ?? (ITEMS[player.equipment.aura.itemId]?.auraBuff?.durationSeconds || 1800);
+        const newRemaining = Math.max(0, currentRemaining - elapsedCombatSeconds);
+        if (newRemaining <= 0) {
+          delete player.equipment.aura;
+        } else {
+          player.equipment.aura.remainingSeconds = Math.round(newRemaining);
         }
       }
 
@@ -653,8 +683,21 @@ export function simulateOfflineCatchUp(
         }
       }
 
-      totalXp += Math.max(1, Math.round(recipe.xp * xpMult));
+      const auraMult = 1.0 + getAuraXpMultiplier(player.equipment?.aura?.itemId, recipe.skill);
+      totalXp += Math.max(1, Math.round(recipe.xp * xpMult * auraMult));
       executed++;
+    }
+
+    // Deplete equipped aura duration if active
+    if (player.equipment?.aura && executed > 0) {
+      const elapsedWorkSeconds = executed * effectiveInterval;
+      const currentRemaining = player.equipment.aura.remainingSeconds ?? (ITEMS[player.equipment.aura.itemId]?.auraBuff?.durationSeconds || 1800);
+      const newRemaining = Math.max(0, currentRemaining - elapsedWorkSeconds);
+      if (newRemaining <= 0) {
+        delete player.equipment.aura;
+      } else {
+        player.equipment.aura.remainingSeconds = Math.round(newRemaining);
+      }
     }
 
     summary.completedCycles += executed;

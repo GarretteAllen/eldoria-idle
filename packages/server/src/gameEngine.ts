@@ -14,6 +14,7 @@ import {
   calculateHitChance,
   calculateMaxHit,
   getItemEffectiveStats,
+  getAuraXpMultiplier,
   simulateOfflineCatchUp,
   formatOfflineDuration,
   WorldBossDefinition,
@@ -2066,6 +2067,14 @@ export class GameEngine {
       player.equipment[targetSlot] = slot;
     }
 
+    const equippedItem = player.equipment[targetSlot];
+    if (equippedItem && (def.category === 'aura' || targetSlot === 'aura')) {
+      if (typeof equippedItem.remainingSeconds !== 'number') {
+        equippedItem.remainingSeconds = def.auraBuff?.durationSeconds || 1800;
+      }
+      equippedItem.hasBeenEquipped = true;
+    }
+
     if (existing) {
       const existingDef = storage.getItem(existing.itemId) || ITEMS[existing.itemId];
       addItemToSlots(player.inventory, 28, existing.itemId, existing.quantity || 1, existing.rarity, existing.plus, existingDef, 'inventory');
@@ -2844,6 +2853,11 @@ export class GameEngine {
     const itemDef = ITEMS[slot.itemId];
     if (itemDef?.category === 'pet' || slot.itemId.startsWith('pet_')) {
       this.send(ws, { type: 'NOTIFICATION', message: 'Pets are untradeable on the player market. You can sell extra pets directly to the Town Merchant.' });
+      return;
+    }
+
+    if (itemDef?.category === 'aura' && (slot.hasBeenEquipped || (typeof slot.remainingSeconds === 'number' && slot.remainingSeconds < (itemDef.auraBuff?.durationSeconds || 1800)))) {
+      this.send(ws, { type: 'NOTIFICATION', message: 'Used auras cannot be listed on the player market. You may sell them to the Town Merchant.' });
       return;
     }
 
@@ -3689,6 +3703,31 @@ export class GameEngine {
           this.send(ws, { type: 'PLAYER_UPDATE', player });
         }
       }
+
+      // Tick down equipped aura remaining time
+      if (player.equipment?.aura) {
+        const auraSlot = player.equipment.aura;
+        if (typeof auraSlot.remainingSeconds !== 'number') {
+          const auraDef = ITEMS[auraSlot.itemId];
+          auraSlot.remainingSeconds = auraDef?.auraBuff?.durationSeconds || 1800;
+        }
+        auraSlot.hasBeenEquipped = true;
+        auraSlot.remainingSeconds = Math.max(0, auraSlot.remainingSeconds - (TICK_MS / 1000));
+
+        if (auraSlot.remainingSeconds <= 0) {
+          const auraDef = ITEMS[auraSlot.itemId];
+          delete player.equipment.aura;
+          storage.savePlayer(player);
+          this.send(ws, {
+            type: 'NOTIFICATION',
+            message: `✨ Your ${auraDef?.name || 'Aura'} has faded away.`
+          });
+          this.send(ws, { type: 'PLAYER_UPDATE', player });
+        } else if (this.tickCount % 5 === 0) {
+          // Sync live remaining time to client periodically
+          this.send(ws, { type: 'PLAYER_UPDATE', player });
+        }
+      }
     }
 
     // Every 5 ticks (3s) auto-save & idle session cleanup
@@ -4290,11 +4329,12 @@ export class GameEngine {
       }
     }
 
-    // Grant XP (scaled by material rarity if crafted)
+    // Grant XP (scaled by material rarity if crafted, and matching aura if active)
     const skillRecord = player.skills[recipe.skill];
     if (skillRecord) {
       const oldLevel = skillRecord.level;
-      const grantedXp = Math.max(1, Math.round(recipe.xp * xpMultiplier));
+      const auraBonus = getAuraXpMultiplier(player.equipment?.aura?.itemId, recipe.skill);
+      const grantedXp = Math.max(1, Math.round(recipe.xp * xpMultiplier * (1.0 + auraBonus)));
       skillRecord.xp += grantedXp;
       skillRecord.level = getLevelFromXp(skillRecord.xp);
       if (skillRecord.level > oldLevel) {
@@ -5928,12 +5968,14 @@ export class GameEngine {
         }
       }
 
-      // XP gains to the matching combat style!
-      const styleXp = Math.max(2, damage * 4);
+      // XP gains to the matching combat style (scaled by matching aura if active)!
+      const styleAuraBonus = getAuraXpMultiplier(player.equipment?.aura?.itemId, combatStyle);
+      const styleXp = Math.max(2, Math.round(damage * 4 * (1.0 + styleAuraBonus)));
       player.skills[combatStyle].xp += styleXp;
       player.skills[combatStyle].level = getLevelFromXp(player.skills[combatStyle].xp);
 
-      const hpXp = Math.max(1, Math.floor(damage * 1.33));
+      const hpAuraBonus = getAuraXpMultiplier(player.equipment?.aura?.itemId, 'hitpoints');
+      const hpXp = Math.max(1, Math.round(Math.floor(damage * 1.33) * (1.0 + hpAuraBonus)));
       player.skills.hitpoints.xp = Math.max(1154, (player.skills.hitpoints.xp || 1154) + hpXp);
       player.skills.hitpoints.level = Math.max(10, getLevelFromXp(player.skills.hitpoints.xp));
 

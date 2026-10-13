@@ -2473,8 +2473,9 @@ class EldoriaClient {
     }
 
     if (recipe.skill === 'attunement') {
+      if (recipe.id.includes('aura')) return { id: 'auras', name: 'Auras', icon: 'aura' };
       if (recipe.levelReq <= 30) return { id: 'foci', name: 'Foci', icon: 'sparkles' };
-      return { id: 'sigils', name: 'Sigils', icon: 'attunement' };
+      return { id: 'sigils', name: 'Staves & Wards', icon: 'attunement' };
     }
 
     if (recipe.skill === 'farming') {
@@ -3333,6 +3334,7 @@ class EldoriaClient {
       { key: 'legs', label: 'Leg Greaves', iconKey: 'legs' },
       { key: 'steed', label: 'Mount / Steed', iconKey: 'mount' },
       { key: 'pet', label: 'Pet Companion', iconKey: 'pet' },
+      { key: 'aura', label: 'Attunement Aura', iconKey: 'aura' },
       { key: 'amulet', label: 'Amulet', iconKey: 'amulet' },
       { key: 'ring', label: 'Ring', iconKey: 'ring' },
     ];
@@ -3357,11 +3359,19 @@ class EldoriaClient {
 
         const iconSvg = getItemIconSvg(itemSlot.itemId, def?.category);
 
+        let durationBadge = '';
+        if (slotDef.key === 'aura' && typeof itemSlot.remainingSeconds === 'number') {
+          const remMins = Math.floor(itemSlot.remainingSeconds / 60);
+          const remSecs = Math.floor(itemSlot.remainingSeconds % 60);
+          const timeStr = remMins > 0 ? `${remMins}m ${remSecs}s` : `${remSecs}s`;
+          durationBadge = `<span style="font-size:0.68rem; font-weight:700; color:#ecc94b; background:rgba(236,201,75,0.15); border:1px solid rgba(236,201,75,0.3); border-radius:3px; padding:1px 5px; margin-left:6px;">⏱️ ${timeStr}</span>`;
+        }
+
         div.innerHTML = `
           <div style="display:flex; align-items:center; gap:8px;">
             <div style="width:26px; height:26px; display:flex; align-items:center; justify-content:center; flex-shrink:0;">${iconSvg}</div>
             <div>
-              <div style="font-weight:700; font-size:0.75rem; color:var(--gold-main);">${slotDef.label}</div>
+              <div style="font-weight:700; font-size:0.75rem; color:var(--gold-main); display:flex; align-items:center;">${slotDef.label} ${durationBadge}</div>
               <div style="font-size:0.78rem; font-weight:600; color:${rarityCol};">${def ? def.name : itemSlot.itemId}</div>
             </div>
           </div>
@@ -6601,6 +6611,13 @@ class EldoriaClient {
       if (def.baseStats?.defence) statParts.push(`+${def.baseStats.defence} def`);
       if (def.baseStats?.toolSpeedBonus) statParts.push(`+${Math.round(def.baseStats.toolSpeedBonus * 100)}% Speed`);
       if (def.baseStats?.healing) statParts.push(`Heals +${def.baseStats.healing} HP`);
+      if (def.auraBuff) statParts.push(`+${Math.round(def.auraBuff.xpMultiplier * 100)}% ${def.auraBuff.skill.toUpperCase()} XP`);
+      if (def.category === 'aura') {
+        const currentSecs = typeof slot.remainingSeconds === 'number' ? slot.remainingSeconds : def.auraBuff?.durationSeconds || 1800;
+        const remMins = Math.floor(currentSecs / 60);
+        const remSecs = Math.floor(currentSecs % 60);
+        statParts.push(`⏱️ ${remMins > 0 ? `${remMins}m ${remSecs}s` : `${remSecs}s`} remaining`);
+      }
       if (def.equipReq) statParts.push(`${def.equipReq.skill} ${def.equipReq.level}`);
       
       const statsLine = statParts.length > 0 ? `<div style="color: var(--gold-bright); font-weight: 600; margin-bottom: 2px;">${statParts.join(' • ')}</div>` : '';
@@ -6609,7 +6626,7 @@ class EldoriaClient {
     }
 
     const equipBtn = document.getElementById('ctx-btn-equip');
-    const isEquippable = Boolean(def.slot || def.category === 'tool' || def.category === 'weapon' || def.category === 'armour' || def.category === 'steed');
+    const isEquippable = Boolean(def.slot || def.category === 'tool' || def.category === 'weapon' || def.category === 'armour' || def.category === 'steed' || def.category === 'aura');
     if (equipBtn) {
       equipBtn.style.display = isEquippable ? 'flex' : 'none';
       if (isEquippable) {
@@ -6619,6 +6636,8 @@ class EldoriaClient {
           else if (def.id.includes('axe')) slotName = 'Toolbelt (Woodcutting)';
           else if (def.id.includes('rod') || def.id.includes('fish')) slotName = 'Toolbelt (Fishing)';
           else slotName = 'Toolbelt';
+        } else if (def.category === 'aura' || def.slot === 'aura') {
+          slotName = 'Aura';
         } else if (def.slot) {
           slotName = def.slot.toUpperCase();
         }
@@ -6717,7 +6736,14 @@ class EldoriaClient {
 
     const statsEl = document.getElementById('storage-ctx-item-stats');
     if (statsEl) {
-      statsEl.innerHTML = `<span style="color:#e2e8f0;">In Vault: <strong>${slot.quantity.toLocaleString()}</strong></span> • <span style="color:#ffd700;">${unitPrice.toLocaleString()}g each</span>`;
+      let auraTimeStr = '';
+      if (def.category === 'aura') {
+        const currentSecs = typeof slot.remainingSeconds === 'number' ? slot.remainingSeconds : def.auraBuff?.durationSeconds || 1800;
+        const remMins = Math.floor(currentSecs / 60);
+        const remSecs = Math.floor(currentSecs % 60);
+        auraTimeStr = ` • <span style="color:#ecc94b;">⏱️ ${remMins > 0 ? `${remMins}m ${remSecs}s` : `${remSecs}s`}</span>`;
+      }
+      statsEl.innerHTML = `<span style="color:#e2e8f0;">In Vault: <strong>${slot.quantity.toLocaleString()}</strong></span> • <span style="color:#ffd700;">${unitPrice.toLocaleString()}g each</span>${auraTimeStr}`;
     }
 
     // Configure Withdraw buttons
@@ -6772,7 +6798,8 @@ class EldoriaClient {
 
     const mktBtn = document.getElementById('storage-ctx-btn-list-market');
     if (mktBtn) {
-      const isUntradeable = slot.itemId === 'gold' || def.category === 'pet' || slot.itemId.startsWith('pet_');
+      const isUsedAura = def.category === 'aura' && (slot.hasBeenEquipped || (typeof slot.remainingSeconds === 'number' && slot.remainingSeconds < (def.auraBuff?.durationSeconds || 1800)));
+      const isUntradeable = slot.itemId === 'gold' || def.category === 'pet' || slot.itemId.startsWith('pet_') || isUsedAura;
       mktBtn.style.display = isUntradeable ? 'none' : 'flex';
     }
 
@@ -7008,6 +7035,12 @@ class EldoriaClient {
           const def = ITEMS[slot.itemId];
           if (def?.category === 'pet' || slot.itemId.startsWith('pet_')) {
             this.showToast('Pets are untradeable on the player market. You can sell extra pets directly to the Town Merchant.');
+            storageMenu.classList.add('hidden');
+            this.selectedStorageIndex = null;
+            return;
+          }
+          if (def?.category === 'aura' && (slot.hasBeenEquipped || (typeof slot.remainingSeconds === 'number' && slot.remainingSeconds < (def.auraBuff?.durationSeconds || 1800)))) {
+            this.showToast('Used auras cannot be listed on the player market. You may sell them to the Town Merchant.');
             storageMenu.classList.add('hidden');
             this.selectedStorageIndex = null;
             return;

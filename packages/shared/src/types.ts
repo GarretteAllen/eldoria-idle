@@ -36,6 +36,7 @@ export type EquipSlot =
   | 'amulet'
   | 'steed'
   | 'pet'
+  | 'aura'
   | 'tool'
   | 'tool_pickaxe'
   | 'tool_axe'
@@ -59,6 +60,7 @@ export type ItemCategory =
   | 'tool'
   | 'steed'
   | 'pet'
+  | 'aura'
   | 'misc';
 
 export interface ItemDefinition {
@@ -70,6 +72,11 @@ export interface ItemDefinition {
   equipReq?: {
     skill: SkillType;
     level: number;
+  };
+  auraBuff?: {
+    skill: SkillType;
+    xpMultiplier: number; // e.g. 0.05 for +5%, 0.10 for +10%, 0.15 for +15%
+    durationSeconds: number; // e.g. 1800 (30m), 2700 (45m), 3600 (60m)
   };
   baseStats?: {
     accuracy?: number;
@@ -98,6 +105,8 @@ export interface InventorySlot {
   quantity: number;
   rarity: Rarity;
   plus: number; // 0 to 15
+  remainingSeconds?: number;
+  hasBeenEquipped?: boolean;
 }
 
 export interface RecipeRequirement {

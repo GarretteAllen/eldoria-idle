@@ -248,6 +248,23 @@
   - Proximity check: Must be within 2.5 tiles to pass through.
   - Safely cancels active gathering tasks, pathing, and combat sessions before warping to `targetX, targetY` or level bounds.
 
+### Q. Attunement Equippable XP Auras
+- **Source Files**: `packages/shared/src/types.ts`, `packages/shared/src/items.ts`, `packages/shared/src/recipes.ts`, `packages/shared/src/formulas.ts`, `packages/server/src/gameEngine.ts`, `packages/client/src/main.ts`.
+- **Equip Slot**: Dedicated `aura` slot displayed in the Equipment Drawer with a radiant sun/sparkle badge and live remaining countdown.
+- **Tiers & XP Multipliers**:
+  - **Lesser Aura** (Tier 1, Attunement Lvl 15): 30 minutes duration, **+5% XP** (`0.05`) in the bound skill.
+  - **Greater Aura** (Tier 2, Attunement Lvl 45): 45 minutes duration, **+10% XP** (`0.10`) in the bound skill.
+  - **Celestial Aura** (Tier 3, Attunement Lvl 75): 60 minutes duration, **+15% XP** (`0.15`) in the bound skill.
+- **Ingredient Composition**: Crafted exclusively using existing in-game materials across all skills (Anima, ores, timber, fish trophies, crops, herbs, monster hides/cores).
+- **Duration & Persistence Rules**:
+  - Auras **only tick down while actively equipped** (0.6s per server tick).
+  - Unequipping an aura freezes its exact `remainingSeconds`.
+  - When time reaches 0, the aura gently dissolves with a celestial chime notification.
+  - Also simulated accurately during offline catch-up sessions in `formulas.ts`.
+- **Market & Trade Rules**:
+  - Fresh, unequipped auras are fully tradeable on the player-to-player marketplace.
+  - Used auras (`hasBeenEquipped: true` or remaining time < max) cannot be listed on the player market, but can be sold directly to the Town Merchant for gold.
+
 ---
 
 ## 6. Development & Deployment Commands
