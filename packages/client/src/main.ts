@@ -139,6 +139,7 @@ class EldoriaClient {
   private pendingHearthTarget: WorldNodeDisplay | null = null;
   private pendingNoticeBoardTarget: WorldNodeDisplay | null = null;
   private pendingDungeonGateTarget: WorldNodeDisplay | null = null;
+  private pendingDungeonPrep: { phase: 'banking' | 'gate'; gateX: number; gateY: number } | null = null;
   private pendingDoorTarget: WorldNodeDisplay | null = null;
   private pendingStationTarget: { type: 'fire' | 'forge' | 'farm' | 'workbench' | 'cauldron' | 'monolith'; node: WorldNodeDisplay } | null = null;
   private selectedStationNode: WorldNodeDisplay | null = null;
@@ -422,6 +423,7 @@ class EldoriaClient {
         this.pendingHearthTarget = null;
         this.pendingNoticeBoardTarget = null;
         this.pendingDungeonGateTarget = null;
+        this.pendingDungeonPrep = null;
         this.pendingStationTarget = null;
         this.sendWs({ type: 'MOVE_TO', x: tileX, y: tileY });
       };
@@ -432,6 +434,7 @@ class EldoriaClient {
         this.pendingHearthTarget = null;
         this.pendingNoticeBoardTarget = null;
         this.pendingDungeonGateTarget = null;
+        this.pendingDungeonPrep = null;
         this.pendingStationTarget = null;
         const dist = Math.hypot(this.player.x - npc.x, this.player.y - npc.y);
         if (dist <= 1.5) {
@@ -452,6 +455,7 @@ class EldoriaClient {
         this.pendingHearthTarget = null;
         this.pendingNoticeBoardTarget = null;
         this.pendingDungeonGateTarget = null;
+        this.pendingDungeonPrep = null;
         this.pendingStationTarget = null;
 
         // MONSTER / ENEMY: Stop one tile before the enemy, and then attack it!
@@ -514,19 +518,10 @@ class EldoriaClient {
           return;
         }
 
-        // DUNGEON GATE: Walk adjacent, then open party delve lobby modal!
+        // DUNGEON GATE: Start prep sequence (fetch food if needed, walk to gate, open lobby)
         if (node.type === 'dungeon_gate') {
           if (!this.player) return;
-          const dist = Math.hypot(this.player.x - node.x, this.player.y - node.y);
-          if (dist <= 1.5) {
-            this.pendingDungeonGateTarget = null;
-            this.openDungeonLobbyModal();
-          } else {
-            this.pendingDungeonGateTarget = node;
-            const target = this.getAdjacentWalkableTile(node.x, node.y);
-            this.sendWs({ type: 'MOVE_TO', x: target.x, y: target.y });
-            this.showToast(`Walking to ${node.name}...`);
-          }
+          this.startDungeonPrepSequence(node.x, node.y, node.name);
           return;
         }
 
@@ -1075,6 +1070,23 @@ class EldoriaClient {
           if (dist <= 1.5) {
             this.pendingDungeonGateTarget = null;
             this.openDungeonLobbyModal();
+          }
+        }
+
+        // Check if handling active Dungeon Pre-flight Routine
+        if (this.pendingDungeonPrep && this.player) {
+          if (this.pendingDungeonPrep.phase === 'banking') {
+            const hearth = this.worldNodes.find(n => n.type === 'hearth_counter') || { x: 8, y: 22 };
+            const distBank = Math.hypot(this.player.x - hearth.x, this.player.y - hearth.y);
+            if (distBank <= 1.5) {
+              this.executeDungeonBankingProvisions(this.pendingDungeonPrep.gateX, this.pendingDungeonPrep.gateY);
+            }
+          } else if (this.pendingDungeonPrep.phase === 'gate') {
+            const distGate = Math.hypot(this.player.x - this.pendingDungeonPrep.gateX, this.player.y - this.pendingDungeonPrep.gateY);
+            if (distGate <= 1.5) {
+              this.pendingDungeonPrep = null;
+              this.openDungeonLobbyModal();
+            }
           }
         }
 
@@ -9959,7 +9971,95 @@ class EldoriaClient {
 
   private handleDungeonButtonClick() {
     if (!this.player) return;
-    this.openDungeonLobbyModal();
+    const gateNode = this.worldNodes.find(n => n.id === 'node_dungeon_crypt_gate') || { x: -76, y: 21, name: 'Whispering Crypt Entrance Gate' };
+    this.startDungeonPrepSequence(gateNode.x, gateNode.y, gateNode.name || 'Whispering Crypt Entrance Gate');
+  }
+
+  private startDungeonPrepSequence(gateX: number, gateY: number, gateName: string = 'Dungeon Gate') {
+    if (!this.player) return;
+
+    // Check if player has at least 1 food ration according to auto-eat preferences
+    const hasFood = this.player.inventory.some(s => {
+      if (this.player?.selectedFoodItemId) {
+        return s.itemId === this.player.selectedFoodItemId && s.quantity > 0;
+      }
+      const it = ITEMS[s.itemId];
+      return it && (it.category === 'cooked_food' || ((it.baseStats?.healing || 0) > 0)) && s.quantity > 0;
+    });
+
+    const hearth = this.worldNodes.find(n => n.type === 'hearth_counter') || { x: 8, y: 22 };
+    const distToGate = Math.hypot(this.player.x - gateX, this.player.y - gateY);
+
+    if (distToGate <= 1.5) {
+      // Already physically at the gate! Open party delve lobby immediately
+      this.pendingDungeonPrep = null;
+      this.openDungeonLobbyModal();
+      return;
+    }
+
+    if (!hasFood) {
+      // Need provisions! Walk to bank first
+      sound.play('ding');
+      this.showToast('Preparing for Dungeon Delve: Marching to Bank for food provisions & gear...', true);
+      this.pendingDungeonPrep = { phase: 'banking', gateX, gateY };
+
+      // Stop active task
+      this.sendWs({ type: 'STOP_TASK', clearQueue: true });
+
+      const targetBankTile = this.getAdjacentWalkableTile(hearth.x, hearth.y);
+      this.sendWs({ type: 'MOVE_TO', x: targetBankTile.x, y: targetBankTile.y });
+    } else {
+      // Food is already packed! March straight to gate
+      sound.play('ding');
+      this.showToast(`Provisions confirmed. Marching to ${gateName}...`, true);
+      this.pendingDungeonPrep = { phase: 'gate', gateX, gateY };
+
+      // Stop active task
+      this.sendWs({ type: 'STOP_TASK', clearQueue: true });
+
+      const targetGateTile = this.getAdjacentWalkableTile(gateX, gateY);
+      this.sendWs({ type: 'MOVE_TO', x: targetGateTile.x, y: targetGateTile.y });
+    }
+  }
+
+  private executeDungeonBankingProvisions(gateX: number, gateY: number) {
+    if (!this.player) return;
+
+    // 1. Deposit gathered resources
+    this.sendWs({ type: 'DEPOSIT_ALL_RESOURCES' });
+
+    // 2. Withdraw preferred food up to 15 rations
+    const targetFoodItemId = this.player.selectedFoodItemId;
+    let foodSlotIdx = -1;
+    if (targetFoodItemId) {
+      foodSlotIdx = this.player.storage.findIndex(s => s.itemId === targetFoodItemId && s.quantity > 0);
+    }
+    if (foodSlotIdx === -1) {
+      foodSlotIdx = this.player.storage.findIndex(s => {
+        const it = ITEMS[s.itemId];
+        return s.quantity > 0 && it && (it.category === 'cooked_food' || ((it.baseStats?.healing || 0) > 0));
+      });
+    }
+
+    if (foodSlotIdx >= 0) {
+      this.sendWs({ type: 'WITHDRAW_ITEM', storageIndex: foodSlotIdx, quantity: 15 });
+    }
+
+    // 3. Withdraw Whispering Crypt Key if stored in bank
+    const hasKeyInSatchel = this.player.inventory.some(s => s.itemId === 'item_crypt_key' && s.quantity > 0);
+    if (!hasKeyInSatchel) {
+      const keySlotIdx = this.player.storage.findIndex(s => s.itemId === 'item_crypt_key' && s.quantity > 0);
+      if (keySlotIdx >= 0) {
+        this.sendWs({ type: 'WITHDRAW_ITEM', storageIndex: keySlotIdx, quantity: 1 });
+      }
+    }
+
+    // Transition phase to gate march
+    this.pendingDungeonPrep = { phase: 'gate', gateX, gateY };
+    this.showToast('Provisions restocked! Heading to Whispering Crypt Gate...', true);
+
+    const targetGateTile = this.getAdjacentWalkableTile(gateX, gateY);
+    this.sendWs({ type: 'MOVE_TO', x: targetGateTile.x, y: targetGateTile.y });
   }
 
   private openDungeonLobbyModal(dungeonId: string = 'whispering_crypt') {
@@ -10108,9 +10208,16 @@ class EldoriaClient {
         startBtn.textContent = 'Key Required';
         startBtn.style.opacity = '0.6';
       } else {
-        startBtn.disabled = false;
-        startBtn.textContent = 'Enter Dungeon';
-        startBtn.style.opacity = '1.0';
+        const distToGate = Math.hypot((this.player?.x || 0) - dungeon.gateX, (this.player?.y || 0) - dungeon.gateY);
+        if (distToGate > 2.5) {
+          startBtn.disabled = true;
+          startBtn.textContent = 'Must Be at Dungeon Gate';
+          startBtn.style.opacity = '0.6';
+        } else {
+          startBtn.disabled = false;
+          startBtn.textContent = 'Enter Dungeon';
+          startBtn.style.opacity = '1.0';
+        }
       }
     }
   }

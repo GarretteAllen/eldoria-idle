@@ -691,6 +691,19 @@ class StorageManager {
         } catch {}
       }
       this.saveWorldNodes(nodes);
+    } else {
+      // Ensure any newly added default nodes (like dungeon gates) exist in the table
+      const existing = this.getWorldNodes();
+      let added = false;
+      for (const defNode of DEFAULT_WORLD_NODES) {
+        if (!existing.some(n => n.id === defNode.id)) {
+          existing.push(defNode);
+          added = true;
+        }
+      }
+      if (added) {
+        this.saveWorldNodes(existing);
+      }
     }
 
     // NPCs

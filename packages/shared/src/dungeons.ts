@@ -9,10 +9,10 @@ export const DUNGEONS: Record<string, DungeonDefinition> = {
     minLevel: 15,
     maxPartySize: 4,
     gateNodeId: 'node_dungeon_crypt_gate',
-    gateX: 18,
-    gateY: 28,
-    returnX: 18,
-    returnY: 29,
+    gateX: -76,
+    gateY: 21,
+    returnX: -76,
+    returnY: 22,
     bossMonsterId: 'crypt_lord',
     rooms: [
       {

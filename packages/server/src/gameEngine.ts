@@ -6629,6 +6629,16 @@ export class GameEngine {
     const dungeon = DUNGEONS[party.dungeonId];
     if (!dungeon) return;
 
+    // Check leader physical location at entrance gate (distance <= 2 tiles)
+    const distToGate = Math.hypot(player.x - dungeon.gateX, player.y - dungeon.gateY);
+    if (distToGate > 2.5) {
+      this.send(ws, {
+        type: 'NOTIFICATION',
+        message: `Party leader must be physically at ${dungeon.name} Entrance Gate (${dungeon.gateX}, ${dungeon.gateY}) to unlock the crypt!`,
+      });
+      return;
+    }
+
     // Check leader key requirement
     const keySlotIdx = player.inventory.findIndex(s => s.itemId === dungeon.requiredKeyItemId && s.quantity > 0);
     if (keySlotIdx < 0) {
