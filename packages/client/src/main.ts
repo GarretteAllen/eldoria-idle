@@ -10037,6 +10037,16 @@ class EldoriaClient {
       return;
     }
 
+    const dungeon = DUNGEONS['whispering_crypt'];
+    const hasKey = dungeon && (
+      this.player.inventory.some(s => s.itemId === dungeon.requiredKeyItemId && s.quantity > 0) ||
+      this.player.storage.some(s => s.itemId === dungeon.requiredKeyItemId && s.quantity > 0)
+    );
+    if (!hasKey) {
+      sound.play('ding');
+      this.showToast('Note: You do not possess a Crypt Keystone (in satchel or bank) to unlock the Whispering Crypt.', true);
+    }
+
     if (!hasFood) {
       // Need provisions! Walk to bank first
       sound.play('ding');

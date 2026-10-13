@@ -166,8 +166,19 @@
 - **Periodic Realm Broadcasts**: Every 25 minutes, a friendly non-spammy tip from `Eldoria` appears in All chat reminding players about the referral perks.
 
 ### J. Instanced Co-Op Dungeons (The Whispering Crypt)
+- **Source Files**: `packages/shared/src/dungeons.ts`, `packages/server/src/gameEngine.ts`, `packages/server/src/world.ts`, `packages/client/src/main.ts`.
 - **Detailed Roadmap**: [`agentdocs/dungeons.md`](file:///home/gar/share/browsermmo/agentdocs/dungeons.md).
-- **Party & Delve Loop**: Requires 1x `item_crypt_key`. Auto-battles through 3 rooms with synchronized party warps. Unlocks exit chest with auto-banking and Quartermaster recovery parcel storage.
+- **Physical Entrance Gate**:
+  - Located in the western wilderness at `(-76, 21)` (`node_dungeon_crypt_gate`).
+  - Clicking the dungeon gate or clicking the Dungeon sidebar navigation triggers a pre-flight prep routine: checks food rations, visits the Hearth bank to restock up to 15 cooked food rations if empty, and marches to `(-76, 21)`.
+- **Party Assembly & Navigation**:
+  - Party leader must be physically within 2.5 tiles of the entrance gate to unlock and embark on a delve.
+  - Non-leader party members can accept invites and ready up remotely without having to hike to the gate.
+  - A persistent `#btn-party-toggle` button in the top navigation bar allows party members to reopen the expedition lobby and ready-status list at any time.
+- **Keystone Consumption Rules**:
+  - Delves require 1x `item_crypt_key` supplied by the party leader.
+  - Keystones can be consumed directly from the leader's satchel OR directly from their Hearth vault/bank, sparing valuable satchel inventory slots for food and dungeon loot.
+- **Party & Delve Loop**: Auto-battles through 3 rooms with synchronized party warps. Unlocks exit chest with auto-banking and Quartermaster recovery parcel storage.
 
 ### K. Cosmetic & Vanity Pets (Prestige Companions)
 - **Source Files**: `packages/shared/src/items.ts`, `packages/shared/src/monsterSprites.ts`, `packages/shared/src/recipes.ts`, `packages/server/src/gameEngine.ts`, `packages/client/src/canvas.ts`.
