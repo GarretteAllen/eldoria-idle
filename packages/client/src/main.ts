@@ -1408,10 +1408,13 @@ class EldoriaClient {
         break;
       }
 
-      case 'DUNGEON_PARTY_UPDATE':
+      case 'DUNGEON_PARTY_UPDATE': {
         this.currentDungeonParty = msg.party;
+        const lobbyModal = document.getElementById('dungeon-lobby-modal');
+        if (lobbyModal) lobbyModal.classList.remove('hidden');
         this.renderDungeonLobby();
         break;
+      }
 
       case 'DUNGEON_INVITE_RECEIVED':
         this.showDungeonInviteToast(msg);
@@ -1434,7 +1437,11 @@ class EldoriaClient {
         this.currentDungeonParty = null;
         this.closeDungeonLobbyModal();
         this.closeDungeonSpoilsModal();
-        this.showToast('Returned safely to Hearth Town.', true);
+        if (msg.wasInDungeon) {
+          this.showToast('Returned safely to Hearth Town.', true);
+        } else {
+          this.showToast('Left expedition party.', false);
+        }
         break;
 
       case 'DUNGEON_RECOVERIES_LIST':
@@ -9847,6 +9854,16 @@ class EldoriaClient {
       closeLobbyBtn.onclick = () => this.closeDungeonLobbyModal();
     }
 
+    // Leave Party Button
+    const leavePartyBtn = document.getElementById('btn-dungeon-leave-party');
+    if (leavePartyBtn) {
+      leavePartyBtn.onclick = () => {
+        sound.play('ding');
+        this.sendWs({ type: 'DUNGEON_LEAVE' });
+        this.closeDungeonLobbyModal();
+      };
+    }
+
     // 2. Toggle Ready Button
     const toggleReadyBtn = document.getElementById('btn-dungeon-toggle-ready');
     if (toggleReadyBtn) {
@@ -9896,7 +9913,7 @@ class EldoriaClient {
             accept: true,
           });
           this.hideDungeonInviteToast();
-          this.openDungeonLobbyModal();
+          // Modal will be opened and rendered when server responds with DUNGEON_PARTY_UPDATE
         }
       };
     }

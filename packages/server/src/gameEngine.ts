@@ -6556,6 +6556,11 @@ export class GameEngine {
       return;
     }
 
+    // Leave any existing/stale party before joining the new party
+    if (this.playerPartyMap.has(player.id)) {
+      this.leaveCurrentParty(player.id);
+    }
+
     const memberLevel = Math.max(1, player.skills.melee?.level || 1, player.skills.ranged?.level || 1, player.skills.magic?.level || 1);
     party.members.push({
       playerId: player.id,
@@ -6751,7 +6756,7 @@ export class GameEngine {
         storage.savePlayer(playerSession.player);
         this.send(playerSession.ws, { type: 'PLAYER_UPDATE', player: playerSession.player });
       }
-      this.send(playerSession.ws, { type: 'DUNGEON_LEFT' });
+      this.send(playerSession.ws, { type: 'DUNGEON_LEFT', wasInDungeon: party.status === 'in_dungeon' });
       this.broadcastWorldState();
     }
 
