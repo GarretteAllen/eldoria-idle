@@ -284,6 +284,14 @@ class EldoriaClient {
     if (minimapBtn) minimapBtn.innerHTML = ICONS.compass;
     const worldmapBtn = document.getElementById('btn-worldmap-toggle');
     if (worldmapBtn) worldmapBtn.innerHTML = ICONS.worldMap;
+    const partyToggleBtn = document.getElementById('btn-party-toggle');
+    if (partyToggleBtn) {
+      partyToggleBtn.innerHTML = `${ICONS.party}<span id="party-member-count-badge" class="party-badge">1</span>`;
+      partyToggleBtn.onclick = () => {
+        sound.play('ding');
+        this.openDungeonLobbyModal();
+      };
+    }
     const unstuckBtn = document.getElementById('btn-unstuck');
     if (unstuckBtn) {
       unstuckBtn.innerHTML = ICONS.hearth;
@@ -1422,6 +1430,7 @@ class EldoriaClient {
 
       case 'DUNGEON_PARTY_UPDATE': {
         this.currentDungeonParty = msg.party;
+        this.updatePartyButtonDisplay();
         const lobbyModal = document.getElementById('dungeon-lobby-modal');
         if (msg.party && msg.party.status === 'lobby') {
           if (lobbyModal) lobbyModal.classList.remove('hidden');
@@ -1438,6 +1447,7 @@ class EldoriaClient {
 
       case 'DUNGEON_ENTERED':
         this.closeDungeonLobbyModal();
+        this.updatePartyButtonDisplay();
         this.showToast(`🛡️ Entered ${msg.dungeonName}! Room 1: ${msg.roomName}`, true);
         break;
 
@@ -1451,6 +1461,7 @@ class EldoriaClient {
 
       case 'DUNGEON_LEFT':
         this.currentDungeonParty = null;
+        this.updatePartyButtonDisplay();
         this.closeDungeonLobbyModal();
         this.closeDungeonSpoilsModal();
         if (msg.wasInDungeon) {
@@ -1570,11 +1581,14 @@ class EldoriaClient {
       const hasKeyInSatchel = this.player.inventory.some(s => s.itemId === 'item_crypt_key' && s.quantity > 0);
       const hasKeyInVault = this.player.storage.some(s => s.itemId === 'item_crypt_key' && s.quantity > 0);
       const ownsKey = hasKeyInSatchel || hasKeyInVault;
-      if (ownsKey) {
+      if (this.currentDungeonParty && this.currentDungeonParty.status === 'lobby') {
+        dungeonBtn.classList.add('dungeon-key-active');
+        dungeonBtn.title = `Expedition Party (${this.currentDungeonParty.members.length}/4) — Click to view party lobby & ready status`;
+      } else if (ownsKey) {
         dungeonBtn.classList.add('dungeon-key-active');
         dungeonBtn.title = hasKeyInSatchel
           ? 'Dungeon Delve: Keystone in satchel! Click to initiate expedition.'
-          : 'Dungeon Delve: Keystone in vault! Click to withdraw key & embark.';
+          : 'Dungeon Delve: Keystone in vault! Click to embark (key used from bank).';
       } else {
         dungeonBtn.classList.remove('dungeon-key-active');
         dungeonBtn.title = 'Dungeon Delve (Whispering Crypt Key required)';
@@ -9969,8 +9983,30 @@ class EldoriaClient {
     }
   }
 
+  private updatePartyButtonDisplay() {
+    const partyBtn = document.getElementById('btn-party-toggle');
+    const badge = document.getElementById('party-member-count-badge');
+    if (!partyBtn) return;
+
+    if (this.currentDungeonParty && this.currentDungeonParty.status === 'lobby') {
+      partyBtn.classList.remove('hidden');
+      const count = this.currentDungeonParty.members?.length || 1;
+      if (badge) badge.textContent = `${count}`;
+      partyBtn.title = `Expedition Party (${count}/4 members) — Click to view party lobby & ready status`;
+    } else {
+      partyBtn.classList.add('hidden');
+    }
+  }
+
   private handleDungeonButtonClick() {
     if (!this.player) return;
+
+    // If already in an expedition party, immediately open party lobby!
+    if (this.currentDungeonParty && this.currentDungeonParty.status === 'lobby') {
+      this.openDungeonLobbyModal();
+      return;
+    }
+
     const gateNode = this.worldNodes.find(n => n.id === 'node_dungeon_crypt_gate') || { x: -76, y: 21, name: 'Whispering Crypt Entrance Gate' };
     this.startDungeonPrepSequence(gateNode.x, gateNode.y, gateNode.name || 'Whispering Crypt Entrance Gate');
   }

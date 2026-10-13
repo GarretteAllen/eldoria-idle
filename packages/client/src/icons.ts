@@ -189,6 +189,7 @@ export const ICONS: Record<string, string> = {
   poll: toSvg(Vote),
   dungeon: toSvg(Skull),
   key: toSvg(Lock),
+  party: toSvg(Users),
 };
 
 /**
