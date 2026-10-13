@@ -124,6 +124,7 @@ export class GameEngine {
     chestCoords?: { x: number; y: number };
     autoLeaveTick?: number;
     spoilsAwarded: Set<string>;
+    activeBarriers: Set<string>;
   }>();
 
   private botManager: BotManager;
@@ -569,8 +570,32 @@ export class GameEngine {
     storage.close();
   }
 
-  private findPathWithCollisions(startX: number, startY: number, targetX: number, targetY: number) {
-    return findPath(startX, startY, targetX, targetY, -10000, -10000, 10000, 10000, (x, y) => storage.isCollidable(x, y));
+  private findPathWithCollisions(startX: number, startY: number, targetX: number, targetY: number, playerId?: string) {
+    let barrierSet: Set<string> | null = null;
+    if (playerId) {
+      const partyId = this.playerPartyMap.get(playerId);
+      if (partyId) {
+        const party = this.dungeonParties.get(partyId);
+        if (party && party.instanceId) {
+          const inst = this.dungeonInstances.get(party.instanceId);
+          if (inst && inst.activeBarriers && inst.activeBarriers.size > 0) {
+            barrierSet = inst.activeBarriers;
+          }
+        }
+      }
+    }
+
+    return findPath(
+      startX,
+      startY,
+      targetX,
+      targetY,
+      -10000,
+      -10000,
+      10000,
+      10000,
+      (x, y) => storage.isCollidable(x, y) || (barrierSet !== null && barrierSet.has(`${x},${y}`))
+    );
   }
 
   private catchUpFarmPlots(player: PlayerData) {
@@ -660,7 +685,7 @@ export class GameEngine {
           player.bankReturnTask = null;
           player.bankingState = 'idle';
 
-          const path = this.findPathWithCollisions(player.x, player.y, msg.x, msg.y);
+          const path = this.findPathWithCollisions(player.x, player.y, msg.x, msg.y, player.id);
           player.targetX = msg.x;
           player.targetY = msg.y;
           player.path = path;
@@ -5505,8 +5530,8 @@ export class GameEngine {
     const quota = (typeof msg.quantity === 'number' && msg.quantity > 0 && msg.quantity !== Infinity) ? msg.quantity : undefined;
     if (dist > maxRange) {
       // Find closest walkable tile within range (stop 1 tile before enemy for melee, or at range for bow/staff)
-      const adj = this.getAdjacentWalkableTile(player.x, player.y, actualTargetX, actualTargetY);
-      const path = this.findPathWithCollisions(player.x, player.y, adj.x, adj.y);
+      const adj = this.getAdjacentWalkableTile(player.x, player.y, actualTargetX, actualTargetY, player.id);
+      const path = this.findPathWithCollisions(player.x, player.y, adj.x, adj.y, player.id);
       player.targetX = adj.x;
       player.targetY = adj.y;
       player.path = path;
@@ -5522,8 +5547,23 @@ export class GameEngine {
     }
   }
 
-  private getAdjacentWalkableTile(playerX: number, playerY: number, targetX: number, targetY: number): { x: number; y: number } {
+  private getAdjacentWalkableTile(playerX: number, playerY: number, targetX: number, targetY: number, playerId?: string): { x: number; y: number } {
     const collisions = storage.getCollisions();
+    let barrierSet: Set<string> | null = null;
+    if (playerId) {
+      const partyId = this.playerPartyMap.get(playerId);
+      if (partyId) {
+        const party = this.dungeonParties.get(partyId);
+        if (party && party.instanceId) {
+          const inst = this.dungeonInstances.get(party.instanceId);
+          if (inst && inst.activeBarriers && inst.activeBarriers.size > 0) {
+            barrierSet = inst.activeBarriers;
+          }
+        }
+      }
+    }
+    const isBlockedTile = (x: number, y: number) => collisions.has(`${x},${y}`) || (barrierSet !== null && barrierSet.has(`${x},${y}`));
+
     const candidates = [
       // Cardinal directions first (closest, best looking for node interaction animations!)
       { x: targetX, y: targetY + 1, cardinal: true },
@@ -5535,7 +5575,7 @@ export class GameEngine {
       { x: targetX - 1, y: targetY + 1, cardinal: false },
       { x: targetX + 1, y: targetY - 1, cardinal: false },
       { x: targetX - 1, y: targetY - 1, cardinal: false },
-    ].filter(pt => !collisions.has(`${pt.x},${pt.y}`));
+    ].filter(pt => !isBlockedTile(pt.x, pt.y));
 
     if (candidates.length > 0) {
       candidates.sort((a, b) => {
@@ -5556,7 +5596,7 @@ export class GameEngine {
         if (Math.abs(dx) === 2 || Math.abs(dy) === 2) {
           const nx = targetX + dx;
           const ny = targetY + dy;
-          if (!collisions.has(`${nx},${ny}`)) {
+          if (!isBlockedTile(nx, ny)) {
             return { x: nx, y: ny };
           }
         }
@@ -5734,8 +5774,8 @@ export class GameEngine {
     const dist = Math.hypot(player.x - targetX, player.y - targetY);
     if (dist > maxRange + 0.5) {
       // Step towards monster to close the gap rather than dropping combat and going idle!
-      const adj = this.getAdjacentWalkableTile(player.x, player.y, targetX, targetY);
-      const path = this.findPathWithCollisions(player.x, player.y, adj.x, adj.y);
+      const adj = this.getAdjacentWalkableTile(player.x, player.y, targetX, targetY, player.id);
+      const path = this.findPathWithCollisions(player.x, player.y, adj.x, adj.y, player.id);
       if (path.length > 0) {
         player.targetX = adj.x;
         player.targetY = adj.y;
@@ -5880,6 +5920,14 @@ export class GameEngine {
           this.send(ws, {
             type: 'NOTIFICATION',
             message: `RARE DROP: You found ${ITEMS[monsterDef.rareDrop.itemId].name}!`,
+          });
+        }
+
+        if (monsterDef.keyDrop && Math.random() < monsterDef.keyDrop.chance && ITEMS[monsterDef.keyDrop.itemId]) {
+          this.giveLootItem(player, monsterDef.keyDrop.itemId, 1);
+          this.send(ws, {
+            type: 'NOTIFICATION',
+            message: `🗝️ KEY DROP: You discovered a ${ITEMS[monsterDef.keyDrop.itemId].name}!`,
           });
         }
 
@@ -6544,6 +6592,13 @@ export class GameEngine {
       return arr;
     });
 
+    const initialBarriers = new Set<string>();
+    if (firstRoom.exitBarrierCoords) {
+      for (const pt of firstRoom.exitBarrierCoords) {
+        initialBarriers.add(`${pt.x},${pt.y}`);
+      }
+    }
+
     this.dungeonInstances.set(instanceId, {
       id: instanceId,
       dungeonId: dungeon.id,
@@ -6553,6 +6608,7 @@ export class GameEngine {
       isCompleted: false,
       chestOpened: false,
       spoilsAwarded: new Set(),
+      activeBarriers: initialBarriers,
     });
 
     this.broadcastPartyUpdate(party);
@@ -6604,14 +6660,19 @@ export class GameEngine {
     const playerSession = this.sessions.get(playerId);
 
     if (playerSession) {
-      // Return player to safe town spawn
-      playerSession.player.x = PLAYER_SPAWN_POINT.x;
-      playerSession.player.y = PLAYER_SPAWN_POINT.y;
-      playerSession.player.targetX = PLAYER_SPAWN_POINT.x;
-      playerSession.player.targetY = PLAYER_SPAWN_POINT.y;
+      const dungeon = party ? DUNGEONS[party.dungeonId] : null;
+      const retX = typeof dungeon?.returnX === 'number' ? dungeon.returnX : PLAYER_SPAWN_POINT.x;
+      const retY = typeof dungeon?.returnY === 'number' ? dungeon.returnY : PLAYER_SPAWN_POINT.y;
+
+      // Return player to safe gate / town spawn
+      playerSession.player.x = retX;
+      playerSession.player.y = retY;
+      playerSession.player.targetX = retX;
+      playerSession.player.targetY = retY;
       playerSession.player.path = [];
       playerSession.player.isMoving = false;
       playerSession.activeCombat = null;
+      playerSession.pendingCombat = null;
       storage.savePlayer(playerSession.player);
       this.send(playerSession.ws, { type: 'PLAYER_UPDATE', player: playerSession.player });
       this.send(playerSession.ws, { type: 'DUNGEON_LEFT' });
@@ -6693,17 +6754,52 @@ export class GameEngine {
           });
           inst.roomMonsters = newMobs;
 
-          // Warp party members to start of next room
+          // Clear previous room barrier and setup next room's barrier
+          inst.activeBarriers.clear();
+          if (nextRoomDef.exitBarrierCoords) {
+            for (const pt of nextRoomDef.exitBarrierCoords) {
+              inst.activeBarriers.add(`${pt.x},${pt.y}`);
+            }
+          }
+
+          // Auto-path party members into the next room towards next room's first mob or room entrance
+          const targetWalkX = newMobs.length > 0 ? newMobs[0].x : nextRoomDef.startX;
+          const targetWalkY = newMobs.length > 0 ? newMobs[0].y : nextRoomDef.startY;
+
           for (const mem of party.members) {
             const s = this.sessions.get(mem.playerId);
             if (s) {
-              s.player.x = nextRoomDef.startX;
-              s.player.y = nextRoomDef.startY;
-              s.player.targetX = nextRoomDef.startX;
-              s.player.targetY = nextRoomDef.startY;
-              s.player.path = [];
-              s.player.isMoving = false;
               s.activeCombat = null;
+              s.pendingCombat = null;
+              s.player.bankingState = 'idle';
+
+              // Auto walk into next room
+              const walkAdj = this.getAdjacentWalkableTile(s.player.x, s.player.y, targetWalkX, targetWalkY, s.player.id);
+              const path = this.findPathWithCollisions(s.player.x, s.player.y, walkAdj.x, walkAdj.y, s.player.id);
+              if (path.length > 0) {
+                s.player.targetX = walkAdj.x;
+                s.player.targetY = walkAdj.y;
+                s.player.path = path;
+                s.player.isMoving = true;
+                if (newMobs.length > 0) {
+                  s.pendingCombat = {
+                    monsterId: newMobs[0].monsterId,
+                    targetX: newMobs[0].x,
+                    targetY: newMobs[0].y,
+                    nodeId: newMobs[0].id,
+                    quantity: Infinity,
+                  };
+                }
+              } else {
+                // Fallback safe position if already right next to target or path direct
+                s.player.x = nextRoomDef.startX;
+                s.player.y = nextRoomDef.startY;
+                s.player.targetX = nextRoomDef.startX;
+                s.player.targetY = nextRoomDef.startY;
+                s.player.path = [];
+                s.player.isMoving = false;
+              }
+
               storage.savePlayer(s.player);
               this.send(s.ws, { type: 'PLAYER_UPDATE', player: s.player });
               this.send(s.ws, {
@@ -6714,7 +6810,7 @@ export class GameEngine {
               });
               this.send(s.ws, {
                 type: 'NOTIFICATION',
-                message: `🚪 Sealed gate opens! Advanced to ${nextRoomDef.name}!`,
+                message: `The barrier to the next room has lifted.`,
               });
             }
           }

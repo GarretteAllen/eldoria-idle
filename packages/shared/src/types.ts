@@ -150,6 +150,10 @@ export interface MonsterDefinition {
     itemId: string;
     chance: number;
   };
+  keyDrop?: {
+    itemId: string;
+    chance: number;
+  };
   size?: number;
   recolor?: {
     filter?: string;
@@ -471,6 +475,7 @@ export interface DungeonRoomDef {
   mobs: DungeonRoomMob[];
   chestX?: number;
   chestY?: number;
+  exitBarrierCoords?: Array<{ x: number; y: number }>;
 }
 
 export interface DungeonDefinition {

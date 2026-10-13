@@ -70,6 +70,7 @@ export const MONSTERS: Record<string, MonsterDefinition> = {
     maxCoins: 9,
     guaranteedDropItemId: 'crypt_carapace',
     rareDrop: { itemId: 'dry_sigil', chance: 1 / 1667 },
+    keyDrop: { itemId: 'item_crypt_key', chance: 1 / 100 },
   },
   trench_skulker: {
     id: 'trench_skulker',
@@ -98,6 +99,7 @@ export const MONSTERS: Record<string, MonsterDefinition> = {
     maxCoins: 32,
     guaranteedDropItemId: 'crypt_carapace',
     rareDrop: { itemId: 'dry_sigil', chance: 1 / 1250 },
+    keyDrop: { itemId: 'item_crypt_key', chance: 1 / 60 },
   },
   lithophage: {
     id: 'lithophage',
@@ -126,6 +128,7 @@ export const MONSTERS: Record<string, MonsterDefinition> = {
     maxCoins: 65,
     guaranteedDropItemId: 'crypt_carapace',
     rareDrop: { itemId: 'dry_sigil', chance: 1 / 1111 },
+    keyDrop: { itemId: 'item_crypt_key', chance: 1 / 45 },
   },
   marble_wight: {
     id: 'marble_wight',
@@ -140,6 +143,7 @@ export const MONSTERS: Record<string, MonsterDefinition> = {
     maxCoins: 116,
     guaranteedDropItemId: 'crypt_carapace',
     rareDrop: { itemId: 'dry_sigil', chance: 1 / 1000 },
+    keyDrop: { itemId: 'item_crypt_key', chance: 1 / 35 },
   },
   barrow_wight: {
     id: 'barrow_wight',

@@ -46,6 +46,15 @@ export const MONSTER_SPRITES: Record<string, MonsterSpriteCoord> = {
   bat: { col: 2, row: 4, name: 'Bat', size: 0.85 },
   spider: { col: 3, row: 4, name: 'Spider' },
   cultist: { col: 4, row: 4, name: 'Cultist' },
+  crypt_lord: {
+    col: 1,
+    row: 3,
+    name: 'The Crypt Lord',
+    size: 1.8,
+    recolor: {
+      filter: 'sepia(0.6) hue-rotate(220deg) saturate(1.8) brightness(1.2)',
+    },
+  },
 
   // --- Vanity Companion Pets (Rendered in world following their owner) ---
   pet_rocky: {

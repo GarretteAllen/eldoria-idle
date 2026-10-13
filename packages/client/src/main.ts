@@ -1415,7 +1415,7 @@ class EldoriaClient {
         break;
 
       case 'DUNGEON_ROOM_ADVANCE':
-        this.showToast(`🚪 Gate unlocked! Entering Room ${msg.roomIndex + 1}: ${msg.roomName}`, true);
+        this.showToast(`✨ The barrier to the next room has lifted! Advancing to ${msg.roomName}...`, true);
         break;
 
       case 'DUNGEON_SPOILS_MODAL':
