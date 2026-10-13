@@ -224,6 +224,30 @@
   - **Gold Sink Fee**: Base 5,000 Gold multiplied by tier multiplier (`plain: 1x, uncommon: 2x, rare: 4x, epic: 8x, legendary: 15x`) based on `Math.max(tierA, tierB)`.
   - Epic and Legendary breeding outcomes trigger a server-wide All chat milestone announcement.
 
+### N. Lost Goods Porter (Barnaby)
+- **Source Files**: `packages/server/src/gameEngine.ts`, `packages/server/src/storage.ts`, `packages/client/src/main.ts`.
+- **NPC Entity**: Barnaby (`npc_barnaby`) located at Hearth Town Square `(10, 22)`.
+- **Mechanics**:
+  - Automatically recovers overflow dungeon spoils when an adventurer's satchel and bank are full upon completing an expedition.
+  - Retains unclaimed parcels safely in persistent storage (`dungeon_recoveries`).
+  - Players claim parcels directly from Barnaby for a nominal 25g porter fee.
+
+### O. Astral Primordial World Boss
+- **Source Files**: `packages/server/src/gameEngine.ts`, `packages/server/src/world.ts`, `packages/client/src/canvas.ts`.
+- **Location**: Astral Primordial Crater (`boss_arena`) at `(24, 28)`.
+- **Mechanics**:
+  - Global shared-health world encounter with 18-tile proximity requirement.
+  - Attacks rate-limited to 1.8s per strike.
+  - Grants combat style and Hitpoints XP scaled directly by damage dealt (`hit * 4` style XP, `hit * 1.33` HP XP).
+  - Tracks individual player damage contributions for tiered spoils distribution.
+
+### P. Doorway & Portal World Warps
+- **Source Files**: `packages/server/src/world.ts`, `packages/server/src/gameEngine.ts`, `packages/client/src/main.ts`.
+- **Mechanics**:
+  - Interactive world nodes of type `door` and `portal`.
+  - Proximity check: Must be within 2.5 tiles to pass through.
+  - Safely cancels active gathering tasks, pathing, and combat sessions before warping to `targetX, targetY` or level bounds.
+
 ---
 
 ## 6. Development & Deployment Commands
