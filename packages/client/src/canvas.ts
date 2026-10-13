@@ -1216,6 +1216,8 @@ export class WorldRenderer {
           mCtx.fillStyle = '#ecc94b'; // gold
         } else if (node.type === 'notice_board') {
           mCtx.fillStyle = '#f6ad55'; // warm amber parchment
+        } else if (node.type === 'dungeon_gate') {
+          mCtx.fillStyle = '#9b2c2c'; // dark crimson gate
         } else if (node.type === 'door' || node.type === 'portal') {
           mCtx.fillStyle = '#c084fc'; // purple warp
         } else {
@@ -1782,6 +1784,10 @@ export class WorldRenderer {
           fillStyle = 'rgba(246, 173, 85, 0.25)';
           strokeStyle = '#dd6b20';
           cornerStyle = '#feebc8';
+        } else if (node.type === 'dungeon_gate') {
+          fillStyle = 'rgba(229, 62, 62, 0.25)';
+          strokeStyle = '#e53e3e';
+          cornerStyle = '#feb2b2';
         } else if (node.type === 'tree') {
           fillStyle = 'rgba(56, 161, 105, 0.22)';
           strokeStyle = '#38a169';
@@ -2009,6 +2015,32 @@ export class WorldRenderer {
         }
       }
 
+      else if (node.type === 'dungeon_gate') {
+        const pulse = 0.5 + 0.5 * Math.sin(Date.now() / 350);
+        ctx.fillStyle = `rgba(185, 28, 28, ${0.2 + 0.15 * pulse})`;
+        ctx.beginPath();
+        ctx.arc(px + TILE_SIZE / 2, py + TILE_SIZE / 2, 12, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Draw iron gate / dungeon portcullis tile from tilemap (Col 3, Row 3: 48, 48)
+        if (this.tilemapImage && this.tilemapImage.complete) {
+          ctx.save();
+          ctx.imageSmoothingEnabled = false;
+          ctx.drawImage(
+            this.tilemapImage,
+            48,
+            48,
+            16,
+            16,
+            px,
+            py,
+            TILE_SIZE,
+            TILE_SIZE
+          );
+          ctx.restore();
+        }
+      }
+
       else if (node.type === 'workbench') {
         ctx.fillStyle = 'rgba(214, 158, 46, 0.22)';
         ctx.beginPath();
@@ -2154,7 +2186,8 @@ export class WorldRenderer {
         text = friendlyName;
       }
 
-      const isSpecialTownNode = isHearth || node.type === 'notice_board';
+      const isSpecialTownNode = isHearth || node.type === 'notice_board' || node.type === 'dungeon_gate';
+      const isDungeonGate = node.type === 'dungeon_gate';
       ctx.font = isSpecialTownNode ? '700 11px Inter, sans-serif' : '600 10px Inter, sans-serif';
       const textWidth = ctx.measureText(text).width;
       const badgeW = textWidth + (isSpecialTownNode ? 18 : 14);
@@ -2163,15 +2196,27 @@ export class WorldRenderer {
       const badgeY = py - (isSpecialTownNode ? 10 : 8);
 
       const isReadyHarvest = Boolean(farmPlot && farmPlot.status === 'ready');
-      ctx.fillStyle = isReadyHarvest ? 'rgba(40, 32, 10, 0.95)' : (isSpecialTownNode ? 'rgba(28, 17, 8, 0.95)' : 'rgba(18, 22, 28, 0.85)');
-      ctx.strokeStyle = isReadyHarvest ? '#f6e05e' : (isHovered ? (isSpecialTownNode ? '#ffe680' : '#d4af37') : (isSpecialTownNode ? '#dfa637' : '#5a4522'));
+      ctx.fillStyle = isReadyHarvest
+        ? 'rgba(40, 32, 10, 0.95)'
+        : (isDungeonGate
+          ? 'rgba(35, 10, 10, 0.95)'
+          : (isSpecialTownNode ? 'rgba(28, 17, 8, 0.95)' : 'rgba(18, 22, 28, 0.85)'));
+      ctx.strokeStyle = isReadyHarvest
+        ? '#f6e05e'
+        : (isDungeonGate
+          ? (isHovered ? '#fc8181' : '#e53e3e')
+          : (isHovered ? (isSpecialTownNode ? '#ffe680' : '#d4af37') : (isSpecialTownNode ? '#dfa637' : '#5a4522')));
       ctx.lineWidth = (isHovered || isSpecialTownNode || isReadyHarvest) ? 1.5 : 1;
       ctx.beginPath();
       ctx.roundRect(badgeX, badgeY, badgeW, badgeH, 4);
       ctx.fill();
       ctx.stroke();
 
-      ctx.fillStyle = isReadyHarvest ? '#fef08a' : (isSpecialTownNode ? '#ffd466' : (isHovered ? '#fff4cc' : '#f3e8cb'));
+      ctx.fillStyle = isReadyHarvest
+        ? '#fef08a'
+        : (isDungeonGate
+          ? (isHovered ? '#fff5f5' : '#feb2b2')
+          : (isSpecialTownNode ? '#ffd466' : (isHovered ? '#fff4cc' : '#f3e8cb')));
       ctx.textAlign = 'center';
       ctx.fillText(text, px + TILE_SIZE / 2, badgeY + (isSpecialTownNode ? 13 : 11));
       ctx.restore();

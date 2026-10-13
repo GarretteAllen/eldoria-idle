@@ -137,6 +137,7 @@ class EldoriaClient {
   private pendingMonsterQuantity?: number;
   private pendingHearthTarget: WorldNodeDisplay | null = null;
   private pendingNoticeBoardTarget: WorldNodeDisplay | null = null;
+  private pendingDungeonGateTarget: WorldNodeDisplay | null = null;
   private pendingDoorTarget: WorldNodeDisplay | null = null;
   private pendingStationTarget: { type: 'fire' | 'forge' | 'farm' | 'workbench' | 'cauldron' | 'monolith'; node: WorldNodeDisplay } | null = null;
   private selectedStationNode: WorldNodeDisplay | null = null;
@@ -412,6 +413,7 @@ class EldoriaClient {
         this.pendingMonsterTarget = null;
         this.pendingHearthTarget = null;
         this.pendingNoticeBoardTarget = null;
+        this.pendingDungeonGateTarget = null;
         this.pendingStationTarget = null;
         this.sendWs({ type: 'MOVE_TO', x: tileX, y: tileY });
       };
@@ -421,6 +423,7 @@ class EldoriaClient {
         this.pendingMonsterTarget = null;
         this.pendingHearthTarget = null;
         this.pendingNoticeBoardTarget = null;
+        this.pendingDungeonGateTarget = null;
         this.pendingStationTarget = null;
         const dist = Math.hypot(this.player.x - npc.x, this.player.y - npc.y);
         if (dist <= 1.5) {
@@ -440,6 +443,7 @@ class EldoriaClient {
         this.pendingNpcTarget = null;
         this.pendingHearthTarget = null;
         this.pendingNoticeBoardTarget = null;
+        this.pendingDungeonGateTarget = null;
         this.pendingStationTarget = null;
 
         // MONSTER / ENEMY: Stop one tile before the enemy, and then attack it!
@@ -495,6 +499,22 @@ class EldoriaClient {
             this.openNoticeboardModal();
           } else {
             this.pendingNoticeBoardTarget = node;
+            const target = this.getAdjacentWalkableTile(node.x, node.y);
+            this.sendWs({ type: 'MOVE_TO', x: target.x, y: target.y });
+            this.showToast(`Walking to ${node.name}...`);
+          }
+          return;
+        }
+
+        // DUNGEON GATE: Walk adjacent, then open party delve lobby modal!
+        if (node.type === 'dungeon_gate') {
+          if (!this.player) return;
+          const dist = Math.hypot(this.player.x - node.x, this.player.y - node.y);
+          if (dist <= 1.5) {
+            this.pendingDungeonGateTarget = null;
+            this.openDungeonLobbyModal();
+          } else {
+            this.pendingDungeonGateTarget = node;
             const target = this.getAdjacentWalkableTile(node.x, node.y);
             this.sendWs({ type: 'MOVE_TO', x: target.x, y: target.y });
             this.showToast(`Walking to ${node.name}...`);
@@ -1038,6 +1058,15 @@ class EldoriaClient {
           if (dist <= 1.5) {
             this.pendingNoticeBoardTarget = null;
             this.openNoticeboardModal();
+          }
+        }
+
+        // Check if arrived adjacent to clicked Dungeon Gate
+        if (this.pendingDungeonGateTarget && this.player) {
+          const dist = Math.hypot(this.player.x - this.pendingDungeonGateTarget.x, this.player.y - this.pendingDungeonGateTarget.y);
+          if (dist <= 1.5) {
+            this.pendingDungeonGateTarget = null;
+            this.openDungeonLobbyModal();
           }
         }
 
