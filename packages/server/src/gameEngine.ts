@@ -845,7 +845,7 @@ export class GameEngine {
         break;
 
       case 'BUY_MARKET_LISTING':
-        this.handleBuyMarketListing(session, msg.listingId, msg.quantity);
+        this.handleBuyMarketListing(session, msg.listingId, msg.quantity, msg.destination);
         break;
 
       case 'CANCEL_MARKET_LISTING':
@@ -2928,7 +2928,7 @@ export class GameEngine {
     });
   }
 
-  private handleBuyMarketListing(session: ConnectedSession, listingId: string, requestedQty?: number) {
+  private handleBuyMarketListing(session: ConnectedSession, listingId: string, requestedQty?: number, destination?: 'inventory' | 'bank') {
     const { player, ws } = session;
     const hearth = this.getHearthLocation(player.x, player.y);
     const distToHearth = Math.hypot(player.x - hearth.x, player.y - hearth.y);
@@ -2945,6 +2945,7 @@ export class GameEngine {
     let purchasedListing: MarketListing | null = null;
     let actualBoughtQty = 0;
     let totalCost = 0;
+    let deliveredTo: string = 'inventory';
 
     try {
       storage.runTransaction(() => {
@@ -2974,27 +2975,70 @@ export class GameEngine {
         }
 
         const itemDef = storage.getItem(listing.itemId) || ITEMS[listing.itemId];
+        const maxStorage = player.storageSlotsMax || 75;
 
-        // Attempt to deliver items to buyer inventory
-        const addRes = addItemToSlots(player.inventory, 28, listing.itemId, buyQty, listing.rarity, listing.plus, itemDef, 'inventory');
-        if (addRes.added < buyQty) {
-          // If satchel was partially filled or completely full, rollback satchel add
-          if (addRes.added > 0) {
-            let rollBack = addRes.added;
-            for (let i = player.inventory.length - 1; i >= 0 && rollBack > 0; i--) {
-              const s = player.inventory[i];
-              if (s.itemId === listing.itemId && s.rarity === listing.rarity && (s.plus || 0) === (listing.plus || 0)) {
-                const take = Math.min(s.quantity, rollBack);
-                s.quantity -= take;
-                rollBack -= take;
-                if (s.quantity <= 0) {
-                  player.inventory.splice(i, 1);
+        // Delivery target resolution:
+        // If explicitly requested 'bank', deliver to bank.
+        // If 'inventory' (default), attempt inventory first. If inventory is full or cannot fit, seamlessly route to bank!
+        if (destination === 'bank') {
+          const addRes = addItemToSlots(player.storage, maxStorage, listing.itemId, buyQty, listing.rarity, listing.plus, itemDef, 'bank');
+          if (addRes.added < buyQty) {
+            if (addRes.added > 0) {
+              let rollBack = addRes.added;
+              for (let i = player.storage.length - 1; i >= 0 && rollBack > 0; i--) {
+                const s = player.storage[i];
+                if (s.itemId === listing.itemId && s.rarity === listing.rarity && (s.plus || 0) === (listing.plus || 0)) {
+                  const take = Math.min(s.quantity, rollBack);
+                  s.quantity -= take;
+                  rollBack -= take;
+                  if (s.quantity <= 0) player.storage.splice(i, 1);
                 }
               }
             }
+            errMessage = 'Not enough free Hearth Bank space to store these items.';
+            return;
           }
-          errMessage = 'Not enough free satchel space to receive the items.';
-          return;
+          deliveredTo = 'bank';
+        } else {
+          // Attempt satchel first
+          const addRes = addItemToSlots(player.inventory, 28, listing.itemId, buyQty, listing.rarity, listing.plus, itemDef, 'inventory');
+          if (addRes.added < buyQty) {
+            // Roll back any partial satchel addition
+            if (addRes.added > 0) {
+              let rollBack = addRes.added;
+              for (let i = player.inventory.length - 1; i >= 0 && rollBack > 0; i--) {
+                const s = player.inventory[i];
+                if (s.itemId === listing.itemId && s.rarity === listing.rarity && (s.plus || 0) === (listing.plus || 0)) {
+                  const take = Math.min(s.quantity, rollBack);
+                  s.quantity -= take;
+                  rollBack -= take;
+                  if (s.quantity <= 0) player.inventory.splice(i, 1);
+                }
+              }
+            }
+
+            // Fallback directly to Hearth Bank storage so players can purchase past satchel limits!
+            const bankRes = addItemToSlots(player.storage, maxStorage, listing.itemId, buyQty, listing.rarity, listing.plus, itemDef, 'bank');
+            if (bankRes.added < buyQty) {
+              if (bankRes.added > 0) {
+                let rollBack = bankRes.added;
+                for (let i = player.storage.length - 1; i >= 0 && rollBack > 0; i--) {
+                  const s = player.storage[i];
+                  if (s.itemId === listing.itemId && s.rarity === listing.rarity && (s.plus || 0) === (listing.plus || 0)) {
+                    const take = Math.min(s.quantity, rollBack);
+                    s.quantity -= take;
+                    rollBack -= take;
+                    if (s.quantity <= 0) player.storage.splice(i, 1);
+                  }
+                }
+              }
+              errMessage = 'Not enough satchel or Hearth Bank space to receive the items.';
+              return;
+            }
+            deliveredTo = 'bank';
+          } else {
+            deliveredTo = 'inventory';
+          }
         }
 
         // Deduct gold from buyer
@@ -3081,9 +3125,10 @@ export class GameEngine {
 
     storage.checkpoint();
     const itemDef = storage.getItem(purchasedListing!.itemId) || ITEMS[purchasedListing!.itemId];
+    const destinationNote = deliveredTo === 'bank' ? ' (delivered to Hearth Bank)' : ' (delivered to Satchel)';
     this.send(ws, {
       type: 'NOTIFICATION',
-      message: `Purchased ${actualBoughtQty}x ${itemDef?.name || purchasedListing!.itemId} for ${totalCost.toLocaleString()} gold.`
+      message: `Purchased ${actualBoughtQty}x ${itemDef?.name || purchasedListing!.itemId} for ${totalCost.toLocaleString()} gold${destinationNote}.`
     });
     this.send(ws, { type: 'PLAYER_UPDATE', player });
 

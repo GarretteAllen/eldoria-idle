@@ -376,6 +376,29 @@ export function simulateOfflineCatchUp(
     overflowOccurred: false,
   };
 
+  // If player went offline during auto-banking or commute, restore active task from bankReturnTask
+  if (!player.currentTask && player.bankReturnTask) {
+    player.currentTask = { ...player.bankReturnTask };
+    player.bankReturnTask = null;
+    player.bankingState = 'idle';
+  }
+
+  // If player went offline while walking to their chosen node, restore active task from pendingTask
+  if (!player.currentTask && player.pendingTask) {
+    const pt = player.pendingTask;
+    const rec = RECIPES[pt.recipeId];
+    if (rec) {
+      player.currentTask = {
+        recipeId: pt.recipeId,
+        skill: rec.skill,
+        startedAtTick: 0,
+        targetQuantity: (typeof pt.quantity === 'number' && pt.quantity > 0) ? pt.quantity : Infinity,
+        completedQuantity: 0,
+      };
+      player.pendingTask = null;
+    }
+  }
+
   // If no active task currently, try to start the first task in queue
   if (!player.currentTask && Array.isArray(player.taskQueue) && player.taskQueue.length > 0) {
     const next = player.taskQueue.shift()!;
@@ -631,10 +654,28 @@ export function simulateOfflineCatchUp(
       if (recipe.inputs.length > 0) {
         let canAfford = true;
         for (const input of recipe.inputs) {
-          const slot = player.inventory.find(s => s.itemId === input.itemId && s.quantity >= input.quantity);
-          if (!slot) {
-            canAfford = false;
-            break;
+          const totalInBag = player.inventory.reduce((sum, s) => s.itemId === input.itemId ? sum + s.quantity : sum, 0);
+          if (totalInBag < input.quantity) {
+            // Check if player has the materials in storage to restock
+            const totalInBank = (player.storage || []).reduce((sum, s) => s.itemId === input.itemId ? sum + s.quantity : sum, 0);
+            if (totalInBank >= input.quantity) {
+              // Transfer from storage to inventory for simulation
+              let neededFromBank = input.quantity;
+              for (const bSlot of player.storage) {
+                if (bSlot.itemId === input.itemId) {
+                  const take = Math.min(bSlot.quantity, neededFromBank);
+                  bSlot.quantity -= take;
+                  neededFromBank -= take;
+                  const itemDef = ITEMS[input.itemId];
+                  addItemToSlots(player.inventory, 28, input.itemId, take, bSlot.rarity || 'plain', bSlot.plus || 0, itemDef, 'inventory');
+                  if (neededFromBank <= 0) break;
+                }
+              }
+              player.storage = player.storage.filter(s => s.quantity > 0);
+            } else {
+              canAfford = false;
+              break;
+            }
           }
         }
         if (!canAfford) break;
@@ -642,14 +683,21 @@ export function simulateOfflineCatchUp(
         let highestInputRarity: Rarity = 'plain';
         const rarityRank: Record<Rarity, number> = { plain: 0, uncommon: 1, rare: 2, epic: 3, legendary: 4 };
 
-        // Deduct materials
+        // Deduct materials from inventory (handling multiple partial slots)
         for (const input of recipe.inputs) {
-          const slot = player.inventory.find(s => s.itemId === input.itemId)!;
-          const slotRarity = slot.rarity || 'plain';
-          if (rarityRank[slotRarity] > rarityRank[highestInputRarity]) {
-            highestInputRarity = slotRarity;
+          let needed = input.quantity;
+          for (const slot of player.inventory) {
+            if (slot.itemId === input.itemId) {
+              const slotRarity = slot.rarity || 'plain';
+              if (rarityRank[slotRarity] > rarityRank[highestInputRarity]) {
+                highestInputRarity = slotRarity;
+              }
+              const take = Math.min(slot.quantity, needed);
+              slot.quantity -= take;
+              needed -= take;
+              if (needed <= 0) break;
+            }
           }
-          slot.quantity -= input.quantity;
         }
         // Clean up empty slots
         player.inventory = player.inventory.filter(s => s.quantity > 0);

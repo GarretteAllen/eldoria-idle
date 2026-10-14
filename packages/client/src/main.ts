@@ -4296,21 +4296,43 @@ class EldoriaClient {
               buyBtn.title = `Buy from ${listing.sellerName}`;
               buyBtn.onclick = (e) => {
                 e.stopPropagation();
-                if (listing.quantity > 1) {
-                  this.showInGamePrompt({
-                    title: 'Buy Listing',
-                    message: `How many ${itemDef?.name || 'items'} would you like to buy? (1 to ${listing.quantity})`,
-                    defaultValue: listing.quantity,
-                    min: 1,
-                    max: listing.quantity,
-                    confirmText: 'Buy',
-                    onConfirm: (buyQty) => {
-                      this.sendWs({ type: 'BUY_MARKET_LISTING', listingId: listing.id, quantity: Math.min(listing.quantity, buyQty) });
-                    },
-                  });
-                } else {
-                  this.sendWs({ type: 'BUY_MARKET_LISTING', listingId: listing.id, quantity: 1 });
-                }
+                const destinationHtml = `
+                  <div style="margin-top: 6px; padding: 6px 10px; background: rgba(0,0,0,0.35); border-radius: 4px; border: 1px solid rgba(132, 97, 59, 0.4);">
+                    <div style="font-size: 0.72rem; color: #cbd5e0; margin-bottom: 6px; font-weight: 600;">Deliver Items To:</div>
+                    <div style="display: flex; gap: 14px; font-size: 0.75rem;">
+                      <label style="display: flex; align-items: center; gap: 5px; cursor: pointer; color: #ffd700;">
+                        <input type="radio" name="mkt-buy-dest" value="inventory" checked style="cursor: pointer;" />
+                        <span>Satchel <span style="font-size: 0.65rem; color: #a0aec0;">(overflows to bank)</span></span>
+                      </label>
+                      <label style="display: flex; align-items: center; gap: 5px; cursor: pointer; color: #90cdf4;">
+                        <input type="radio" name="mkt-buy-dest" value="bank" style="cursor: pointer;" />
+                        <span>Hearth Bank</span>
+                      </label>
+                    </div>
+                  </div>
+                `;
+
+                this.showInGamePrompt({
+                  title: 'Buy Listing',
+                  message: listing.quantity > 1
+                    ? `How many ${itemDef?.name || 'items'} would you like to buy? (1 to ${listing.quantity})`
+                    : `Buy 1x ${itemDef?.name || 'item'} for ${listing.unitPrice.toLocaleString()} gold?`,
+                  defaultValue: listing.quantity > 1 ? listing.quantity : 1,
+                  min: 1,
+                  max: listing.quantity,
+                  confirmText: 'Buy',
+                  extraHtml: destinationHtml,
+                  onConfirm: (buyQty) => {
+                    const destEl = document.querySelector('input[name="mkt-buy-dest"]:checked') as HTMLInputElement | null;
+                    const destination = (destEl?.value === 'bank') ? 'bank' : 'inventory';
+                    this.sendWs({
+                      type: 'BUY_MARKET_LISTING',
+                      listingId: listing.id,
+                      quantity: Math.min(listing.quantity, buyQty),
+                      destination
+                    });
+                  },
+                });
               };
               return buyBtn;
             }
@@ -7291,11 +7313,20 @@ class EldoriaClient {
     }
 
     if (taskVal && this.player) {
-      if (this.player.currentTask) {
-        const rec = RECIPES[this.player.currentTask.recipeId];
-        const mob = MONSTERS[this.player.currentTask.recipeId];
-        const taskName = rec?.name || mob?.name || this.player.currentTask.recipeId;
-        taskVal.textContent = taskName;
+      const activeTask = this.player.currentTask || this.player.bankReturnTask;
+      if (activeTask) {
+        const rec = RECIPES[activeTask.recipeId];
+        const mob = MONSTERS[activeTask.recipeId];
+        const taskName = rec?.name || mob?.name || activeTask.recipeId;
+        const commutingSuffix = this.player.bankingState === 'walking_to_bank'
+          ? ' (Banking)'
+          : this.player.bankingState === 'returning_to_work'
+          ? ' (Commuting)'
+          : '';
+        taskVal.textContent = `${taskName}${commutingSuffix}`;
+      } else if (this.player.pendingTask) {
+        const rec = RECIPES[this.player.pendingTask.recipeId];
+        taskVal.textContent = `${rec?.name || this.player.pendingTask.recipeId} (Traveling)`;
       } else {
         taskVal.textContent = 'Hanging out at the Hearth';
       }
