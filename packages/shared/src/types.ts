@@ -129,6 +129,7 @@ export interface RecipeDefinition {
   outputQuantity: number;
   xp: number;
   intervalSeconds: number;
+  animaCost?: number; // Optional Anima currency (star icon) consumed per craft
   rareFinds?: RecipeDropChance[];
   burnRateAtLevel?: {
     startLevel: number;

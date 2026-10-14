@@ -3003,23 +3003,36 @@ class EldoriaClient {
       const itemEl = document.createElement('div');
       itemEl.className = `popup-job-item ${isSelected ? 'selected' : ''} ${isUnlocked ? '' : 'locked'}`;
 
-      // Calculate how many player can make from bank + inventory
+      // Calculate how many player can make from bank + inventory + Anima currency
       let canMakeText = '';
-      if (recipe.inputs && recipe.inputs.length > 0) {
+      if ((recipe.inputs && recipe.inputs.length > 0) || recipe.animaCost) {
         let maxBatches = Infinity;
-        for (const inp of recipe.inputs) {
-          const inInv = this.player.inventory.find(s => s.itemId === inp.itemId)?.quantity || 0;
-          const inBank = this.player.storage.find(s => s.itemId === inp.itemId)?.quantity || 0;
-          const totalInp = inInv + inBank;
-          const batches = Math.floor(totalInp / inp.quantity);
-          if (batches < maxBatches) maxBatches = batches;
+        if (recipe.animaCost) {
+          const animaBatches = Math.floor((this.player.anima || 0) / recipe.animaCost);
+          if (animaBatches < maxBatches) maxBatches = animaBatches;
+        }
+        if (recipe.inputs) {
+          for (const inp of recipe.inputs) {
+            const inInv = this.player.inventory.find(s => s.itemId === inp.itemId)?.quantity || 0;
+            const inBank = this.player.storage.find(s => s.itemId === inp.itemId)?.quantity || 0;
+            const totalInp = inInv + inBank;
+            const batches = Math.floor(totalInp / inp.quantity);
+            if (batches < maxBatches) maxBatches = batches;
+          }
         }
         canMakeText = isUnlocked ? `<div class="job-can-make">${maxBatches} to make</div>` : '';
       }
 
       let detailsText = '';
+      const inputParts: string[] = [];
+      if (recipe.animaCost) {
+        inputParts.push(`${recipe.animaCost} Anima`);
+      }
       if (recipe.inputs && recipe.inputs.length > 0) {
-        detailsText = recipe.inputs.map(i => `${i.quantity}x ${ITEMS[i.itemId]?.name || i.itemId}`).join(', ');
+        inputParts.push(...recipe.inputs.map(i => `${i.quantity}x ${ITEMS[i.itemId]?.name || i.itemId}`));
+      }
+      if (inputParts.length > 0) {
+        detailsText = inputParts.join(', ');
       } else {
         detailsText = 'Gathers raw materials from world node';
       }

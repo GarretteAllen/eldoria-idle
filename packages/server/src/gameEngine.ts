@@ -4219,8 +4219,19 @@ export class GameEngine {
       }
     }
 
-    // Deduct inputs
+    // Deduct inputs & Anima currency
     let xpMultiplier = 1.0;
+    if (recipe.animaCost && (player.anima || 0) < recipe.animaCost) {
+      player.currentTask = null;
+      this.send(ws, {
+        type: 'NOTIFICATION',
+        message: `Requires ${recipe.animaCost} Anima to weave ${recipe.name}. Earn more from the Town Noticeboard or World Boss!`
+      });
+      storage.savePlayer(player);
+      this.startNextQueuedTask(session);
+      return;
+    }
+
     if (recipe.inputs?.length > 0) {
       let inputsAvailable = true;
       for (const inp of recipe.inputs) {
@@ -4286,6 +4297,10 @@ export class GameEngine {
       }
       player.inventory = player.inventory.filter(s => s.quantity > 0);
       xpMultiplier = RARITY_CRAFT_XP_MULTIPLIER[highestInputRarity] || 1.0;
+    }
+
+    if (recipe.animaCost) {
+      player.anima = Math.max(0, (player.anima || 0) - recipe.animaCost);
     }
 
     // Add output item

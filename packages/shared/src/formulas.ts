@@ -620,6 +620,13 @@ export function simulateOfflineCatchUp(
 
     for (let i = 0; i < cyclesToExecute; i++) {
       let xpMult = 1.0;
+      // Check Anima currency if recipe requires it
+      if (recipe.animaCost) {
+        if ((player.anima || 0) < recipe.animaCost) {
+          break;
+        }
+      }
+
       // Check material inputs for crafting
       if (recipe.inputs.length > 0) {
         let canAfford = true;
@@ -647,6 +654,10 @@ export function simulateOfflineCatchUp(
         // Clean up empty slots
         player.inventory = player.inventory.filter(s => s.quantity > 0);
         xpMult = RARITY_CRAFT_XP_MULTIPLIER[highestInputRarity] || 1.0;
+      }
+
+      if (recipe.animaCost) {
+        player.anima = Math.max(0, (player.anima || 0) - recipe.animaCost);
       }
 
       // Add output item
