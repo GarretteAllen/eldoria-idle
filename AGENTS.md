@@ -174,6 +174,8 @@
 - **Party Assembly & Navigation**:
   - Party leader must be physically within 2.5 tiles of the entrance gate to unlock and embark on a delve.
   - Non-leader party members can accept invites and ready up remotely without having to hike to the gate.
+  - **Invite Allowances**: Players who created a solo lobby (e.g. by clicking dungeon gate/button) are not blocked with "already in another party" and can receive invites; accepting an invite cleanly merges them into the new party.
+  - **Automated Member Banking Prep**: Upon accepting an expedition invite, the member automatically cancels their current task and visits the Hearth Bank to deposit gathered resources and restock up to 15 cooked food rations, ensuring their satchel is empty and battle-ready before toggling ready.
   - A persistent `#btn-party-toggle` button in the top navigation bar allows party members to reopen the expedition lobby and ready-status list at any time.
 - **Keystone Consumption Rules**:
   - Delves require 1x `item_crypt_key` supplied by the party leader.

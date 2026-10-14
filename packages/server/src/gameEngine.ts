@@ -6614,9 +6614,15 @@ export class GameEngine {
       return;
     }
 
-    if (this.playerPartyMap.has(targetSession.player.id)) {
-      this.send(ws, { type: 'NOTIFICATION', message: `${targetSession.player.username} is already in another party.` });
-      return;
+    const targetExistingPartyId = this.playerPartyMap.get(targetSession.player.id);
+    if (targetExistingPartyId) {
+      const existingParty = this.dungeonParties.get(targetExistingPartyId);
+      // If the target is in an active delve or an existing multi-member party, block the invite.
+      // If they are just in a solo 1-person lobby, allow the invitation through!
+      if (existingParty && (existingParty.status === 'in_dungeon' || existingParty.members.length > 1)) {
+        this.send(ws, { type: 'NOTIFICATION', message: `${targetSession.player.username} is already in another party.` });
+        return;
+      }
     }
 
     this.send(targetSession.ws, {

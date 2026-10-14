@@ -139,7 +139,7 @@ class EldoriaClient {
   private pendingHearthTarget: WorldNodeDisplay | null = null;
   private pendingNoticeBoardTarget: WorldNodeDisplay | null = null;
   private pendingDungeonGateTarget: WorldNodeDisplay | null = null;
-  private pendingDungeonPrep: { phase: 'banking' | 'gate'; gateX: number; gateY: number } | null = null;
+  private pendingDungeonPrep: { phase: 'banking' | 'gate' | 'member_banking'; gateX: number; gateY: number; marchToGate?: boolean } | null = null;
   private pendingDoorTarget: WorldNodeDisplay | null = null;
   private pendingStationTarget: { type: 'fire' | 'forge' | 'farm' | 'workbench' | 'cauldron' | 'monolith'; node: WorldNodeDisplay } | null = null;
   private selectedStationNode: WorldNodeDisplay | null = null;
@@ -1088,6 +1088,12 @@ class EldoriaClient {
             const distBank = Math.hypot(this.player.x - hearth.x, this.player.y - hearth.y);
             if (distBank <= 1.5) {
               this.executeDungeonBankingProvisions(this.pendingDungeonPrep.gateX, this.pendingDungeonPrep.gateY);
+            }
+          } else if (this.pendingDungeonPrep.phase === 'member_banking') {
+            const hearth = this.worldNodes.find(n => n.type === 'hearth_counter') || { x: 8, y: 22 };
+            const distBank = Math.hypot(this.player.x - hearth.x, this.player.y - hearth.y);
+            if (distBank <= 1.5) {
+              this.executeDungeonMemberBankingProvisions();
             }
           } else if (this.pendingDungeonPrep.phase === 'gate') {
             const distGate = Math.hypot(this.player.x - this.pendingDungeonPrep.gateX, this.player.y - this.pendingDungeonPrep.gateY);
@@ -10018,13 +10024,15 @@ class EldoriaClient {
     if (acceptInviteBtn) {
       acceptInviteBtn.onclick = () => {
         if (this.pendingDungeonInvite) {
+          const pId = this.pendingDungeonInvite.partyId;
           this.sendWs({
             type: 'DUNGEON_RESPOND_INVITE',
-            partyId: this.pendingDungeonInvite.partyId,
+            partyId: pId,
             accept: true,
           });
           this.hideDungeonInviteToast();
-          // Modal will be opened and rendered when server responds with DUNGEON_PARTY_UPDATE
+          // Start automated pre-flight bank routine to deposit resources and pack food rations
+          this.startDungeonMemberPrepSequence();
         }
       };
     }
@@ -10179,6 +10187,77 @@ class EldoriaClient {
 
     const targetGateTile = this.getAdjacentWalkableTile(gateX, gateY);
     this.sendWs({ type: 'MOVE_TO', x: targetGateTile.x, y: targetGateTile.y });
+  }
+
+  private startDungeonMemberPrepSequence() {
+    if (!this.player) return;
+
+    // Check if player already carries food rations
+    const carriedFood = this.player.inventory.reduce((sum, s) => {
+      const it = ITEMS[s.itemId];
+      return (it && (it.category === 'cooked_food' || ((it.baseStats?.healing || 0) > 0))) ? sum + s.quantity : sum;
+    }, 0);
+
+    // Check if player carries raw gathering resources or junk that should be deposited
+    const hasDepositableResources = this.player.inventory.some(s => {
+      const it = ITEMS[s.itemId];
+      return it && (it.category === 'ore' || it.category === 'log' || it.category === 'raw_food' || it.category === 'crop');
+    });
+
+    // If member already has ample food (>= 10 rations) and no raw resources clogging bag, ready up directly!
+    if (carriedFood >= 10 && !hasDepositableResources) {
+      sound.play('ding');
+      this.showToast('🛡️ Provisions confirmed! You already carry food rations and an empty satchel.', true);
+      return;
+    }
+
+    const hearth = this.worldNodes.find(n => n.type === 'hearth_counter') || { x: 8, y: 22 };
+    const distToHearth = Math.hypot(this.player.x - hearth.x, this.player.y - hearth.y);
+
+    // Stop active gathering/crafting/combat task
+    this.sendWs({ type: 'STOP_TASK', clearQueue: true });
+
+    if (distToHearth <= 1.5) {
+      // Already at the Hearth Bank! Bank resources and restock food immediately
+      this.executeDungeonMemberBankingProvisions();
+      return;
+    }
+
+    // March to Hearth Bank to empty satchel resources and restock food
+    sound.play('ding');
+    this.showToast('⚔️ Accepted invite! Marching to Hearth Bank to bank gathered resources & pack food rations...', true);
+    this.pendingDungeonPrep = { phase: 'member_banking', gateX: hearth.x, gateY: hearth.y };
+
+    const targetBankTile = this.getAdjacentWalkableTile(hearth.x, hearth.y);
+    this.sendWs({ type: 'MOVE_TO', x: targetBankTile.x, y: targetBankTile.y });
+  }
+
+  private executeDungeonMemberBankingProvisions() {
+    if (!this.player) return;
+
+    // 1. Deposit gathered resources into bank
+    this.sendWs({ type: 'DEPOSIT_ALL_RESOURCES' });
+
+    // 2. Withdraw preferred food up to 15 rations
+    const targetFoodItemId = this.player.selectedFoodItemId;
+    let foodSlotIdx = -1;
+    if (targetFoodItemId) {
+      foodSlotIdx = this.player.storage.findIndex(s => s.itemId === targetFoodItemId && s.quantity > 0);
+    }
+    if (foodSlotIdx === -1) {
+      foodSlotIdx = this.player.storage.findIndex(s => {
+        const it = ITEMS[s.itemId];
+        return s.quantity > 0 && it && (it.category === 'cooked_food' || ((it.baseStats?.healing || 0) > 0));
+      });
+    }
+
+    if (foodSlotIdx >= 0) {
+      this.sendWs({ type: 'WITHDRAW_ITEM', storageIndex: foodSlotIdx, quantity: 15 });
+    }
+
+    this.pendingDungeonPrep = null;
+    sound.play('ding');
+    this.showToast('🛡️ Provisions prepped! Banked resources & packed food rations. Open party window when ready.', true);
   }
 
   private openDungeonLobbyModal(dungeonId: string = 'whispering_crypt') {
