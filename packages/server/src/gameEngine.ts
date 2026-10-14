@@ -96,6 +96,7 @@ interface ConnectedSession {
   messageRateWindowStart?: number;
   messageCountInWindow?: number;
   lastChatTimestamp?: number;
+  lastEatTick?: number;
 }
 
 
@@ -529,6 +530,13 @@ export class GameEngine {
       if (ws && session.ws !== ws) {
         // Disconnect event from a replaced socket; do not destroy active session
         return;
+      }
+      const partyId = this.playerPartyMap.get(playerId);
+      if (partyId) {
+        const party = this.dungeonParties.get(partyId);
+        if (party && party.status === 'lobby') {
+          this.leaveCurrentParty(playerId);
+        }
       }
       session.player.lastActiveTimestamp = Date.now();
       storage.savePlayer(session.player);
@@ -2058,6 +2066,22 @@ export class GameEngine {
     // Unequip currently worn in that slot if any
     const existing = player.equipment[targetSlot];
 
+    // If swapping and slot has quantity > 1, inventory length does not decrease, so existing item requires an extra slot unless stackable
+    if (existing && slot.quantity > 1 && player.inventory.length >= 28) {
+      const existingDef = storage.getItem(existing.itemId) || ITEMS[existing.itemId];
+      const simulatedInv = player.inventory.map(s => ({ ...s }));
+      // 1 of slot will be removed
+      simulatedInv[invIndex].quantity--;
+      const testRes = addItemToSlots(simulatedInv, 28, existing.itemId, existing.quantity || 1, existing.rarity, existing.plus, existingDef, 'inventory');
+      if (testRes.remainder > 0) {
+        this.send(session.ws, {
+          type: 'NOTIFICATION',
+          message: 'Your satchel is full! Please make space before changing equipment.',
+        });
+        return;
+      }
+    }
+
     // Remove 1 item from inventory
     if (slot.quantity > 1) {
       slot.quantity--;
@@ -2077,7 +2101,12 @@ export class GameEngine {
 
     if (existing) {
       const existingDef = storage.getItem(existing.itemId) || ITEMS[existing.itemId];
-      addItemToSlots(player.inventory, 28, existing.itemId, existing.quantity || 1, existing.rarity, existing.plus, existingDef, 'inventory');
+      const addRes = addItemToSlots(player.inventory, 28, existing.itemId, existing.quantity || 1, existing.rarity, existing.plus, existingDef, 'inventory');
+      if (addRes.remainder > 0) {
+        // Vault fallback if bag cannot fit
+        const maxStorage = player.storageSlotsMax || 75;
+        addItemToSlots(player.storage, maxStorage, existing.itemId, addRes.remainder, existing.rarity, existing.plus, existingDef, 'bank');
+      }
     }
 
     player.moveSpeedTilesPerTick = calculatePlayerMoveSpeed(player);
@@ -2183,11 +2212,12 @@ export class GameEngine {
 
       if (locA === locB) {
         // Remove empty slots in descending index order to preserve indexing
-        const sortedIndices = [indexA, indexB].sort((a, b) => b - a);
-        for (const idx of sortedIndices) {
-          if (sourceA[idx] && (sourceA[idx].quantity || 0) <= 0) {
-            sourceA.splice(idx, 1);
-          }
+        const [firstIdx, secondIdx] = indexA > indexB ? [indexA, indexB] : [indexB, indexA];
+        if (sourceA[firstIdx] && (sourceA[firstIdx].quantity || 0) <= 0) {
+          sourceA.splice(firstIdx, 1);
+        }
+        if (sourceA[secondIdx] && (sourceA[secondIdx].quantity || 0) <= 0) {
+          sourceA.splice(secondIdx, 1);
         }
       } else {
         if (slotA.quantity <= 0) {
@@ -2199,7 +2229,6 @@ export class GameEngine {
       }
     }
 
-    // Add offspring mount to the origin of Parent A (if storage, place in storage, else inventory)
     const newMountSlot: InventorySlot = {
       itemId: offspringSpecies,
       quantity: 1,
@@ -2207,20 +2236,48 @@ export class GameEngine {
       plus: 0,
     };
 
+    const maxSlots = player.storageSlotsMax || 75;
+    let delivered = false;
+
     if (locA === 'storage') {
-      const maxSlots = player.storageSlotsMax || 75;
       const addRes = addItemToSlots(player.storage, maxSlots, offspringSpecies, 1, breedResult.rarity, 0, offspringDef, 'bank');
-      if (addRes.added <= 0) {
+      if (addRes.added > 0) {
+        delivered = true;
+      } else {
         // Vault full fallback: put in inventory
-        addItemToSlots(player.inventory, 28, offspringSpecies, 1, breedResult.rarity, 0, offspringDef, 'inventory');
+        const invRes = addItemToSlots(player.inventory, 28, offspringSpecies, 1, breedResult.rarity, 0, offspringDef, 'inventory');
+        if (invRes.added > 0) delivered = true;
       }
     } else {
       const addRes = addItemToSlots(player.inventory, 28, offspringSpecies, 1, breedResult.rarity, 0, offspringDef, 'inventory');
-      if (addRes.added <= 0) {
+      if (addRes.added > 0) {
+        delivered = true;
+      } else {
         // Bag full fallback: put in storage
-        const maxSlots = player.storageSlotsMax || 75;
-        addItemToSlots(player.storage, maxSlots, offspringSpecies, 1, breedResult.rarity, 0, offspringDef, 'bank');
+        const bankRes = addItemToSlots(player.storage, maxSlots, offspringSpecies, 1, breedResult.rarity, 0, offspringDef, 'bank');
+        if (bankRes.added > 0) delivered = true;
       }
+    }
+
+    // If both inventory and storage are completely full, safely recover via Barnaby
+    if (!delivered) {
+      const recoveryId = `rec_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+      storage.addDungeonRecovery({
+        id: recoveryId,
+        playerId: player.id,
+        dungeonId: 'stable',
+        dungeonName: 'Hearth Stable',
+        itemId: offspringSpecies,
+        quantity: 1,
+        rarity: breedResult.rarity,
+        plus: 0,
+        recoveryFee: 25,
+        timestamp: Date.now(),
+      });
+      this.send(ws, {
+        type: 'NOTIFICATION',
+        message: 'Satchel and Hearth Bank are full! Barnaby recovered your newborn mount in town.',
+      });
     }
 
     storage.savePlayer(player);
@@ -2278,11 +2335,17 @@ export class GameEngine {
   }
 
   private handleEatFood(session: ConnectedSession, invIndex: number) {
+    if (session.lastEatTick !== undefined && session.lastEatTick >= this.tickCount) {
+      return;
+    }
+
     const { player } = session;
     const slot = player.inventory[invIndex];
     if (!slot) return;
     const def = ITEMS[slot.itemId];
     if (!def || def.category !== 'cooked_food' || !def.baseStats?.healing) return;
+
+    session.lastEatTick = this.tickCount;
 
     const maxHp = (player.skills.hitpoints?.level || 10);
     const healMult = RARITY_HEALING_MULTIPLIER[slot.rarity || 'plain'] || 1.0;
@@ -2358,40 +2421,42 @@ export class GameEngine {
 
     const hearth = this.getHearthLocation(player.x, player.y);
     const distToHearth = Math.hypot(player.x - hearth.x, player.y - hearth.y);
-
-    if (distToHearth > 1.5) {
-      const path = this.findPathWithCollisions(player.x, player.y, hearth.x, hearth.y);
-      if (path.length === 0) {
-        if (distToHearth <= 3.0) {
-          this.handleAutoDepositAtHearth(session);
-          return;
-        }
-        this.send(ws, {
-          type: 'NOTIFICATION',
-          message: 'Unable to reach the Hearth Storage Counter (path blocked).'
-        });
-        player.bankingState = 'idle';
-        this.send(ws, { type: 'PLAYER_UPDATE', player });
-        return;
-      }
-
-      player.targetX = hearth.x;
-      player.targetY = hearth.y;
-      player.path = path;
-      player.isMoving = true;
-      player.bankingState = 'walking_to_bank';
-
-      this.send(ws, {
-        type: 'NOTIFICATION',
-        message: 'Heading to the bank to drop off your items...'
-      });
-      this.send(ws, { type: 'PLAYER_UPDATE', player });
-      this.broadcastWorldState();
+    if (distToHearth <= 1.5) {
+      this.handleAutoDepositAtHearth(session);
       return;
     }
 
-    // Already at Hearth counter: deposit immediately
-    this.handleAutoDepositAtHearth(session);
+    const path = this.findPathWithCollisions(player.x, player.y, hearth.x, hearth.y);
+    if (path.length === 0) {
+      if (distToHearth <= 1.5) {
+        this.handleAutoDepositAtHearth(session);
+        return;
+      }
+      if (distToHearth <= 3.0) {
+        this.handleAutoDepositAtHearth(session);
+        return;
+      }
+      this.send(ws, {
+        type: 'NOTIFICATION',
+        message: 'Unable to reach the Hearth Storage Counter (path blocked).'
+      });
+      player.bankingState = 'idle';
+      this.send(ws, { type: 'PLAYER_UPDATE', player });
+      return;
+    }
+
+    player.targetX = hearth.x;
+    player.targetY = hearth.y;
+    player.path = path;
+    player.isMoving = true;
+    player.bankingState = 'walking_to_bank';
+
+    this.send(ws, {
+      type: 'NOTIFICATION',
+      message: 'Heading to the bank to drop off your items...'
+    });
+    this.send(ws, { type: 'PLAYER_UPDATE', player });
+    this.broadcastWorldState();
   }
 
   private handleWithdrawItem(session: ConnectedSession, storageIndex: number, requestedQty?: number) {
@@ -2530,6 +2595,16 @@ export class GameEngine {
 
   private handleBuyStorageSlot(session: ConnectedSession) {
     const { player, ws } = session;
+    const hearth = this.getHearthLocation(player.x, player.y);
+    const distToHearth = Math.hypot(player.x - hearth.x, player.y - hearth.y);
+    if (distToHearth > 2.5) {
+      this.send(ws, {
+        type: 'NOTIFICATION',
+        message: 'You must be at the Hearth Storage Counter to expand vault space.',
+      });
+      return;
+    }
+
     const currentSlots = player.storageSlotsMax || 75;
     const cost = getStorageSlotUpgradeCost(currentSlots);
     if ((player.gold || 0) < cost) {
@@ -2987,7 +3062,7 @@ export class GameEngine {
               let rollBack = addRes.added;
               for (let i = player.storage.length - 1; i >= 0 && rollBack > 0; i--) {
                 const s = player.storage[i];
-                if (s.itemId === listing.itemId && s.rarity === listing.rarity && (s.plus || 0) === (listing.plus || 0)) {
+                if (s.itemId === listing.itemId && (s.rarity || 'plain') === (listing.rarity || 'plain') && (s.plus || 0) === (listing.plus || 0)) {
                   const take = Math.min(s.quantity, rollBack);
                   s.quantity -= take;
                   rollBack -= take;
@@ -3008,7 +3083,7 @@ export class GameEngine {
               let rollBack = addRes.added;
               for (let i = player.inventory.length - 1; i >= 0 && rollBack > 0; i--) {
                 const s = player.inventory[i];
-                if (s.itemId === listing.itemId && s.rarity === listing.rarity && (s.plus || 0) === (listing.plus || 0)) {
+                if (s.itemId === listing.itemId && (s.rarity || 'plain') === (listing.rarity || 'plain') && (s.plus || 0) === (listing.plus || 0)) {
                   const take = Math.min(s.quantity, rollBack);
                   s.quantity -= take;
                   rollBack -= take;
@@ -3024,7 +3099,7 @@ export class GameEngine {
                 let rollBack = bankRes.added;
                 for (let i = player.storage.length - 1; i >= 0 && rollBack > 0; i--) {
                   const s = player.storage[i];
-                  if (s.itemId === listing.itemId && s.rarity === listing.rarity && (s.plus || 0) === (listing.plus || 0)) {
+                  if (s.itemId === listing.itemId && (s.rarity || 'plain') === (listing.rarity || 'plain') && (s.plus || 0) === (listing.plus || 0)) {
                     const take = Math.min(s.quantity, rollBack);
                     s.quantity -= take;
                     rollBack -= take;
@@ -3886,6 +3961,21 @@ export class GameEngine {
     // Resting at Hearth restores health
     const maxHp = player.skills.hitpoints?.level || 10;
     player.currentHp = maxHp;
+
+    if (count === 0 && player.inventory.length >= 28) {
+      player.bankReturnTask = null;
+      session.pendingTask = null;
+      player.bankingState = 'idle';
+      this.send(ws, {
+        type: 'NOTIFICATION',
+        message: 'Your bank and overflow tray are completely full! Clear space before resuming tasks.',
+      });
+      storage.savePlayer(player);
+      storage.checkpoint();
+      this.send(ws, { type: 'PLAYER_UPDATE', player });
+      this.broadcastWorldState();
+      return;
+    }
 
     // Check if target task (pendingTask or bankReturnTask) has inputs: withdraw from storage before heading to work!
     if (targetTask) {
@@ -6257,10 +6347,10 @@ export class GameEngine {
         nodeId: combat.nodeId,
       });
 
-      // Auto-eat food if below threshold
+      // Auto-eat food if below threshold (only if alive!)
       const maxHp = player.skills.hitpoints?.level || 10;
       const eatThreshold = (maxHp * (player.eatsAtHpPercent || 50)) / 100;
-      if (player.currentHp <= eatThreshold) {
+      if (player.currentHp > 0 && player.currentHp <= eatThreshold) {
         let eatenSlot: InventorySlot | null = null;
         let isFromBank = false;
 
@@ -7102,6 +7192,17 @@ export class GameEngine {
         const rarity: Rarity = r.itemId === 'crypt_lord_signet' ? 'rare' : 'plain';
         const maxStorage = player.storageSlotsMax || 75;
 
+        if (r.itemId === 'pet_crypt_beetle') {
+          const alreadyHasPet = this.playerOwnsPet(player, r.itemId);
+          if (alreadyHasPet) {
+            this.send(ws, {
+              type: 'NOTIFICATION',
+              message: `You have a funny feeling like you would have been followed... (Duplicate ${itemDef?.name || 'Crypt Scarab'})`
+            });
+            continue;
+          }
+        }
+
         // 1. Try satchel first
         const invRes = addItemToSlots(player.inventory, 28, r.itemId, r.qty, rarity, 0, itemDef, 'inventory');
         let remaining = invRes.remainder;
@@ -7133,18 +7234,10 @@ export class GameEngine {
         }
 
         if (r.itemId === 'pet_crypt_beetle') {
-          const alreadyHasPet = this.playerOwnsPet(player, r.itemId);
-          if (alreadyHasPet) {
-            this.send(ws, {
-              type: 'NOTIFICATION',
-              message: `You have a funny feeling like you would have been followed... (Duplicate ${itemDef?.name || 'Crypt Scarab'})`
-            });
-          } else {
-            if (!player.equipment.pet) {
-              player.equipment.pet = { itemId: r.itemId, quantity: 1, rarity: 'plain', plus: 0 };
-            }
-            this.broadcastPetDrop(player.username, itemDef?.name || 'Crypt Scarab');
+          if (!player.equipment.pet) {
+            player.equipment.pet = { itemId: r.itemId, quantity: 1, rarity: 'plain', plus: 0 };
           }
+          this.broadcastPetDrop(player.username, itemDef?.name || 'Crypt Scarab');
         }
 
         awardedItems.push({
@@ -7188,8 +7281,9 @@ export class GameEngine {
     }
 
     const itemDef = storage.getItem(rec.itemId);
-    const invRes = addItemToSlots(player.inventory, 28, rec.itemId, rec.quantity, rec.rarity, rec.plus, itemDef, 'inventory');
-    if (invRes.remainder > 0) {
+    const simulatedInv = player.inventory.map(s => ({ ...s }));
+    const simRes = addItemToSlots(simulatedInv, 28, rec.itemId, rec.quantity, rec.rarity, rec.plus, itemDef, 'inventory');
+    if (simRes.remainder > 0) {
       this.send(ws, {
         type: 'NOTIFICATION',
         message: 'Your satchel is full! Please make space before claiming from Barnaby.',
@@ -7197,6 +7291,7 @@ export class GameEngine {
       return;
     }
 
+    addItemToSlots(player.inventory, 28, rec.itemId, rec.quantity, rec.rarity, rec.plus, itemDef, 'inventory');
     player.gold = (player.gold || 0) - fee;
     storage.deleteDungeonRecovery(rec.id);
     storage.savePlayer(player);

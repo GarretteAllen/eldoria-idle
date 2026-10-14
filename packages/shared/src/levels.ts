@@ -86,11 +86,17 @@ export function getLevelFromXp(xp: number): number {
 }
 
 export function getXpToNextLevel(level: number, currentXp: number): { current: number; needed: number; percent: number } {
+  if (level >= MAX_VIRTUAL_LEVEL) {
+    return { current: 0, needed: 0, percent: 100 };
+  }
   const currentLvlXp = getXpForLevel(level);
   const nextLvlXp = getXpForLevel(level + 1);
-  const needed = nextLvlXp - currentLvlXp;
+  const needed = Math.max(0, nextLvlXp - currentLvlXp);
+  if (needed === 0) {
+    return { current: 0, needed: 0, percent: 100 };
+  }
   const progress = Math.max(0, currentXp - currentLvlXp);
-  const percent = needed > 0 ? Math.min(100, Math.floor((progress / needed) * 100)) : 100;
+  const percent = Math.min(100, Math.floor((progress / needed) * 100));
   return { current: progress, needed, percent };
 }
 

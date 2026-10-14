@@ -61,6 +61,7 @@ export type ItemCategory =
   | 'steed'
   | 'pet'
   | 'aura'
+  | 'currency'
   | 'misc';
 
 export interface ItemDefinition {

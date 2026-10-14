@@ -114,6 +114,7 @@ export class WorldRenderer {
   }>();
   public playerFacing = new Map<string, boolean>();
   private petPositions = new Map<string, { x: number; y: number }>();
+  private petFacing = new Map<string, boolean>();
 
   public triggerPlayerAttack(style: 'melee' | 'ranged' | 'magic', playerId: string = 'self') {
     this.playerAttackAnims.set(playerId, {
@@ -2358,7 +2359,10 @@ export class WorldRenderer {
       const drawX = Math.round(px - TILE_SIZE / 2 + offX);
       const drawY = Math.round(py - TILE_SIZE / 2 + offY);
       if (rotation !== undefined) {
-        ctx.translate(Math.round(px + offX), Math.round(py + offY));
+        // Character hand/wrist anchor is positioned around (+4, +3) from center on the 32x32 sprite
+        const handAnchorX = 4;
+        const handAnchorY = 3;
+        ctx.translate(Math.round(px + offX + handAnchorX), Math.round(py + offY + handAnchorY));
         if (rotation !== 0) ctx.rotate(rotation);
         ctx.drawImage(
           this.playerEquipmentImage,
@@ -2366,8 +2370,8 @@ export class WorldRenderer {
           coord.row * 16,
           srcW,
           srcH,
-          -dstW / 2,
-          -dstH / 2,
+          -dstW / 2 - handAnchorX,
+          -dstH / 2 - handAnchorY,
           dstW,
           dstH
         );
@@ -2455,11 +2459,15 @@ export class WorldRenderer {
 
       const steedItemId = equipment?.steed?.itemId || 'steed_courser';
       const isChicken = steedItemId === 'steed_chicken';
+      const isChorse = steedItemId === 'steed_chorse';
 
-      // 4. Steed Mount (Horse or Chicken)
+      // 4. Steed Mount (Horse, Rooster Strider, or hybrid Chorse)
       const steedCoord = getSprite(steedItemId);
       if (isChicken) {
         // Chicken: 24w x 22h, ground feet with bobbing
+        drawLayer(steedCoord, -4, -10 + gallopBob);
+      } else if (isChorse) {
+        // Chorse hybrid: custom foot alignment matching chicken stance without stirrups
         drawLayer(steedCoord, -4, -10 + gallopBob);
       } else {
         // Horse: 27w x 23h
@@ -2467,8 +2475,8 @@ export class WorldRenderer {
       }
 
       // 5. Mounted Riding Leg (draped across horse flank: bent knee, greave/pants, boot resting in stirrup!)
-      // For large horses with stirrups:
-      if (!isChicken) {
+      // For large horses with stirrups (suppressed on chicken and chorse hybrid):
+      if (!isChicken && !isChorse) {
         const equippedLegId = equipment?.legs?.itemId;
         const mountedLegKey = equippedLegId ? `mounted_${equippedLegId}` : 'mounted_bare_legs';
         const mountedLegCoord = getSprite(mountedLegKey) || getSprite('mounted_tunic_pants');
@@ -3167,18 +3175,34 @@ export class WorldRenderer {
     const petSprite = MONSTER_SPRITES[petItemId];
     if (!petSprite || !this.enemiesImage || !this.enemiesImage.complete) return;
 
-    // Follow target: 0.8 tiles behind the player based on facing direction
-    const targetPetX = playerFacingLeft ? playerX + 0.85 : playerX - 0.85;
-    const targetPetY = playerY + 0.15;
+    // Smoothly track facing direction to prevent pet from instantly snapping / darting through player torso
+    let petFacingLeft = this.petFacing.get(petKey);
+    if (petFacingLeft === undefined) {
+      petFacingLeft = playerFacingLeft;
+      this.petFacing.set(petKey, petFacingLeft);
+    }
 
     let cur = this.petPositions.get(petKey);
     if (!cur) {
-      cur = { x: targetPetX, y: targetPetY };
+      cur = { x: playerFacingLeft ? playerX + 0.85 : playerX - 0.85, y: playerY + 0.15 };
       this.petPositions.set(petKey, cur);
     }
 
+    // Only switch pet target side when player actually commits to facing direction or moves
+    if (playerMoving || Math.abs(cur.x - playerX) < 1.2) {
+      petFacingLeft = playerFacingLeft;
+      this.petFacing.set(petKey, petFacingLeft);
+    }
+
+    // Follow target: 0.85 tiles behind the player based on smoothed pet facing
+    const targetPetX = petFacingLeft ? playerX + 0.85 : playerX - 0.85;
+    // Slight vertical offset curve when transitioning sides so the pet trails around rather than through center
+    const sideProgress = Math.min(1, Math.abs(cur.x - playerX) / 0.85);
+    const orbitArcY = (1 - sideProgress) * 0.35;
+    const targetPetY = playerY + 0.15 + orbitArcY;
+
     // Smoothly trail player (spring/lerp interpolation)
-    const lerpSpeed = playerMoving ? 0.14 : 0.08;
+    const lerpSpeed = playerMoving ? 0.12 : 0.07;
     cur.x += (targetPetX - cur.x) * lerpSpeed;
     cur.y += (targetPetY - cur.y) * lerpSpeed;
 
@@ -3207,7 +3231,9 @@ export class WorldRenderer {
 
     ctx.save();
     ctx.imageSmoothingEnabled = false;
-    if (playerFacingLeft) {
+    // Pet sprite visually faces the direction it is moving/following
+    const petFacingDir = (targetPetX > cur.x + 0.05) ? false : (targetPetX < cur.x - 0.05 ? true : petFacingLeft);
+    if (petFacingDir) {
       ctx.translate(petPx, petPy);
       ctx.scale(-1, 1);
       ctx.translate(-petPx, -petPy);

@@ -1628,7 +1628,7 @@ body, html {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 200;
+  z-index: 2100;
   backdrop-filter: blur(2px);
 }
 .modal-backdrop.hidden {
@@ -3589,7 +3589,7 @@ body, html {
    ======================================================== */
 .item-context-menu {
   position: fixed;
-  z-index: 1500;
+  z-index: 2250;
   width: 220px;
   background: #1c1108;
   border: 1.5px solid #7c532b;
@@ -4563,7 +4563,7 @@ body, html {
    ======================================================== */
 .item-hover-tooltip {
   position: fixed;
-  z-index: 2000;
+  z-index: 3000;
   pointer-events: none;
   background: rgba(18, 11, 6, 0.95);
   border: 1.5px solid #84613b;
@@ -4655,7 +4655,7 @@ body, html {
    ======================================================== */
 .skill-hover-tooltip {
   position: fixed;
-  z-index: 2000;
+  z-index: 3000;
   pointer-events: none;
   background: rgba(18, 11, 6, 0.96);
   border: 1.5px solid #84613b;
@@ -5221,6 +5221,23 @@ body, html {
 .btn-queue-remove:hover {
   color: #e53e3e;
   background: rgba(229, 62, 62, 0.15);
+}
+.btn-queue-reorder {
+  background: transparent;
+  border: none;
+  color: #a0aec0;
+  cursor: pointer;
+  font-size: 0.65rem;
+  line-height: 1;
+  padding: 2px 3px;
+  border-radius: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.btn-queue-reorder:hover {
+  color: var(--gold-bright);
+  background: rgba(223, 166, 55, 0.18);
 }
 
 .task-queue-item-empty {

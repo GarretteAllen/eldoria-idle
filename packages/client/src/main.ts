@@ -153,6 +153,8 @@ class EldoriaClient {
   } | null = null;
   private previousSkillLevels: Map<string, number> = new Map();
   private previousCompletedQty: number = 0;
+  private previousHp: number = 0;
+  private auraTimerInterval: any = null;
 
   // Chat History & Filtering
   private chatHistory: Array<{ id?: string; time: string; senderId?: string; senderName?: string; title?: string; text: string; channel: string; isAdmin?: boolean; timestamp?: number }> = [];
@@ -218,6 +220,7 @@ class EldoriaClient {
     this.setupAfkSystem();
     this.setupDungeonSystem();
     this.setupMountBreeding();
+    this.setupAuraTimer();
 
     // On mobile devices, start with drawers closed and HUD compact so the world canvas is immediately playable
     if (window.innerWidth <= 768) {
@@ -899,6 +902,7 @@ class EldoriaClient {
       case 'INIT':
         this.player = msg.player;
         if (this.player) {
+          this.previousHp = this.player.currentHp;
           for (const [sk, data] of Object.entries(this.player.skills)) {
             this.previousSkillLevels.set(sk, (data as any).level);
           }
@@ -970,6 +974,13 @@ class EldoriaClient {
         this.player = msg.player;
         this.renderer.setLocalPlayer(this.player!);
         if (this.player) {
+          if (this.player.currentHp > this.previousHp) {
+            const healDiff = this.player.currentHp - this.previousHp;
+            sound.play('eat');
+            this.renderer.addFloatingText(this.player.x, this.player.y, `+${healDiff}`, 'heal');
+            this.renderer.spawnParticles(this.player.x, this.player.y, 6, 'herb');
+          }
+          this.previousHp = this.player.currentHp;
           this.checkSkillLevelUps(this.player);
           if (this.player.currentTask) {
             const curQty = this.player.currentTask.completedQuantity || 0;
@@ -1378,8 +1389,12 @@ class EldoriaClient {
         const py = typeof msg.playerY === 'number' ? msg.playerY : myY;
         const isNearby = isMe || Math.hypot(px - myX, py - myY) <= 25;
         if (isMe && this.player) {
-          if (typeof msg.currentHp === 'number') this.player.currentHp = msg.currentHp;
+          if (typeof msg.currentHp === 'number') {
+            this.player.currentHp = msg.currentHp;
+            this.previousHp = msg.currentHp;
+          }
           this.updateCombatHud();
+          sound.play('eat');
         }
         if (typeof msg.heal === 'number' && msg.heal > 0 && isNearby) {
           this.renderer.addFloatingText(px, py, `+${msg.heal}`, 'heal');
@@ -1837,6 +1852,13 @@ class EldoriaClient {
             ? `(${qTask.targetQuantity}x)`
             : '(∞)';
 
+          const upBtnHtml = i > 0
+            ? `<button class="btn-queue-reorder btn-queue-up" title="Move task up">▲</button>`
+            : '';
+          const downBtnHtml = i < taskQueue.length - 1
+            ? `<button class="btn-queue-reorder btn-queue-down" title="Move task down">▼</button>`
+            : '';
+
           itemEl.innerHTML = `
             <div class="task-queue-item-left">
               <span class="task-queue-slot-num">${slotNum}.</span>
@@ -1844,9 +1866,23 @@ class EldoriaClient {
               <span class="task-queue-qty">${targetQtyStr}</span>
             </div>
             <div class="task-queue-actions">
+              ${upBtnHtml}
+              ${downBtnHtml}
               <button class="btn-queue-remove" title="Remove from queue">✕</button>
             </div>
           `;
+          if (i > 0) {
+            itemEl.querySelector('.btn-queue-up')?.addEventListener('click', (e) => {
+              e.stopPropagation();
+              this.sendWs({ type: 'REORDER_QUEUE', fromIndex: i, toIndex: i - 1 });
+            });
+          }
+          if (i < taskQueue.length - 1) {
+            itemEl.querySelector('.btn-queue-down')?.addEventListener('click', (e) => {
+              e.stopPropagation();
+              this.sendWs({ type: 'REORDER_QUEUE', fromIndex: i, toIndex: i + 1 });
+            });
+          }
           itemEl.querySelector('.btn-queue-remove')!.addEventListener('click', (e) => {
             e.stopPropagation();
             this.sendWs({ type: 'CANCEL_QUEUED_TASK', index: i });
@@ -2061,7 +2097,18 @@ class EldoriaClient {
     };
   }
 
+  public closeItemContextMenus() {
+    const itemMenu = document.getElementById('item-context-menu');
+    if (itemMenu) itemMenu.classList.add('hidden');
+    const storageMenu = document.getElementById('storage-context-menu');
+    if (storageMenu) storageMenu.classList.add('hidden');
+    this.selectedInventoryIndex = null;
+    this.selectedStorageIndex = null;
+    document.getElementById('item-hover-tooltip')?.classList.add('hidden');
+  }
+
   private closeDrawer() {
+    this.closeItemContextMenus();
     const drawers = [
       document.getElementById('skills-drawer'),
       document.getElementById('inventory-drawer'),
@@ -2083,6 +2130,7 @@ class EldoriaClient {
   }
 
   private switchDrawer(drawer: 'skills' | 'inventory' | 'equipment' | 'storage' | 'editor') {
+    this.closeItemContextMenus();
     if (drawer === 'storage') {
       this.openStorageModal();
       return;
@@ -3383,7 +3431,7 @@ class EldoriaClient {
           const remMins = Math.floor(itemSlot.remainingSeconds / 60);
           const remSecs = Math.floor(itemSlot.remainingSeconds % 60);
           const timeStr = remMins > 0 ? `${remMins}m ${remSecs}s` : `${remSecs}s`;
-          durationBadge = `<span style="font-size:0.68rem; font-weight:700; color:#ecc94b; background:rgba(236,201,75,0.15); border:1px solid rgba(236,201,75,0.3); border-radius:3px; padding:1px 5px; margin-left:6px;">⏱️ ${timeStr}</span>`;
+          durationBadge = `<span id="aura-duration-badge" style="font-size:0.68rem; font-weight:700; color:#ecc94b; background:rgba(236,201,75,0.15); border:1px solid rgba(236,201,75,0.3); border-radius:3px; padding:1px 5px; margin-left:6px;">⏱️ ${timeStr}</span>`;
         }
 
         div.innerHTML = `
@@ -3491,6 +3539,25 @@ class EldoriaClient {
     }
   }
 
+  private setupAuraTimer() {
+    if (this.auraTimerInterval) clearInterval(this.auraTimerInterval);
+    this.auraTimerInterval = setInterval(() => {
+      if (!this.player || !this.player.equipment?.aura) return;
+      const auraSlot = this.player.equipment.aura;
+      if (typeof auraSlot.remainingSeconds === 'number' && auraSlot.remainingSeconds > 0) {
+        auraSlot.remainingSeconds = Math.max(0, auraSlot.remainingSeconds - 1);
+        if (this.activeDrawer === 'equipment') {
+          const badgeEl = document.getElementById('aura-duration-badge');
+          if (badgeEl) {
+            const remMins = Math.floor(auraSlot.remainingSeconds / 60);
+            const remSecs = Math.floor(auraSlot.remainingSeconds % 60);
+            const timeStr = remMins > 0 ? `${remMins}m ${remSecs}s` : `${remSecs}s`;
+            badgeEl.textContent = `⏱️ ${timeStr}`;
+          }
+        }
+      }
+    }, 1000);
+  }
 
   private renderStorageDrawer() {
     if (!this.player) return;
@@ -3808,6 +3875,7 @@ class EldoriaClient {
   }
 
   private openLeaderboardModal() {
+    this.closeItemContextMenus();
     const modal = document.getElementById('leaderboard-modal');
     if (!modal) return;
     sound.play('click');
@@ -3882,6 +3950,7 @@ class EldoriaClient {
   }
 
   private openStorageModal() {
+    this.closeItemContextMenus();
     const modal = document.getElementById('deepvein-storage-modal');
     if (!modal) return;
     sound.play('chest');
@@ -4833,11 +4902,6 @@ class EldoriaClient {
               ctxMenu.classList.add('hidden');
               return;
             }
-            const def = ITEMS[slot.itemId];
-            if (def?.baseStats?.healing) {
-              sound.play('eat');
-              this.renderer.addFloatingText(this.player.x, this.player.y, `+${def.baseStats.healing}`, 'heal');
-            }
           }
           this.sendWs({ type: 'EAT_FOOD', inventoryIndex: this.selectedInventoryIndex });
           ctxMenu.classList.add('hidden');
@@ -5205,6 +5269,7 @@ class EldoriaClient {
   }
 
   private toggleWorldMapModal() {
+    this.closeItemContextMenus();
     const modal = document.getElementById('world-map-modal');
     if (!modal) return;
     const isOpening = modal.classList.contains('hidden');
@@ -5448,39 +5513,144 @@ class EldoriaClient {
         return;
       }
 
-      // 2. Escape: Close any open modal or drawer
+      // 2. Escape: Close open context menus, modals, or drawers
       if (e.key === 'Escape') {
+        const itemMenu = document.getElementById('item-context-menu');
+        const storageMenu = document.getElementById('storage-context-menu');
+        if ((itemMenu && !itemMenu.classList.contains('hidden')) || (storageMenu && !storageMenu.classList.contains('hidden'))) {
+          this.closeItemContextMenus();
+          return;
+        }
+
+        const promptModal = document.getElementById('game-prompt-modal');
+        if (promptModal && !promptModal.classList.contains('hidden')) {
+          promptModal.classList.add('hidden');
+          return;
+        }
+
+        const confirmModal = document.getElementById('game-confirm-modal');
+        if (confirmModal && !confirmModal.classList.contains('hidden')) {
+          confirmModal.classList.add('hidden');
+          return;
+        }
+
+        const noticeModal = document.getElementById('noticeboard-modal');
+        if (noticeModal && !noticeModal.classList.contains('hidden')) {
+          this.closeNoticeboardModal();
+          return;
+        }
+
+        const gemModal = document.getElementById('gem-store-modal');
+        if (gemModal && !gemModal.classList.contains('hidden')) {
+          this.closeGemStoreModal();
+          return;
+        }
+
+        const dungeonLobbyModal = document.getElementById('dungeon-lobby-modal');
+        if (dungeonLobbyModal && !dungeonLobbyModal.classList.contains('hidden')) {
+          this.closeDungeonLobbyModal();
+          return;
+        }
+
+        const dungeonSpoilsModal = document.getElementById('dungeon-spoils-modal');
+        if (dungeonSpoilsModal && !dungeonSpoilsModal.classList.contains('hidden')) {
+          this.closeDungeonSpoilsModal();
+          return;
+        }
+
+        const barnabyModal = document.getElementById('barnaby-modal');
+        if (barnabyModal && !barnabyModal.classList.contains('hidden')) {
+          this.closeBarnabyModal();
+          return;
+        }
+
+        const mountBreedModal = document.getElementById('mount-breed-modal');
+        if (mountBreedModal && !mountBreedModal.classList.contains('hidden')) {
+          this.closeMountBreedModal();
+          return;
+        }
+
+        const leaderboardModal = document.getElementById('leaderboard-modal');
+        if (leaderboardModal && !leaderboardModal.classList.contains('hidden')) {
+          this.closeLeaderboardModal();
+          return;
+        }
+
+        const profileModal = document.getElementById('account-profile-modal');
+        if (profileModal && !profileModal.classList.contains('hidden')) {
+          profileModal.classList.add('hidden');
+          return;
+        }
+
+        const changelogModal = document.getElementById('changelog-modal');
+        if (changelogModal && !changelogModal.classList.contains('hidden')) {
+          changelogModal.classList.add('hidden');
+          return;
+        }
+
+        const pollModal = document.getElementById('poll-modal');
+        if (pollModal && !pollModal.classList.contains('hidden')) {
+          pollModal.classList.add('hidden');
+          return;
+        }
+
+        const awayModal = document.getElementById('away-modal');
+        if (awayModal && !awayModal.classList.contains('hidden')) {
+          awayModal.classList.add('hidden');
+          return;
+        }
+
         const worldMapModal = document.getElementById('world-map-modal');
         if (worldMapModal && !worldMapModal.classList.contains('hidden')) {
           worldMapModal.classList.add('hidden');
           return;
         }
+
         const storageModal = document.getElementById('deepvein-storage-modal');
         if (storageModal && !storageModal.classList.contains('hidden')) {
           this.closeStorageModal();
           return;
         }
+
         const npcModal = document.getElementById('npc-dialogue-modal');
         if (npcModal && !npcModal.classList.contains('hidden')) {
           npcModal.classList.add('hidden');
           return;
         }
+
         const levelUpBanner = document.getElementById('level-up-banner');
         if (levelUpBanner && !levelUpBanner.classList.contains('hidden')) {
           levelUpBanner.classList.add('hidden');
           if (this.levelUpTimer) clearTimeout(this.levelUpTimer);
           return;
         }
+
         const bestiaryModal = document.getElementById('bestiary-modal');
         if (bestiaryModal && !bestiaryModal.classList.contains('hidden')) {
           bestiaryModal.classList.add('hidden');
           return;
         }
+
         const combatDir = document.getElementById('combat-directory-modal');
         if (combatDir && !combatDir.classList.contains('hidden')) {
           combatDir.classList.add('hidden');
           return;
         }
+
+        const authModal = document.getElementById('auth-modal');
+        if (authModal && !authModal.classList.contains('hidden')) {
+          const closeBtn = document.getElementById('auth-close-btn');
+          if (closeBtn && closeBtn.style.display !== 'none') {
+            authModal.classList.add('hidden');
+            return;
+          }
+        }
+
+        if (this.activeDrawer) {
+          this.closeDrawer();
+          return;
+        }
+
         return;
       }
 
@@ -5569,13 +5739,7 @@ class EldoriaClient {
     if (!this.player) return;
     const foodIdx = this.player.inventory.findIndex(slot => slot && ITEMS[slot.itemId]?.baseStats?.healing);
     if (foodIdx !== -1) {
-      const slot = this.player.inventory[foodIdx];
-      const def = ITEMS[slot.itemId];
-      const heal = def.baseStats?.healing || 10;
-      sound.play('eat');
-      this.renderer.addFloatingText(this.player.x, this.player.y, `+${heal}`, 'heal');
       this.sendWs({ type: 'EAT_FOOD', inventoryIndex: foodIdx });
-      this.showToast(`Ate ${def.name} (+${heal} HP)`);
     } else {
       this.showToast("You don't have any food in your bag!");
     }
@@ -5702,6 +5866,7 @@ class EldoriaClient {
 
     if (btnBestiary && bestiaryModal) {
       btnBestiary.onclick = () => {
+        this.closeItemContextMenus();
         bestiaryModal.classList.remove('hidden');
         this.renderBestiaryList(searchInput?.value || '');
       };
@@ -6173,6 +6338,7 @@ class EldoriaClient {
   }
 
   private openAuthModal(defaultTab: 'login' | 'register' = 'login', allowClose = true) {
+    this.closeItemContextMenus();
     const modal = document.getElementById('auth-modal');
     if (!modal) return;
 
@@ -6432,6 +6598,7 @@ class EldoriaClient {
 
     if (charPill) {
       charPill.onclick = () => {
+        this.closeItemContextMenus();
         if (!this.player) {
           this.openAuthModal('login', true);
           return;
@@ -8772,6 +8939,7 @@ class EldoriaClient {
   }
 
   public openChangelogModal() {
+    this.closeItemContextMenus();
     const modal = document.getElementById('changelog-modal');
     if (!modal) return;
     sound.play('ding');
@@ -8983,6 +9151,7 @@ class EldoriaClient {
   }
 
   public openPollModal() {
+    this.closeItemContextMenus();
     const modal = document.getElementById('poll-modal');
     if (!modal) return;
     sound.play('ding');
@@ -9364,6 +9533,7 @@ class EldoriaClient {
       return;
     }
 
+    this.closeItemContextMenus();
     const modal = document.getElementById('npc-dialogue-modal');
     if (!modal) return;
 
@@ -9466,6 +9636,7 @@ class EldoriaClient {
   }
 
   public openGemStoreModal(tab: 'queue' | 'packs' | 'offline' = 'queue') {
+    this.closeItemContextMenus();
     const modal = document.getElementById('gem-store-modal');
     if (!modal) return;
     sound.play('ding');
@@ -10261,6 +10432,7 @@ class EldoriaClient {
   }
 
   private openDungeonLobbyModal(dungeonId: string = 'whispering_crypt') {
+    this.closeItemContextMenus();
     const modal = document.getElementById('dungeon-lobby-modal');
     if (!modal) return;
     sound.play('ding');
@@ -10445,6 +10617,7 @@ class EldoriaClient {
   }
 
   private openDungeonSpoilsModal(msg: any) {
+    this.closeItemContextMenus();
     const modal = document.getElementById('dungeon-spoils-modal');
     if (!modal) return;
     sound.play('levelup');
@@ -10531,6 +10704,7 @@ class EldoriaClient {
   }
 
   private openBarnabyModal() {
+    this.closeItemContextMenus();
     const modal = document.getElementById('barnaby-modal');
     if (!modal) return;
     sound.play('ding');
@@ -10628,6 +10802,7 @@ class EldoriaClient {
   }
 
   public openNoticeboardModal() {
+    this.closeItemContextMenus();
     const modal = document.getElementById('noticeboard-modal');
     if (!modal) return;
     sound.play('ding');
@@ -10821,6 +10996,7 @@ class EldoriaClient {
   }
 
   public openMountBreedModal(parentAIndex: number, location: 'inventory' | 'storage' = 'inventory') {
+    this.closeItemContextMenus();
     if (!this.player) return;
     const sourceA = location === 'storage' ? this.player.storage : this.player.inventory;
     const slotA = sourceA[parentAIndex];

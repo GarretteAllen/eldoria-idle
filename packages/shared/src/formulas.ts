@@ -236,7 +236,7 @@ export function findPath(
  * Chance = Accuracy / (Accuracy + Evasion)
  */
 export function calculateHitChance(accuracy: number, evasion: number): number {
-  if (accuracy <= 0) return 0.05;
+  if (isNaN(accuracy) || isNaN(evasion) || accuracy <= 0 || (accuracy + evasion) <= 0) return 0.05;
   return Math.min(0.95, Math.max(0.05, accuracy / (accuracy + evasion)));
 }
 
@@ -355,6 +355,17 @@ export function formatOfflineDuration(seconds: number): string {
 }
 
 /**
+ * Helper to check whether player already owns a vanity pet across equipment, inventory, storage, or overflow.
+ */
+export function playerOwnsPet(player: PlayerData, petItemId: string): boolean {
+  if (player.equipment?.pet?.itemId === petItemId) return true;
+  if (player.inventory?.some(s => s.itemId === petItemId)) return true;
+  if (player.storage?.some(s => s.itemId === petItemId)) return true;
+  if (player.overflowTray?.some(s => s.itemId === petItemId)) return true;
+  return false;
+}
+
+/**
  * Deterministic Offline Catch-Up Engine:
  * Simulates actions while player was away without running 600ms loops in real-time.
  * Automatically advances through queued tasks when currentTask completes its target quantity.
@@ -375,6 +386,20 @@ export function simulateOfflineCatchUp(
     itemsGained: {},
     overflowOccurred: false,
   };
+
+  // 1. Advance Farming Plots (offline growth proceeds at 1.0x standard rate)
+  if (player.farmPlots && remainingTime > 0) {
+    const now = Date.now();
+    for (const plot of Object.values(player.farmPlots)) {
+      if (plot && plot.status === 'growing') {
+        plot.effectiveProgressSeconds = (plot.effectiveProgressSeconds || 0) + remainingTime;
+        plot.lastUpdated = now;
+        if (plot.effectiveProgressSeconds >= plot.baseDurationSeconds) {
+          plot.status = 'ready';
+        }
+      }
+    }
+  }
 
   // If player went offline during auto-banking or commute, restore active task from bankReturnTask
   if (!player.currentTask && player.bankReturnTask) {
@@ -475,15 +500,55 @@ export function simulateOfflineCatchUp(
       let totalStyleXp = 0;
       let totalHpXp = 0;
 
+      let gearDefence = 0;
+      for (const eq of Object.values(player.equipment || {})) {
+        if (eq) {
+          const it = ITEMS[eq.itemId];
+          if (it?.baseStats) {
+            const eff = getItemEffectiveStats(it.baseStats, eq.rarity || 'plain', eq.plus || 0);
+            if (eff.defence) gearDefence += eff.defence;
+          }
+        }
+      }
+
+      const defLevel = player.skills.defence?.level || 1;
+      const monsterHitChance = calculateHitChance(monster.level * 3, defLevel * 2 + gearDefence);
+      const monsterSwingsPerKill = Math.max(1, Math.floor(killSec / (monster.swingSpeedSeconds || 2.4)));
+      const avgMonsterDamagePerKill = monster.maxHit > 0
+        ? Math.round(monsterSwingsPerKill * monsterHitChance * ((1 + monster.maxHit) / 2))
+        : 0;
+
       for (let i = 0; i < killsToExecute; i++) {
-        if (monster.maxHit > 0) {
-          const foodSlot = player.inventory.find(s => {
-            const def = ITEMS[s.itemId];
-            return (def?.baseStats?.healing || 0) > 0;
-          });
-          if (foodSlot) {
+        // Sustenance check: handle food consumption based on monster damage taken
+        if (avgMonsterDamagePerKill > 0) {
+          let damageToHeal = avgMonsterDamagePerKill;
+          while (damageToHeal > 0) {
+            const foodIndex = player.inventory.findIndex(s => {
+              const def = ITEMS[s.itemId];
+              return (def?.baseStats?.healing || 0) > 0;
+            });
+            if (foodIndex === -1) {
+              // Out of food: player cannot sustain combat further
+              break;
+            }
+            const foodSlot = player.inventory[foodIndex];
+            const foodDef = ITEMS[foodSlot.itemId];
+            const healMult = RARITY_HEALING_MULTIPLIER[foodSlot.rarity || 'plain'] || 1.0;
+            const healAmount = Math.max(1, Math.round((foodDef?.baseStats?.healing || 5) * healMult));
+
             foodSlot.quantity -= 1;
-            player.inventory = player.inventory.filter(s => s.quantity > 0);
+            damageToHeal = Math.max(0, damageToHeal - healAmount);
+            if (foodSlot.quantity <= 0) {
+              player.inventory.splice(foodIndex, 1);
+            }
+          }
+
+          // If still unresolved damage and no food left, player retreats from combat
+          if (damageToHeal > 0) {
+            const hasAnyFood = player.inventory.some(s => (ITEMS[s.itemId]?.baseStats?.healing || 0) > 0);
+            if (!hasAnyFood) {
+              break;
+            }
           }
         }
 
@@ -507,15 +572,41 @@ export function simulateOfflineCatchUp(
         // Roll rare drop for offline combat
         if (monster.rareDrop && Math.random() < monster.rareDrop.chance && ITEMS[monster.rareDrop.itemId]) {
           const rareDef = ITEMS[monster.rareDrop.itemId];
-          const rareRes = addItemToSlots(player.inventory, 28, monster.rareDrop.itemId, 1, 'plain', 0, rareDef, 'inventory');
-          if (rareRes.remainder > 0) {
+          const isPet = rareDef?.category === 'pet' || monster.rareDrop.itemId.startsWith('pet_');
+          if (isPet) {
+            if (!playerOwnsPet(player, monster.rareDrop.itemId)) {
+              if (!player.equipment.pet) {
+                player.equipment.pet = { itemId: monster.rareDrop.itemId, quantity: 1, rarity: 'plain', plus: 0 };
+              } else {
+                addItemToSlots(player.inventory, 28, monster.rareDrop.itemId, 1, 'plain', 0, rareDef, 'inventory');
+              }
+              summary.itemsGained[monster.rareDrop.itemId] = (summary.itemsGained[monster.rareDrop.itemId] || 0) + 1;
+            }
+          } else {
+            const rareRes = addItemToSlots(player.inventory, 28, monster.rareDrop.itemId, 1, 'plain', 0, rareDef, 'inventory');
+            if (rareRes.remainder > 0) {
+              const maxStorage = player.storageSlotsMax || 75;
+              const bankRes = addItemToSlots(player.storage, maxStorage, monster.rareDrop.itemId, rareRes.remainder, 'plain', 0, rareDef, 'bank');
+              if (bankRes.remainder > 0) {
+                summary.overflowOccurred = true;
+              }
+            }
+            summary.itemsGained[monster.rareDrop.itemId] = (summary.itemsGained[monster.rareDrop.itemId] || 0) + 1;
+          }
+        }
+
+        // Roll dungeon keystone key drop for offline combat
+        if (monster.keyDrop && Math.random() < monster.keyDrop.chance && ITEMS[monster.keyDrop.itemId]) {
+          const keyDef = ITEMS[monster.keyDrop.itemId];
+          const keyRes = addItemToSlots(player.inventory, 28, monster.keyDrop.itemId, 1, 'plain', 0, keyDef, 'inventory');
+          if (keyRes.remainder > 0) {
             const maxStorage = player.storageSlotsMax || 75;
-            const bankRes = addItemToSlots(player.storage, maxStorage, monster.rareDrop.itemId, rareRes.remainder, 'plain', 0, rareDef, 'bank');
+            const bankRes = addItemToSlots(player.storage, maxStorage, monster.keyDrop.itemId, keyRes.remainder, 'plain', 0, keyDef, 'bank');
             if (bankRes.remainder > 0) {
               summary.overflowOccurred = true;
             }
           }
-          summary.itemsGained[monster.rareDrop.itemId] = (summary.itemsGained[monster.rareDrop.itemId] || 0) + 1;
+          summary.itemsGained[monster.keyDrop.itemId] = (summary.itemsGained[monster.keyDrop.itemId] || 0) + 1;
         }
 
         const auraMult = 1.0 + getAuraXpMultiplier(player.equipment?.aura?.itemId, combatStyle);
@@ -643,6 +734,26 @@ export function simulateOfflineCatchUp(
 
     for (let i = 0; i < cyclesToExecute; i++) {
       let xpMult = 1.0;
+      // Check Thieving catch rate / stun penalty
+      if (recipe.thiefCatchRate) {
+        const thiefLvl = player.skills.thieving?.level || 1;
+        const { startLevel, startRate, neverCaughtLevel, benchPenaltySeconds } = recipe.thiefCatchRate;
+        let catchRate = 0;
+        if (thiefLvl < neverCaughtLevel) {
+          if (thiefLvl <= startLevel) {
+            catchRate = startRate;
+          } else {
+            const progress = (thiefLvl - startLevel) / Math.max(1, neverCaughtLevel - startLevel);
+            catchRate = Math.max(0, startRate * (1 - progress));
+          }
+        }
+        if (catchRate > 0 && Math.random() < catchRate) {
+          // Player got caught: deduct penalty duration and skip reward/XP for this cycle
+          remainingTime = Math.max(0, remainingTime - benchPenaltySeconds);
+          continue;
+        }
+      }
+
       // Check Anima currency if recipe requires it
       if (recipe.animaCost) {
         if ((player.anima || 0) < recipe.animaCost) {
@@ -739,6 +850,41 @@ export function simulateOfflineCatchUp(
             }
           }
           summary.itemsGained[recipe.outputItemId] = (summary.itemsGained[recipe.outputItemId] || 0) + recipe.outputQuantity;
+        }
+      }
+
+      // Roll rare finds (bonus seed returns, vanity pets, gems, etc.)
+      if (recipe.rareFinds) {
+        for (const rf of recipe.rareFinds) {
+          if (Math.random() < rf.chance) {
+            if (rf.itemId === 'gold') {
+              player.gold = (player.gold || 0) + 1;
+              summary.itemsGained['gold'] = (summary.itemsGained['gold'] || 0) + 1;
+            } else {
+              const rfDef = ITEMS[rf.itemId];
+              const isPet = rfDef?.category === 'pet' || rf.itemId.startsWith('pet_');
+              if (isPet) {
+                if (!playerOwnsPet(player, rf.itemId)) {
+                  if (!player.equipment.pet) {
+                    player.equipment.pet = { itemId: rf.itemId, quantity: 1, rarity: 'plain', plus: 0 };
+                  } else {
+                    addItemToSlots(player.inventory, 28, rf.itemId, 1, 'plain', 0, rfDef, 'inventory');
+                  }
+                  summary.itemsGained[rf.itemId] = (summary.itemsGained[rf.itemId] || 0) + 1;
+                }
+              } else {
+                const rfRes = addItemToSlots(player.inventory, 28, rf.itemId, 1, 'plain', 0, rfDef, 'inventory');
+                if (rfRes.remainder > 0) {
+                  const maxStorage = player.storageSlotsMax || 75;
+                  const bankRes = addItemToSlots(player.storage, maxStorage, rf.itemId, rfRes.remainder, 'plain', 0, rfDef, 'bank');
+                  if (bankRes.remainder > 0) {
+                    summary.overflowOccurred = true;
+                  }
+                }
+                summary.itemsGained[rf.itemId] = (summary.itemsGained[rf.itemId] || 0) + 1;
+              }
+            }
+          }
         }
       }
 

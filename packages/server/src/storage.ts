@@ -867,7 +867,9 @@ class StorageManager {
 
   public checkpoint() {
     try {
-      this.db.pragma('wal_checkpoint(PASSIVE)');
+      if (!this.db.inTransaction) {
+        this.db.pragma('wal_checkpoint(PASSIVE)');
+      }
     } catch (err) {
       console.error('SQLite wal_checkpoint error', err);
     }
@@ -1117,10 +1119,6 @@ class StorageManager {
       activeTitle: 'Novice of Eldoria',
       skills: JSON.parse(JSON.stringify(INITIAL_SKILLS)),
       inventory: [
-        { itemId: 'rune_pickaxe_dawnburn', quantity: 1, rarity: 'plain', plus: 0 },
-        { itemId: 'rune_axe_dawnburn', quantity: 1, rarity: 'plain', plus: 0 },
-        { itemId: 'fishing_rod_willow', quantity: 1, rarity: 'plain', plus: 0 },
-        { itemId: 'dawnburn_blade', quantity: 1, rarity: 'plain', plus: 0 },
         { itemId: 'smoked_prawn', quantity: 15, rarity: 'plain', plus: 0 },
         { itemId: 'earthtuber_seed', quantity: 5, rarity: 'plain', plus: 0 },
         { itemId: 'silverleaf_seed', quantity: 5, rarity: 'plain', plus: 0 },
@@ -1230,10 +1228,6 @@ class StorageManager {
       activeTitle: 'Novice of Eldoria',
       skills: JSON.parse(JSON.stringify(INITIAL_SKILLS)),
       inventory: [
-        { itemId: 'rune_pickaxe_dawnburn', quantity: 1, rarity: 'plain', plus: 0 },
-        { itemId: 'rune_axe_dawnburn', quantity: 1, rarity: 'plain', plus: 0 },
-        { itemId: 'fishing_rod_willow', quantity: 1, rarity: 'plain', plus: 0 },
-        { itemId: 'dawnburn_blade', quantity: 1, rarity: 'plain', plus: 0 },
         { itemId: 'smoked_prawn', quantity: 15, rarity: 'plain', plus: 0 },
         { itemId: 'earthtuber_seed', quantity: 5, rarity: 'plain', plus: 0 },
         { itemId: 'silverleaf_seed', quantity: 5, rarity: 'plain', plus: 0 },
