@@ -3180,7 +3180,7 @@ class EldoriaClient {
         const actionHint = isUnlocked
           ? (isSelected ? 'Currently selected' : 'Click to select this project')
           : `Requires Lv ${recipe.levelReq} ${recipe.skill.replace('_', ' ')}`;
-        this.attachItemTooltip(itemEl, { itemId: recipe.outputItemId, rarity: outItem.category === 'relic' ? 'epic' : 'common' }, outItem.slot, actionHint);
+        this.attachItemTooltip(itemEl, { itemId: recipe.outputItemId, rarity: outItem.category === 'relic' ? 'epic' : 'common' }, outItem.slot, actionHint, recipe);
       }
 
       if (isUnlocked) {
@@ -6050,7 +6050,8 @@ class EldoriaClient {
     el: HTMLElement,
     slot: { itemId: string; rarity?: string; plus?: number } | null,
     equipSlotType?: EquipSlot,
-    actionHint?: string
+    actionHint?: string,
+    recipeDef?: RecipeDefinition
   ) {
     if (!slot) return;
     const def = ITEMS[slot.itemId];
@@ -6064,6 +6065,7 @@ class EldoriaClient {
       const nameEl = document.getElementById('tooltip-name');
       const typeEl = document.getElementById('tooltip-type');
       const statsListEl = document.getElementById('tooltip-stats');
+      const recipeEl = document.getElementById('tooltip-recipe');
       const compEl = document.getElementById('tooltip-comparison');
       const flavorEl = document.getElementById('tooltip-flavor');
       const actionEl = document.getElementById('tooltip-action');
@@ -6116,6 +6118,50 @@ class EldoriaClient {
         }
         if (def.vendorFloorPrice) {
           statsListEl.innerHTML += `<div class="tooltip-stat-row" style="color:#e2e8f0; font-size:0.68rem;"><span>Vendor Value</span><span>${def.vendorFloorPrice} Coins</span></div>`;
+        }
+      }
+
+      if (recipeEl) {
+        if (recipeDef && ((recipeDef.inputs && recipeDef.inputs.length > 0) || recipeDef.animaCost)) {
+          let rowsHtml = '';
+          if (recipeDef.animaCost) {
+            const playerAnima = this.player?.anima || 0;
+            const hasEnough = playerAnima >= recipeDef.animaCost;
+            rowsHtml += `
+              <div class="tooltip-ingredient-row ${hasEnough ? 'has-enough' : 'missing'}">
+                <span>✦ Anima</span>
+                <span class="tooltip-ingredient-qty">${playerAnima}/${recipeDef.animaCost}</span>
+              </div>
+            `;
+          }
+          if (recipeDef.inputs) {
+            for (const inp of recipeDef.inputs) {
+              const itemDef = ITEMS[inp.itemId];
+              const inInv = this.player?.inventory.find(s => s.itemId === inp.itemId)?.quantity || 0;
+              const inBank = this.player?.storage.find(s => s.itemId === inp.itemId)?.quantity || 0;
+              const totalOwned = inInv + inBank;
+              const hasEnough = totalOwned >= inp.quantity;
+              rowsHtml += `
+                <div class="tooltip-ingredient-row ${hasEnough ? 'has-enough' : 'missing'}">
+                  <span>${itemDef?.name || inp.itemId}</span>
+                  <span class="tooltip-ingredient-qty">${totalOwned}/${inp.quantity}</span>
+                </div>
+              `;
+            }
+          }
+          recipeEl.innerHTML = `
+            <div class="tooltip-recipe-header">
+              <span>Required Ingredients:</span>
+              <span style="font-size: 0.62rem; color: #a0aec0; font-weight: normal;">(Bag + Bank)</span>
+            </div>
+            <div class="tooltip-recipe-inputs">
+              ${rowsHtml}
+            </div>
+          `;
+          recipeEl.classList.remove('hidden');
+        } else {
+          recipeEl.innerHTML = '';
+          recipeEl.classList.add('hidden');
         }
       }
 
@@ -6196,15 +6242,19 @@ class EldoriaClient {
       }
 
       tooltip.classList.remove('hidden');
-      const tx = Math.min(window.innerWidth - 240, e.clientX + 14);
-      const ty = Math.min(window.innerHeight - 180, e.clientY + 14);
+      const tipWidth = tooltip.offsetWidth || 230;
+      const tipHeight = tooltip.offsetHeight || 180;
+      const tx = Math.max(8, Math.min(window.innerWidth - tipWidth - 12, e.clientX + 14));
+      const ty = Math.max(8, Math.min(window.innerHeight - tipHeight - 12, e.clientY + 14));
       tooltip.style.left = `${tx}px`;
       tooltip.style.top = `${ty}px`;
     });
 
     el.addEventListener('mousemove', (e: MouseEvent) => {
-      const tx = Math.min(window.innerWidth - 240, e.clientX + 14);
-      const ty = Math.min(window.innerHeight - 180, e.clientY + 14);
+      const tipWidth = tooltip.offsetWidth || 230;
+      const tipHeight = tooltip.offsetHeight || 180;
+      const tx = Math.max(8, Math.min(window.innerWidth - tipWidth - 12, e.clientX + 14));
+      const ty = Math.max(8, Math.min(window.innerHeight - tipHeight - 12, e.clientY + 14));
       tooltip.style.left = `${tx}px`;
       tooltip.style.top = `${ty}px`;
     });

@@ -4623,6 +4623,51 @@ body, html {
   font-weight: 700;
 }
 
+.tooltip-recipe {
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid #432e1c;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.tooltip-recipe-header {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #ffd700;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1px;
+}
+
+.tooltip-recipe-inputs {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.tooltip-ingredient-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.70rem;
+  padding: 1px 0;
+}
+
+.tooltip-ingredient-row.has-enough {
+  color: #e2e8f0;
+}
+
+.tooltip-ingredient-row.missing {
+  color: #fc8181;
+}
+
+.tooltip-ingredient-qty {
+  font-weight: 600;
+}
+
 .tooltip-comparison {
   margin-top: 3px;
   padding-top: 3px;
