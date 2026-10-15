@@ -57,49 +57,34 @@ export const MONSTER_SPRITES: Record<string, MonsterSpriteCoord> = {
   },
 
   // --- Vanity Companion Pets (Rendered in world following their owner) ---
+  pet_treant: {
+    col: 0,
+    row: 5,
+    name: 'Twiggy Treant',
+    size: 0.85,
+  },
   pet_rocky: {
     col: 1,
-    row: 0,
+    row: 5,
     name: 'Rocky',
-    size: 0.72,
-    recolor: {
-      filter: 'grayscale(1) contrast(1.4) brightness(1.1)',
-    },
-  },
-  pet_treant: {
-    col: 2,
-    row: 0,
-    name: 'Twiggy Treant',
-    size: 0.75,
-    recolor: {
-      filter: 'sepia(0.8) hue-rotate(50deg) saturate(1.8) brightness(0.95)',
-    },
+    size: 0.85,
   },
   pet_otter: {
-    col: 0,
-    row: 0,
+    col: 2,
+    row: 5,
     name: 'River Whiskers',
-    size: 0.70,
-    recolor: {
-      filter: 'sepia(0.6) hue-rotate(-15deg) saturate(2.0) brightness(1.05)',
-    },
+    size: 0.85,
   },
   pet_sprout: {
-    col: 2,
-    row: 0,
+    col: 3,
+    row: 5,
     name: 'Sproutling',
-    size: 0.68,
-    recolor: {
-      filter: 'hue-rotate(90deg) saturate(2.4) brightness(1.15)',
-    },
+    size: 0.85,
   },
   pet_crypt_beetle: {
     col: 4,
-    row: 0,
+    row: 5,
     name: 'Crypt Scarab',
-    size: 0.72,
-    recolor: {
-      filter: 'sepia(0.8) hue-rotate(15deg) contrast(1.5) brightness(1.1)',
-    },
+    size: 0.85,
   },
 };
