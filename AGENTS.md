@@ -265,7 +265,20 @@
   - Also simulated accurately during offline catch-up sessions in `formulas.ts`.
 - **Market & Trade Rules**:
   - Fresh, unequipped auras are fully tradeable on the player-to-player marketplace.
-  - Used auras (`hasBeenEquipped: true` or remaining time < max) cannot be listed on the player market, but can be sold directly to the Town Merchant for gold.
+### R. Account Security, Email Binding & Password Resets
+- **Source Files**: `packages/server/src/storage.ts`, `packages/server/src/index.ts`, `packages/client/index.html`, `packages/client/src/main.ts`.
+- **Email Service**: Resend (`resend`), sending as `Eldoria Idle <noreply@eldoriaidle.site>`. Environment variable: `RESEND_API_KEY`.
+- **Security & Best Practices (Authgear Standards)**:
+  - **No User Enumeration**: Forgot password requests always return generic success message (`"If an account matching that verified email exists, password reset instructions have been sent to your inbox."`) to prevent account guessing.
+  - **Cryptographic Hashes**: Raw tokens generated via `crypto.randomBytes(32).toString('hex')`. Database only stores SHA-256 hashes (`password_reset_tokens`, `email_verification_tokens`), preventing token compromise even if database is leaked.
+  - **Single Use & Expiration**: Reset tokens expire in 15 minutes; email confirmation tokens expire in 24 hours. Single-use enforcement via `used = 1`.
+  - **Session Invalidation**: Resetting a password immediately invalidates all active sessions (`sessions` table) across all browsers/devices for that account.
+  - **Rate Limiting**: Cooldown limits per email and client IP to prevent abuse.
+- **Client Features**:
+  - `#account-profile-modal`: Dedicated "Account Security & Email" section showing current bound status (`UNBOUND`, `PENDING`, `VERIFIED`), and form to bind/update email.
+  - `#auth-modal`: "Forgot Password?" button under password input opens `#forgot-password-modal`.
+  - `#reset-password-modal`: Automatically triggered when opening `https://eldoriaidle.site?reset_token=<token>`, with clean address bar rewriting.
+  - Verification link: Clicking `https://eldoriaidle.site?verify_email=<token>` marks email verified and displays a celebratory notification.
 
 ---
 
@@ -273,3 +286,4 @@
 - `npm run dev`: Concurrent local client and server dev server.
 - `npm run build`: Compiles shared, client (Vite bundle), and server (TypeScript compiler).
 - `git add <files> && git commit -m "..." && git push origin main`: Deploys to live VPS.
+

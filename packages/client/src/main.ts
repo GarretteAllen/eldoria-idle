@@ -126,6 +126,9 @@ class EldoriaClient {
   private polls: Poll[] = [];
   private playerVotes: Record<string, string> = {};
 
+  // Account & Security State
+  private accountInfo: { id?: string; username?: string; email?: string | null; emailVerified?: boolean } | null = null;
+
   // Editor State
   private activeEditorTab: 'nodes' | 'monsters' | 'npcs' | 'quests' | 'collisions' | 'giveitems' | 'items' | 'changelogs' | 'polls' | 'bots' = 'nodes';
   private collisionBrush: 'paint' | 'erase' = 'paint';
@@ -411,10 +414,18 @@ class EldoriaClient {
     if (authCrestIcon) authCrestIcon.innerHTML = ICONS.logo;
     const profileCrestIcon = document.getElementById('profile-crest-icon');
     if (profileCrestIcon) profileCrestIcon.innerHTML = ICONS.logo;
+    const forgotCrestIcon = document.getElementById('forgot-crest-icon');
+    if (forgotCrestIcon) forgotCrestIcon.innerHTML = ICONS.logo;
+    const resetCrestIcon = document.getElementById('reset-crest-icon');
+    if (resetCrestIcon) resetCrestIcon.innerHTML = ICONS.logo;
     const authClose = document.getElementById('auth-close-btn');
     if (authClose) authClose.innerHTML = ICONS.close;
     const profileClose = document.getElementById('profile-close-btn');
     if (profileClose) profileClose.innerHTML = ICONS.close;
+    const forgotClose = document.getElementById('forgot-password-close-btn');
+    if (forgotClose) forgotClose.innerHTML = ICONS.close;
+    const resetClose = document.getElementById('reset-password-close-btn');
+    if (resetClose) resetClose.innerHTML = ICONS.close;
   }
 
   private async fetchNodesAndInit() {
@@ -763,6 +774,10 @@ class EldoriaClient {
         if (res.ok) {
           const data = await res.json();
           this.player = data.player;
+          if (data.account) {
+            this.accountInfo = data.account;
+          }
+          this.checkUrlAuthParameters();
           this.connectWs();
           return;
         } else {
@@ -772,6 +787,9 @@ class EldoriaClient {
         console.warn('Session verification failed, falling back', err);
       }
     }
+
+    // Check for URL parameters if not logged in
+    this.checkUrlAuthParameters();
 
     // Auto-resume active guest session if token not present
     guestId = localStorage.getItem('eldoria_guest_id');
@@ -5578,6 +5596,19 @@ class EldoriaClient {
           return;
         }
 
+        const forgotModal = document.getElementById('forgot-password-modal');
+        if (forgotModal && !forgotModal.classList.contains('hidden')) {
+          forgotModal.classList.add('hidden');
+          document.getElementById('auth-modal')?.classList.remove('hidden');
+          return;
+        }
+
+        const resetModal = document.getElementById('reset-password-modal');
+        if (resetModal && !resetModal.classList.contains('hidden')) {
+          resetModal.classList.add('hidden');
+          return;
+        }
+
         const profileModal = document.getElementById('account-profile-modal');
         if (profileModal && !profileModal.classList.contains('hidden')) {
           profileModal.classList.add('hidden');
@@ -6467,6 +6498,9 @@ class EldoriaClient {
           localStorage.removeItem('eldoria_guest_id');
           localStorage.removeItem('eldoria_explicit_logout');
           this.player = data.player;
+          if (data.account) {
+            this.accountInfo = data.account;
+          }
 
           modal?.classList.add('hidden');
           this.showToast(`Welcome back, ${data.player.username}.`);
@@ -6510,6 +6544,9 @@ class EldoriaClient {
           localStorage.removeItem('eldoria_ref_code');
           localStorage.removeItem('eldoria_explicit_logout');
           this.player = data.player;
+          if (data.account) {
+            this.accountInfo = data.account;
+          }
 
           modal?.classList.add('hidden');
           this.showToast(`Account created. Welcome to Eldoria, ${data.player.username}.`);
@@ -6518,6 +6555,152 @@ class EldoriaClient {
           }, 300);
         } catch (err) {
           showError('Network error while creating account.');
+        }
+      };
+    }
+
+    // Forgot Password link & modal wiring
+    const btnForgotPass = document.getElementById('btn-login-forgot-pass');
+    const forgotModal = document.getElementById('forgot-password-modal');
+    const forgotCloseBtn = document.getElementById('forgot-password-close-btn');
+    const btnCancelForgot = document.getElementById('btn-cancel-forgot');
+    const formForgot = document.getElementById('form-forgot-password') as HTMLFormElement | null;
+    const forgotFeedback = document.getElementById('forgot-feedback-box');
+    const forgotEmailInput = document.getElementById('forgot-input-email') as HTMLInputElement | null;
+
+    if (btnForgotPass) {
+      btnForgotPass.onclick = () => {
+        modal?.classList.add('hidden');
+        if (forgotFeedback) {
+          forgotFeedback.style.display = 'none';
+          forgotFeedback.textContent = '';
+        }
+        if (forgotEmailInput) forgotEmailInput.value = '';
+        forgotModal?.classList.remove('hidden');
+        forgotEmailInput?.focus();
+      };
+    }
+
+    const closeForgotModal = () => {
+      forgotModal?.classList.add('hidden');
+      modal?.classList.remove('hidden');
+    };
+
+    if (forgotCloseBtn) forgotCloseBtn.onclick = closeForgotModal;
+    if (btnCancelForgot) btnCancelForgot.onclick = closeForgotModal;
+
+    if (formForgot) {
+      formForgot.onsubmit = async (e) => {
+        e.preventDefault();
+        const email = forgotEmailInput?.value?.trim();
+        if (!email) return;
+
+        const btnSubmit = document.getElementById('btn-submit-forgot') as HTMLButtonElement | null;
+        if (btnSubmit) {
+          btnSubmit.disabled = true;
+          btnSubmit.textContent = 'Dispatching...';
+        }
+
+        try {
+          const res = await fetch('/api/auth/forgot-password', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email }),
+          });
+          const data = await res.json();
+          if (forgotFeedback) {
+            forgotFeedback.style.display = 'block';
+            forgotFeedback.style.color = '#68d391';
+            forgotFeedback.style.borderColor = 'rgba(104, 211, 145, 0.4)';
+            forgotFeedback.style.background = 'rgba(72, 187, 120, 0.1)';
+            forgotFeedback.textContent = data.message || 'If an account matches that email, reset instructions were dispatched.';
+          }
+        } catch {
+          if (forgotFeedback) {
+            forgotFeedback.style.display = 'block';
+            forgotFeedback.style.color = '#fc8181';
+            forgotFeedback.textContent = 'Network communication error. Please try again.';
+          }
+        } finally {
+          if (btnSubmit) {
+            btnSubmit.disabled = false;
+            btnSubmit.textContent = 'Dispatch Reset Link';
+          }
+        }
+      };
+    }
+
+    // Reset Password modal wiring
+    const resetModal = document.getElementById('reset-password-modal');
+    const resetCloseBtn = document.getElementById('reset-password-close-btn');
+    const formReset = document.getElementById('form-reset-password') as HTMLFormElement | null;
+    const resetFeedback = document.getElementById('reset-feedback-box');
+
+    if (resetCloseBtn && resetModal) {
+      resetCloseBtn.onclick = () => resetModal.classList.add('hidden');
+    }
+
+    if (formReset) {
+      formReset.onsubmit = async (e) => {
+        e.preventDefault();
+        const token = (document.getElementById('reset-token-value') as HTMLInputElement)?.value;
+        const newPassword = (document.getElementById('reset-input-password') as HTMLInputElement)?.value;
+        const confirmPass = (document.getElementById('reset-input-confirm') as HTMLInputElement)?.value;
+
+        if (!newPassword || newPassword.length < 6) {
+          if (resetFeedback) {
+            resetFeedback.style.display = 'block';
+            resetFeedback.style.color = '#fc8181';
+            resetFeedback.textContent = 'Password must be at least 6 characters.';
+          }
+          return;
+        }
+
+        if (newPassword !== confirmPass) {
+          if (resetFeedback) {
+            resetFeedback.style.display = 'block';
+            resetFeedback.style.color = '#fc8181';
+            resetFeedback.textContent = 'Passwords do not match.';
+          }
+          return;
+        }
+
+        const btnSubmit = document.getElementById('btn-submit-new-password') as HTMLButtonElement | null;
+        if (btnSubmit) {
+          btnSubmit.disabled = true;
+          btnSubmit.textContent = 'Updating...';
+        }
+
+        try {
+          const res = await fetch('/api/auth/reset-password', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token, newPassword }),
+          });
+          const data = await res.json();
+          if (!res.ok) {
+            if (resetFeedback) {
+              resetFeedback.style.display = 'block';
+              resetFeedback.style.color = '#fc8181';
+              resetFeedback.textContent = data.error || 'Failed to reset password.';
+            }
+            return;
+          }
+
+          resetModal?.classList.add('hidden');
+          this.showToast('✅ Password updated successfully! Please log in with your new password.');
+          this.openAuthModal('login', true);
+        } catch {
+          if (resetFeedback) {
+            resetFeedback.style.display = 'block';
+            resetFeedback.style.color = '#fc8181';
+            resetFeedback.textContent = 'Network communication error while resetting password.';
+          }
+        } finally {
+          if (btnSubmit) {
+            btnSubmit.disabled = false;
+            btnSubmit.textContent = 'Update Password & Sign In';
+          }
         }
       };
     }
@@ -6733,6 +6916,122 @@ class EldoriaClient {
         this.sendWs({ type: 'CLAIM_REFERRAL_REWARDS' });
       };
     }
+
+    // Account Security & Email Binding
+    const updateEmailSecurityUI = () => {
+      const emailBadge = document.getElementById('profile-email-badge');
+      const emailRow = document.getElementById('profile-email-current-row');
+      const emailDisplay = document.getElementById('profile-email-display');
+      const bindForm = document.getElementById('form-profile-bind-email');
+
+      if (this.accountInfo?.email && this.accountInfo.emailVerified) {
+        if (emailBadge) {
+          emailBadge.textContent = 'VERIFIED';
+          emailBadge.className = 'status-tag';
+          emailBadge.style.color = '#68d391';
+          emailBadge.style.borderColor = '#48bb78';
+        }
+        if (emailRow) emailRow.style.display = 'flex';
+        if (emailDisplay) emailDisplay.textContent = this.accountInfo.email;
+        if (bindForm) bindForm.style.display = 'none';
+      } else if (this.accountInfo?.email && !this.accountInfo.emailVerified) {
+        if (emailBadge) {
+          emailBadge.textContent = 'PENDING';
+          emailBadge.className = 'status-tag idle';
+          emailBadge.style.color = '#ecc94b';
+          emailBadge.style.borderColor = '#d69e2e';
+        }
+        if (emailRow) emailRow.style.display = 'flex';
+        if (emailDisplay) emailDisplay.textContent = `${this.accountInfo.email} (Pending)`;
+        if (bindForm) bindForm.style.display = 'none';
+      } else {
+        if (emailBadge) {
+          emailBadge.textContent = 'UNBOUND';
+          emailBadge.className = 'status-tag idle';
+          emailBadge.style.color = '#a0aec0';
+          emailBadge.style.borderColor = '#718096';
+        }
+        if (emailRow) emailRow.style.display = 'none';
+        if (bindForm) bindForm.style.display = 'flex';
+      }
+    };
+
+    const btnToggleChange = document.getElementById('btn-toggle-change-email');
+    if (btnToggleChange) {
+      btnToggleChange.onclick = () => {
+        const bindForm = document.getElementById('form-profile-bind-email');
+        if (bindForm) {
+          bindForm.style.display = bindForm.style.display === 'none' ? 'flex' : 'none';
+          (document.getElementById('input-profile-email') as HTMLInputElement | null)?.focus();
+        }
+      };
+    }
+
+    const formBindEmail = document.getElementById('form-profile-bind-email') as HTMLFormElement | null;
+    const bindFeedback = document.getElementById('bind-email-feedback');
+    if (formBindEmail) {
+      formBindEmail.onsubmit = async (e) => {
+        e.preventDefault();
+        const token = localStorage.getItem('eldoria_session_token');
+        const emailInput = document.getElementById('input-profile-email') as HTMLInputElement | null;
+        const email = emailInput?.value?.trim();
+        if (!email) return;
+
+        const btnSubmit = document.getElementById('btn-submit-bind-email') as HTMLButtonElement | null;
+        if (btnSubmit) {
+          btnSubmit.disabled = true;
+          btnSubmit.textContent = 'Sending...';
+        }
+
+        try {
+          const res = await fetch('/api/account/bind-email', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token, email }),
+          });
+          const data = await res.json();
+          if (!res.ok) {
+            if (bindFeedback) {
+              bindFeedback.style.display = 'block';
+              bindFeedback.style.color = '#fc8181';
+              bindFeedback.textContent = data.error || 'Failed to send verification link.';
+            }
+            return;
+          }
+
+          if (bindFeedback) {
+            bindFeedback.style.display = 'block';
+            bindFeedback.style.color = '#68d391';
+            bindFeedback.textContent = data.message || 'Verification link sent! Check your inbox.';
+          }
+          if (this.accountInfo) {
+            this.accountInfo.email = email;
+            this.accountInfo.emailVerified = false;
+          }
+          updateEmailSecurityUI();
+        } catch {
+          if (bindFeedback) {
+            bindFeedback.style.display = 'block';
+            bindFeedback.style.color = '#fc8181';
+            bindFeedback.textContent = 'Network error while dispatching email.';
+          }
+        } finally {
+          if (btnSubmit) {
+            btnSubmit.disabled = false;
+            btnSubmit.textContent = 'Send Link';
+          }
+        }
+      };
+    }
+
+    // Call update on profile modal opening
+    const originalCharPillClick = charPill ? charPill.onclick : null;
+    if (charPill) {
+      charPill.onclick = (e) => {
+        if (originalCharPillClick) (originalCharPillClick as any).call(charPill, e);
+        updateEmailSecurityUI();
+      };
+    }
   }
 
   private renderReferralUI(summary: any) {
@@ -6801,6 +7100,56 @@ class EldoriaClient {
     localStorage.removeItem('eldoria_guest_id');
     localStorage.setItem('eldoria_explicit_logout', 'true');
     window.location.reload();
+  }
+
+  private async checkUrlAuthParameters() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const verifyToken = urlParams.get('verify_email');
+    const resetToken = urlParams.get('reset_token');
+
+    if (verifyToken) {
+      // Remove query param from address bar cleanly
+      const cleanUrl = window.location.pathname + window.location.hash;
+      window.history.replaceState({}, document.title, cleanUrl);
+
+      this.showToast('Verifying your email address...');
+      try {
+        const res = await fetch('/api/account/verify-email', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token: verifyToken }),
+        });
+        const data = await res.json();
+        if (res.ok) {
+          this.showToast(`✨ ${data.message || 'Email successfully verified!'}`);
+          if (this.accountInfo) {
+            this.accountInfo.email = data.account?.email || this.accountInfo.email;
+            this.accountInfo.emailVerified = true;
+          }
+        } else {
+          this.showToast(`⚠️ ${data.error || 'Verification failed or expired.'}`);
+        }
+      } catch {
+        this.showToast('⚠️ Unable to verify email due to network error.');
+      }
+    }
+
+    if (resetToken) {
+      // Remove query param from address bar cleanly
+      const cleanUrl = window.location.pathname + window.location.hash;
+      window.history.replaceState({}, document.title, cleanUrl);
+
+      const resetModal = document.getElementById('reset-password-modal');
+      const resetTokenInput = document.getElementById('reset-token-value') as HTMLInputElement | null;
+      const feedback = document.getElementById('reset-feedback-box');
+      if (resetTokenInput) resetTokenInput.value = resetToken;
+      if (feedback) feedback.style.display = 'none';
+
+      // Hide other modals and open reset password modal
+      document.getElementById('auth-modal')?.classList.add('hidden');
+      resetModal?.classList.remove('hidden');
+      (document.getElementById('reset-input-password') as HTMLInputElement | null)?.focus();
+    }
   }
 
   private openItemContextMenu(index: number, e: MouseEvent) {

@@ -8,6 +8,8 @@ import { storage } from './storage.js';
 import { WORLD_NODES } from './world.js';
 import { gameEngine } from './gameEngine.js';
 
+import { Resend } from 'resend';
+
 // Auto-load .env file from current directory or parent directories if present
 const candidateEnvPaths = [
   path.resolve(process.cwd(), '.env'),
@@ -42,6 +44,53 @@ for (const p of candidateEnvPaths) {
 
 const PORT = parseInt(process.env.PORT || '3000', 10);
 const HOST = process.env.HOST || '0.0.0.0';
+
+// --- Email System (Resend) ---
+const RESEND_API_KEY = process.env.RESEND_API_KEY || '';
+const FROM_EMAIL = 'Eldoria Idle <noreply@eldoriaidle.site>';
+const resendClient = RESEND_API_KEY ? new Resend(RESEND_API_KEY) : null;
+
+async function sendEldoriaEmail(to: string, subject: string, htmlContent: string): Promise<boolean> {
+  if (!resendClient) {
+    console.warn(`[Email] RESEND_API_KEY not configured. Simulated email to ${to}: ${subject}`);
+    return true;
+  }
+  try {
+    const { data, error } = await resendClient.emails.send({
+      from: FROM_EMAIL,
+      to,
+      subject,
+      html: htmlContent,
+    });
+    if (error) {
+      console.error('[Email] Failed to send email via Resend:', error);
+      return false;
+    }
+    console.log(`[Email] Successfully sent email to ${to} (id: ${data?.id})`);
+    return true;
+  } catch (err) {
+    console.error('[Email] Exception while sending email:', err);
+    return false;
+  }
+}
+
+// In-memory rate limiting map for sensitive endpoints: key -> lastRequestTimestamp
+const rateLimitMap = new Map<string, number>();
+function isRateLimited(key: string, cooldownMs: number): boolean {
+  const now = Date.now();
+  const last = rateLimitMap.get(key);
+  if (last && now - last < cooldownMs) {
+    return true;
+  }
+  rateLimitMap.set(key, now);
+  // Periodic cleanup if map grows
+  if (rateLimitMap.size > 2000) {
+    for (const [k, v] of rateLimitMap.entries()) {
+      if (now - v > cooldownMs * 2) rateLimitMap.delete(k);
+    }
+  }
+  return false;
+}
 
 const app = express();
 app.use(express.json());
@@ -96,6 +145,8 @@ app.post('/api/auth/register', (req, res) => {
       username: result.account.username,
       isGuest: false,
       role: result.player.role,
+      email: result.account.email || null,
+      emailVerified: Boolean(result.account.emailVerified),
     },
   });
 });
@@ -116,6 +167,8 @@ app.post('/api/auth/login', (req, res) => {
       username: result.account.username,
       isGuest: false,
       role: result.player.role,
+      email: result.account.email || null,
+      emailVerified: Boolean(result.account.emailVerified),
     },
   });
 });
@@ -144,6 +197,8 @@ app.post('/api/auth/session', (req, res) => {
       username: account.username,
       isGuest: false,
       role: player.role,
+      email: account.email || null,
+      emailVerified: Boolean(account.emailVerified),
     },
   });
 });
@@ -154,6 +209,221 @@ app.post('/api/auth/logout', (req, res) => {
     storage.deleteSession(token);
   }
   res.json({ success: true });
+});
+
+// --- Email Binding & Verification API ---
+
+app.post('/api/account/bind-email', async (req, res) => {
+  try {
+    const { token, email } = req.body || {};
+    if (!token) {
+      res.status(401).json({ error: 'Authentication required to link email.' });
+      return;
+    }
+    const session = storage.getSession(token);
+    if (!session) {
+      res.status(401).json({ error: 'Session expired. Please log in again.' });
+      return;
+    }
+    const account = storage.getAccountById(session.accountId);
+    if (!account) {
+      res.status(401).json({ error: 'Account not found.' });
+      return;
+    }
+
+    const cleanEmail = (email || '').trim().toLowerCase();
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!cleanEmail || !emailRegex.test(cleanEmail) || cleanEmail.length > 100) {
+      res.status(400).json({ error: 'Please enter a valid email address.' });
+      return;
+    }
+
+    // Rate limit per account: max 1 verification email every 3 minutes
+    const rateLimitKey = `bind_email:${account.id}`;
+    if (isRateLimited(rateLimitKey, 3 * 60 * 1000)) {
+      res.status(429).json({ error: 'Please wait a few minutes before requesting another verification email.' });
+      return;
+    }
+
+    // Check if another account already has this email bound and verified
+    if (storage.isEmailAlreadyBound(cleanEmail, account.id)) {
+      res.status(400).json({ error: 'That email address is already associated with another adventurer.' });
+      return;
+    }
+
+    // Create verification token (24h expiry)
+    const { token: verifyToken } = storage.createEmailVerificationToken(account.id, cleanEmail);
+    const verifyUrl = `https://eldoriaidle.site?verify_email=${verifyToken}`;
+
+    const html = `
+      <div style="background-color: #1a1612; color: #f0e6d2; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 30px; border-radius: 8px; max-width: 540px; margin: 0 auto; border: 1px solid #4a3622;">
+        <div style="text-align: center; margin-bottom: 24px;">
+          <h1 style="color: #dfa637; font-size: 24px; margin: 0; letter-spacing: 1px;">⚔️ Eldoria Idle</h1>
+          <p style="color: #a0aec0; font-size: 13px; margin: 4px 0 0 0;">Realm Account Security</p>
+        </div>
+        <div style="background: rgba(0, 0, 0, 0.3); border: 1px solid #3d3429; border-radius: 6px; padding: 20px; margin-bottom: 20px;">
+          <h2 style="color: #ecc94b; font-size: 18px; margin-top: 0;">Hail, Adventurer ${account.username}!</h2>
+          <p style="font-size: 14px; line-height: 1.5; color: #e2e8f0;">
+            A request was made to link this email address (<b>${cleanEmail}</b>) to your Eldoria Idle character account.
+          </p>
+          <p style="font-size: 14px; line-height: 1.5; color: #e2e8f0;">
+            Once confirmed, this email will protect your character and allow you to request secure password resets should you ever forget your password.
+          </p>
+          <div style="text-align: center; margin: 26px 0;">
+            <a href="${verifyUrl}" style="background: linear-gradient(180deg, #d4af37, #b8860b); color: #1a1612; font-weight: bold; text-decoration: none; padding: 12px 28px; border-radius: 4px; display: inline-block; font-size: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.3);">
+              Confirm & Bind Email Address
+            </a>
+          </div>
+          <p style="font-size: 12px; color: #a0aec0; margin-bottom: 0;">
+            This link is valid for 24 hours. If you did not initiate this request, you may safely ignore this message.
+          </p>
+        </div>
+        <div style="text-align: center; font-size: 11px; color: #718096;">
+          Eldoria Idle · The Shared-World Idle Realm · <a href="https://eldoriaidle.site" style="color: #dfa637;">eldoriaidle.site</a>
+        </div>
+      </div>
+    `;
+
+    await sendEldoriaEmail(cleanEmail, 'Confirm your Eldoria Idle email address', html);
+
+    res.json({
+      success: true,
+      message: 'Verification dispatch sent! Please check your inbox and click the link to confirm your address.',
+    });
+  } catch (err) {
+    console.error('Error in /api/account/bind-email:', err);
+    res.status(500).json({ error: 'Internal error processing email binding request.' });
+  }
+});
+
+app.post('/api/account/verify-email', (req, res) => {
+  const { token } = req.body || {};
+  if (!token) {
+    res.status(400).json({ error: 'Missing verification token.' });
+    return;
+  }
+
+  const result = storage.verifyAndConsumeEmailToken(token);
+  if (!result.success) {
+    res.status(400).json({ error: result.error });
+    return;
+  }
+
+  res.json({
+    success: true,
+    message: `Email address ${result.email} has been successfully verified and linked to ${result.account.username}!`,
+    account: {
+      id: result.account.id,
+      username: result.account.username,
+      email: result.account.email,
+      emailVerified: true,
+    },
+  });
+});
+
+// --- Password Reset API (Authgear Best Practices) ---
+
+app.post('/api/auth/forgot-password', async (req, res) => {
+  try {
+    const { email } = req.body || {};
+    const cleanEmail = (email || '').trim().toLowerCase();
+    const clientIp = (req.headers['x-forwarded-for'] as string || req.socket.remoteAddress || 'unknown').split(',')[0].trim();
+
+    // Constant message for anti-enumeration
+    const genericResponse = {
+      success: true,
+      message: 'If an account matching that verified email exists, password reset instructions have been sent to your inbox.',
+    };
+
+    if (!cleanEmail || !cleanEmail.includes('@')) {
+      res.json(genericResponse);
+      return;
+    }
+
+    // Rate limiting: max 1 reset email per 5 minutes per email and IP
+    const rateLimitEmailKey = `pwd_reset_email:${cleanEmail}`;
+    const rateLimitIpKey = `pwd_reset_ip:${clientIp}`;
+    if (isRateLimited(rateLimitEmailKey, 5 * 60 * 1000) || isRateLimited(rateLimitIpKey, 1 * 60 * 1000)) {
+      // Respond with identical success message so timing/rate limits do not leak existence
+      res.json(genericResponse);
+      return;
+    }
+
+    // Look up account by email
+    const account = storage.getAccountByEmail(cleanEmail);
+    if (!account || !account.emailVerified) {
+      // Do not disclose that account doesn't exist
+      res.json(genericResponse);
+      return;
+    }
+
+    // Generate cryptographic token (15-minute expiry)
+    const { token: resetToken } = storage.createPasswordResetToken(account.id);
+    const resetUrl = `https://eldoriaidle.site?reset_token=${resetToken}`;
+
+    const html = `
+      <div style="background-color: #1a1612; color: #f0e6d2; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 30px; border-radius: 8px; max-width: 540px; margin: 0 auto; border: 1px solid #4a3622;">
+        <div style="text-align: center; margin-bottom: 24px;">
+          <h1 style="color: #dfa637; font-size: 24px; margin: 0; letter-spacing: 1px;">⚔️ Eldoria Idle</h1>
+          <p style="color: #a0aec0; font-size: 13px; margin: 4px 0 0 0;">Password Reset Request</p>
+        </div>
+        <div style="background: rgba(0, 0, 0, 0.3); border: 1px solid #3d3429; border-radius: 6px; padding: 20px; margin-bottom: 20px;">
+          <h2 style="color: #ecc94b; font-size: 18px; margin-top: 0;">Greetings, Adventurer ${account.username}!</h2>
+          <p style="font-size: 14px; line-height: 1.5; color: #e2e8f0;">
+            A password reset was requested for your Eldoria account. Click the button below to choose a new secret password:
+          </p>
+          <div style="text-align: center; margin: 26px 0;">
+            <a href="${resetUrl}" style="background: linear-gradient(180deg, #d4af37, #b8860b); color: #1a1612; font-weight: bold; text-decoration: none; padding: 12px 28px; border-radius: 4px; display: inline-block; font-size: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.3);">
+              Reset Account Password
+            </a>
+          </div>
+          <p style="font-size: 12px; color: #fc8181; line-height: 1.4; margin-bottom: 6px;">
+            ⚠️ <b>Security Notice:</b> This link will expire in <b>15 minutes</b> and can only be used once.
+          </p>
+          <p style="font-size: 12px; color: #a0aec0; margin-bottom: 0;">
+            If you did not request this password reset, please ignore this email. Your password remains safe and unchanged.
+          </p>
+        </div>
+        <div style="text-align: center; font-size: 11px; color: #718096;">
+          Eldoria Idle · The Shared-World Idle Realm · <a href="https://eldoriaidle.site" style="color: #dfa637;">eldoriaidle.site</a>
+        </div>
+      </div>
+    `;
+
+    await sendEldoriaEmail(account.email || cleanEmail, 'Reset your Eldoria Idle password', html);
+
+    res.json(genericResponse);
+  } catch (err) {
+    console.error('Error in /api/auth/forgot-password:', err);
+    res.json({
+      success: true,
+      message: 'If an account matching that verified email exists, password reset instructions have been sent to your inbox.',
+    });
+  }
+});
+
+app.post('/api/auth/reset-password', (req, res) => {
+  try {
+    const { token, newPassword } = req.body || {};
+    if (!token || !newPassword) {
+      res.status(400).json({ error: 'Token and new password are required.' });
+      return;
+    }
+
+    const result = storage.completePasswordResetWithToken(token, newPassword);
+    if (!result.success) {
+      res.status(400).json({ error: result.error });
+      return;
+    }
+
+    res.json({
+      success: true,
+      message: 'Your password has been successfully reset! All active sessions have been signed out. You may now log in with your new password.',
+    });
+  } catch (err) {
+    console.error('Error in /api/auth/reset-password:', err);
+    res.status(500).json({ error: 'An unexpected error occurred while resetting your password.' });
+  }
 });
 
 app.get('/api/world/nodes', (req, res) => {

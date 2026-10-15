@@ -70,6 +70,9 @@ export interface AccountRecord {
   referredBy?: string | null; // normalized username or account id of inviter
   referralRewardsClaimed?: number; // total gems claimed from referrals
   referralTitlesClaimed?: string[]; // list of unlocked titles
+  email?: string | null;
+  normalizedEmail?: string | null;
+  emailVerified?: boolean;
 }
 
 export interface SessionRecord {
@@ -220,10 +223,18 @@ class StorageManager {
   private stmtDeleteBotPlayers: Database.Statement;
   private stmtGetAccountByUsername: Database.Statement;
   private stmtGetAccountById: Database.Statement;
+  private stmtGetAccountByEmail: Database.Statement;
   private stmtInsertAccount: Database.Statement;
   private stmtGetSession: Database.Statement;
   private stmtInsertSession: Database.Statement;
   private stmtDeleteSession: Database.Statement;
+  private stmtDeleteSessionsByAccountId: Database.Statement;
+  private stmtInsertResetToken: Database.Statement;
+  private stmtGetResetTokenByHash: Database.Statement;
+  private stmtMarkResetTokenUsed: Database.Statement;
+  private stmtInsertEmailVerifyToken: Database.Statement;
+  private stmtGetEmailVerifyTokenByHash: Database.Statement;
+  private stmtMarkEmailVerifyTokenUsed: Database.Statement;
   private stmtGetWorldNodes: Database.Statement;
   private stmtUpsertWorldNode: Database.Statement;
   private stmtDeleteWorldNode: Database.Statement;
@@ -305,9 +316,10 @@ class StorageManager {
 
     this.stmtGetAccountByUsername = this.db.prepare('SELECT * FROM accounts WHERE normalized_username = ?');
     this.stmtGetAccountById = this.db.prepare('SELECT * FROM accounts WHERE id = ?');
+    this.stmtGetAccountByEmail = this.db.prepare('SELECT * FROM accounts WHERE normalized_email = ?');
     this.stmtInsertAccount = this.db.prepare(
-      `INSERT INTO accounts (id, username, normalized_username, password_hash, salt, player_id, created_at, referred_by, referral_rewards_claimed, referral_titles_claimed)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      `INSERT INTO accounts (id, username, normalized_username, password_hash, salt, player_id, created_at, referred_by, referral_rewards_claimed, referral_titles_claimed, email, normalized_email, email_verified)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     );
 
     this.stmtGetSession = this.db.prepare('SELECT * FROM sessions WHERE token = ?');
@@ -315,6 +327,29 @@ class StorageManager {
       'INSERT INTO sessions (token, account_id, player_id, created_at) VALUES (?, ?, ?, ?)'
     );
     this.stmtDeleteSession = this.db.prepare('DELETE FROM sessions WHERE token = ?');
+    this.stmtDeleteSessionsByAccountId = this.db.prepare('DELETE FROM sessions WHERE account_id = ?');
+
+    this.stmtInsertResetToken = this.db.prepare(
+      `INSERT INTO password_reset_tokens (id, account_id, token_hash, expires_at, used, created_at)
+       VALUES (?, ?, ?, ?, ?, ?)`
+    );
+    this.stmtGetResetTokenByHash = this.db.prepare(
+      `SELECT * FROM password_reset_tokens WHERE token_hash = ?`
+    );
+    this.stmtMarkResetTokenUsed = this.db.prepare(
+      `UPDATE password_reset_tokens SET used = 1 WHERE id = ?`
+    );
+
+    this.stmtInsertEmailVerifyToken = this.db.prepare(
+      `INSERT INTO email_verification_tokens (id, account_id, email, token_hash, expires_at, used, created_at)
+       VALUES (?, ?, ?, ?, ?, ?)`
+    );
+    this.stmtGetEmailVerifyTokenByHash = this.db.prepare(
+      `SELECT * FROM email_verification_tokens WHERE token_hash = ?`
+    );
+    this.stmtMarkEmailVerifyTokenUsed = this.db.prepare(
+      `UPDATE email_verification_tokens SET used = 1 WHERE id = ?`
+    );
 
     this.stmtGetWorldNodes = this.db.prepare('SELECT data FROM world_nodes');
     this.stmtUpsertWorldNode = this.db.prepare(
@@ -575,6 +610,27 @@ class StorageManager {
         timestamp INTEGER NOT NULL
       );
 
+      CREATE TABLE IF NOT EXISTS password_reset_tokens (
+        id TEXT PRIMARY KEY,
+        account_id TEXT NOT NULL,
+        token_hash TEXT NOT NULL,
+        expires_at INTEGER NOT NULL,
+        used INTEGER NOT NULL DEFAULT 0,
+        created_at INTEGER NOT NULL,
+        FOREIGN KEY (account_id) REFERENCES accounts(id) ON DELETE CASCADE
+      );
+
+      CREATE TABLE IF NOT EXISTS email_verification_tokens (
+        id TEXT PRIMARY KEY,
+        account_id TEXT NOT NULL,
+        email TEXT NOT NULL,
+        token_hash TEXT NOT NULL,
+        expires_at INTEGER NOT NULL,
+        used INTEGER NOT NULL DEFAULT 0,
+        created_at INTEGER NOT NULL,
+        FOREIGN KEY (account_id) REFERENCES accounts(id) ON DELETE CASCADE
+      );
+
       CREATE INDEX IF NOT EXISTS idx_accounts_norm_user ON accounts(normalized_username);
       CREATE INDEX IF NOT EXISTS idx_sessions_account ON sessions(account_id);
       CREATE INDEX IF NOT EXISTS idx_market_item ON market_listings(item_id);
@@ -585,9 +641,11 @@ class StorageManager {
       CREATE INDEX IF NOT EXISTS idx_poll_votes_player ON poll_votes(player_id);
       CREATE INDEX IF NOT EXISTS idx_chat_messages_created ON chat_messages(created_at DESC);
       CREATE INDEX IF NOT EXISTS idx_dungeon_recoveries_player ON dungeon_recoveries(player_id);
+      CREATE INDEX IF NOT EXISTS idx_reset_tokens_hash ON password_reset_tokens(token_hash);
+      CREATE INDEX IF NOT EXISTS idx_email_verify_hash ON email_verification_tokens(token_hash);
     `);
 
-    // Safe column migrations for existing SQLite accounts table (BEFORE creating index on referred_by)
+    // Safe column migrations for existing SQLite accounts table (BEFORE creating index on referred_by and email)
     try {
       this.db.exec(`ALTER TABLE accounts ADD COLUMN referred_by TEXT;`);
     } catch {}
@@ -597,10 +655,22 @@ class StorageManager {
     try {
       this.db.exec(`ALTER TABLE accounts ADD COLUMN referral_titles_claimed TEXT NOT NULL DEFAULT '[]';`);
     } catch {}
+    try {
+      this.db.exec(`ALTER TABLE accounts ADD COLUMN email TEXT;`);
+    } catch {}
+    try {
+      this.db.exec(`ALTER TABLE accounts ADD COLUMN normalized_email TEXT;`);
+    } catch {}
+    try {
+      this.db.exec(`ALTER TABLE accounts ADD COLUMN email_verified INTEGER NOT NULL DEFAULT 0;`);
+    } catch {}
 
-    // Index on referred_by now that the column is guaranteed to exist
+    // Indexes now that columns are guaranteed to exist
     try {
       this.db.exec(`CREATE INDEX IF NOT EXISTS idx_accounts_referred_by ON accounts(referred_by);`);
+    } catch {}
+    try {
+      this.db.exec(`CREATE INDEX IF NOT EXISTS idx_accounts_norm_email ON accounts(normalized_email);`);
     } catch {}
   }
 
@@ -1299,6 +1369,9 @@ class StorageManager {
       referredBy: row.referred_by || null,
       referralRewardsClaimed: row.referral_rewards_claimed || 0,
       referralTitlesClaimed: titles,
+      email: row.email || null,
+      normalizedEmail: row.normalized_email || null,
+      emailVerified: Boolean(row.email_verified),
     };
   }
 
@@ -1320,7 +1393,43 @@ class StorageManager {
       referredBy: row.referred_by || null,
       referralRewardsClaimed: row.referral_rewards_claimed || 0,
       referralTitlesClaimed: titles,
+      email: row.email || null,
+      normalizedEmail: row.normalized_email || null,
+      emailVerified: Boolean(row.email_verified),
     };
+  }
+
+  public getAccountByEmail(email: string): AccountRecord | undefined {
+    const norm = email.trim().toLowerCase();
+    const row = this.stmtGetAccountByEmail.get(norm) as any;
+    if (!row) return undefined;
+    let titles: string[] = [];
+    try {
+      titles = JSON.parse(row.referral_titles_claimed || '[]');
+    } catch {}
+    return {
+      id: row.id,
+      username: row.username,
+      normalizedUsername: row.normalized_username,
+      passwordHash: row.password_hash,
+      salt: row.salt,
+      playerId: row.player_id,
+      createdAt: row.created_at,
+      referredBy: row.referred_by || null,
+      referralRewardsClaimed: row.referral_rewards_claimed || 0,
+      referralTitlesClaimed: titles,
+      email: row.email || null,
+      normalizedEmail: row.normalized_email || null,
+      emailVerified: Boolean(row.email_verified),
+    };
+  }
+
+  public deleteSessionsForAccount(accountId: string) {
+    try {
+      this.stmtDeleteSessionsByAccountId.run(accountId);
+    } catch (err) {
+      console.error('Failed to delete sessions for account', err);
+    }
   }
 
   public createSession(accountId: string, playerId: string): string {
@@ -1493,7 +1602,125 @@ class StorageManager {
       referredBy: row.referred_by || null,
       referralRewardsClaimed: row.referral_rewards_claimed || 0,
       referralTitlesClaimed: titles,
+      email: row.email || null,
+      normalizedEmail: row.normalized_email || null,
+      emailVerified: Boolean(row.email_verified),
     };
+  }
+
+  // --- Email Binding & Password Reset Systems ---
+
+  public isEmailAlreadyBound(email: string, excludeAccountId?: string): boolean {
+    const norm = email.trim().toLowerCase();
+    const row = this.stmtGetAccountByEmail.get(norm) as any;
+    if (!row) return false;
+    if (excludeAccountId && row.id === excludeAccountId) return false;
+    return Boolean(row.email_verified);
+  }
+
+  public createEmailVerificationToken(accountId: string, email: string): { token: string; expiresAt: number } {
+    const rawToken = crypto.randomBytes(32).toString('hex');
+    const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
+    const tokenId = 'evt_' + crypto.randomBytes(8).toString('hex');
+    const expiresAt = Date.now() + 24 * 60 * 60 * 1000; // 24 hours
+
+    this.stmtInsertEmailVerifyToken.run(tokenId, accountId, email.trim(), tokenHash, expiresAt, 0, Date.now());
+    return { token: rawToken, expiresAt };
+  }
+
+  public verifyAndConsumeEmailToken(rawToken: string): { success: true; account: AccountRecord; email: string } | { success: false; error: string } {
+    if (!rawToken || typeof rawToken !== 'string') {
+      return { success: false, error: 'Invalid verification token.' };
+    }
+    const tokenHash = crypto.createHash('sha256').update(rawToken.trim()).digest('hex');
+    const row = this.stmtGetEmailVerifyTokenByHash.get(tokenHash) as any;
+    if (!row) {
+      return { success: false, error: 'Invalid or unrecognized verification token.' };
+    }
+    if (row.used) {
+      return { success: false, error: 'This verification link has already been used.' };
+    }
+    if (Date.now() > row.expires_at) {
+      return { success: false, error: 'This verification link has expired. Please request a new link.' };
+    }
+
+    const account = this.getAccountById(row.account_id);
+    if (!account) {
+      return { success: false, error: 'Associated adventurer account not found.' };
+    }
+
+    const normEmail = row.email.trim().toLowerCase();
+    this.stmtMarkEmailVerifyTokenUsed.run(row.id);
+    this.db.prepare('UPDATE accounts SET email = ?, normalized_email = ?, email_verified = 1 WHERE id = ?')
+      .run(row.email.trim(), normEmail, account.id);
+
+    account.email = row.email.trim();
+    account.normalizedEmail = normEmail;
+    account.emailVerified = true;
+
+    return { success: true, account, email: row.email.trim() };
+  }
+
+  public createPasswordResetToken(accountId: string): { token: string; expiresAt: number } {
+    const rawToken = crypto.randomBytes(32).toString('hex');
+    const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
+    const tokenId = 'prt_' + crypto.randomBytes(8).toString('hex');
+    const expiresAt = Date.now() + 15 * 60 * 1000; // 15 minutes as per Authgear best practice
+
+    this.stmtInsertResetToken.run(tokenId, accountId, tokenHash, expiresAt, 0, Date.now());
+    return { token: rawToken, expiresAt };
+  }
+
+  public verifyPasswordResetToken(rawToken: string): { success: true; tokenRecord: any; account: AccountRecord } | { success: false; error: string } {
+    if (!rawToken || typeof rawToken !== 'string') {
+      return { success: false, error: 'Invalid reset token.' };
+    }
+    const tokenHash = crypto.createHash('sha256').update(rawToken.trim()).digest('hex');
+    const row = this.stmtGetResetTokenByHash.get(tokenHash) as any;
+    if (!row) {
+      return { success: false, error: 'Invalid or unrecognized reset link.' };
+    }
+    if (row.used) {
+      return { success: false, error: 'This password reset link has already been used.' };
+    }
+    if (Date.now() > row.expires_at) {
+      return { success: false, error: 'This password reset link has expired (15-minute window). Please request a new one.' };
+    }
+    const account = this.getAccountById(row.account_id);
+    if (!account) {
+      return { success: false, error: 'Account not found.' };
+    }
+    return { success: true, tokenRecord: row, account };
+  }
+
+  public completePasswordResetWithToken(rawToken: string, newRawPassword: string): { success: true; account: AccountRecord } | { success: false; error: string } {
+    const verifyResult = this.verifyPasswordResetToken(rawToken);
+    if (!verifyResult.success) {
+      return verifyResult;
+    }
+
+    if (!newRawPassword || newRawPassword.length < 6) {
+      return { success: false, error: 'New password must be at least 6 characters.' };
+    }
+
+    const { tokenRecord, account } = verifyResult;
+    const { hash, salt } = this.hashPassword(newRawPassword);
+
+    const tx = this.db.transaction(() => {
+      // Mark token as used
+      this.stmtMarkResetTokenUsed.run(tokenRecord.id);
+      // Update account password
+      this.db.prepare('UPDATE accounts SET password_hash = ?, salt = ? WHERE id = ?').run(hash, salt, account.id);
+      // Invalidate all active sessions for this account across all devices
+      this.stmtDeleteSessionsByAccountId.run(account.id);
+    });
+
+    tx();
+    account.passwordHash = hash;
+    account.salt = salt;
+    this.checkpoint();
+
+    return { success: true, account };
   }
 
   public getReferralSummary(account: AccountRecord): import('@eldoria/shared').ReferralSummary {
