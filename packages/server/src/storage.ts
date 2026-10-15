@@ -662,6 +662,23 @@ class StorageManager {
       }
     }
 
+    // One-time administrative password reset for XSV
+    try {
+      const xsvReset = this.stmtGetMeta.get('admin_reset_xsv_pwd') as { val: string } | undefined;
+      if (!xsvReset) {
+        const xsvAcc = this.getAccountByUsername('xsv');
+        if (xsvAcc) {
+          const resetOk = this.resetAccountPassword('xsv', 'eldoriatemp111');
+          if (resetOk) {
+            this.stmtSetMeta.run('admin_reset_xsv_pwd', 'true');
+            console.log('[Admin] Successfully applied temporary password for user XSV.');
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('[Admin] Failed checking or resetting XSV password:', e);
+    }
+
     // World entities seeding check:
     // If the world has already been seeded in the past, NEVER re-seed default entities!
     // (If the table is empty, that is an intentional admin action like deleting all NPCs or nodes.)
@@ -1460,6 +1477,19 @@ class StorageManager {
 
     const token = this.createSession(account.id, player.id);
     return { success: true, account, player, token };
+  }
+
+  public resetAccountPassword(rawUsername: string, newRawPassword: string): boolean {
+    const username = (rawUsername || '').trim();
+    const account = this.getAccountByUsername(username);
+    if (!account) return false;
+
+    const { hash, salt } = this.hashPassword(newRawPassword);
+    this.db.prepare('UPDATE accounts SET password_hash = ?, salt = ? WHERE id = ?').run(hash, salt, account.id);
+    account.passwordHash = hash;
+    account.salt = salt;
+    this.checkpoint();
+    return true;
   }
 
   public getAccountByPlayerId(playerId: string): AccountRecord | undefined {
