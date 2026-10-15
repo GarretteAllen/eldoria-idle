@@ -156,24 +156,6 @@ app.post('/api/auth/logout', (req, res) => {
   res.json({ success: true });
 });
 
-app.post('/api/admin/reset-password', (req, res) => {
-  const { secret, username, newPassword } = req.body || {};
-  if (!storage.verifyAdminSecret(secret)) {
-    res.status(403).json({ error: 'Unauthorized: Invalid admin secret.' });
-    return;
-  }
-  if (!username || !newPassword) {
-    res.status(400).json({ error: 'Username and newPassword are required.' });
-    return;
-  }
-  const ok = storage.resetAccountPassword(username, newPassword);
-  if (!ok) {
-    res.status(404).json({ error: `Account "${username}" not found.` });
-    return;
-  }
-  res.json({ success: true, message: `Password for "${username}" has been reset.` });
-});
-
 app.get('/api/world/nodes', (req, res) => {
   res.json({ nodes: storage.getWorldNodes() });
 });

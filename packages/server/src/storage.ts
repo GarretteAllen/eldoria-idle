@@ -662,23 +662,6 @@ class StorageManager {
       }
     }
 
-    // One-time administrative password reset for XSV
-    try {
-      const xsvReset = this.stmtGetMeta.get('admin_reset_xsv_pwd') as { val: string } | undefined;
-      if (!xsvReset) {
-        const xsvAcc = this.getAccountByUsername('xsv');
-        if (xsvAcc) {
-          const resetOk = this.resetAccountPassword('xsv', 'eldoriatemp111');
-          if (resetOk) {
-            this.stmtSetMeta.run('admin_reset_xsv_pwd', 'true');
-            console.log('[Admin] Successfully applied temporary password for user XSV.');
-          }
-        }
-      }
-    } catch (e) {
-      console.warn('[Admin] Failed checking or resetting XSV password:', e);
-    }
-
     // World entities seeding check:
     // If the world has already been seeded in the past, NEVER re-seed default entities!
     // (If the table is empty, that is an intentional admin action like deleting all NPCs or nodes.)
