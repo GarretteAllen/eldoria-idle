@@ -648,6 +648,129 @@ app.get('/api/paypal/cancel', (req, res) => {
 </html>`);
 });
 
+app.get('/privacy', (req, res) => {
+  res.send(`<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Privacy Policy — Eldoria Idle</title>
+  <style>
+    body {
+      background: #100c08;
+      color: #cbd5e0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      margin: 0;
+      padding: 24px 16px;
+      line-height: 1.6;
+      display: flex;
+      justify-content: center;
+    }
+    .container {
+      max-width: 680px;
+      width: 100%;
+      background: #1c150f;
+      border: 1px solid #432e1c;
+      border-radius: 8px;
+      padding: 24px 28px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+    }
+    h1 {
+      color: #ecc94b;
+      font-size: 1.5rem;
+      margin-top: 0;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    h2 {
+      color: #ecc94b;
+      font-size: 1.05rem;
+      margin-top: 20px;
+      margin-bottom: 6px;
+      border-bottom: 1px solid #2d2013;
+      padding-bottom: 4px;
+    }
+    .highlight {
+      background: rgba(0, 0, 0, 0.35);
+      border: 1px solid #3d3429;
+      border-radius: 6px;
+      padding: 12px 14px;
+      color: #e2e8f0;
+      margin-bottom: 16px;
+    }
+    ul {
+      margin: 6px 0 12px 0;
+      padding-left: 20px;
+    }
+    li {
+      margin-bottom: 6px;
+    }
+    a {
+      color: #ecc94b;
+      text-decoration: underline;
+    }
+    .footer {
+      margin-top: 24px;
+      padding-top: 12px;
+      border-top: 1px solid #2d2013;
+      font-size: 0.85rem;
+      color: #a0aec0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>⚔️ Privacy Policy & Data Commitment</h1>
+    <div style="font-size: 0.8rem; color: #a0aec0; margin-bottom: 16px;">Effective: 2026 • Eldoria Idle</div>
+
+    <div class="highlight">
+      <strong style="color: #ecc94b;">Our Commitment:</strong> At <strong>Eldoria Idle</strong>, we believe in old-school gaming and respect for our players. <strong>We do not track you across the web, we do not sell your personal data, and we collect only the bare minimum information needed to let you play the game.</strong>
+    </div>
+
+    <h2>1. The Information We Collect & Why</h2>
+    <ul>
+      <li><strong>Account Credentials:</strong> Your chosen adventurer username and a salted, cryptographically hashed password (<code>scrypt</code>). We never see, transmit, or store your plaintext password.</li>
+      <li><strong>Game Save Data:</strong> Your character's skills, items, Hearth bank vault contents, active tasks, and in-game gold/gems.</li>
+      <li><strong>Optional Linked Email:</strong> Providing an email is never required to play. If you voluntarily link an email, it is used <strong>strictly and exclusively</strong> to send account verification links and single-use, 15-minute password reset links. We will never sell your email or send promotional spam.</li>
+      <li><strong>Temporary Server Logs:</strong> Standard transient technical logs (IP address and timestamp) are processed briefly to mitigate DDoS attacks, prevent bot spam, and enforce rate limits on password resets.</li>
+    </ul>
+
+    <h2>2. What We DO NOT Do</h2>
+    <ul>
+      <li><strong>No Tracking Cookies / Ad Networks:</strong> We do not use Google Analytics, advertising trackers, tracking pixels, or third-party behavioral scripts.</li>
+      <li><strong>No Data Selling:</strong> We will never sell, trade, or monetize your personal information to data brokers or advertisers.</li>
+      <li><strong>No Invasive Profiling:</strong> We do not build behavioral profiles or harvest device contacts.</li>
+    </ul>
+
+    <h2>3. Cookies & Local Storage</h2>
+    <p>We do not use invasive tracking cookies. Your browser's Local Storage (<code>localStorage</code>) is used solely for essential gameplay functions: remembering your active session token so you stay logged in, and saving your audio preferences (volume and mute toggles).</p>
+
+    <h2>4. Third-Party Infrastructure</h2>
+    <ul>
+      <li><strong>Resend:</strong> Used solely to dispatch transactional account emails (verification and password reset links).</li>
+      <li><strong>PayPal:</strong> Optional cosmetic gem pack purchases are processed securely through PayPal's hosted checkout. Eldoria Idle never receives, processes, or stores your credit card numbers, bank details, or billing addresses.</li>
+    </ul>
+
+    <h2>5. Your Rights & Data Deletion</h2>
+    <p>You have full transparency over your saved character data right from your in-game profile. If you ever want your account, character progress, and linked email permanently erased from our database, email us at <strong style="color: #ecc94b;">support@eldoriaidle.site</strong> and all records associated with your account will be promptly and permanently deleted.</p>
+
+    <h2>6. Contact Us</h2>
+    <p>For any privacy inquiries or deletion requests, contact us directly at: <a href="mailto:support@eldoriaidle.site"><strong>support@eldoriaidle.site</strong></a></p>
+
+    <div class="footer">
+      <div>© 2026 Eldoria Idle. All rights reserved.</div>
+      <div><a href="/">← Return to Eldoria</a></div>
+    </div>
+  </div>
+</body>
+</html>`);
+});
+
 // Serve frontend dist if available (Single-port production serving)
 const clientDistPath = path.resolve(process.cwd(), '../client/dist');
 const altClientDistPath = path.resolve(process.cwd(), 'packages/client/dist');

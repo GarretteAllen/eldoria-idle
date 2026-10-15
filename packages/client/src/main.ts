@@ -426,6 +426,10 @@ class EldoriaClient {
     if (forgotClose) forgotClose.innerHTML = ICONS.close;
     const resetClose = document.getElementById('reset-password-close-btn');
     if (resetClose) resetClose.innerHTML = ICONS.close;
+    const privacyCrest = document.getElementById('privacy-crest-icon');
+    if (privacyCrest) privacyCrest.innerHTML = ICONS.logo;
+    const privacyClose = document.getElementById('privacy-policy-close-btn');
+    if (privacyClose) privacyClose.innerHTML = ICONS.close;
   }
 
   private async fetchNodesAndInit() {
@@ -5603,6 +5607,12 @@ class EldoriaClient {
           return;
         }
 
+        const privacyModal = document.getElementById('privacy-policy-modal');
+        if (privacyModal && !privacyModal.classList.contains('hidden')) {
+          privacyModal.classList.add('hidden');
+          return;
+        }
+
         const resetModal = document.getElementById('reset-password-modal');
         if (resetModal && !resetModal.classList.contains('hidden')) {
           resetModal.classList.add('hidden');
@@ -7074,6 +7084,20 @@ class EldoriaClient {
       };
     }
 
+    // Privacy Policy modal wiring
+    const privacyModal = document.getElementById('privacy-policy-modal');
+    const openPrivacy = () => {
+      this.closeItemContextMenus();
+      privacyModal?.classList.remove('hidden');
+    };
+    const closePrivacy = () => {
+      privacyModal?.classList.add('hidden');
+    };
+    document.getElementById('btn-open-privacy-login')?.addEventListener('click', openPrivacy);
+    document.getElementById('btn-open-privacy-profile')?.addEventListener('click', openPrivacy);
+    document.getElementById('privacy-policy-close-btn')?.addEventListener('click', closePrivacy);
+    document.getElementById('btn-privacy-policy-done')?.addEventListener('click', closePrivacy);
+
     // Call update on profile modal opening
     const originalCharPillClick = charPill ? charPill.onclick : null;
     if (charPill) {
@@ -7199,6 +7223,11 @@ class EldoriaClient {
       document.getElementById('auth-modal')?.classList.add('hidden');
       resetModal?.classList.remove('hidden');
       (document.getElementById('reset-input-password') as HTMLInputElement | null)?.focus();
+    }
+
+    if (urlParams.get('privacy') === 'true' || window.location.pathname === '/privacy') {
+      const privacyModal = document.getElementById('privacy-policy-modal');
+      privacyModal?.classList.remove('hidden');
     }
   }
 

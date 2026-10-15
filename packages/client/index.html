@@ -1747,6 +1747,11 @@
           <div style="font-size: 0.68rem; color: var(--text-dim); text-align: center; margin-top: 6px; line-height: 1.35;">
             Guests enter the realm immediately. You can register anytime to save your adventurer permanently.
           </div>
+          <div style="text-align: center; margin-top: 10px; border-top: 1px solid rgba(255, 255, 255, 0.05); padding-top: 8px;">
+            <button type="button" id="btn-open-privacy-login" style="background: none; border: none; color: #a0aec0; font-size: 0.68rem; cursor: pointer; text-decoration: underline; padding: 2px 4px; transition: color 0.15s ease;" onmouseover="this.style.color='#ecc94b'" onmouseout="this.style.color='#a0aec0'">
+              🔒 Privacy Policy & Data Commitment
+            </button>
+          </div>
         </div>
       </div>
 
@@ -1809,6 +1814,71 @@
             </div>
             <button type="submit" id="btn-submit-new-password" class="btn-start" style="margin-top: 6px;">Update Password & Sign In</button>
           </form>
+        </div>
+      </div>
+
+      <!-- 12d. PRIVACY POLICY MODAL -->
+      <div id="privacy-policy-modal" class="modal-backdrop hidden">
+        <div class="modal-box dark-oak-panel" style="width: 580px; max-width: 95vw; max-height: 85vh; display: flex; flex-direction: column;">
+          <div class="modal-header">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span class="brand-crest" id="privacy-crest-icon"></span>
+              <h4>Privacy Policy & Data Commitment</h4>
+            </div>
+            <button id="privacy-policy-close-btn" class="icon-btn-micro" title="Close"></button>
+          </div>
+
+          <div style="overflow-y: auto; padding: 4px 6px 10px 2px; display: flex; flex-direction: column; gap: 12px; font-size: 0.74rem; color: #cbd5e0; line-height: 1.45;">
+            <div style="background: rgba(0,0,0,0.3); border: 1px solid #3d3429; border-radius: 6px; padding: 10px; color: #e2e8f0;">
+              <b style="color: var(--gold-bright);">Our Commitment:</b> At <b>Eldoria Idle</b>, we believe in old-school gaming and respect for our players. <b>We do not track you across the web, we do not sell your personal data, and we collect only the bare minimum information needed to let you play the game.</b>
+            </div>
+
+            <div>
+              <h5 style="color: var(--gold-bright); font-size: 0.8rem; margin: 0 0 4px 0;">1. The Information We Collect & Why</h5>
+              <ul style="margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px;">
+                <li><b>Account Credentials:</b> Your chosen adventurer username and a salted, cryptographically hashed password (`scrypt`). We never see, transmit, or store your plaintext password.</li>
+                <li><b>Game Save Data:</b> Your character's skills, items, Hearth bank vault contents, active tasks, and in-game gold/gems.</li>
+                <li><b>Optional Linked Email:</b> Providing an email is never required to play. If you voluntarily link an email, it is used <b>strictly and exclusively</b> to send account verification links and single-use, 15-minute password reset links. We will never sell your email or send promotional spam.</li>
+                <li><b>Temporary Server Logs:</b> Standard transient technical logs (IP address and timestamp) are processed briefly to mitigate DDoS attacks, prevent bot spam, and enforce rate limits on password resets.</li>
+              </ul>
+            </div>
+
+            <div>
+              <h5 style="color: var(--gold-bright); font-size: 0.8rem; margin: 0 0 4px 0;">2. What We DO NOT Do</h5>
+              <ul style="margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px;">
+                <li><b>No Tracking Cookies / Ad Networks:</b> We do not use Google Analytics, advertising trackers, tracking pixels, or third-party behavioral scripts.</li>
+                <li><b>No Data Selling:</b> We will never sell, trade, or monetize your personal information to data brokers or advertisers.</li>
+                <li><b>No Invasive Profiling:</b> We do not build behavioral profiles or harvest device contacts.</li>
+              </ul>
+            </div>
+
+            <div>
+              <h5 style="color: var(--gold-bright); font-size: 0.8rem; margin: 0 0 4px 0;">3. Cookies & Local Storage</h5>
+              <div>We do not use invasive tracking cookies. Your browser's Local Storage (`localStorage`) is used solely for essential gameplay functions: remembering your active session token so you stay logged in, and saving your audio preferences (volume and mute toggles).</div>
+            </div>
+
+            <div>
+              <h5 style="color: var(--gold-bright); font-size: 0.8rem; margin: 0 0 4px 0;">4. Third-Party Infrastructure</h5>
+              <ul style="margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px;">
+                <li><b>Resend:</b> Used solely to dispatch transactional account emails (verification and password reset links).</li>
+                <li><b>PayPal:</b> Optional cosmetic gem pack purchases are processed securely through PayPal's hosted checkout. Eldoria Idle never receives, processes, or stores your credit card numbers, bank details, or billing addresses.</li>
+              </ul>
+            </div>
+
+            <div>
+              <h5 style="color: var(--gold-bright); font-size: 0.8rem; margin: 0 0 4px 0;">5. Your Rights & Data Deletion</h5>
+              <div>You have full transparency over your saved character data right from your in-game profile. If you ever want your account, character progress, and linked email permanently erased from our database, email us at <b style="color: var(--gold-bright);">support@eldoriaidle.site</b> and all records associated with your account will be promptly and permanently deleted.</div>
+            </div>
+
+            <div>
+              <h5 style="color: var(--gold-bright); font-size: 0.8rem; margin: 0 0 4px 0;">6. Contact</h5>
+              <div>For any privacy inquiries or deletion requests, contact us at: <a href="mailto:support@eldoriaidle.site" style="color: var(--gold-bright); font-weight: bold; text-decoration: underline;">support@eldoriaidle.site</a></div>
+            </div>
+          </div>
+
+          <div style="border-top: 1px solid #432e1c; padding-top: 8px; text-align: right;">
+            <button type="button" id="btn-privacy-policy-done" class="btn-oak" style="padding: 5px 16px; font-size: 0.74rem;">Close</button>
+          </div>
         </div>
       </div>
 
@@ -1925,6 +1995,12 @@
                   </div>
                   <div id="bind-email-feedback" style="font-size: 0.68rem; line-height: 1.3; display: none;"></div>
                 </form>
+              </div>
+
+              <div style="text-align: center; margin-top: 2px;">
+                <button type="button" id="btn-open-privacy-profile" style="background: none; border: none; color: #a0aec0; font-size: 0.68rem; cursor: pointer; text-decoration: underline; padding: 2px 4px; transition: color 0.15s ease;" onmouseover="this.style.color='#ecc94b'" onmouseout="this.style.color='#a0aec0'">
+                  🔒 Privacy Policy & Data Commitment
+                </button>
               </div>
 
               <button type="button" id="btn-account-logout" class="btn-stop" style="width: 100%;">Log Out of Character</button>
