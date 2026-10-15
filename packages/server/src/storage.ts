@@ -342,7 +342,7 @@ class StorageManager {
 
     this.stmtInsertEmailVerifyToken = this.db.prepare(
       `INSERT INTO email_verification_tokens (id, account_id, email, token_hash, expires_at, used, created_at)
-       VALUES (?, ?, ?, ?, ?, ?)`
+       VALUES (?, ?, ?, ?, ?, ?, ?)`
     );
     this.stmtGetEmailVerifyTokenByHash = this.db.prepare(
       `SELECT * FROM email_verification_tokens WHERE token_hash = ?`
