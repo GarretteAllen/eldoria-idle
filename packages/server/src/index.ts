@@ -497,6 +497,16 @@ app.post('/api/paypal/create-order', async (req, res) => {
       return;
     }
 
+    // Single-purchase check for Founder Pack
+    if (pack.isFounderPack) {
+      const player = storage.getPlayer(playerId);
+      const account = playerId ? storage.getAccountByPlayerId(playerId) : undefined;
+      if (player?.isFounder || account?.isFounder) {
+        res.status(400).json({ error: 'The Founder Pack has already been claimed for this account.' });
+        return;
+      }
+    }
+
     if (PAYPAL_CLIENT_ID && PAYPAL_SECRET) {
       const token = await getPayPalAccessToken();
       const response = await fetch(`${PAYPAL_BASE_URL}/v2/checkout/orders`, {
@@ -593,6 +603,14 @@ app.post('/api/paypal/capture-order', async (req, res) => {
     if (addRes.remainder > 0) {
       if (!player.overflowTray) player.overflowTray = [];
       player.overflowTray.push({ itemId: pack.id, quantity: addRes.remainder, rarity: 'plain', plus: 0 });
+    }
+
+    if (pack.isFounderPack) {
+      player.isFounder = true;
+      const account = storage.getAccountByPlayerId(playerId);
+      if (account) {
+        storage.setAccountFounder(account.id, true);
+      }
     }
 
     storage.savePlayer(player);

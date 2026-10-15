@@ -1188,6 +1188,7 @@ export class GameEngine {
             senderName: player.username,
             role: player.role || 'player',
             isAdmin: player.role === 'admin',
+            isFounder: Boolean(player.isFounder),
             title: player.activeTitle,
             channel: channel,
             text: sanitizedText,
@@ -1202,6 +1203,7 @@ export class GameEngine {
             senderName: player.username,
             role: player.role || 'player',
             isAdmin: player.role === 'admin',
+            isFounder: Boolean(player.isFounder),
             title: player.activeTitle,
             text: sanitizedText,
             timestamp: timestamp,
@@ -5628,11 +5630,21 @@ export class GameEngine {
     }
 
     player.gems = (player.gems || 0) + packDef.gems;
+    if (packDef.isFounderPack) {
+      player.isFounder = true;
+      const account = storage.getAccountByPlayerId(player.id);
+      if (account) {
+        storage.setAccountFounder(account.id, true);
+      }
+    }
     storage.savePlayer(player);
     this.send(ws, { type: 'PLAYER_UPDATE', player });
+    this.broadcastWorldState();
     this.send(ws, {
       type: 'NOTIFICATION',
-      message: `💎 Opened ${packDef.name}! Received +${packDef.gems.toLocaleString()} Celestial Gems (Total: ${player.gems.toLocaleString()}).`
+      message: packDef.isFounderPack
+        ? `💎 Opened ${packDef.name}! Received +${packDef.gems.toLocaleString()} Celestial Gems and unlocked the [FOUNDER] badge!`
+        : `💎 Opened ${packDef.name}! Received +${packDef.gems.toLocaleString()} Celestial Gems (Total: ${player.gems.toLocaleString()}).`
     });
   }
 

@@ -64,6 +64,7 @@ import {
   Gift,
   Trash2,
   Vote,
+  Star,
   IconNode,
 } from 'lucide';
 
@@ -180,6 +181,7 @@ export const ICONS: Record<string, string> = {
   // === Logo & UI Widgets ===
   logo: toSvg(Shield),
   admin: toSvg(Crown),
+  founder: toSvg(Star),
   editor: toSvg(Wrench),
   leaderboard: toSvg(Crown),
   character: toSvg(User),

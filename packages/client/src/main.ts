@@ -160,7 +160,7 @@ class EldoriaClient {
   private auraTimerInterval: any = null;
 
   // Chat History & Filtering
-  private chatHistory: Array<{ id?: string; time: string; senderId?: string; senderName?: string; title?: string; text: string; channel: string; isAdmin?: boolean; timestamp?: number }> = [];
+  private chatHistory: Array<{ id?: string; time: string; senderId?: string; senderName?: string; title?: string; text: string; channel: string; isAdmin?: boolean; isFounder?: boolean; timestamp?: number }> = [];
 
   // Pinned Quests State
   private acceptedQuests: Set<string> = new Set();
@@ -4758,6 +4758,7 @@ class EldoriaClient {
       text: cleanText,
       channel: channel,
       isAdmin: msg.isAdmin,
+      isFounder: msg.isFounder,
       timestamp: msg.timestamp || ts.getTime(),
     });
 
@@ -4797,6 +4798,10 @@ class EldoriaClient {
         ? `<span class="chat-admin-badge"><span style="display:inline-flex; width:12px; height:12px; margin-right:2px; vertical-align:middle;">${ICONS.admin}</span>ADMIN</span>`
         : '';
 
+      const founderTag = (!msg.isAdmin && msg.isFounder)
+        ? `<span class="chat-founder-badge"><span style="display:inline-flex; width:12px; height:12px; margin-right:2px; vertical-align:middle;">${ICONS.founder}</span>FOUNDER</span>`
+        : '';
+
       let chanColor = '#90cdf4';
       if (msg.channel === 'Combat') chanColor = '#f6ad55';
       else if (msg.channel === 'Loot') chanColor = '#ecc94b';
@@ -4821,7 +4826,7 @@ class EldoriaClient {
 
       line.innerHTML = `
         <span class="chat-time" title="${msg.timestamp ? new Date(msg.timestamp).toLocaleString() : ''}">${msg.time}</span>
-        ${adminTag ? `${adminTag} ` : ''}${senderSpan}
+        ${adminTag ? `${adminTag} ` : ''}${founderTag ? `${founderTag} ` : ''}${senderSpan}
         <span>${msg.text}</span>
         ${modButtonsHtml}
       `;
@@ -10292,20 +10297,25 @@ class EldoriaClient {
       grid.className = 'gem-pack-grid';
 
       for (const pack of this.gemPacksData) {
+        const isFounderClaimed = Boolean(pack.isFounderPack && this.player.isFounder);
         const card = document.createElement('div');
-        card.className = 'gem-pack-card';
+        card.className = `gem-pack-card${pack.isFounderPack ? ' gem-pack-founder-card' : ''}`;
         card.innerHTML = `
-          <div style="margin-bottom: 4px; display: flex; justify-content: center;">
-            <img src="/icons/items/${pack.id}.png" style="width: 32px; height: 32px; image-rendering: pixelated;" alt="${pack.name}" />
+          <div style="margin-bottom: 2px; display: flex; justify-content: center;">
+            <img src="/icons/items/${pack.id}.png" style="width: 28px; height: 28px; image-rendering: pixelated;" alt="${pack.name}" />
           </div>
           <div class="gem-pack-name">${pack.name}</div>
           <div class="gem-pack-gems">${pack.gems.toLocaleString()} Gems</div>
-          <div style="font-size: 0.7rem; color: #a0aec0; margin: 4px 0 2px 0;">Tradeable Pack</div>
-          <button class="btn-pack-buy">$${pack.priceUsd.toFixed(2)}</button>
+          <div class="gem-pack-subtitle">${pack.isFounderPack ? '+ Founder Badge' : 'Tradeable Pack'}</div>
+          <button class="btn-pack-buy ${isFounderClaimed ? 'btn-pack-claimed' : ''}" ${isFounderClaimed ? 'disabled' : ''}>
+            ${isFounderClaimed ? 'Claimed ✓' : `$${pack.priceUsd.toFixed(2)}`}
+          </button>
         `;
 
         const buyBtn = card.querySelector('.btn-pack-buy') as HTMLButtonElement;
-        buyBtn.onclick = () => this.handleBuyGemPack(pack);
+        if (!isFounderClaimed) {
+          buyBtn.onclick = () => this.handleBuyGemPack(pack);
+        }
         grid.appendChild(card);
       }
 

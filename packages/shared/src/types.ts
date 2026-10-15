@@ -389,6 +389,7 @@ export interface PlayerData {
   completedQuests?: string[];
   questProgress?: Record<string, number>;
   dailyBounties?: PlayerBountiesState;
+  isFounder?: boolean;
 }
 
 export interface DailyBounty {
@@ -418,6 +419,7 @@ export interface StoredChatMessage {
   senderName: string;
   role?: 'admin' | 'player';
   isAdmin?: boolean;
+  isFounder?: boolean;
   title?: string;
   channel: string;
   text: string;

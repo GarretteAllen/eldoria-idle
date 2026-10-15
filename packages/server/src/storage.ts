@@ -73,6 +73,7 @@ export interface AccountRecord {
   email?: string | null;
   normalizedEmail?: string | null;
   emailVerified?: boolean;
+  isFounder?: boolean;
 }
 
 export interface SessionRecord {
@@ -435,11 +436,11 @@ class StorageManager {
     this.stmtDeletePollVotes = this.db.prepare('DELETE FROM poll_votes WHERE poll_id = ?');
 
     this.stmtInsertChatMessage = this.db.prepare(
-      `INSERT INTO chat_messages (id, sender_id, sender_name, role, is_admin, title, channel, text, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      `INSERT INTO chat_messages (id, sender_id, sender_name, role, is_admin, is_founder, title, channel, text, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     );
     this.stmtGetRecentChatMessages = this.db.prepare(
-      `SELECT id, sender_id as senderId, sender_name as senderName, role, is_admin as isAdmin, title, channel, text, created_at as timestamp
+      `SELECT id, sender_id as senderId, sender_name as senderName, role, is_admin as isAdmin, is_founder as isFounder, title, channel, text, created_at as timestamp
        FROM chat_messages
        ORDER BY created_at DESC
        LIMIT ?`
@@ -663,6 +664,12 @@ class StorageManager {
     } catch {}
     try {
       this.db.exec(`ALTER TABLE accounts ADD COLUMN email_verified INTEGER NOT NULL DEFAULT 0;`);
+    } catch {}
+    try {
+      this.db.exec(`ALTER TABLE accounts ADD COLUMN is_founder INTEGER NOT NULL DEFAULT 0;`);
+    } catch {}
+    try {
+      this.db.exec(`ALTER TABLE chat_messages ADD COLUMN is_founder INTEGER NOT NULL DEFAULT 0;`);
     } catch {}
 
     // Indexes now that columns are guaranteed to exist
@@ -1372,6 +1379,7 @@ class StorageManager {
       email: row.email || null,
       normalizedEmail: row.normalized_email || null,
       emailVerified: Boolean(row.email_verified),
+      isFounder: Boolean(row.is_founder),
     };
   }
 
@@ -1396,6 +1404,7 @@ class StorageManager {
       email: row.email || null,
       normalizedEmail: row.normalized_email || null,
       emailVerified: Boolean(row.email_verified),
+      isFounder: Boolean(row.is_founder),
     };
   }
 
@@ -1605,7 +1614,17 @@ class StorageManager {
       email: row.email || null,
       normalizedEmail: row.normalized_email || null,
       emailVerified: Boolean(row.email_verified),
+      isFounder: Boolean(row.is_founder),
     };
+  }
+
+  public setAccountFounder(accountId: string, isFounder = true): void {
+    try {
+      this.db.prepare('UPDATE accounts SET is_founder = ? WHERE id = ?').run(isFounder ? 1 : 0, accountId);
+      this.checkpoint();
+    } catch (e) {
+      console.error('Error updating account founder status:', e);
+    }
   }
 
   // --- Email Binding & Password Reset Systems ---
@@ -2276,6 +2295,7 @@ class StorageManager {
       msg.senderName,
       msg.role || 'player',
       msg.isAdmin ? 1 : 0,
+      msg.isFounder ? 1 : 0,
       msg.title || null,
       msg.channel || 'All',
       msg.text,
@@ -2290,6 +2310,7 @@ class StorageManager {
       senderName: string;
       role: 'admin' | 'player';
       isAdmin: number;
+      isFounder?: number;
       title?: string;
       channel: string;
       text: string;
@@ -2302,6 +2323,7 @@ class StorageManager {
       senderName: r.senderName,
       role: r.role,
       isAdmin: Boolean(r.isAdmin),
+      isFounder: Boolean(r.isFounder),
       title: r.title || undefined,
       channel: r.channel,
       text: r.text,

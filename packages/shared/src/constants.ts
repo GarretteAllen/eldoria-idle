@@ -36,6 +36,7 @@ export interface GemPackDef {
   priceUsd: number;
   gems: number;
   description: string;
+  isFounderPack?: boolean;
 }
 
 export const GEM_PACKS: Record<string, GemPackDef> = {
@@ -59,6 +60,14 @@ export const GEM_PACKS: Record<string, GemPackDef> = {
     priceUsd: 4.99,
     gems: 350,
     description: 'A heavy chest of celestial gems. Yields 350 Gems when opened. Can be traded on the player market.',
+  },
+  gem_pack_founder: {
+    id: 'gem_pack_founder',
+    name: 'Founder Pack',
+    priceUsd: 5.99,
+    gems: 600,
+    description: 'An exclusive Founder coffer containing 600 Celestial Gems and permanently bestowing the prestigious aqua [FOUNDER] chat badge. One purchase per account.',
+    isFounderPack: true,
   },
   gem_pack_grand: {
     id: 'gem_pack_grand',

@@ -285,6 +285,7 @@ export const ITEMS: Record<string, ItemDefinition> = {
   gem_pack_small: { id: 'gem_pack_small', name: 'Small Gem Pack', category: 'misc', tier: 1, vendorFloorPrice: 0, stackable: true, description: 'Contains 50 Celestial Gems. Open to redeem, or trade to players in the market.' },
   gem_pack_medium: { id: 'gem_pack_medium', name: 'Medium Gem Pack', category: 'misc', tier: 2, vendorFloorPrice: 0, stackable: true, description: 'Contains 120 Celestial Gems. Open to redeem, or trade to players in the market.' },
   gem_pack_large: { id: 'gem_pack_large', name: 'Large Gem Pack', category: 'misc', tier: 3, vendorFloorPrice: 0, stackable: true, description: 'Contains 350 Celestial Gems. Open to redeem, or trade to players in the market.' },
+  gem_pack_founder: { id: 'gem_pack_founder', name: 'Founder Pack', category: 'misc', tier: 3, vendorFloorPrice: 0, stackable: false, description: 'An exclusive Founder coffer containing 600 Celestial Gems and permanently bestowing the prestigious aqua [FOUNDER] chat badge. Open to redeem.' },
   gem_pack_grand: { id: 'gem_pack_grand', name: 'Grand Gem Pack', category: 'misc', tier: 4, vendorFloorPrice: 0, stackable: true, description: 'Contains 900 Celestial Gems. Open to redeem, or trade to players in the market.' },
   gem_pack_colossal: { id: 'gem_pack_colossal', name: 'Colossal Gem Pack', category: 'misc', tier: 5, vendorFloorPrice: 0, stackable: true, description: 'Contains 2,000 Celestial Gems. Open to redeem, or trade to players in the market.' },
 
