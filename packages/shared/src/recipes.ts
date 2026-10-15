@@ -3023,21 +3023,4 @@ export const RECIPES: Record<string, RecipeDefinition> = {
     xp: 350,
     intervalSeconds: 7.0,
   },
-
-
-  // === BREEDING (Mounts) ===
-  breed_chorse: {
-    id: 'breed_chorse',
-    skill: 'crafting',
-    levelReq: 1,
-    name: 'Chorse',
-    inputs: [
-      { itemId: 'steed_courser', quantity: 1 },
-      { itemId: 'steed_chicken', quantity: 1 },
-    ],
-    outputItemId: 'steed_chorse',
-    outputQuantity: 1,
-    xp: 500,
-    intervalSeconds: 10.0,
-  },
 };
