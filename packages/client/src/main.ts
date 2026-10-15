@@ -730,10 +730,12 @@ class EldoriaClient {
 
     let token = localStorage.getItem('eldoria_session_token');
     let guestId = localStorage.getItem('eldoria_guest_id');
+    const wasExplicitLogout = localStorage.getItem('eldoria_explicit_logout') === 'true';
 
     // If running on eldoriaidle.site (or localhost) and user has neither token nor guestId,
     // query the bridge iframe on the legacy domain (eld.coldthronednd.com) to seamlessly restore their character
-    if (!token && !guestId && window.location.hostname !== 'eld.coldthronednd.com') {
+    // (Only if they didn't explicitly log out!)
+    if (!token && !guestId && !wasExplicitLogout && window.location.hostname !== 'eld.coldthronednd.com') {
       try {
         const legacyAuth = await this.queryLegacyDomainAuth();
         if (legacyAuth) {
@@ -3186,7 +3188,7 @@ class EldoriaClient {
     document.getElementById('inv-count')!.textContent = this.player.inventory.length.toString();
 
     const hearth = this.getHearthLocation(this.player.x, this.player.y);
-    const isNearHearth = Math.hypot(this.player.x - hearth.x, this.player.y - hearth.y) <= 1.5;
+    const isNearHearth = Math.hypot(this.player.x - hearth.x, this.player.y - hearth.y) <= 2.5;
     const btnDepositInv = document.getElementById('btn-inv-deposit-all');
     if (btnDepositInv) {
       btnDepositInv.textContent = isNearHearth ? 'Deposit All Spoils' : 'Deposit All Spoils (Travel to Hearth)';
@@ -3566,7 +3568,7 @@ class EldoriaClient {
     document.getElementById('storage-count')!.textContent = this.player.storage.length.toString();
 
     const hearth = this.getHearthLocation(this.player.x, this.player.y);
-    const isNearHearth = Math.hypot(this.player.x - hearth.x, this.player.y - hearth.y) <= 1.5;
+    const isNearHearth = Math.hypot(this.player.x - hearth.x, this.player.y - hearth.y) <= 2.5;
     const btnDepositStorage = document.getElementById('btn-deposit-all');
     if (btnDepositStorage) {
       btnDepositStorage.textContent = isNearHearth ? 'Deposit All Spoils' : 'Deposit All Spoils (Travel to Hearth)';
@@ -4006,7 +4008,7 @@ class EldoriaClient {
 
       // Check distance to Hearth
       const hearth = this.getHearthLocation(this.player.x, this.player.y);
-      const isNearHearth = Math.hypot(this.player.x - hearth.x, this.player.y - hearth.y) <= 1.5;
+      const isNearHearth = Math.hypot(this.player.x - hearth.x, this.player.y - hearth.y) <= 2.5;
 
       // Filtered items
       const query = this.storageFilterQuery;
@@ -4078,7 +4080,7 @@ class EldoriaClient {
     if (carryingGrid) {
       carryingGrid.innerHTML = '';
       const hearth = this.getHearthLocation(this.player.x, this.player.y);
-      const isNearHearth = Math.hypot(this.player.x - hearth.x, this.player.y - hearth.y) <= 1.5;
+      const isNearHearth = Math.hypot(this.player.x - hearth.x, this.player.y - hearth.y) <= 2.5;
 
       for (let i = 0; i < 28; i++) {
         const slot = this.player.inventory[i];
@@ -6463,6 +6465,7 @@ class EldoriaClient {
 
           localStorage.setItem('eldoria_session_token', data.token);
           localStorage.removeItem('eldoria_guest_id');
+          localStorage.removeItem('eldoria_explicit_logout');
           this.player = data.player;
 
           modal?.classList.add('hidden');
@@ -6505,6 +6508,7 @@ class EldoriaClient {
           localStorage.setItem('eldoria_session_token', data.token);
           localStorage.removeItem('eldoria_guest_id');
           localStorage.removeItem('eldoria_ref_code');
+          localStorage.removeItem('eldoria_explicit_logout');
           this.player = data.player;
 
           modal?.classList.add('hidden');
@@ -6540,6 +6544,7 @@ class EldoriaClient {
           this.player = data.player;
           if (this.player) {
             localStorage.setItem('eldoria_guest_id', this.player.id);
+            localStorage.removeItem('eldoria_explicit_logout');
             modal?.classList.add('hidden');
             this.connectWs();
             this.updateUI();
@@ -6794,6 +6799,7 @@ class EldoriaClient {
     }
     localStorage.removeItem('eldoria_session_token');
     localStorage.removeItem('eldoria_guest_id');
+    localStorage.setItem('eldoria_explicit_logout', 'true');
     window.location.reload();
   }
 
@@ -6880,7 +6886,7 @@ class EldoriaClient {
     }
 
     const hearth = this.getHearthLocation(this.player?.x, this.player?.y);
-    const isNearHearth = this.player && Math.hypot(this.player.x - hearth.x, this.player.y - hearth.y) <= 1.5;
+    const isNearHearth = this.player && Math.hypot(this.player.x - hearth.x, this.player.y - hearth.y) <= 2.5;
     const depPrefix = isNearHearth ? 'Deposit' : 'Walk & Deposit';
 
     const dep1Btn = document.getElementById('ctx-btn-deposit-1');

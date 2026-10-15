@@ -100,12 +100,21 @@ export function findPath(
   startY: number,
   targetX: number,
   targetY: number,
-  minX: number = -10000,
+  minXOrBlocked?: number | ((x: number, y: number) => boolean),
   minY: number = -10000,
   maxX: number = 10000,
   maxY: number = 10000,
-  isBlocked?: (x: number, y: number) => boolean
+  maybeBlocked?: (x: number, y: number) => boolean
 ): Array<{ x: number; y: number }> {
+  let minX = -10000;
+  let isBlocked: ((x: number, y: number) => boolean) | undefined;
+  if (typeof minXOrBlocked === 'function') {
+    isBlocked = minXOrBlocked;
+  } else {
+    if (typeof minXOrBlocked === 'number') minX = minXOrBlocked;
+    isBlocked = maybeBlocked;
+  }
+
   const clampX = (v: number) => Math.max(minX, Math.min(maxX, v));
   const clampY = (v: number) => Math.max(minY, Math.min(maxY, v));
 

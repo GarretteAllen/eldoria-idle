@@ -414,7 +414,7 @@ export class GameEngine {
     // 2. If reconnecting while in a banking navigation cycle, resume path or deposit
     if (player.bankingState === 'walking_to_bank') {
       const hearth = this.getHearthLocation(player.x, player.y);
-      if (Math.hypot(player.x - hearth.x, player.y - hearth.y) <= 1.5) {
+      if (Math.hypot(player.x - hearth.x, player.y - hearth.y) <= 2.5) {
         this.handleAutoDepositAtHearth(session);
       } else if (!player.isMoving || !player.path || player.path.length === 0) {
         const path = this.findPathWithCollisions(player.x, player.y, hearth.x, hearth.y);
@@ -2421,17 +2421,13 @@ export class GameEngine {
 
     const hearth = this.getHearthLocation(player.x, player.y);
     const distToHearth = Math.hypot(player.x - hearth.x, player.y - hearth.y);
-    if (distToHearth <= 1.5) {
+    if (distToHearth <= 2.5) {
       this.handleAutoDepositAtHearth(session);
       return;
     }
 
     const path = this.findPathWithCollisions(player.x, player.y, hearth.x, hearth.y);
     if (path.length === 0) {
-      if (distToHearth <= 1.5) {
-        this.handleAutoDepositAtHearth(session);
-        return;
-      }
       if (distToHearth <= 3.0) {
         this.handleAutoDepositAtHearth(session);
         return;
@@ -2464,7 +2460,29 @@ export class GameEngine {
     const hearth = this.getHearthLocation(player.x, player.y);
     const distToHearth = Math.hypot(player.x - hearth.x, player.y - hearth.y);
 
-    if (distToHearth > 1.5) {
+    if (distToHearth > 2.5) {
+      const path = this.findPathWithCollisions(player.x, player.y, hearth.x, hearth.y);
+      if (path.length > 0) {
+        player.currentTask = null;
+        session.pendingTask = null;
+        player.bankReturnTask = null;
+        session.ticksInTask = 0;
+
+        player.targetX = hearth.x;
+        player.targetY = hearth.y;
+        player.path = path;
+        player.isMoving = true;
+        player.bankingState = 'walking_to_bank';
+
+        this.send(ws, {
+          type: 'NOTIFICATION',
+          message: `Traveling to the Hearth Storage Counter... (${path.length} paces)`
+        });
+        this.send(ws, { type: 'PLAYER_UPDATE', player });
+        this.broadcastWorldState();
+        return;
+      }
+
       this.send(ws, {
         type: 'NOTIFICATION',
         message: 'Must be at the Hearth Storage Counter to withdraw items.'
@@ -2519,7 +2537,7 @@ export class GameEngine {
     const hearth = this.getHearthLocation(player.x, player.y);
     const distToHearth = Math.hypot(player.x - hearth.x, player.y - hearth.y);
 
-    if (distToHearth > 1.5) {
+    if (distToHearth > 2.5) {
       const path = this.findPathWithCollisions(player.x, player.y, hearth.x, hearth.y);
       if (path.length === 0) {
         if (distToHearth > 3.0) {
@@ -5285,7 +5303,7 @@ export class GameEngine {
         const distToHearth = Math.hypot(player.x - hearth.x, player.y - hearth.y);
         const pathToHearth = this.findPathWithCollisions(player.x, player.y, hearth.x, hearth.y);
 
-        if (distToHearth <= 1.5 || pathToHearth.length === 0) {
+        if (distToHearth <= 2.5 || pathToHearth.length === 0) {
           // Already at Hearth! Immediately withdraw materials and head to work
           this.handleAutoDepositAtHearth(session);
           return;
@@ -5873,7 +5891,7 @@ export class GameEngine {
     const { player, ws } = session;
     const hearth = this.getHearthLocation(player.x, player.y);
     const distToHearth = Math.hypot(player.x - hearth.x, player.y - hearth.y);
-    if (distToHearth > 1.5) return; // Must be at the Hearth! Never remotely withdraw!
+    if (distToHearth > 2.5) return; // Must be at the Hearth! Never remotely withdraw!
 
     const targetFoodItemId = player.selectedFoodItemId;
 
