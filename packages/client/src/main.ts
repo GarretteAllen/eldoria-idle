@@ -6084,7 +6084,7 @@ class EldoriaClient {
             <div class="bestiary-drops-pills">
               <span class="bestiary-drop-pill">
                 <span class="svg-icon-inline icon-sm">${outIcon}</span>
-                ${outName} ${r.outputQuantity > 1 ? `×${r.outputQuantity}` : ''}
+                ${outName}
                 <span class="bestiary-drop-rate">(100%)</span>
               </span>
               ${rareDropsHtml}
@@ -6105,11 +6105,11 @@ class EldoriaClient {
         const keyIcon = getItemIconSvg(dungeon.requiredKeyItemId, keyItem?.category);
 
         const spoils = [
-          { itemId: 'crypt_relic_fragment', label: 'Crypt Relic Fragment', rate: '100% (2-4x)' },
-          { itemId: 'steel_ingot', label: 'Steel Ingot', rate: '80% (5x)' },
-          { itemId: 'glazed_albacore', label: 'Glazed Albacore', rate: '75% (4x)' },
-          { itemId: 'crypt_lord_signet', label: 'Crypt Lord Signet', rate: '50% (Rare)' },
-          { itemId: 'pet_crypt_beetle', label: 'Crypt Scarab 🐾', rate: '1 / 250 (Prestige Pet)', isPet: true },
+          { itemId: 'crypt_relic_fragment', label: 'Crypt Relic Fragment', rate: '100%' },
+          { itemId: 'steel_ingot', label: 'Steel Ingot', rate: '80%' },
+          { itemId: 'glazed_albacore', label: 'Glazed Albacore', rate: '75%' },
+          { itemId: 'crypt_lord_signet', label: 'Crypt Lord Signet', rate: '50%' },
+          { itemId: 'pet_crypt_beetle', label: 'Crypt Scarab', rate: '1 / 250', isPet: true },
         ];
 
         const pillsHtml = spoils.map(s => {
@@ -6133,7 +6133,7 @@ class EldoriaClient {
             <span>Boss: <b>The Crypt Lord (Lvl 30)</b></span>
           </div>
           <div class="bestiary-drops-container">
-            <span class="bestiary-drops-title" style="color: #c084fc;">Ancient Treasure Chest Spoils:</span>
+            <span class="bestiary-drops-title" style="color: #c084fc;">Treasure Chest Spoils:</span>
             <div class="bestiary-drops-pills">
               ${pillsHtml}
             </div>
@@ -6171,11 +6171,11 @@ class EldoriaClient {
             <div class="bestiary-drops-pills">
               <span class="bestiary-drop-pill" style="border-color: #f59e0b; color: #fef3c7;">
                 <span class="svg-icon-inline icon-sm">${coreIcon}</span> ${coreItem?.name || 'Primordial Essence'}
-                <span class="bestiary-drop-rate">(Top Damage Tiers)</span>
+                <span class="bestiary-drop-rate">(100%)</span>
               </span>
               <span class="bestiary-drop-pill" style="border-color: #805c2a; color: #ffd699;">
                 <span class="svg-icon-inline icon-sm">${ICONS.anima}</span> Celestial Anima Motes
-                <span class="bestiary-drop-rate">(Damage Scaled)</span>
+                <span class="bestiary-drop-rate">(100%)</span>
               </span>
             </div>
           </div>
