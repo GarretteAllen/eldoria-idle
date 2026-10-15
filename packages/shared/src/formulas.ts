@@ -532,12 +532,32 @@ export function simulateOfflineCatchUp(
         if (avgMonsterDamagePerKill > 0) {
           let damageToHeal = avgMonsterDamagePerKill;
           while (damageToHeal > 0) {
-            const foodIndex = player.inventory.findIndex(s => {
+            let foodIndex = player.inventory.findIndex(s => {
               const def = ITEMS[s.itemId];
               return (def?.baseStats?.healing || 0) > 0;
             });
+
+            // If out of food in bag, check if bank has cooked food to restock (simulating auto-banking trip)
+            if (foodIndex === -1 && Array.isArray(player.storage)) {
+              const bankFoodIndex = player.storage.findIndex(s => {
+                const def = ITEMS[s.itemId];
+                return (def?.baseStats?.healing || 0) > 0 && s.quantity > 0;
+              });
+              if (bankFoodIndex >= 0) {
+                const bSlot = player.storage[bankFoodIndex];
+                const foodDef = ITEMS[bSlot.itemId];
+                const toTake = Math.min(bSlot.quantity, 15);
+                const addRes = addItemToSlots(player.inventory, 28, bSlot.itemId, toTake, bSlot.rarity || 'plain', bSlot.plus || 0, foodDef, 'inventory');
+                if (addRes.added > 0) {
+                  bSlot.quantity -= addRes.added;
+                  if (bSlot.quantity <= 0) player.storage.splice(bankFoodIndex, 1);
+                  foodIndex = player.inventory.findIndex(s => s.itemId === bSlot.itemId);
+                }
+              }
+            }
+
             if (foodIndex === -1) {
-              // Out of food: player cannot sustain combat further
+              // Out of food in both satchel and bank: player cannot sustain combat further
               break;
             }
             const foodSlot = player.inventory[foodIndex];
@@ -552,10 +572,11 @@ export function simulateOfflineCatchUp(
             }
           }
 
-          // If still unresolved damage and no food left, player retreats from combat
+          // If still unresolved damage and no food left in bag or bank, player retreats from combat
           if (damageToHeal > 0) {
-            const hasAnyFood = player.inventory.some(s => (ITEMS[s.itemId]?.baseStats?.healing || 0) > 0);
-            if (!hasAnyFood) {
+            const hasAnyFoodInBag = player.inventory.some(s => (ITEMS[s.itemId]?.baseStats?.healing || 0) > 0);
+            const hasAnyFoodInBank = (player.storage || []).some(s => (ITEMS[s.itemId]?.baseStats?.healing || 0) > 0);
+            if (!hasAnyFoodInBag && !hasAnyFoodInBank) {
               break;
             }
           }
@@ -624,8 +645,26 @@ export function simulateOfflineCatchUp(
         totalHpXp += Math.round(Math.floor(monster.hp * 1.33) * hpAuraMult);
         executed++;
 
+        // If satchel is full of monster drops, auto-bank them into storage (matching live server loop)
         if (player.inventory.length >= 28) {
-          break;
+          const maxStorage = player.storageSlotsMax || 75;
+          const keep: InventorySlot[] = [];
+          for (const s of player.inventory) {
+            const d = ITEMS[s.itemId];
+            if (d?.category === 'steed' || d?.category === 'tool' || (d?.baseStats?.healing || 0) > 0) {
+              keep.push(s);
+            } else {
+              const bRes = addItemToSlots(player.storage, maxStorage, s.itemId, s.quantity, s.rarity || 'plain', s.plus || 0, d, 'bank');
+              if (bRes.remainder > 0) {
+                keep.push({ ...s, quantity: bRes.remainder });
+              }
+            }
+          }
+          player.inventory = keep;
+          // If satchel and bank are both completely full and no food left, stop combat
+          if (player.inventory.length >= 28) {
+            break;
+          }
         }
       }
 

@@ -78,6 +78,7 @@ interface ConnectedSession {
   moveAccumulator: number;
   pendingTask: { recipeId: string; targetX: number; targetY: number; quantity?: number; nodeX?: number; nodeY?: number } | null;
   pendingDeposit?: { itemId: string; rarity?: string; plus?: number; quantity?: number } | null;
+  pendingWithdraw?: { storageIndex: number; quantity?: number } | null;
   pendingCombat?: { monsterId: string; targetX: number; targetY: number; nodeId?: string; zoneId?: string; quantity?: number } | null;
   activeCombat?: {
     monsterId: string;
@@ -2467,6 +2468,7 @@ export class GameEngine {
         session.pendingTask = null;
         player.bankReturnTask = null;
         session.ticksInTask = 0;
+        session.pendingWithdraw = { storageIndex, quantity: requestedQty };
 
         player.targetX = hearth.x;
         player.targetY = hearth.y;
@@ -3663,6 +3665,11 @@ export class GameEngine {
               } else {
                 this.send(ws, { type: 'PLAYER_UPDATE', player });
               }
+            } else if (session.pendingWithdraw) {
+              const pending = session.pendingWithdraw;
+              session.pendingWithdraw = null;
+              player.bankingState = 'idle';
+              this.handleWithdrawItem(session, pending.storageIndex, pending.quantity);
             } else {
               this.handleAutoDepositAtHearth(session);
             }
