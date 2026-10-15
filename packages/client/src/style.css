@@ -4477,10 +4477,37 @@ body, html {
    15. BESTIARY & DROP TABLES MODAL
    ======================================================== */
 .bestiary-card {
-  width: clamp(420px, 92vw, 680px);
+  width: clamp(480px, 94vw, 760px);
   max-height: 85vh;
   display: flex;
   flex-direction: column;
+}
+
+.bestiary-tabs {
+  display: flex;
+  gap: 6px;
+  margin: 4px 0 10px 0;
+  border-bottom: 1px solid var(--border-oak-light);
+  padding-bottom: 6px;
+  flex-shrink: 0;
+}
+
+.bestiary-tab {
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(87, 60, 36, 0.6);
+  color: #cbd5e1;
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 5px 14px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.bestiary-tab.active, .bestiary-tab:hover {
+  background: rgba(223, 166, 55, 0.15);
+  border-color: var(--gold-main);
+  color: var(--gold-bright);
 }
 
 .bestiary-search-row {

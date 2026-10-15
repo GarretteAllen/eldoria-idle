@@ -333,7 +333,7 @@
         </div>
         <div class="drawer-footer">
           <button id="btn-quick-fight" class="btn-oak"><span class="btn-icon" id="btn-fight-icon"></span> Fight</button>
-          <button id="btn-quick-bestiary" class="btn-oak"><span class="btn-icon" id="btn-bestiary-icon"></span> Bestiary</button>
+          <button id="btn-quick-bestiary" class="btn-oak" title="Inspect drop tables, skilling loot, and dungeon spoils"><span class="btn-icon" id="btn-bestiary-icon"></span> Drop Tables</button>
           <button id="btn-quick-home" class="btn-oak"><span class="btn-icon" id="btn-home-icon"></span> Go home</button>
         </div>
       </div>
@@ -2035,18 +2035,26 @@
         </div>
       </div>
 
-      <!-- 15. BESTIARY & DROP TABLES MODAL -->
+      <!-- 15. DROP TABLES & SPOILS MODAL -->
       <div id="bestiary-modal" class="modal-backdrop hidden">
         <div class="modal-box dark-oak-panel bestiary-card">
           <div class="modal-header">
             <div style="display: flex; align-items: center; gap: 8px;">
               <span id="bestiary-modal-icon" class="svg-icon-inline icon-lg"></span>
-              <h4>Realm Bestiary & Drop Tables</h4>
+              <div>
+                <h4 style="margin: 0;">Realm Drop Tables & Spoils</h4>
+                <div style="font-size: 0.68rem; color: #a0aec0;">Inspect monster loot, skilling rare finds & pets, and dungeon spoils</div>
+              </div>
             </div>
-            <button id="bestiary-close-btn" class="icon-btn-micro" title="Close Bestiary"></button>
+            <button id="bestiary-close-btn" class="icon-btn-micro" title="Close Drop Tables"></button>
+          </div>
+          <div class="bestiary-tabs">
+            <button id="tab-drop-monsters" class="bestiary-tab active" data-tab="monsters">Combat & Monsters</button>
+            <button id="tab-drop-skilling" class="bestiary-tab" data-tab="skilling">Gathering & Skilling</button>
+            <button id="tab-drop-dungeons" class="bestiary-tab" data-tab="dungeons">Dungeons & Bosses</button>
           </div>
           <div class="bestiary-search-row">
-            <input type="text" id="bestiary-search-input" placeholder="Search beasts or drops..." />
+            <input type="text" id="bestiary-search-input" placeholder="Search monsters, skills, or item drops..." />
           </div>
           <div id="bestiary-list" class="bestiary-grid">
             <!-- Populated dynamically -->

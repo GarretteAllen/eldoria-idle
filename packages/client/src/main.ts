@@ -30,6 +30,7 @@ import {
   getStorageSlotUpgradeCost,
   VENDOR_GOODS,
   DUNGEONS,
+  WORLD_BOSSES,
   DungeonParty,
   DungeonRecoveryItem,
   MOUNT_BREED_CONFIG,
@@ -173,6 +174,7 @@ class EldoriaClient {
   // Gem Store & Payment State
   private currentGemStoreTab: 'queue' | 'packs' | 'offline' = 'queue';
   private gemPacksData: GemPackDef[] = Object.values(GEM_PACKS);
+  private currentBestiaryTab: 'monsters' | 'skilling' | 'dungeons' = 'monsters';
 
   // AFK Resource Saving State (15 minutes threshold)
   private readonly AFK_TIMEOUT_MS = 15 * 60 * 1000;
@@ -5914,11 +5916,27 @@ class EldoriaClient {
     const bestiaryClose = document.getElementById('bestiary-close-btn');
     const searchInput = document.getElementById('bestiary-search-input') as HTMLInputElement;
 
+    const tabMonsters = document.getElementById('tab-drop-monsters');
+    const tabSkilling = document.getElementById('tab-drop-skilling');
+    const tabDungeons = document.getElementById('tab-drop-dungeons');
+
+    const switchTab = (tab: 'monsters' | 'skilling' | 'dungeons') => {
+      this.currentBestiaryTab = tab;
+      tabMonsters?.classList.toggle('active', tab === 'monsters');
+      tabSkilling?.classList.toggle('active', tab === 'skilling');
+      tabDungeons?.classList.toggle('active', tab === 'dungeons');
+      this.renderBestiaryList(searchInput?.value || '');
+    };
+
+    tabMonsters?.addEventListener('click', () => switchTab('monsters'));
+    tabSkilling?.addEventListener('click', () => switchTab('skilling'));
+    tabDungeons?.addEventListener('click', () => switchTab('dungeons'));
+
     if (btnBestiary && bestiaryModal) {
       btnBestiary.onclick = () => {
         this.closeItemContextMenus();
         bestiaryModal.classList.remove('hidden');
-        this.renderBestiaryList(searchInput?.value || '');
+        switchTab(this.currentBestiaryTab || 'monsters');
       };
     }
 
@@ -5933,58 +5951,237 @@ class EldoriaClient {
     }
   }
 
+  private formatDropRate(chance: number): string {
+    if (chance >= 1) return '100%';
+    if (chance <= 0) return '0%';
+    const denom = Math.round(1 / chance);
+    if (denom >= 100) {
+      return `1 / ${denom.toLocaleString()}`;
+    }
+    return `${(chance * 100).toFixed(chance < 0.01 ? 2 : 1)}%`;
+  }
+
   private renderBestiaryList(query: string) {
     const list = document.getElementById('bestiary-list');
     if (!list) return;
     list.innerHTML = '';
     const q = query.toLowerCase().trim();
 
-    const mobs = Object.values(MONSTERS).filter(m => {
-      if (!q) return true;
-      const gItem = m.guaranteedDropItemId ? ITEMS[m.guaranteedDropItemId]?.name : '';
-      const rItem = m.rareDrop ? ITEMS[m.rareDrop.itemId]?.name : '';
-      return m.name.toLowerCase().includes(q) ||
-        m.zone.toLowerCase().includes(q) ||
-        (gItem && gItem.toLowerCase().includes(q)) ||
-        (rItem && rItem.toLowerCase().includes(q));
-    });
+    if (this.currentBestiaryTab === 'monsters') {
+      const mobs = Object.values(MONSTERS).filter(m => {
+        if (!q) return true;
+        const gItem = m.guaranteedDropItemId ? ITEMS[m.guaranteedDropItemId]?.name : '';
+        const rItem = m.rareDrop ? ITEMS[m.rareDrop.itemId]?.name : '';
+        return m.name.toLowerCase().includes(q) ||
+          m.zone.toLowerCase().includes(q) ||
+          (gItem && gItem.toLowerCase().includes(q)) ||
+          (rItem && rItem.toLowerCase().includes(q));
+      });
 
-    mobs.sort((a, b) => a.level - b.level);
+      mobs.sort((a, b) => a.level - b.level);
 
-    for (const m of mobs) {
-      const card = document.createElement('div');
-      card.className = 'bestiary-entry';
+      for (const m of mobs) {
+        const card = document.createElement('div');
+        card.className = 'bestiary-entry';
 
-      const gDropName = m.guaranteedDropItemId && ITEMS[m.guaranteedDropItemId] ? ITEMS[m.guaranteedDropItemId].name : 'None';
-      const gDropIcon = m.guaranteedDropItemId ? getItemIconSvg(m.guaranteedDropItemId, ITEMS[m.guaranteedDropItemId]?.category) : ICONS.crate;
-      let rareDropHtml = '';
-      if (m.rareDrop && ITEMS[m.rareDrop.itemId]) {
-        const rName = ITEMS[m.rareDrop.itemId].name;
-        const rIcon = getItemIconSvg(m.rareDrop.itemId, ITEMS[m.rareDrop.itemId]?.category);
-        const pct = (m.rareDrop.chance * 100).toFixed(2);
-        rareDropHtml = `<span class="bestiary-drop-pill" style="border-color: #805c2a; color: #ffd699;"><span class="svg-icon-inline icon-sm">${rIcon}</span> ${rName} <span class="bestiary-drop-rate">(${pct}%)</span></span>`;
+        const gDropName = m.guaranteedDropItemId && ITEMS[m.guaranteedDropItemId] ? ITEMS[m.guaranteedDropItemId].name : 'None';
+        const gDropIcon = m.guaranteedDropItemId ? getItemIconSvg(m.guaranteedDropItemId, ITEMS[m.guaranteedDropItemId]?.category) : ICONS.crate;
+        let rareDropHtml = '';
+        if (m.rareDrop && ITEMS[m.rareDrop.itemId]) {
+          const rName = ITEMS[m.rareDrop.itemId].name;
+          const rIcon = getItemIconSvg(m.rareDrop.itemId, ITEMS[m.rareDrop.itemId]?.category);
+          const rateStr = this.formatDropRate(m.rareDrop.chance);
+          rareDropHtml = `<span class="bestiary-drop-pill" style="border-color: #805c2a; color: #ffd699;"><span class="svg-icon-inline icon-sm">${rIcon}</span> ${rName} <span class="bestiary-drop-rate">(${rateStr})</span></span>`;
+        }
+
+        card.innerHTML = `
+          <div class="bestiary-entry-header">
+            <span class="bestiary-mob-name">${m.name}</span>
+            <span class="bestiary-mob-level">Lvl ${m.level}</span>
+          </div>
+          <div style="font-size:0.68rem; color:#a0aec0; font-style:italic;">Zone: ${m.zone}</div>
+          <div class="bestiary-mob-stats">
+            <span>HP: <b>${m.hp}</b></span>
+            <span>Max Hit: <b>${m.maxHit}</b></span>
+            <span>Coins: <b>${m.minCoins}-${m.maxCoins}</b></span>
+          </div>
+          <div class="bestiary-drops-container">
+            <span class="bestiary-drops-title">Spoils & Drops:</span>
+            <div class="bestiary-drops-pills">
+              <span class="bestiary-drop-pill"><span class="svg-icon-inline icon-sm">${gDropIcon}</span> ${gDropName} <span class="bestiary-drop-rate">(100%)</span></span>
+              ${rareDropHtml}
+            </div>
+          </div>
+        `;
+        list.appendChild(card);
       }
 
-      card.innerHTML = `
-        <div class="bestiary-entry-header">
-          <span class="bestiary-mob-name">${m.name}</span>
-          <span class="bestiary-mob-level">Lvl ${m.level}</span>
-        </div>
-        <div style="font-size:0.68rem; color:#a0aec0; font-style:italic;">Zone: ${m.zone}</div>
-        <div class="bestiary-mob-stats">
-          <span>HP: <b>${m.hp}</b></span>
-          <span>Max Hit: <b>${m.maxHit}</b></span>
-          <span>Coins: <b>${m.minCoins}-${m.maxCoins}</b></span>
-        </div>
-        <div class="bestiary-drops-container">
-          <span class="bestiary-drops-title">Spoils & Drops:</span>
-          <div class="bestiary-drops-pills">
-            <span class="bestiary-drop-pill"><span class="svg-icon-inline icon-sm">${gDropIcon}</span> ${gDropName} <span class="bestiary-drop-rate">(100%)</span></span>
-            ${rareDropHtml}
+    } else if (this.currentBestiaryTab === 'skilling') {
+      const skillingEntries = Object.values(RECIPES).filter(r => {
+        const hasRareFinds = r.rareFinds && r.rareFinds.length > 0;
+        const isGathering = ['mining', 'woodcutting', 'fishing', 'farming', 'herbalism', 'thieving'].includes(r.skill);
+        return isGathering || hasRareFinds;
+      });
+
+      const filtered = skillingEntries.filter(r => {
+        if (!q) return true;
+        const outItem = ITEMS[r.outputItemId]?.name || '';
+        const skillName = r.skill.toLowerCase();
+        const recName = r.name.toLowerCase();
+        const matchesRares = r.rareFinds?.some(rf => {
+          const rfItem = ITEMS[rf.itemId]?.name || '';
+          return rfItem.toLowerCase().includes(q);
+        });
+        return recName.includes(q) || outItem.toLowerCase().includes(q) || skillName.includes(q) || matchesRares;
+      });
+
+      filtered.sort((a, b) => {
+        if (a.skill !== b.skill) return a.skill.localeCompare(b.skill);
+        return a.levelReq - b.levelReq;
+      });
+
+      for (const r of filtered) {
+        const card = document.createElement('div');
+        card.className = 'bestiary-entry';
+
+        const outItem = ITEMS[r.outputItemId];
+        const outName = outItem ? outItem.name : r.name;
+        const outIcon = getItemIconSvg(r.outputItemId, outItem?.category);
+        const skillIcon = ICONS[r.skill] || ICONS.skills;
+
+        let rareDropsHtml = '';
+        if (r.rareFinds && r.rareFinds.length > 0) {
+          rareDropsHtml = r.rareFinds.map(rf => {
+            const rfItem = ITEMS[rf.itemId];
+            const rfName = rfItem ? rfItem.name : rf.itemId;
+            const rfIcon = getItemIconSvg(rf.itemId, rfItem?.category);
+            const isPet = rfItem?.category === 'pet' || rf.itemId.startsWith('pet_');
+            const rateStr = this.formatDropRate(rf.chance);
+            const borderCol = isPet ? '#9333ea' : '#0284c7';
+            const textCol = isPet ? '#e9d5ff' : '#bae6fd';
+            return `<span class="bestiary-drop-pill" style="border-color: ${borderCol}; color: ${textCol};">
+              <span class="svg-icon-inline icon-sm">${rfIcon}</span>
+              ${rfName} ${isPet ? '🐾' : ''}
+              <span class="bestiary-drop-rate">(${rateStr})</span>
+            </span>`;
+          }).join('');
+        }
+
+        card.innerHTML = `
+          <div class="bestiary-entry-header">
+            <span class="bestiary-mob-name" style="display:flex; align-items:center; gap:6px;">
+              <span class="svg-icon-inline icon-sm">${skillIcon}</span>
+              ${r.name}
+            </span>
+            <span class="bestiary-mob-level" style="color: #68d391;">Lvl ${r.levelReq} ${r.skill}</span>
           </div>
-        </div>
-      `;
-      list.appendChild(card);
+          <div class="bestiary-mob-stats">
+            <span>XP: <b>${r.xp}</b></span>
+            <span>Speed: <b>${r.intervalSeconds}s</b></span>
+          </div>
+          <div class="bestiary-drops-container">
+            <span class="bestiary-drops-title">Harvest & Secondary Finds:</span>
+            <div class="bestiary-drops-pills">
+              <span class="bestiary-drop-pill">
+                <span class="svg-icon-inline icon-sm">${outIcon}</span>
+                ${outName} ${r.outputQuantity > 1 ? `×${r.outputQuantity}` : ''}
+                <span class="bestiary-drop-rate">(100%)</span>
+              </span>
+              ${rareDropsHtml}
+            </div>
+          </div>
+        `;
+        list.appendChild(card);
+      }
+
+    } else if (this.currentBestiaryTab === 'dungeons') {
+      const dungeon = DUNGEONS['whispering_crypt'];
+      if (dungeon && (!q || dungeon.name.toLowerCase().includes(q) || 'crypt'.includes(q) || 'scarab'.includes(q))) {
+        const card = document.createElement('div');
+        card.className = 'bestiary-entry';
+        card.style.borderColor = '#7e22ce';
+
+        const keyItem = ITEMS[dungeon.requiredKeyItemId];
+        const keyIcon = getItemIconSvg(dungeon.requiredKeyItemId, keyItem?.category);
+
+        const spoils = [
+          { itemId: 'crypt_relic_fragment', label: 'Crypt Relic Fragment', rate: '100% (2-4x)' },
+          { itemId: 'steel_ingot', label: 'Steel Ingot', rate: '80% (5x)' },
+          { itemId: 'glazed_albacore', label: 'Glazed Albacore', rate: '75% (4x)' },
+          { itemId: 'crypt_lord_signet', label: 'Crypt Lord Signet', rate: '50% (Rare)' },
+          { itemId: 'pet_crypt_beetle', label: 'Crypt Scarab 🐾', rate: '1 / 250 (Prestige Pet)', isPet: true },
+        ];
+
+        const pillsHtml = spoils.map(s => {
+          const itemDef = ITEMS[s.itemId];
+          const icon = getItemIconSvg(s.itemId, itemDef?.category);
+          const borderCol = s.isPet ? '#9333ea' : '#805c2a';
+          const textCol = s.isPet ? '#f3e8ff' : '#ffd699';
+          return `<span class="bestiary-drop-pill" style="border-color: ${borderCol}; color: ${textCol};">
+            <span class="svg-icon-inline icon-sm">${icon}</span> ${s.label} <span class="bestiary-drop-rate">(${s.rate})</span>
+          </span>`;
+        }).join('');
+
+        card.innerHTML = `
+          <div class="bestiary-entry-header">
+            <span class="bestiary-mob-name" style="color: #c084fc;">🗝️ ${dungeon.name}</span>
+            <span class="bestiary-mob-level" style="color: #f472b6;">Min Lvl ${dungeon.minLevel} • 1-${dungeon.maxPartySize} Players</span>
+          </div>
+          <div style="font-size:0.68rem; color:#cbd5e1; margin-top: 2px;">${dungeon.description}</div>
+          <div class="bestiary-mob-stats" style="margin-top: 4px;">
+            <span>Entry Key: <b><span class="svg-icon-inline icon-sm">${keyIcon}</span> ${keyItem?.name || 'Crypt Key'}</b></span>
+            <span>Boss: <b>The Crypt Lord (Lvl 30)</b></span>
+          </div>
+          <div class="bestiary-drops-container">
+            <span class="bestiary-drops-title" style="color: #c084fc;">Ancient Treasure Chest Spoils:</span>
+            <div class="bestiary-drops-pills">
+              ${pillsHtml}
+            </div>
+          </div>
+        `;
+        list.appendChild(card);
+      }
+
+      // World Bosses
+      for (const boss of Object.values(WORLD_BOSSES)) {
+        if (q && !boss.name.toLowerCase().includes(q) && !boss.uniqueCoreItemId.toLowerCase().includes(q)) {
+          continue;
+        }
+        const card = document.createElement('div');
+        card.className = 'bestiary-entry';
+        card.style.borderColor = '#b45309';
+
+        const coreItem = ITEMS[boss.uniqueCoreItemId];
+        const coreIcon = getItemIconSvg(boss.uniqueCoreItemId, coreItem?.category);
+
+        card.innerHTML = `
+          <div class="bestiary-entry-header">
+            <span class="bestiary-mob-name" style="color: #fbbf24;">⚡ ${boss.name}</span>
+            <span class="bestiary-mob-level" style="color: #f87171;">Global World Boss</span>
+          </div>
+          <div style="font-size:0.68rem; color:#cbd5e1; margin-top: 2px;">
+            Massive realm encounter at the Astral Crater. Grants combat and HP experience scaled to damage dealt.
+          </div>
+          <div class="bestiary-mob-stats" style="margin-top: 4px;">
+            <span>Base HP: <b>${boss.baseHp.toLocaleString()}</b></span>
+            <span>Weakness: <b style="text-transform: capitalize; color: #38bdf8;">${boss.styleWeakness}</b></span>
+          </div>
+          <div class="bestiary-drops-container">
+            <span class="bestiary-drops-title" style="color: #fbbf24;">Contribution Spoils:</span>
+            <div class="bestiary-drops-pills">
+              <span class="bestiary-drop-pill" style="border-color: #f59e0b; color: #fef3c7;">
+                <span class="svg-icon-inline icon-sm">${coreIcon}</span> ${coreItem?.name || 'Primordial Essence'}
+                <span class="bestiary-drop-rate">(Top Damage Tiers)</span>
+              </span>
+              <span class="bestiary-drop-pill" style="border-color: #805c2a; color: #ffd699;">
+                <span class="svg-icon-inline icon-sm">${ICONS.anima}</span> Celestial Anima Motes
+                <span class="bestiary-drop-rate">(Damage Scaled)</span>
+              </span>
+            </div>
+          </div>
+        `;
+        list.appendChild(card);
+      }
     }
   }
 
