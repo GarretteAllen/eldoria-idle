@@ -892,6 +892,25 @@ body, html {
   box-shadow: 0 0 6px rgba(223, 166, 55, 0.3);
 }
 
+.tool-sidebar-spacer {
+  flex: 1;
+  min-height: 12px;
+}
+
+.tool-btn-discord {
+  text-decoration: none;
+  color: #a0aec0;
+  border-color: rgba(88, 101, 242, 0.35);
+  background: rgba(88, 101, 242, 0.08);
+}
+.tool-btn-discord:hover {
+  color: #ffffff;
+  border-color: #5865f2;
+  background: #5865f2;
+  box-shadow: 0 0 8px rgba(88, 101, 242, 0.5);
+  transform: translateY(-1px);
+}
+
 /* ========================================================
    5. DRAWER PANELS (Skills, Bag, Gear, Storage, Editor)
    ======================================================== */

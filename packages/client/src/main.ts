@@ -328,6 +328,8 @@ class EldoriaClient {
     const toolSoundBtn = document.getElementById('tool-btn-sound');
     if (toolSoundBtn) toolSoundBtn.innerHTML = ICONS.soundOn;
     document.getElementById('tool-btn-chat')!.innerHTML = ICONS.chat;
+    const discordBtn = document.getElementById('tool-btn-discord');
+    if (discordBtn) discordBtn.innerHTML = ICONS.discord;
     const editorToolBtn = document.getElementById('tool-btn-editor');
     if (editorToolBtn) editorToolBtn.innerHTML = ICONS.editor;
 
