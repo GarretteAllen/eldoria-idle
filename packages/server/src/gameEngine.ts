@@ -2,6 +2,7 @@ import { WebSocket } from 'ws';
 import {
   TICK_MS,
   PlayerData,
+  SkillType,
   RECIPES,
   ITEMS,
   MONSTERS,
@@ -3765,10 +3766,30 @@ export class GameEngine {
         if (session.activeCombat) {
           this.processCombatCycle(session);
         } else {
-          session.ticksInTask++;
           const recipe = RECIPES[player.currentTask.recipeId];
+          const gatheringSkills: SkillType[] = ['mining', 'woodcutting', 'fishing', 'herbalism', 'farming', 'thieving'];
+          const stationSkills: SkillType[] = ['smithing', 'cooking', 'crafting', 'fletching', 'alchemy', 'attunement'];
+          const nodeX = player.currentTask.targetNodeX;
+          const nodeY = player.currentTask.targetNodeY;
 
-        if (recipe) {
+          if (recipe && (gatheringSkills.includes(recipe.skill) || stationSkills.includes(recipe.skill)) && typeof nodeX === 'number' && typeof nodeY === 'number') {
+            const distToNode = Math.hypot(player.x - nodeX, player.y - nodeY);
+            if (distToNode > 2.5) {
+              // Player somehow got out of range of the node!
+              player.currentTask = null;
+              session.ticksInTask = 0;
+              this.send(ws, {
+                type: 'NOTIFICATION',
+                message: `You are too far away from the ${recipe.name || 'node'} to continue working.`
+              });
+              this.send(ws, { type: 'PLAYER_UPDATE', player });
+              continue;
+            }
+          }
+
+          session.ticksInTask++;
+
+          if (recipe) {
           const level = player.skills[recipe.skill]?.level || 1;
           const speedMult = getJobSpeedMultiplier(level, recipe.levelReq);
 
@@ -5377,6 +5398,18 @@ export class GameEngine {
         this.send(session.ws, { type: 'PLAYER_UPDATE', player });
         this.broadcastWorldState();
         return;
+      } else {
+        // Path is completely blocked or target is unreachable!
+        // Never allow gathering or station tasks to start remotely from an arbitrary tile!
+        this.send(session.ws, {
+          type: 'NOTIFICATION',
+          message: `Unable to find a clear path to ${rec.name}.`
+        });
+        player.currentTask = null;
+        session.pendingTask = null;
+        player.pendingTask = null;
+        this.send(session.ws, { type: 'PLAYER_UPDATE', player });
+        return;
       }
     }
 
@@ -5865,7 +5898,25 @@ export class GameEngine {
     ].filter(pt => !isBlockedTile(pt.x, pt.y));
 
     if (candidates.length > 0) {
-      candidates.sort((a, b) => {
+      // If player is already within adjacent interaction range of any candidate, prioritize directly adjacent
+      const directlyAdjacent = candidates.filter(c => Math.hypot(c.x - playerX, c.y - playerY) <= 1.5);
+      if (directlyAdjacent.length > 0) {
+        directlyAdjacent.sort((a, b) => {
+          if (a.cardinal && !b.cardinal) return -1;
+          if (!a.cardinal && b.cardinal) return 1;
+          return Math.hypot(a.x - playerX, a.y - playerY) - Math.hypot(b.x - playerX, b.y - playerY);
+        });
+        return { x: directlyAdjacent[0].x, y: directlyAdjacent[0].y };
+      }
+
+      // Filter candidates that actually have a walkable path from player's current position!
+      const reachable = candidates.filter(c => {
+        const p = this.findPathWithCollisions(playerX, playerY, c.x, c.y, playerId);
+        return p.length > 0;
+      });
+
+      const pool = reachable.length > 0 ? reachable : candidates;
+      pool.sort((a, b) => {
         const distA = Math.hypot(a.x - playerX, a.y - playerY);
         const distB = Math.hypot(b.x - playerX, b.y - playerY);
         if (Math.abs(distA - distB) < 0.25) {
@@ -5874,7 +5925,7 @@ export class GameEngine {
         }
         return distA - distB;
       });
-      return { x: candidates[0].x, y: candidates[0].y };
+      return { x: pool[0].x, y: pool[0].y };
     }
 
     // Secondary fallback: distance-2 perimeter around target

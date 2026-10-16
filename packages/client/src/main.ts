@@ -36,6 +36,7 @@ import {
   MOUNT_BREED_CONFIG,
   getOffspringSpecies,
   RARITY_TIER_INDEX,
+  findPath,
 } from '@eldoria/shared';
 import { WorldRenderer, WorldNodeDisplay, TILE_SIZE } from './canvas.js';
 import { loadLdtkWorld } from './ldtkLoader.js';
@@ -1960,23 +1961,51 @@ class EldoriaClient {
 
   private getAdjacentWalkableTile(targetX: number, targetY: number): { x: number; y: number } {
     const collisions = this.renderer.getCollisions();
+    const isBlocked = (x: number, y: number) => collisions.has(`${x},${y}`);
+
     const candidates = [
-      { x: targetX, y: targetY + 1 },
-      { x: targetX, y: targetY - 1 },
-      { x: targetX + 1, y: targetY },
-      { x: targetX - 1, y: targetY },
-      { x: targetX + 1, y: targetY + 1 },
-      { x: targetX - 1, y: targetY + 1 },
-      { x: targetX + 1, y: targetY - 1 },
-      { x: targetX - 1, y: targetY - 1 },
-    ].filter(pt => !collisions.has(`${pt.x},${pt.y}`));
+      { x: targetX, y: targetY + 1, cardinal: true },
+      { x: targetX, y: targetY - 1, cardinal: true },
+      { x: targetX + 1, y: targetY, cardinal: true },
+      { x: targetX - 1, y: targetY, cardinal: true },
+      { x: targetX + 1, y: targetY + 1, cardinal: false },
+      { x: targetX - 1, y: targetY + 1, cardinal: false },
+      { x: targetX + 1, y: targetY - 1, cardinal: false },
+      { x: targetX - 1, y: targetY - 1, cardinal: false },
+    ].filter(pt => !isBlocked(pt.x, pt.y));
 
     if (candidates.length > 0 && this.player) {
-      candidates.sort((a, b) =>
-        Math.hypot(a.x - this.player!.x, a.y - this.player!.y) -
-        Math.hypot(b.x - this.player!.x, b.y - this.player!.y)
-      );
-      return candidates[0];
+      const px = this.player.x;
+      const py = this.player.y;
+
+      // If player is already within adjacent interaction range of any candidate, prioritize directly adjacent
+      const directlyAdjacent = candidates.filter(c => Math.hypot(c.x - px, c.y - py) <= 1.5);
+      if (directlyAdjacent.length > 0) {
+        directlyAdjacent.sort((a, b) => {
+          if (a.cardinal && !b.cardinal) return -1;
+          if (!a.cardinal && b.cardinal) return 1;
+          return Math.hypot(a.x - px, a.y - py) - Math.hypot(b.x - px, b.y - py);
+        });
+        return { x: directlyAdjacent[0].x, y: directlyAdjacent[0].y };
+      }
+
+      // Filter candidates that actually have a walkable path from player's current position!
+      const reachable = candidates.filter(c => {
+        const path = findPath(px, py, c.x, c.y, -10000, -10000, 10000, 10000, isBlocked);
+        return path.length > 0;
+      });
+
+      const pool = reachable.length > 0 ? reachable : candidates;
+      pool.sort((a, b) => {
+        const distA = Math.hypot(a.x - px, a.y - py);
+        const distB = Math.hypot(b.x - px, b.y - py);
+        if (Math.abs(distA - distB) < 0.25) {
+          if (a.cardinal && !b.cardinal) return -1;
+          if (!a.cardinal && b.cardinal) return 1;
+        }
+        return distA - distB;
+      });
+      return { x: pool[0].x, y: pool[0].y };
     }
     return { x: targetX, y: targetY };
   }
@@ -2393,6 +2422,12 @@ class EldoriaClient {
         matchingNode = this.worldNodes.find(n => n.recipeId === rec.id);
       }
 
+      const gatheringSkills: SkillType[] = ['mining', 'woodcutting', 'fishing', 'herbalism', 'farming', 'thieving'];
+      if (!matchingNode && gatheringSkills.includes(rec.skill)) {
+        this.showToast(`No resource node found for ${rec.name} in the realm.`);
+        return;
+      }
+
       let targetX = this.player!.x;
       let targetY = this.player!.y;
       let nodeX = targetX;
@@ -2464,6 +2499,12 @@ class EldoriaClient {
           matchingNode = herbNodes[0];
         } else {
           matchingNode = this.worldNodes.find(n => n.recipeId === rec.id);
+        }
+
+        const gatheringSkills: SkillType[] = ['mining', 'woodcutting', 'fishing', 'herbalism', 'farming', 'thieving'];
+        if (!matchingNode && gatheringSkills.includes(rec.skill)) {
+          this.showToast(`No resource node found for ${rec.name} in the realm.`);
+          return;
         }
 
         if (matchingNode) {
