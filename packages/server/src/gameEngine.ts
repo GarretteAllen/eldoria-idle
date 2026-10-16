@@ -133,6 +133,7 @@ export class GameEngine {
   }>();
 
   private botManager: BotManager;
+  private lastPlayerChatTimestamp: number = 0;
 
   constructor() {
     this.spawnWorldBoss();
@@ -1180,6 +1181,7 @@ export class GameEngine {
           const msgId = `chat_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
           const timestamp = Date.now();
           const channel = msg.channel || 'All';
+          this.lastPlayerChatTimestamp = timestamp;
 
           // Persist to SQLite
           storage.saveChatMessage({
@@ -7477,6 +7479,13 @@ export class GameEngine {
   // Periodic friendly realm message (referrals, tips) sent to All chat
   private broadcastPeriodicRealmTip() {
     if (this.sessions.size === 0) return;
+
+    // Do not broadcast tip if chat is idle and no players have spoken recently (within the last 25 minutes)
+    const now = Date.now();
+    const chatIdleThresholdMs = 25 * 60 * 1000;
+    if (!this.lastPlayerChatTimestamp || (now - this.lastPlayerChatTimestamp) > chatIdleThresholdMs) {
+      return;
+    }
 
     const messages = [
       'Bring a friend along on the journey! Share your invite link from your Adventurer Profile — when they hit Total Level 100, you both unlock Celestial Gems and exclusive titles.',
