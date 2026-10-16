@@ -480,20 +480,51 @@ export function simulateOfflineCatchUp(
         : 'melee';
       const combatLvl = player.skills[combatStyle]?.level || 1;
       const weaponItem = player.equipment?.weapon ? ITEMS[player.equipment.weapon.itemId] : undefined;
-      let strBonus = 0;
+      
+      let gearAccuracy = 0;
+      let gearStrength = 0;
       let gearSpeedBonus = 0;
+      let gearDefence = 0;
+
       for (const eq of Object.values(player.equipment || {})) {
         if (eq) {
           const it = ITEMS[eq.itemId];
-          if (it?.baseStats?.strength) strBonus += it.baseStats.strength;
-          if (it?.baseStats?.attackSpeedBonus) gearSpeedBonus += it.baseStats.attackSpeedBonus;
+          if (it?.baseStats) {
+            const eff = getItemEffectiveStats(it.baseStats, eq.rarity || 'plain', eq.plus || 0);
+            if (eff.accuracy) gearAccuracy += eff.accuracy;
+            if (eff.strength) gearStrength += eff.strength;
+            if (combatStyle === 'melee' && eff.meleeStrength) gearStrength += eff.meleeStrength;
+            if (combatStyle === 'ranged' && eff.rangedStrength) gearStrength += eff.rangedStrength;
+            if (combatStyle === 'magic' && eff.magicStrength) gearStrength += eff.magicStrength;
+            if (eff.attackSpeedBonus) gearSpeedBonus += eff.attackSpeedBonus;
+            if (eff.defence) gearDefence += eff.defence;
+          }
         }
       }
-      const avgHit = Math.max(1, Math.floor((combatLvl + strBonus) / 10) + 1);
-      const swingsToKill = Math.ceil(monster.hp / avgHit);
+
+      // 1. Calculate Player DPS matching live processCombatCycle
+      const playerHitChance = calculateHitChance(combatLvl * 2 + gearAccuracy + 10, monster.level * 3);
+      const monsterArmour = Math.floor(monster.level / 6);
+      const playerMaxHit = calculateMaxHit(combatLvl, gearStrength, monsterArmour);
+      const avgPlayerHit = playerHitChance * ((1 + playerMaxHit) / 2);
+
       const baseSwingSec = weaponItem?.baseStats?.swingSpeedSeconds || (combatStyle === 'ranged' ? 1.8 : combatStyle === 'magic' ? 3.6 : 2.4);
-      const swingSec = baseSwingSec / (1 + gearSpeedBonus);
-      const killSec = Math.max(1.2, swingsToKill * swingSec);
+      const playerSwingSec = Math.max(1.2, baseSwingSec / (1 + gearSpeedBonus));
+      
+      // Expected swings needed to kill the monster (at least 1 swing)
+      const expectedSwingsToKill = Math.max(1, Math.ceil(monster.hp / Math.max(0.5, avgPlayerHit)));
+      const fightSec = expectedSwingsToKill * playerSwingSec;
+      // In live combat, monsters have a zone respawn timer / search delay between kills (~2.5 seconds)
+      const killSec = fightSec + 2.5;
+
+      // 2. Calculate Monster Expected Damage taken per kill
+      const defLevel = player.skills.defence?.level || 1;
+      const monsterHitChance = calculateHitChance(monster.level * 3, defLevel * 2 + gearDefence);
+      const monsterSwingSec = monster.swingSpeedSeconds || 2.4;
+      const monsterSwingsPerFight = Math.floor(fightSec / monsterSwingSec);
+      const avgMonsterDamagePerKill = monster.maxHit > 0
+        ? Math.round(monsterSwingsPerFight * monsterHitChance * ((1 + monster.maxHit) / 2))
+        : 0;
 
       const rawTarget: number | undefined = player.currentTask.targetQuantity;
       const targetQuantity: number = (typeof rawTarget === 'number' && rawTarget > 0) ? rawTarget : Infinity;
@@ -509,26 +540,8 @@ export function simulateOfflineCatchUp(
       let totalStyleXp = 0;
       let totalHpXp = 0;
 
-      let gearDefence = 0;
-      for (const eq of Object.values(player.equipment || {})) {
-        if (eq) {
-          const it = ITEMS[eq.itemId];
-          if (it?.baseStats) {
-            const eff = getItemEffectiveStats(it.baseStats, eq.rarity || 'plain', eq.plus || 0);
-            if (eff.defence) gearDefence += eff.defence;
-          }
-        }
-      }
-
-      const defLevel = player.skills.defence?.level || 1;
-      const monsterHitChance = calculateHitChance(monster.level * 3, defLevel * 2 + gearDefence);
-      const monsterSwingsPerKill = Math.max(1, Math.floor(killSec / (monster.swingSpeedSeconds || 2.4)));
-      const avgMonsterDamagePerKill = monster.maxHit > 0
-        ? Math.round(monsterSwingsPerKill * monsterHitChance * ((1 + monster.maxHit) / 2))
-        : 0;
-
       for (let i = 0; i < killsToExecute; i++) {
-        // Sustenance check: handle food consumption based on monster damage taken
+        // Sustenance check: handle food consumption based on actual monster damage taken
         if (avgMonsterDamagePerKill > 0) {
           let damageToHeal = avgMonsterDamagePerKill;
           while (damageToHeal > 0) {
@@ -818,6 +831,9 @@ export function simulateOfflineCatchUp(
             // Check if player has the materials in storage to restock
             const totalInBank = (player.storage || []).reduce((sum, s) => s.itemId === input.itemId ? sum + s.quantity : sum, 0);
             if (totalInBank >= input.quantity) {
+              // Deduct realistic banking transit commute (matching the ~12-15s round-trip hike to Hearth)
+              remainingTime = Math.max(0, remainingTime - 12);
+
               // Transfer from storage to inventory for simulation
               let neededFromBank = input.quantity;
               for (const bSlot of player.storage) {

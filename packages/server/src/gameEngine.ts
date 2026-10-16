@@ -4079,8 +4079,21 @@ export class GameEngine {
             }
           }
 
-          const tripCap = anyInputNonStackable ? 20 : 200;
-          const batches = Math.max(1, Math.min(tripCap, maxBatchesBySlots, maxBatchesByBank, remainingQuota));
+          // If the output does not stack (e.g. cooked food, weapons, armour, bows),
+          // the maximum crafts per trip cannot exceed the number of slots available for the outputs!
+          let maxBatchesByOutput = Infinity;
+          if (isNonStackableOutput) {
+            const outputQty = rec.outputQuantity || 1;
+            // Distinct input slots needed
+            const inputSlotsOccupied = anyInputNonStackable
+              ? 0 // Already accounted for in maxBatchesBySlots
+              : rec.inputs.filter(inp => !player.inventory.some(s => s.itemId === inp.itemId)).length;
+            const freeSlotsForOutput = Math.max(1, (28 - player.inventory.length) - inputSlotsOccupied);
+            maxBatchesByOutput = Math.floor(freeSlotsForOutput / outputQty);
+          }
+
+          const tripCap = (anyInputNonStackable || isNonStackableOutput) ? 26 : 200;
+          const batches = Math.max(1, Math.min(tripCap, maxBatchesBySlots, maxBatchesByOutput, maxBatchesByBank, remainingQuota));
 
           for (const inp of rec.inputs) {
             let toTake = inp.quantity * batches;
