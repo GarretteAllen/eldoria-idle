@@ -2292,11 +2292,11 @@ export class GameEngine {
     // Broadcast announcement if high tier bred
     if (breedResult.rarity === 'legendary' || breedResult.rarity === 'epic') {
       this.broadcast({
-        type: 'CHAT_MESSAGE',
-        sender: 'Eldoria',
-        message: `🎉 [RealmApex] ${player.username} successfully bred a ${breedResult.rarity.toUpperCase()} ${offspringDef?.name || 'Mount'}!`,
+        type: 'CHAT_BROADCAST',
+        channel: 'All',
+        senderName: 'Eldoria',
+        text: `🎉 [RealmApex] ${player.username} successfully bred a ${breedResult.rarity.toUpperCase()} ${offspringDef?.name || 'Mount'}!`,
         timestamp: Date.now(),
-        channel: 'all',
       });
     }
 
@@ -5023,17 +5023,20 @@ export class GameEngine {
   private distributeBossLoot() {
     if (!this.activeBoss) return;
     const bossDef = this.activeBoss.def;
+    const coreItemId = bossDef.uniqueCoreItemId;
+    const coreItemDef = coreItemId ? (storage.getItem(coreItemId) || ITEMS[coreItemId]) : undefined;
+
     this.broadcast({
       type: 'CHAT_BROADCAST',
       channel: 'Raid',
       senderName: 'WORLD EVENT',
-      text: `${bossDef.name} has fallen! Rewards have been dispatched to all valiant raiders.`,
+      text: `${bossDef.name} has fallen! Rewards and primordial cores have been dispatched to all valiant raiders.`,
       timestamp: Date.now(),
     });
 
     for (const [playerId, dmg] of Object.entries(this.activeBoss.damageDealt)) {
       const session = this.sessions.get(playerId);
-      if (session) {
+      if (session && dmg > 0) {
         // Pool of 5,000 gold + 40 anima + 5,000 boss kill XP pool
         const goldReward = Math.max(100, Math.floor(5000 * (dmg / this.activeBoss.maxHp)));
         const killXpReward = Math.max(50, Math.floor(5000 * (dmg / this.activeBoss.maxHp)));
@@ -5052,13 +5055,47 @@ export class GameEngine {
           });
         }
 
+        // Award guaranteed unique boss core (e.g. titan_core, leviathan_scale, wyrm_ember)
+        let coreRewardText = '';
+        if (coreItemId && coreItemDef) {
+          const maxStorage = session.player.storageSlotsMax || 75;
+          const invRes = addItemToSlots(session.player.inventory, 28, coreItemId, 1, 'plain', 0, coreItemDef, 'inventory');
+          if (invRes.remainder > 0) {
+            const bankRes = addItemToSlots(session.player.storage, maxStorage, coreItemId, invRes.remainder, 'plain', 0, coreItemDef, 'bank');
+            if (bankRes.remainder > 0) {
+              const recId = `rec_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+              storage.addDungeonRecovery({
+                id: recId,
+                playerId: session.player.id,
+                dungeonId: bossDef.id,
+                dungeonName: bossDef.name,
+                itemId: coreItemId,
+                quantity: 1,
+                rarity: 'plain',
+                plus: 0,
+                recoveryFee: 25,
+                timestamp: Date.now(),
+              });
+              coreRewardText = `, and 1x ${coreItemDef.name} (recovered by Barnaby in town)`;
+            } else {
+              coreRewardText = `, and 1x ${coreItemDef.name} (sent to Hearth Vault)`;
+            }
+          } else {
+            coreRewardText = `, and 1x ${coreItemDef.name}`;
+          }
+        }
+
+        storage.savePlayer(session.player);
+
         this.send(session.ws, {
           type: 'NOTIFICATION',
-          message: `Raid reward: +${goldReward} Gold, +40 Anima, +${killXpReward} ${style.toUpperCase()} XP!`,
+          message: `Raid reward: +${goldReward.toLocaleString()} Gold, +40 Anima, +${killXpReward.toLocaleString()} ${style.toUpperCase()} XP${coreRewardText}!`,
         });
         this.send(session.ws, { type: 'PLAYER_UPDATE', player: session.player });
       }
     }
+
+    storage.checkpoint();
 
     // Respawn next boss in 15 minutes
     setTimeout(() => this.spawnWorldBoss(), 15 * 60 * 1000);

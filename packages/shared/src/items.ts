@@ -511,7 +511,9 @@ export function addItemToSlots(
   itemDef?: ItemDefinition,
   location: StackingLocation = 'inventory'
 ): { added: number; remainder: number } {
-  if (quantity <= 0) return { added: 0, remainder: 0 };
+  quantity = Math.floor(Number(quantity));
+  if (!Number.isFinite(quantity) || quantity <= 0) return { added: 0, remainder: 0 };
+
   const stackable = isItemStackable(itemDef, location);
   const maxStack = getItemMaxStack(itemDef, location);
 

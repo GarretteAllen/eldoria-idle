@@ -44,6 +44,8 @@ class SoundManager {
     attune: '/audio/attune.ogg',
     chime: '/audio/attune.ogg',
     bell: '/audio/attune.ogg',
+    ding: '/audio/attune.ogg',
+    arcane: '/audio/attune.ogg',
 
     // Combat
     sword_slash: '/audio/sword_slash.ogg',
@@ -295,6 +297,7 @@ class SoundManager {
         case 'arcane':
         case 'attune':
         case 'bell':
+        case 'ding':
           this.playArcaneChime();
           break;
         case 'water':

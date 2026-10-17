@@ -122,6 +122,7 @@
   - Success Chance: `getEnhanceChance(plus) = max(0.20, 1 - plus * 0.06)`.
   - Anima Cost: `3 * (currentPlus + 1)`.
   - Gold Cost: `TIER_BASE_ENHANCE_COST[tier] * RARITY_PRICE_MULTIPLIER[rarity] * (currentPlus + 1)`.
+- **Anima Currency in Crafting**: Recipes requiring Anima consume the abstract player currency `recipe.animaCost` (earned via Daily Noticeboard Bounties and World Bosses) directly from `player.anima`, rather than requiring a physical item in satchel or vault.
 
 ### E. Farming System (Crop Lifecycles & Plots)
 - **Source Files**: `packages/shared/src/farming.ts`.

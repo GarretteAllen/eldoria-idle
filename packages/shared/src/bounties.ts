@@ -446,7 +446,7 @@ function hashSeed(seed: string): number {
     h ^= seed.charCodeAt(i);
     h = Math.imul(h, 16777619);
   }
-  return Math.abs(h);
+  return h >>> 0;
 }
 
 /**

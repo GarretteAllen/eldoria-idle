@@ -1260,6 +1260,15 @@ class EldoriaClient {
         }
         break;
 
+      case 'CHAT_MESSAGE':
+        this.appendChatMessage({
+          senderName: msg.senderName || msg.sender || 'Eldoria',
+          text: msg.text || msg.message || '',
+          channel: msg.channel || 'All',
+          timestamp: msg.timestamp || Date.now(),
+        });
+        break;
+
       case 'CHAT_MESSAGE_DELETED':
         if (msg.messageId) {
           this.chatHistory = this.chatHistory.filter(m => m.id !== msg.messageId);
@@ -1274,6 +1283,15 @@ class EldoriaClient {
 
       case 'BOSS_UPDATE':
         this.updateBossBanner(msg.boss);
+        break;
+
+      case 'BOSS_HIT':
+        if (typeof msg.damage === 'number' && msg.damage > 0) {
+          const bossNode = this.worldNodes.find(n => n.type === 'boss_arena');
+          if (bossNode) {
+            this.renderer.addFloatingText(bossNode.x, bossNode.y, `-${msg.damage}`, 'damage');
+          }
+        }
         break;
 
       case 'COMBAT_HIT': {
